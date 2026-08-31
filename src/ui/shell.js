@@ -22,6 +22,7 @@ const ICO = {
   fluxo: '<path d="M2 12.5h12M4 12.5V8M7 12.5V4.5M10 12.5V9.5M13 12.5V6"/>',
   alerta: '<path d="M8 2 15 13.5H1z"/><path d="M8 6.5v3.2M8 11.4v.1"/>',
   relatorio: '<path d="M3.5 1.5h6L13 5v9.5H3.5z"/><path d="M6 8.5h4M6 11h4"/>',
+  auditoria: '<path d="M2.5 3h8M2.5 6h8M2.5 9h4"/><circle cx="10.5" cy="10.5" r="3"/><path d="M12.7 12.7 14.5 14.5"/>',
   config: '<circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/>',
   cadastro: '<circle cx="8" cy="5.5" r="2.5"/><path d="M2.5 14c0-3 2.5-4.5 5.5-4.5S13.5 11 13.5 14"/>',
   mais: '<path d="M8 3v10M3 8h10"/>',
@@ -57,6 +58,7 @@ const MENU = [
     { v: 'fluxo', t: 'Fluxo de caixa', i: 'fluxo' },
     { v: 'alertas', t: 'Alertas', i: 'alerta' },
     { v: 'relatorio', t: 'Relatórios', i: 'relatorio' },
+    { v: 'auditoria', t: 'Trilha de auditoria', i: 'auditoria' },
     { v: 'obra-config', t: 'Configuração', i: 'config' }
   ] },
   { grupo: 'Sistema', itens: [
@@ -80,6 +82,7 @@ const TITULOS = {
   fluxo: ['Fluxo de caixa', 'Entradas e saídas mês a mês'],
   alertas: ['Alertas', 'Pendências que exigem ação'],
   relatorio: ['Relatórios', 'Documentos para cliente, CAIXA e arquivo'],
+  auditoria: ['Trilha de auditoria', 'Quem alterou cada valor financeiro e quando'],
   'obra-config': ['Configuração da obra', 'Identificação, financiamento e contrato'],
   ajustes: ['Ajustes e dados', 'Empresa, listas, backup e importação']
 };

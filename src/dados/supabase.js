@@ -271,6 +271,21 @@ const SUPA = {
     location.reload();
   },
 
+  /* --------------------------------------------------------- auditoria */
+  /* Leitor dedicado: a trilha é só leitura e não entra no ciclo do Store
+     (ele sincroniza por diferença, e a auditoria nunca é escrita pela tela). */
+  async lerAuditoria(obraId, limite = 500) {
+    if (!this.sb || !obraId) return [];
+    const { data, error } = await this.sb
+      .from('auditoria')
+      .select('*')
+      .eq('obra_id', obraId)
+      .order('criado_em', { ascending: false })
+      .limit(limite);
+    if (error) throw error;
+    return data || [];
+  },
+
   /* ------------------------------------------------------------ carga */
   async carregar() {
     const dados = {};

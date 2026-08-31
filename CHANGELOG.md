@@ -2,6 +2,14 @@
 
 ## Não publicado
 
+**Auditoria**
+- Migração `0003_auditoria.sql`: tabela `auditoria` e gatilho que registra toda
+  alteração de valor financeiro em contratos, medições, recebimentos e
+  lançamentos — quem mudou, de quanto para quanto e quando.
+- Tela **Trilha de auditoria** por obra: somente leitura, lê o banco direto,
+  fora do ciclo de sincronização. Fora do banco (acesso sem login) explica que
+  o recurso exige conta.
+
 **Integridade**
 - Camada de validação de domínio (`src/dominio/validacao.js`): cada registro é
   conferido antes de gravar, com dois níveis — erro (bloqueia) e alerta (avisa).

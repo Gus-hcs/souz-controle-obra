@@ -18,6 +18,7 @@ já calculados para o Power BI.
 | `lancamentos` | compras, taxas e demais saídas |
 | `cronograma` | etapas, prazos e avanço físico |
 | `diario` | diário de obra e fotos |
+| `auditoria` | trilha de alterações de valor financeiro, preenchida por gatilho |
 
 Visões para análise: `vw_contratos`, `vw_posicao_contratual`, `vw_lancamentos`,
 `vw_resumo_obra`, `vw_fluxo_mensal` — todas com `security_invoker = on`, ou seja,
@@ -45,6 +46,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 |---|---|
 | `0001_estrutura_inicial.sql` | tabelas, índices, gatilhos, políticas e visões |
 | `0002_validacao.sql` | restrições `CHECK` que espelham `src/dominio/validacao.js` |
+| `0003_auditoria.sql` | tabela `auditoria` e gatilho de trilha de valores financeiros |
 
 Ao criar uma migração nova, numere em sequência e descreva a mudança aqui.
 
@@ -59,3 +61,14 @@ Este arquivo tem três blocos, para rodar **em ordem** no SQL Editor:
 
 Se o diagnóstico trouxer linhas, corrija-as e repita o bloco 1 antes do bloco 3.
 Uma vez validado, não precisa reaplicar.
+
+### 0003 — auditoria
+
+Cria `public.auditoria` e um gatilho `after insert/update/delete` em `contratos`,
+`medicoes`, `recebimentos` e `lancamentos` que registra cada mudança nos campos
+de valor. Só o gatilho escreve (é `security definer`); o cliente só lê a trilha
+das próprias obras. A tabela **não** tem FK para `obras` de propósito: a trilha
+sobrevive à exclusão da obra.
+
+A tela **Trilha de auditoria** (por obra) lê `public.auditoria` direto, fora do
+ciclo de sincronização do sistema.

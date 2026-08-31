@@ -6,6 +6,7 @@ import { alertasObra, contratoTotalAutorizado, contratoTotalPago, contratoValor,
 import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapa, validarLancamento, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, toast } from './shell.js';
+import { carregarAuditoria } from './telas-obra.js';
 
 const ACOES = {};
 
@@ -16,6 +17,10 @@ ACOES['ir-alertas-carteira'] = () => {
   App.ir('alertas', o && o.id);
 };
 ACOES.menu = () => document.body.classList.toggle('menu-aberto');
+ACOES['recarregar-auditoria'] = () => {
+  const o = App.obra();
+  if (o) { carregarAuditoria(o.id, true); App.renderConteudo(); }
+};
 ACOES.tema = () => {
   const atual = document.documentElement.getAttribute('data-theme');
   const escuro = atual ? atual === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
