@@ -3,8 +3,9 @@
  */
 import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, hojeISO, isISO, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, uid } from '../nucleo/base.js';
 import { alertasObra, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, materialCalc, medicaoAlerta } from '../dominio/calculos.js';
+import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapa, validarLancamento, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
-import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, fecharModal, lerForm, modalAoSalvar, opcoesEtapas, opcoesLista, toast } from './shell.js';
+import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, toast } from './shell.js';
 
 const ACOES = {};
 
@@ -33,8 +34,27 @@ ACOES['confirmar-ok'] = () => {
 ACOES['salvar-form'] = () => {
   const dados = lerForm();
   const fn = modalAoSalvar;
-  if (fn) fn(dados);
+  if (!fn) return;
+  if (modalValidar) {
+    const problemas = modalValidar(dados) || [];
+    const bloqueios = mostrarAvisosForm(problemas);
+    if (bloqueios) {
+      toast(`Corrija ${bloqueios === 1 ? 'o campo destacado' : `os ${bloqueios} campos destacados`} para salvar.`, 'critico');
+      return;
+    }
+  }
+  fn(dados);
 };
+
+/* Gate de validação para os formulários que não passam por 'salvar-form'
+   (a configuração da obra tem o próprio botão). */
+function barrar(problemas, alvo) {
+  const erros = apenasErros(problemas);
+  if (!erros.length) return false;
+  const lista = erros.map((p) => '• ' + p.mensagem).join('\n');
+  toast((alvo ? alvo + ':\n' : '') + lista, 'critico', 6000);
+  return true;
+}
 
 /* ============================================================== OBRA */
 function formObra(obra, aoConcluir) {
@@ -66,6 +86,7 @@ function formObra(obra, aoConcluir) {
       contrato: `Empreitada principal calculada: <b>${fmtMoney(num(d.areaConstruida) * num(d.precoEmpreitadaM2))}</b>
         (${fmtNum(d.areaConstruida, 2)} m² × ${fmtMoney(d.precoEmpreitadaM2)}/m²)`
     }),
+    validar: (d) => validarObra(d),
     aoSalvar: (d) => {
       if (!d.nome) return toast('Informe o nome da obra.', 'aviso');
       Object.assign(obra, {
@@ -95,6 +116,7 @@ ACOES['nova-obra'] = () => {
 ACOES['salvar-obra-config'] = () => {
   const d = lerForm();
   const o = App.obra();
+  if (barrar(validarObra(d), 'Configuração da obra')) return;
   mutar(() => {
     Object.keys(d).forEach((k) => {
       if (k.startsWith('fin.')) o.fin[k.slice(4)] = d[k];
@@ -175,6 +197,7 @@ function formContrato(c, novo, aoSalvar) {
           · já pago em medições: ${fmtMoney(pago)} · saldo: <b>${fmtMoney(outros + v - pago)}</b>`
       };
     },
+    validar: (d) => validarContrato(d),
     aoSalvar: (d) => {
       if (!d.codigo) return toast('Informe o código do contrato.', 'aviso');
       if (!d.codigoBase) d.codigoBase = d.codigo;
@@ -270,6 +293,7 @@ function formMedicao(m, novo, aoSalvar) {
           · já pago: ${fmtMoney(pagoOutras)} · saldo após esta medição: <b>${fmtMoney(saldo)}</b>${aviso}`
       };
     },
+    validar: (d) => validarMedicao(d),
     aoSalvar: (d) => {
       if (!d.contratoBase) return toast('Selecione o contrato.', 'aviso');
       Object.assign(m, d);
@@ -335,6 +359,7 @@ function formRecebimento(r, novo, aoSalvar) {
           <b style="color:${dif < 0 ? 'var(--critico)' : 'var(--ok)'}">${fmtMoney(dif)}</b>`
       };
     },
+    validar: (d) => validarRecebimento(d),
     aoSalvar: (d) => { Object.assign(r, d); fecharModal(); aoSalvar(r); }
   });
 }
@@ -389,6 +414,7 @@ function formLancamento(l, novo, aoSalvar) {
       total: `Total: <b>${fmtMoney(Math.max(0, num(d.quantidade) * num(d.precoUnitario) - num(d.desconto) + num(d.frete)))}</b>
         &nbsp;(${fmtNum(d.quantidade, 2)} × ${fmtMoney(d.precoUnitario)} − ${fmtMoney(d.desconto)} + ${fmtMoney(d.frete)})`
     }),
+    validar: (d) => validarLancamento(d),
     aoSalvar: (d) => {
       if (!d.descricao) return toast('Informe a descrição do lançamento.', 'aviso');
       Object.assign(l, d);
@@ -437,6 +463,7 @@ function formMaterial(m, novo, aoSalvar) {
     calcular: (d) => ({
       orc: `Orçamento previsto: <b>${fmtMoney(num(d.quantidadeNecessaria) * num(d.precoPrevisto))}</b>`
     }),
+    validar: (d) => validarMaterial(d),
     aoSalvar: (d) => {
       if (!d.material) return toast('Informe o material.', 'aviso');
       Object.assign(m, d);
@@ -507,6 +534,7 @@ function formEtapa(e, novo, aoSalvar) {
       const c = etapaCalc(d);
       return { sit: `Situação: <b>${c.situacao}</b> · ${c.diasPrevistos} dia(s) previstos · ${c.diasRealizados} realizado(s)${c.atraso ? ` · <b style="color:var(--critico)">${c.atraso} dia(s) de atraso</b>` : ''}` };
     },
+    validar: (d) => validarEtapa(d),
     aoSalvar: (d) => {
       if (!d.etapa) return toast('Informe o nome da etapa.', 'aviso');
       Object.assign(e, d);
@@ -599,6 +627,7 @@ function formDiario(reg, novo, aoSalvar) {
       { k: 'autor', label: 'Registrado por', tipo: 'texto', col: 6 }
     ],
     valores: reg,
+    validar: (d) => validarDiario(d),
     aoSalvar: (d) => {
       Object.assign(reg, d, { fotos: window.__fotos });
       fecharModal();
@@ -687,6 +716,7 @@ function abrirFormCliente(c, novo) {
       { k: 'observacoes', label: 'Observações', tipo: 'area', col: 12 }
     ],
     valores: c,
+    validar: (d) => validarCliente(d),
     aoSalvar: (d) => {
       if (!d.nome) return toast('Informe o nome.', 'aviso');
       Object.assign(c, d);
@@ -724,6 +754,7 @@ function abrirFormPrestador(p, novo) {
       { k: 'observacoes', label: 'Observações', tipo: 'area', col: 12 }
     ],
     valores: p,
+    validar: (d) => validarPrestador(d),
     aoSalvar: (d) => {
       if (!d.nome) return toast('Informe o nome.', 'aviso');
       Object.assign(p, d);

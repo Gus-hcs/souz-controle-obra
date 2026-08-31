@@ -355,6 +355,16 @@ select { cursor: pointer; }
 }
 .secao-form:first-child { border-top: 0; padding-top: 0; margin-top: 0; }
 
+/* avisos de validação dentro do formulário */
+.form-avisos { margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; }
+.form-avisos .linha {
+  font-size: 12.5px; border-radius: var(--r); padding: 7px 10px;
+  border: 1px solid transparent;
+}
+.form-avisos .linha.erro { background: var(--critico-fraco); border-color: var(--critico); color: var(--critico); }
+.form-avisos .linha.alerta { background: var(--aviso-fraco); border-color: var(--aviso); color: var(--aviso); }
+.campo.invalido > input, .campo.invalido > select, .campo.invalido > textarea { border-color: var(--critico); }
+
 /* modal */
 #modal-camada {
   position: fixed; inset: 0; background: rgba(10,14,16,.55);

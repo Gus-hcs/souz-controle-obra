@@ -73,6 +73,19 @@ if (temNovo) {
     document.getElementById('modal-camada').classList.contains('aberto'));
   console.log(`\n  formulário de medição abre: ${aberto ? 'sim' : 'NÃO'}`);
   if (!aberto) erros.push('formulário de medição não abriu');
+
+  /* validação: valor negativo tem que barrar a gravação */
+  if (aberto) {
+    await pagina.fill('[data-campo="valorMedido"]', '-500');
+    await pagina.click('[data-acao="salvar-form"]');
+    await pagina.waitForTimeout(200);
+    const barrou = await pagina.evaluate(() => {
+      const m = document.getElementById('modal-camada');
+      return m.classList.contains('aberto') && !!m.querySelector('.form-avisos .linha.erro');
+    });
+    console.log(`  gravação barrada por valor inválido: ${barrou ? 'sim' : 'NÃO'}`);
+    if (!barrou) erros.push('validação não barrou valor medido negativo');
+  }
   await pagina.keyboard.press('Escape');
 }
 

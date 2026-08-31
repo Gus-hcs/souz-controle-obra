@@ -248,11 +248,38 @@ function acoesLinha(tipo, id) {
 
 /* ------------------------------------------------------------- modal */
 let modalAoSalvar = null;
+let modalValidar = null;
 
 function fecharModal() {
   document.getElementById('modal-camada').classList.remove('aberto');
   document.getElementById('modal-camada').innerHTML = '';
   modalAoSalvar = null;
+  modalValidar = null;
+}
+
+/* Mostra os problemas de validação no topo do formulário e marca os campos.
+   Devolve a quantidade de problemas que bloqueiam a gravação ('erro'). */
+function mostrarAvisosForm(problemas) {
+  const form = document.querySelector('#modal-camada [data-form]');
+  if (!form) return 0;
+  form.querySelectorAll('.campo.invalido').forEach((c) => c.classList.remove('invalido'));
+  const cx = form.parentElement;
+  let caixa = cx.querySelector('.form-avisos');
+  if (caixa) caixa.remove();
+  if (!problemas || !problemas.length) return 0;
+
+  caixa = document.createElement('div');
+  caixa.className = 'form-avisos';
+  caixa.innerHTML = problemas
+    .map((p) => `<div class="linha ${p.sev === 'alerta' ? 'alerta' : 'erro'}">${esc(p.mensagem)}</div>`)
+    .join('');
+  cx.insertBefore(caixa, form);
+
+  problemas.forEach((p) => {
+    const el = form.querySelector(`[data-campo="${p.campo}"]`);
+    if (el && el.closest('.campo')) el.closest('.campo').classList.add('invalido');
+  });
+  return problemas.filter((p) => p.sev !== 'alerta').length;
 }
 
 function abrirModal({ titulo, corpo, rodape, largura = '' }) {
@@ -336,7 +363,7 @@ function campoHTML(c, valores) {
   </div>`;
 }
 
-function abrirForm({ titulo, campos, valores = {}, aoSalvar, largura = '', calcular, rodapeExtra = '' }) {
+function abrirForm({ titulo, campos, valores = {}, aoSalvar, largura = '', calcular, validar, rodapeExtra = '' }) {
   const grupos = [];
   campos.forEach((c) => {
     if (c.secao) { grupos.push(`<div class="secao-form"><span class="rotulo">${esc(c.secao)}</span></div>`); }
@@ -350,6 +377,7 @@ function abrirForm({ titulo, campos, valores = {}, aoSalvar, largura = '', calcu
              <button class="btn primario" data-acao="salvar-form">Salvar</button>`
   });
   modalAoSalvar = (dados) => aoSalvar(dados);
+  modalValidar = validar || null;
   window.__calcForm = calcular || null;
   if (calcular) rodarCalcForm();
 }
@@ -441,6 +469,8 @@ export {
   botao,
   acoesLinha,
   modalAoSalvar,
+  modalValidar,
+  mostrarAvisosForm,
   fecharModal,
   abrirModal,
   confirmar,

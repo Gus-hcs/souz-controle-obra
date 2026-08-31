@@ -3,6 +3,7 @@
  */
 import { addDias, competencia, fmtData, fmtDataCurta, fmtMoney, fmtNum, fmtPct, hojeISO, migrar, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, slug } from '../nucleo/base.js';
 import { alertasObra, basesContratuais, etapaCalc, kpisObra, lancamentoTotal, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
+import { apenasErros, validarObraCompleta } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { App, confirmar, nomeCliente, toast } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
@@ -147,6 +148,7 @@ ACOES['importar-xlsx'] = async () => {
   inp.onchange = async () => {
     const arquivos = [...inp.files];
     let importadas = 0;
+    let comProblema = 0;
     for (const f of arquivos) {
       try {
         const buf = await f.arrayBuffer();
@@ -154,6 +156,11 @@ ACOES['importar-xlsx'] = async () => {
         const obra = planilhaParaObra(wb, f.name.replace(/\.xls[xm]$/i, ''));
         mutar((e) => { e.obras.push(obra); }, { render: false });
         importadas++;
+        const erros = apenasErros(validarObraCompleta(obra));
+        if (erros.length) {
+          comProblema++;
+          console.warn(`Planilha ${f.name}: ${erros.length} problema(s) de integridade`, erros);
+        }
       } catch (err) {
         console.error(err);
         toast(`Falha ao importar ${f.name}: ${err.message}`, 'critico', 6000);
@@ -162,6 +169,9 @@ ACOES['importar-xlsx'] = async () => {
     if (importadas) {
       App.ir('carteira');
       toast(`${importadas} obra(s) importada(s) da planilha.`, 'ok', 5000);
+      if (comProblema) {
+        toast(`${comProblema} obra(s) com dados fora do padrão — revise antes de gravar; o banco vai recusar valores inválidos.`, 'aviso', 8000);
+      }
     }
   };
   inp.click();

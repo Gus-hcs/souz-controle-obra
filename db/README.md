@@ -44,5 +44,18 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | Arquivo | O que faz |
 |---|---|
 | `0001_estrutura_inicial.sql` | tabelas, índices, gatilhos, políticas e visões |
+| `0002_validacao.sql` | restrições `CHECK` que espelham `src/dominio/validacao.js` |
 
 Ao criar uma migração nova, numere em sequência e descreva a mudança aqui.
+
+### 0002 — como aplicar
+
+Este arquivo tem três blocos, para rodar **em ordem** no SQL Editor:
+
+1. **Diagnóstico** (só leitura) — lista as linhas que violariam as novas regras.
+2. **Restrições `NOT VALID`** — passam a valer para gravações novas sem recusar o
+   histórico.
+3. **Validação do histórico** — só conclui se o diagnóstico estiver zerado.
+
+Se o diagnóstico trouxer linhas, corrija-as e repita o bloco 1 antes do bloco 3.
+Uma vez validado, não precisa reaplicar.
