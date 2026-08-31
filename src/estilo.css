@@ -167,7 +167,9 @@ a { color: var(--marca); }
   display: flex; gap: 10px; align-items: center;
 }
 .marca-mark {
-  width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center;
+  width: 40px; height: 40px; flex: 0 0 40px; display: grid; place-items: center;
+  background: #0A0B0D;                       /* fundo preto/chumbo: contraste com a logo clara */
+  border: 1px solid var(--rail-linha); border-radius: var(--r); padding: 5px;
 }
 .marca-mark svg, .marca-mark .marca-img {
   width: 100%; height: 100%; display: block; object-fit: contain;
@@ -641,12 +643,12 @@ select { cursor: pointer; }
 #acesso {
   position: fixed; inset: 0; z-index: 150; display: none;
   align-items: center; justify-content: center; padding: 20px;
-  background: var(--bg);
+  background: #06070A;
   background-image:
-    radial-gradient(60% 55% at 20% 10%, color-mix(in srgb, var(--marca) 22%, transparent), transparent 70%),
-    radial-gradient(50% 50% at 88% 92%, color-mix(in srgb, var(--marca) 14%, transparent), transparent 70%);
+    radial-gradient(70% 60% at 50% 0%, rgba(255,255,255,.03), transparent 70%);
   overflow-y: auto;
 }
+:root[data-theme="light"] #acesso { background: #E7E6E1; background-image: none; }
 .acesso-painel {
   background: var(--sup); border: 1px solid var(--linha-forte); border-radius: var(--r2);
   width: 100%; max-width: 420px; padding: 28px 28px 24px; margin: auto;
