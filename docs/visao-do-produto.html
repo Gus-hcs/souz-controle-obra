@@ -1,0 +1,526 @@
+<!-- Souz Controle de Obra — dossiê do produto -->
+<title>Souz Controle de Obra</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
+
+<style>
+  /* ---- tokens: escuro é o padrão, como no produto ---- */
+  :root {
+    color-scheme: dark;
+    --bg: #0B0D11;
+    --surface: #13161C;
+    --surface-2: #191D25;
+    --line: #232830;
+    --line-strong: #343B48;
+    --ink: #ECEDF0;
+    --ink-2: #AAB1BD;
+    --muted: #6B7280;
+    --accent: #AEB6C2;          /* cinza chumbo — o acento do produto */
+    --accent-dim: #7E8794;
+    --ok: #46C98A;
+    --warn: #E4A73E;
+    --crit: #F0705F;
+    --rule: linear-gradient(90deg, var(--accent-dim), transparent);
+    --shadow: 0 1px 2px rgba(0,0,0,.3);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #ECEBE6;
+      --surface: #FCFBF8;
+      --surface-2: #F3F1EB;
+      --line: #E0DDD3;
+      --line-strong: #C6C2B6;
+      --ink: #16191C;
+      --ink-2: #4A4F52;
+      --muted: #7B7F7D;
+      --accent: #3B4552;
+      --accent-dim: #6A7481;
+      --ok: #2C7350;
+      --warn: #935E0E;
+      --crit: #A32B20;
+      --shadow: 0 1px 2px rgba(20,24,26,.07);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #ECEBE6;
+    --surface: #FCFBF8;
+    --surface-2: #F3F1EB;
+    --line: #E0DDD3;
+    --line-strong: #C6C2B6;
+    --ink: #16191C;
+    --ink-2: #4A4F52;
+    --muted: #7B7F7D;
+    --accent: #3B4552;
+    --accent-dim: #6A7481;
+    --ok: #2C7350;
+    --warn: #935E0E;
+    --crit: #A32B20;
+    --shadow: 0 1px 2px rgba(20,24,26,.07);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 1.62;
+    letter-spacing: -.006em;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 760px; margin: 0 auto; padding: 0 24px; }
+
+  h1, h2, h3 {
+    font-family: 'Space Grotesk', 'Inter', sans-serif;
+    font-weight: 600;
+    letter-spacing: -.02em;
+    text-wrap: balance;
+    margin: 0;
+  }
+  h2 {
+    font-size: 22px;
+    display: flex; align-items: baseline; gap: 12px;
+    margin-bottom: 18px;
+  }
+  h2 .idx {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; font-weight: 500;
+    color: var(--accent-dim);
+    letter-spacing: 0;
+  }
+  h3 { font-size: 15px; letter-spacing: -.01em; color: var(--ink); margin-bottom: 4px; }
+  p { margin: 0 0 14px; color: var(--ink-2); max-width: 62ch; }
+  p strong { color: var(--ink); font-weight: 600; }
+  a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--accent-dim); }
+  a:hover { border-bottom-color: var(--ink); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  .eyebrow {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .14em;
+    color: var(--muted);
+  }
+  .mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+
+  /* ---- topo ---- */
+  header {
+    padding: 68px 0 40px;
+    border-bottom: 1px solid var(--line);
+  }
+  .mark { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; }
+  .mark svg { width: 40px; height: 40px; flex: 0 0 40px; color: var(--accent); }
+  .mark .name {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 20px; font-weight: 700; letter-spacing: .01em; line-height: 1;
+  }
+  .mark .name span { color: var(--ink-2); font-weight: 500; }
+  .mark .kicker { font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  header h1 { font-size: clamp(28px, 6vw, 40px); line-height: 1.1; }
+  header .lede { font-size: 17px; color: var(--ink-2); max-width: 54ch; margin: 16px 0 30px; }
+
+  .facts {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+    background: var(--line); border: 1px solid var(--line);
+    border-radius: 10px; overflow: hidden;
+  }
+  .facts div { background: var(--surface); padding: 14px 16px; }
+  .facts .n {
+    font-family: 'Space Grotesk', sans-serif; font-weight: 600;
+    font-size: 21px; line-height: 1.1; font-variant-numeric: tabular-nums;
+  }
+  .facts .k { font-size: 11px; color: var(--muted); margin-top: 3px; letter-spacing: .04em; }
+
+  /* ---- seções ---- */
+  section { padding: 46px 0; border-bottom: 1px solid var(--line); }
+  section:last-of-type { border-bottom: 0; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 22px; }
+  .group { margin-bottom: 22px; }
+  .group:last-child { margin-bottom: 0; }
+  .group .lbl {
+    font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 600;
+    color: var(--accent); letter-spacing: .02em; margin-bottom: 8px;
+    padding-bottom: 6px; border-bottom: 1px solid var(--line);
+  }
+  ul.feat { list-style: none; margin: 0; padding: 0; }
+  ul.feat li {
+    font-size: 14px; color: var(--ink-2); padding: 5px 0 5px 18px; position: relative;
+  }
+  ul.feat li::before {
+    content: ""; position: absolute; left: 0; top: 12px;
+    width: 7px; height: 1.5px; background: var(--accent-dim);
+  }
+  ul.feat li b { color: var(--ink); font-weight: 600; }
+
+  /* pontos do diferencial */
+  .diff { display: grid; gap: 2px; }
+  .diff article {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; padding: 16px 18px;
+  }
+  .diff h3 { margin-bottom: 5px; }
+  .diff p { margin: 0; font-size: 14px; }
+
+  /* tabela de especificação */
+  .spec { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .spec th, .spec td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .spec th {
+    font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 12px;
+    color: var(--muted); text-transform: uppercase; letter-spacing: .06em;
+    width: 34%; white-space: nowrap;
+  }
+  .spec td { color: var(--ink-2); }
+  .spec tr:last-child th, .spec tr:last-child td { border-bottom: 0; }
+
+  /* estado atual */
+  .status { display: grid; gap: 2px; }
+  .status .row {
+    display: grid; grid-template-columns: 22px 1fr; gap: 12px; align-items: start;
+    padding: 11px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  }
+  .status .dot { width: 9px; height: 9px; border-radius: 50%; margin-top: 6px; }
+  .status .dot.ok { background: var(--ok); }
+  .status .dot.mid { background: var(--warn); }
+  .status .dot.no { background: var(--muted); }
+  .status .t { font-size: 14px; }
+  .status .t b { color: var(--ink); font-weight: 600; }
+  .status .t span { color: var(--muted); }
+
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+
+  /* roadmap */
+  .wave { display: grid; grid-template-columns: 42px 1fr; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .wave:last-child { border-bottom: 0; }
+  .wave .num {
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 18px;
+    color: var(--accent-dim); font-variant-numeric: tabular-nums;
+  }
+  .wave h3 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .wave p { font-size: 14px; margin: 6px 0 0; }
+  .tag {
+    font-family: 'JetBrains Mono', monospace; font-size: 10.5px; font-weight: 500;
+    padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line-strong);
+    color: var(--muted); letter-spacing: .02em; white-space: nowrap;
+  }
+  .tag.done { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+  .tag.part { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+
+  /* vender */
+  .sell { display: grid; gap: 14px; }
+  .sell .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px 20px;
+  }
+  .sell .card .lbl {
+    font-family: 'Space Grotesk', sans-serif; font-size: 12px; font-weight: 600;
+    color: var(--accent); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px;
+  }
+  .sell .card p { margin: 0; font-size: 14px; }
+  .sell .card p + p { margin-top: 8px; }
+  .pitch {
+    font-family: 'Space Grotesk', sans-serif; font-size: 19px; font-weight: 500;
+    line-height: 1.4; color: var(--ink); border-left: 2px solid var(--accent);
+    padding-left: 18px; margin: 4px 0 20px; max-width: 46ch;
+  }
+
+  .links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+  .links a {
+    border: 1px solid var(--line-strong); border-radius: 7px; padding: 9px 14px;
+    font-size: 13px; font-weight: 500;
+  }
+  .links a:hover { background: var(--surface-2); border-color: var(--accent-dim); }
+
+  footer { padding: 40px 0 60px; color: var(--muted); font-size: 12px; }
+
+  @media (max-width: 620px) {
+    .facts { grid-template-columns: repeat(2, 1fr); }
+    .cols { grid-template-columns: 1fr; }
+    h2 { font-size: 20px; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    section { animation: rise .5s ease both; }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="mark">
+      <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <g stroke="currentColor" stroke-width="1.7" stroke-linejoin="round">
+          <path d="M17 8 26 12.5 17 17 8 12.5Z" fill="currentColor" fill-opacity=".22"/>
+          <path d="M8 12.5 17 17 17 25 8 20.5Z" fill="currentColor" fill-opacity=".1"/>
+          <path d="M17 17 26 12.5 26 20.5 17 25Z" fill="currentColor" fill-opacity=".32"/>
+          <path d="M31 23 40 27.5 31 32 22 27.5Z" fill="currentColor" fill-opacity=".22"/>
+          <path d="M22 27.5 31 32 31 40 22 35.5Z" fill="currentColor" fill-opacity=".1"/>
+          <path d="M31 32 40 27.5 40 35.5 31 40Z" fill="currentColor" fill-opacity=".32"/>
+        </g>
+      </svg>
+      <div>
+        <div class="name">SouZ <span>Controle de Obra</span></div>
+        <div class="kicker">Dossiê do produto</div>
+      </div>
+    </div>
+
+    <h1>Controle de obra que fala CAIXA de verdade.</h1>
+    <p class="lede">
+      Um sistema web de gestão financeira e de produção de obras, nascido de uma planilha
+      de acompanhamento MCMV e transformado em produto SaaS. Já está no ar.
+    </p>
+
+    <div class="facts">
+      <div><div class="n">18</div><div class="k">telas em produção</div></div>
+      <div><div class="n">114</div><div class="k">testes automatizados</div></div>
+      <div><div class="n">7</div><div class="k">migrações de banco</div></div>
+      <div><div class="n mono">0</div><div class="k">dependências de execução</div></div>
+    </div>
+  </header>
+
+  <section>
+    <h2><span class="idx">01</span>O produto</h2>
+    <p>
+      A construtora que toca MCMV financiado pela CAIXA vive de planilha: a medição do
+      empreiteiro numa aba, o cronograma de recebimento da CAIXA em outra, a compra de
+      material numa terceira, o prazo numa quarta. Nada conversa. O erro mais comum —
+      pagar o mesmo serviço duas vezes, uma como medição e outra como compra — só
+      aparece no fechamento, quando a obra já consumiu a margem.
+    </p>
+    <p>
+      O <strong>Souz Controle de Obra</strong> junta tudo isso num lugar só, com uma regra
+      que o Excel não impõe: <strong>cada real entra uma vez e num lugar certo</strong>.
+      Medição de prestador é medição. Compra sem medição é lançamento. Crédito da CAIXA é
+      recebimento. O sistema recusa a duplicidade e mostra, a qualquer momento, se a obra
+      está dando lucro.
+    </p>
+  </section>
+
+  <section>
+    <h2><span class="idx">02</span>O que faz</h2>
+
+    <div class="group">
+      <div class="lbl">Financeiro da obra</div>
+      <div class="cols"><ul class="feat">
+        <li><b>Contratos e aditivos</b> agrupados por código-base, com posição contratual</li>
+        <li><b>Medições</b> de prestadores e controle de pagamento, com alerta de pagamento acima do medido</li>
+        <li><b>Recebimentos da CAIXA</b> — cronograma PCI, solicitações e créditos efetivos</li>
+        <li><b>Lançamentos</b> — compras, taxas, honorários e serviços sem medição</li>
+      </ul><ul class="feat">
+        <li><b>Fluxo de caixa</b> mês a mês, com previsto não recebido e medições não pagas</li>
+        <li><b>Saldo em caixa, saldo contratual</b> e resultado projetado sempre visíveis</li>
+        <li><b>Custo por m²</b> realizado e previsto, contra o teto físico da CAIXA</li>
+        <li><b>Trilha de auditoria</b> de quem alterou cada valor financeiro e quando</li>
+      </ul></div>
+    </div>
+
+    <div class="group">
+      <div class="lbl">Produção e prazo</div>
+      <div class="cols"><ul class="feat">
+        <li><b>Cronograma</b> com avanço físico ponderado pelo peso de cada etapa</li>
+        <li><b>Curva S</b> — físico previsto × realizado × financeiro, no mesmo eixo</li>
+      </ul><ul class="feat">
+        <li><b>Diário de obra</b> com clima, efetivo, atividades, ocorrências e fotos</li>
+        <li><b>Alertas automáticos</b> — contrato ultrapassado, material vencido, etapa atrasada, caixa negativo, margem abaixo do alvo</li>
+      </ul></div>
+    </div>
+
+    <div class="group">
+      <div class="lbl">Materiais e entrada/saída de dados</div>
+      <div class="cols"><ul class="feat">
+        <li><b>Plano de materiais</b> por etapa, com saldo a comprar atualizado sozinho ao lançar a compra</li>
+        <li><b>Importação da planilha MCMV</b> — a obra nasce montada, sem digitação</li>
+      </ul><ul class="feat">
+        <li><b>Relatório em PDF</b> para cliente e para a CAIXA</li>
+        <li><b>Exportação CSV</b> e <b>acesso direto do Power BI</b> ao PostgreSQL</li>
+      </ul></div>
+    </div>
+
+    <div class="group">
+      <div class="lbl">Operação como SaaS</div>
+      <div class="cols"><ul class="feat">
+        <li><b>Multiconta</b> — cada construtora com seus dados isolados no banco</li>
+        <li><b>Painel de administração</b> — consumo por cliente (obras, contratos, medições, fotos, última atividade)</li>
+      </ul><ul class="feat">
+        <li><b>Planos e limite de obras</b> por conta, checados no banco</li>
+        <li><b>Liberação de acesso por aba</b> e bloqueio de conta, tudo garantido pela política do banco</li>
+      </ul></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="idx">03</span>O diferencial</h2>
+    <div class="diff">
+      <article>
+        <h3>Profundidade em CAIXA / MCMV</h3>
+        <p>Recebimento por etapa do PCI, escopo padrão da empreitada MCMV, teto de custo físico por m², relatório no formato que o engenheiro credenciado espera. Os concorrentes genéricos de obra não modelam nada disso.</p>
+      </article>
+      <article>
+        <h3>Regra anti-duplicidade</h3>
+        <p>Medição, lançamento e recebimento são fluxos separados por desenho. O sistema não deixa o mesmo pagamento entrar duas vezes — a causa nº 1 de margem perdida em obra.</p>
+      </article>
+      <article>
+        <h3>Cálculo provado, não confiado</h3>
+        <p>Toda regra de negócio vive numa camada isolada da tela e é conferida, número por número, contra a planilha MCMV original. Uma mudança no código nunca altera um resultado financeiro em silêncio.</p>
+      </article>
+      <article>
+        <h3>Portátil e sem trava</h3>
+        <p>O sistema inteiro é um único arquivo HTML. Publica em qualquer lugar, abre do disco, vira cópia de segurança. Zero dependência de execução — nada de servidor de aplicação para manter.</p>
+      </article>
+      <article>
+        <h3>Camada SaaS já pronta</h3>
+        <p>Contas, planos, limites, bloqueio e acesso por recurso já existem no banco, com a segurança no PostgreSQL e não na interface. Falta só ligar a cobrança.</p>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="idx">04</span>Como é construído</h2>
+    <table class="spec">
+      <tr><th>Front-end</th><td>JavaScript modular puro, sem framework. Montado pelo Vite em um único <span class="mono">index.html</span> com CSS e JS embutidos.</td></tr>
+      <tr><th>Banco de dados</th><td>PostgreSQL no Supabase. Row Level Security em todas as tabelas; acesso decidido por obra e por papel (dono / engenheiro / cliente).</td></tr>
+      <tr><th>Autenticação</th><td>E-mail e senha via Supabase. A chave que vai ao navegador é publicável; a segurança real está nas políticas do banco.</td></tr>
+      <tr><th>Publicação</th><td>GitHub Actions → GitHub Pages. Todo push na branch principal passa por lint, 114 testes e teste de navegador antes de ir ao ar. Sem passo manual.</td></tr>
+      <tr><th>Analytics</th><td>Power BI e ferramentas de SQL conectam direto no PostgreSQL, com visões que já entregam os números calculados e respeitam a segurança por conta.</td></tr>
+      <tr><th>Arquitetura</th><td>Domínio (todo o cálculo) isolado da interface e da persistência. Dá para trocar a camada visual sem tocar em uma linha de cálculo.</td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2><span class="idx">05</span>Segurança</h2>
+    <p>
+      Toda a segurança vive no banco. O acesso a uma obra e a tudo que pende dela é
+      decidido por uma tabela de membros e pelo papel do usuário, com políticas que
+      chamam funções endurecidas (<span class="mono">search_path</span> travado, schema
+      protegido). Valores financeiros têm trilha de auditoria por gatilho. O painel de
+      administração é liberado por uma coluna do banco, não por senha na tela.
+    </p>
+    <p>
+      Uma auditoria recente encontrou e corrigiu uma falha crítica de auto-promoção a
+      administrador (migração <span class="mono">0006</span>). O que ainda falta é
+      configuração no painel do Supabase: fechar o cadastro aberto, exigir confirmação
+      de e-mail, senha mínima de 12 caracteres, proteção contra bots e MFA na conta
+      administradora.
+    </p>
+  </section>
+
+  <section>
+    <h2><span class="idx">06</span>Estado atual</h2>
+    <div class="status">
+      <div class="row"><span class="dot ok"></span><div class="t"><b>No ar e funcional.</b> <span>18 telas, dados reais, publicação automática.</span></div></div>
+      <div class="row"><span class="dot mid"></span><div class="t"><b>Migrações 0002–0007 pendentes de aplicação.</b> <span>O SQL está pronto no repositório; cola no editor do Supabase. Sem elas, o núcleo roda, mas validação no banco, auditoria, papéis e limites ficam desligados. A 0006 é urgente (segurança).</span></div></div>
+      <div class="row"><span class="dot mid"></span><div class="t"><b>Configuração de autenticação do Supabase.</b> <span>Cadastro, confirmação de e-mail, senha forte, rate limit e MFA — trabalho de painel.</span></div></div>
+      <div class="row"><span class="dot no"></span><div class="t"><b>Sincronização multiusuário simultâneo.</b> <span>Hoje é "última gravação vence". Ok com um usuário por obra; precisa de tratamento quando duas pessoas editam a mesma obra ao mesmo tempo.</span></div></div>
+      <div class="row"><span class="dot no"></span><div class="t"><b>Tela de convite de engenheiro / cliente.</b> <span>O esquema de papéis existe; falta a interface de convite e de esconder ação por papel.</span></div></div>
+      <div class="row"><span class="dot no"></span><div class="t"><b>Cobrança recorrente.</b> <span>Planos e limites existem; falta escolher o meio de pagamento (Asaas / Cora / Pagar.me) e integrar.</span></div></div>
+      <div class="row"><span class="dot no"></span><div class="t"><b>Termos de uso e política de privacidade.</b> <span>Precisam de rascunho e revisão jurídica antes de abrir para clientes.</span></div></div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--ok)"></i>Pronto</span>
+      <span><i style="background:var(--warn)"></i>Pronto, falta aplicar / configurar</span>
+      <span><i style="background:var(--muted)"></i>Não iniciado</span>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="idx">07</span>Roadmap</h2>
+    <div class="wave">
+      <div class="num">0</div>
+      <div>
+        <h3>Poder receber dinheiro <span class="tag part">parcial</span></h3>
+        <p>Validação de dados em dois níveis ✓ · trilha de auditoria ✓ · esquema de papéis por obra ✓ · pesquisa de meio de pagamento e rascunho de termos — pendente.</p>
+      </div>
+    </div>
+    <div class="wave">
+      <div class="num">1</div>
+      <div>
+        <h3>Interface e base de qualquer obra <span class="tag part">parcial</span></h3>
+        <p>Tema escuro, sistema de tokens, tabelas ordenáveis e responsivas, painel redesenhado, indicadores primordiais em destaque ✓ · contas a pagar/receber, anexos, arquivos da obra, centro de custo, DRE, orçado × realizado, onboarding — pendente.</p>
+      </div>
+    </div>
+    <div class="wave">
+      <div class="num">2</div>
+      <div>
+        <h3>O canteiro</h3>
+        <p>App instalável offline com fila de sincronização, foto com data e coordenada gravadas, RDO normativo, relatório fotográfico por etapa, checklist de inspeção, efetivo do diário virando custo de mão de obra.</p>
+      </div>
+    </div>
+    <div class="wave">
+      <div class="num">3</div>
+      <div>
+        <h3>Compras e equipe</h3>
+        <p>Pedido de compra que vira lançamento na entrega, cotação comparativa de três fornecedores, almoxarifado com saldo físico, importação de NFe por XML, portal do cliente somente leitura.</p>
+      </div>
+    </div>
+    <div class="wave">
+      <div class="num">4</div>
+      <div>
+        <h3>Orçamento</h3>
+        <p>Composição de custos por insumo, base SINAPI com atualização mensal, biblioteca própria de composições, curva ABC de insumos. Confirmar demanda com construtores antes de começar.</p>
+      </div>
+    </div>
+    <div class="wave">
+      <div class="num">5</div>
+      <div>
+        <h3>A vantagem que ninguém copia</h3>
+        <p>Importar a PCI da CAIXA (a obra nasce montada), conciliação etapa liberada × empreiteiro pago, relatório de vistoria no formato do engenheiro credenciado, leitura de nota fiscal por foto com IA, alerta por WhatsApp, multiempresa matriz e filial.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="idx">08</span>Como vender</h2>
+
+    <div class="pitch">
+      O único controle de obra que entende o financiamento da CAIXA — da medição do PCI
+      ao fechamento com margem.
+    </div>
+
+    <div class="sell">
+      <div class="card">
+        <div class="lbl">Para quem</div>
+        <p><strong>Primário:</strong> construtoras pequenas e médias que tocam obra MCMV financiada pela CAIXA e ainda controlam por planilha — de 1 a algumas dezenas de casas por vez.</p>
+        <p><strong>Secundário:</strong> engenheiros autônomos que gerenciam obras de terceiros e precisam prestar contas ao cliente e ao banco.</p>
+      </div>
+      <div class="card">
+        <div class="lbl">Modelo de receita</div>
+        <p>Assinatura mensal, com faixa por <strong>número de obras ativas</strong> — o limite por conta já está implementado no banco. Trial → ativo → suspenso já existe como estado de conta.</p>
+        <p>Ancorar o preço entre o de Vobi e Obra Prima, justificado pela profundidade em CAIXA que eles não têm.</p>
+      </div>
+      <div class="card">
+        <div class="lbl">Porta de entrada</div>
+        <p>"Importe a sua planilha MCMV e comece hoje." O importador já existe e traz contratos, cronograma e materiais sem digitação — o atrito de migração cai a quase zero.</p>
+      </div>
+      <div class="card">
+        <div class="lbl">Concorrência</div>
+        <p><strong>Vobi, Obra Prima, VIGHA</strong> — todos genéricos de obra. O Souz iguala no básico (carteira, cronograma, financeiro, curva S) e ganha onde a construtora MCMV mais sofre: o casamento entre a obra e o cronograma de liberação da CAIXA.</p>
+      </div>
+      <div class="card">
+        <div class="lbl">Antes de escalar</div>
+        <p>Fechar a autenticação do Supabase, aplicar as migrações pendentes, ligar a cobrança, publicar os termos e resolver a sincronização simultânea. São itens de dias, não de meses — o produto em si já está de pé.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="idx">09</span>Links</h2>
+    <div class="links">
+      <a href="https://gus-hcs.github.io/souz-controle-obra/">Sistema no ar</a>
+      <a href="https://github.com/Gus-hcs/souz-controle-obra">Código-fonte</a>
+      <a href="https://github.com/Gus-hcs/souz-controle-obra/tree/main/docs">Documentação técnica</a>
+      <a href="https://github.com/Gus-hcs/souz-controle-obra/blob/main/SECURITY.md">Auditoria de segurança</a>
+    </div>
+  </section>
+
+  <footer>
+    Souz Controle de Obra · dossiê gerado em agosto de 2026 · documento interno.
+  </footer>
+
+</div>
