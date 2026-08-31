@@ -1,0 +1,629 @@
+<!-- Souz Controle de Obra — página de apresentação e contato -->
+<title>Souz Controle de Obra</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Software de gestão de obra para empresas de engenharia: contrato, medição, compra, recebimento e prazo numa tela, com o resultado de cada obra sempre à vista.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap">
+
+<style>
+  /* ============ tokens — escuro é o padrão, como no produto ============ */
+  :root {
+    color-scheme: dark;
+    --bg: #0A0C10;
+    --surface: #12151B;
+    --surface-2: #181C23;
+    --line: #22262E;
+    --line-strong: #333A46;
+    --ink: #EDEEF1;
+    --ink-2: #A9B0BC;
+    --muted: #6B7280;
+    --accent: #B7BFCB;
+    --accent-2: #8B94A1;
+    --ok: #4ECB92;
+    --grid: #1A1E25;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 18px 50px -24px rgba(0,0,0,.7);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg: #EDECE7;
+      --surface: #FCFBF8;
+      --surface-2: #F3F1EB;
+      --line: #E1DED4;
+      --line-strong: #C6C2B6;
+      --ink: #15181C;
+      --ink-2: #494E52;
+      --muted: #7B7F7D;
+      --accent: #39434F;
+      --accent-2: #5E6875;
+      --ok: #2C7350;
+      --grid: #E4E1D8;
+      --shadow: 0 1px 2px rgba(20,24,26,.08), 0 24px 60px -30px rgba(20,24,26,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #EDECE7;
+    --surface: #FCFBF8;
+    --surface-2: #F3F1EB;
+    --line: #E1DED4;
+    --line-strong: #C6C2B6;
+    --ink: #15181C;
+    --ink-2: #494E52;
+    --muted: #7B7F7D;
+    --accent: #39434F;
+    --accent-2: #5E6875;
+    --ok: #2C7350;
+    --grid: #E4E1D8;
+    --shadow: 0 1px 2px rgba(20,24,26,.08), 0 24px 60px -30px rgba(20,24,26,.35);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: 16px; line-height: 1.62; letter-spacing: -.006em;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 {
+    font-family: 'Space Grotesk', 'Inter', sans-serif;
+    font-weight: 600; letter-spacing: -.025em; text-wrap: balance; margin: 0;
+  }
+  p { margin: 0; color: var(--ink-2); }
+  a { color: inherit; text-decoration: none; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 28px; }
+  .col { max-width: 640px; }
+
+  /* mono readout — o "instrumento" */
+  .ref {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--accent-2);
+    display: inline-flex; align-items: center; gap: 10px;
+  }
+  .ref::before { content: ""; width: 22px; height: 1px; background: var(--accent-2); }
+
+  /* régua de nível — divisor recorrente */
+  .rule { position: relative; height: 1px; background: var(--line-strong); margin: 0; }
+  .rule::after {
+    content: ""; position: absolute; left: 0; top: -3px; width: 2px; height: 7px; background: var(--accent);
+  }
+
+  /* ====================== nav ====================== */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    background: color-mix(in srgb, var(--bg) 86%, transparent);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  nav .wrap { display: flex; align-items: center; gap: 16px; height: 62px; }
+  .brand { display: flex; align-items: center; gap: 11px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; letter-spacing: .01em; }
+  .brand svg { width: 26px; height: 26px; color: var(--accent); }
+  .brand b span { color: var(--ink-2); font-weight: 500; }
+  nav .push { margin-left: auto; }
+  nav .links { display: flex; align-items: center; gap: 6px; }
+  .btn {
+    font: inherit; font-size: 14px; font-weight: 500; cursor: pointer;
+    border: 1px solid var(--line-strong); background: transparent; color: var(--ink);
+    padding: 9px 15px; border-radius: 7px; white-space: nowrap;
+    transition: background-color .15s, border-color .15s, transform .1s;
+  }
+  .btn:hover { background: var(--surface-2); border-color: var(--accent-2); }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary {
+    background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600;
+  }
+  .btn.primary:hover { background: var(--ink); border-color: var(--ink); }
+  .btn.ghost { border-color: transparent; }
+  .btn.ghost:hover { border-color: var(--line-strong); background: transparent; }
+  @media (max-width: 640px) { nav .links .ghost { display: none; } }
+
+  /* ====================== hero ====================== */
+  .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--line); }
+  .hero .plot {
+    position: absolute; inset: auto 0 0 0; width: 100%; height: 62%;
+    opacity: .5; pointer-events: none;
+  }
+  .hero .wrap { position: relative; padding: 96px 28px 104px; }
+  .hero h1 { font-size: clamp(34px, 6.4vw, 62px); line-height: 1.03; font-weight: 700; }
+  .hero h1 .dim { color: var(--ink-2); }
+  .hero .lede {
+    font-size: clamp(17px, 2.3vw, 20px); color: var(--ink-2);
+    max-width: 30ch; margin: 22px 0 34px;
+  }
+  .hero .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+  .hero .cta .btn { padding: 13px 22px; font-size: 15px; }
+  .hero .strip {
+    display: flex; flex-wrap: wrap; gap: 26px 34px; margin-top: 52px;
+    padding-top: 22px; border-top: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--muted);
+  }
+  .hero .strip span { display: inline-flex; align-items: center; gap: 8px; }
+  .hero .strip i { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-2); }
+  .hero .strip .on { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 22%, transparent); }
+
+  /* ====================== sections ====================== */
+  section { padding: 84px 0; border-bottom: 1px solid var(--line); }
+  .sec-head { margin-bottom: 34px; }
+  .sec-head h2 { font-size: clamp(24px, 3.6vw, 34px); line-height: 1.12; margin-top: 14px; }
+  .sec-head p { margin-top: 14px; font-size: 17px; }
+
+  /* problema — bloco de contraste */
+  .problem { background: var(--surface); }
+  .problem .quote {
+    font-family: 'Space Grotesk', sans-serif; font-size: clamp(20px, 2.8vw, 26px);
+    font-weight: 500; line-height: 1.4; color: var(--ink); max-width: 22ch;
+    border-left: 2px solid var(--accent); padding-left: 20px;
+  }
+  .problem .body { margin-top: 26px; max-width: 54ch; }
+
+  /* o que faz — grid de capacidades */
+  .caps { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .caps .cell { background: var(--bg); padding: 24px 24px 26px; }
+  .caps .cell h3 { font-size: 16px; display: flex; align-items: baseline; gap: 10px; }
+  .caps .cell h3 em { font-family: 'JetBrains Mono', monospace; font-style: normal; font-size: 11px; color: var(--accent-2); }
+  .caps .cell ul { list-style: none; margin: 12px 0 0; padding: 0; }
+  .caps .cell li { font-size: 14px; color: var(--ink-2); padding: 4px 0 4px 16px; position: relative; }
+  .caps .cell li::before { content: ""; position: absolute; left: 0; top: 11px; width: 7px; height: 1.5px; background: var(--accent-2); }
+  @media (max-width: 680px) { .caps { grid-template-columns: 1fr; } }
+
+  /* regra anti-duplicidade — três raias */
+  .flows { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 8px; }
+  .flow {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 9px;
+    padding: 20px 18px;
+  }
+  .flow .k { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent-2); letter-spacing: .05em; }
+  .flow h3 { font-size: 16px; margin: 8px 0 6px; }
+  .flow p { font-size: 13.5px; }
+  .flows-note { margin-top: 18px; font-size: 15px; color: var(--ink); max-width: 56ch; }
+  .flows-note b { font-weight: 600; }
+  @media (max-width: 680px) { .flows { grid-template-columns: 1fr; } }
+
+  /* resultado — leitura de indicadores */
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-top: 6px; }
+  .kpi { background: var(--bg); padding: 22px 22px 24px; }
+  .kpi .n { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .kpi .n.pos { color: var(--ok); }
+  .kpi .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; margin-top: 8px; }
+  .kpi .sub { font-size: 12.5px; color: var(--ink-2); margin-top: 5px; }
+  @media (max-width: 680px) { .kpis { grid-template-columns: 1fr; } }
+
+  /* módulo caixa */
+  .module { background: var(--surface); }
+  .module .tag { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent-2); border: 1px solid var(--line-strong); padding: 3px 9px; border-radius: 999px; }
+  .module ul { list-style: none; margin: 22px 0 0; padding: 0; columns: 2; column-gap: 34px; }
+  .module li { font-size: 14.5px; color: var(--ink-2); padding: 6px 0 6px 16px; position: relative; break-inside: avoid; }
+  .module li::before { content: ""; position: absolute; left: 0; top: 13px; width: 7px; height: 1.5px; background: var(--accent-2); }
+  @media (max-width: 680px) { .module ul { columns: 1; } }
+
+  /* adoção — passos */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; margin-top: 6px; counter-reset: s; }
+  .step { counter-increment: s; }
+  .step .num { font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 15px; color: var(--accent-2); }
+  .step .num::before { content: counter(s, decimal-leading-zero); }
+  .step h3 { font-size: 16px; margin: 8px 0 6px; }
+  .step p { font-size: 14px; }
+  @media (max-width: 680px) { .steps { grid-template-columns: 1fr; gap: 18px; } }
+
+  /* faq */
+  .faq { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .faq details { background: var(--bg); }
+  .faq summary { padding: 18px 22px; font-family: 'Space Grotesk', sans-serif; font-weight: 500; font-size: 15.5px; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; font-family: 'JetBrains Mono', monospace; color: var(--accent-2); font-size: 18px; }
+  .faq details[open] summary::after { content: "–"; }
+  .faq details p { padding: 0 22px 20px; font-size: 14.5px; max-width: 62ch; }
+
+  /* contato */
+  .contact { background: var(--surface); border-bottom: 0; }
+  .contact .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 44px; align-items: start; }
+  .contact h2 { font-size: clamp(24px, 3.4vw, 32px); }
+  .contact .pitch { margin-top: 16px; font-size: 16px; max-width: 42ch; }
+  .contact .direct { margin-top: 26px; font-size: 14px; }
+  .contact .direct a { border-bottom: 1px solid var(--accent-2); }
+  .contact .direct a:hover { border-bottom-color: var(--ink); }
+  form { display: grid; gap: 14px; }
+  .field { display: grid; gap: 6px; }
+  .field label { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  .field input, .field select, .field textarea {
+    font: inherit; font-size: 15px; color: var(--ink);
+    background: var(--bg); border: 1px solid var(--line-strong); border-radius: 7px;
+    padding: 10px 12px; width: 100%;
+  }
+  .field textarea { min-height: 84px; resize: vertical; }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    border-color: var(--accent); outline: none;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  form .btn { margin-top: 4px; padding: 12px 20px; font-size: 15px; }
+  .sent { font-size: 14px; color: var(--ok); margin-top: 8px; display: none; }
+  .sent.show { display: block; }
+  @media (max-width: 760px) { .contact .grid { grid-template-columns: 1fr; gap: 30px; } .row2 { grid-template-columns: 1fr; } }
+
+  footer { padding: 40px 0 56px; }
+  footer .wrap { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; font-size: 13px; color: var(--muted); }
+  footer .links { display: flex; gap: 18px; }
+  footer .links a:hover { color: var(--ink); }
+
+  .setup {
+    background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+    border-bottom: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--ink-2);
+  }
+  .setup .wrap { padding: 10px 28px; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .reveal { opacity: 0; transform: translateY(14px); transition: opacity .6s ease, transform .6s ease; }
+    .reveal.in { opacity: 1; transform: none; }
+    .hero h1, .hero .lede, .hero .cta, .hero .strip { opacity: 0; animation: up .7s ease forwards; }
+    .hero .lede { animation-delay: .08s; }
+    .hero .cta { animation-delay: .16s; }
+    .hero .strip { animation-delay: .24s; }
+    @keyframes up { to { opacity: 1; transform: none; } }
+    .plot path.line { stroke-dasharray: 1400; stroke-dashoffset: 1400; animation: draw 2.2s .3s ease forwards; }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+  }
+</style>
+
+<!-- faixa de configuração: apague depois de preencher -->
+<div class="setup"><div class="wrap">⚙ Antes de publicar: troque <b>LINK-DA-SUA-AGENDA</b> e <b>SEU-EMAIL@DOMINIO</b> no HTML. Depois remova esta faixa.</div></div>
+
+<nav>
+  <div class="wrap">
+    <a class="brand" href="#topo" aria-label="Souz Controle de Obra">
+      <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <g stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+          <path d="M17 8 26 12.5 17 17 8 12.5Z" fill="currentColor" fill-opacity=".24"/>
+          <path d="M8 12.5 17 17 17 25 8 20.5Z" fill="currentColor" fill-opacity=".1"/>
+          <path d="M17 17 26 12.5 26 20.5 17 25Z" fill="currentColor" fill-opacity=".34"/>
+          <path d="M31 23 40 27.5 31 32 22 27.5Z" fill="currentColor" fill-opacity=".24"/>
+          <path d="M22 27.5 31 32 31 40 22 35.5Z" fill="currentColor" fill-opacity=".1"/>
+          <path d="M31 32 40 27.5 40 35.5 31 40Z" fill="currentColor" fill-opacity=".34"/>
+        </g>
+      </svg>
+      <b>SouZ <span>Controle de Obra</span></b>
+    </a>
+    <div class="push"></div>
+    <div class="links">
+      <a class="btn ghost" href="https://gus-hcs.github.io/souz-controle-obra/" target="_blank" rel="noopener">Ver o sistema</a>
+      <a class="btn primary" href="LINK-DA-SUA-AGENDA" target="_blank" rel="noopener">Agendar conversa</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="topo">
+  <svg class="plot" viewBox="0 0 820 320" preserveAspectRatio="none" aria-hidden="true">
+    <g stroke="var(--grid)" stroke-width="1">
+      <line x1="0" y1="70" x2="820" y2="70"/>
+      <line x1="0" y1="140" x2="820" y2="140"/>
+      <line x1="0" y1="210" x2="820" y2="210"/>
+      <line x1="0" y1="280" x2="820" y2="280"/>
+    </g>
+    <path d="M0,292 L0,300 L820,300 L820,26 C700,26 640,34 540,74 C440,114 390,168 300,214 C210,260 150,278 0,292 Z"
+          fill="var(--accent)" fill-opacity=".07"/>
+    <path class="line" d="M0,292 C150,278 210,260 300,214 C390,168 440,114 540,74 C640,34 700,26 820,26"
+          fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+    <circle cx="812" cy="26" r="4.5" fill="var(--accent)"/>
+  </svg>
+
+  <div class="wrap">
+    <span class="ref">Software de gestão de obra</span>
+    <h1>Sua obra,<br>do contrato <span class="dim">ao resultado.</span></h1>
+    <p class="lede">Contrato, medição, compra, recebimento e prazo numa tela só — com o resultado de cada obra sempre à vista.</p>
+    <div class="cta">
+      <a class="btn primary" href="LINK-DA-SUA-AGENDA" target="_blank" rel="noopener">Agendar uma demonstração</a>
+      <a class="btn" href="https://gus-hcs.github.io/souz-controle-obra/" target="_blank" rel="noopener">Ver o sistema no ar</a>
+    </div>
+    <div class="strip">
+      <span><i class="on"></i>No ar e em uso</span>
+      <span><i></i>Roda no navegador e no celular</span>
+      <span><i></i>Importa a sua planilha</span>
+      <span><i></i>Conecta no Power BI</span>
+    </div>
+  </div>
+</header>
+
+<section class="problem">
+  <div class="wrap col">
+    <span class="ref">01 — O problema</span>
+    <div style="height:24px"></div>
+    <p class="quote">A obra some na planilha antes de sumir no caixa.</p>
+    <p class="body">
+      Medição do empreiteiro numa aba, recebimento do cliente em outra, compra de material
+      numa terceira, prazo numa quarta. Nada conversa. O erro mais caro — pagar o mesmo
+      serviço duas vezes, uma como medição e outra como compra — só aparece no fechamento,
+      quando a margem já foi.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head col">
+      <span class="ref">02 — O que o Souz faz</span>
+      <h2>Um sistema para toda a operação da obra.</h2>
+      <p>Não é mais um lugar para digitar duas vezes. É onde contrato, produção e dinheiro finalmente batem.</p>
+    </div>
+    <div class="caps">
+      <div class="cell">
+        <h3><em>A</em> Financeiro da obra</h3>
+        <ul>
+          <li>Contratos e aditivos com posição contratual</li>
+          <li>Medições de prestador, com alerta de pagamento acima do medido</li>
+          <li>Recebimentos do cliente, do financiamento e de recursos próprios</li>
+          <li>Lançamentos de compra, taxa, honorário e serviço</li>
+          <li>Fluxo de caixa mês a mês</li>
+        </ul>
+      </div>
+      <div class="cell">
+        <h3><em>B</em> Produção e prazo</h3>
+        <ul>
+          <li>Cronograma com avanço físico ponderado por etapa</li>
+          <li>Curva S — físico previsto × realizado × financeiro</li>
+          <li>Diário de obra com clima, efetivo, atividades e fotos</li>
+          <li>Alertas de etapa atrasada, contrato ultrapassado, caixa negativo</li>
+        </ul>
+      </div>
+      <div class="cell">
+        <h3><em>C</em> Materiais</h3>
+        <ul>
+          <li>Plano de compras por etapa</li>
+          <li>Saldo a comprar atualizado sozinho quando a compra é lançada</li>
+          <li>Aviso de material vencido sem compra</li>
+        </ul>
+      </div>
+      <div class="cell">
+        <h3><em>D</em> Visão e prestação de contas</h3>
+        <ul>
+          <li>Painel consolidado da carteira e de cada obra</li>
+          <li>Relatório em PDF para o cliente e para o financiador</li>
+          <li>Exportação CSV e acesso direto do Power BI ao banco</li>
+          <li>Trilha de auditoria de quem alterou cada valor</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head col">
+      <span class="ref">03 — O que a planilha não tem</span>
+      <h2>Cada real entra uma vez, e num lugar certo.</h2>
+    </div>
+    <div class="flows">
+      <div class="flow">
+        <div class="k">FLUXO 1</div>
+        <h3>Medição</h3>
+        <p>Serviço do prestador, medido e pago. Nunca ultrapassa contrato + aditivos aprovados.</p>
+      </div>
+      <div class="flow">
+        <div class="k">FLUXO 2</div>
+        <h3>Lançamento</h3>
+        <p>Compra, taxa ou serviço sem medição. Entra aqui — e em nenhum outro lugar.</p>
+      </div>
+      <div class="flow">
+        <div class="k">FLUXO 3</div>
+        <h3>Recebimento</h3>
+        <p>Parcela do cliente ou do financiamento. Previsto, aprovado e o que foi de fato creditado.</p>
+      </div>
+    </div>
+    <p class="flows-note">
+      O sistema <b>recusa a duplicidade</b>. É a diferença entre saber a margem hoje e
+      descobrir no fechamento que a obra pagou o piso duas vezes.
+    </p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head col">
+      <span class="ref">04 — Resultado em tempo real</span>
+      <h2>Você sabe se a obra dá lucro antes de entregá-la.</h2>
+      <p>Contrato, aditivo, medição, compra, recebimento e cronograma alimentam um único cálculo. Conferido, número por número, contra a planilha de origem.</p>
+    </div>
+    <div class="kpis">
+      <div class="kpi">
+        <div class="n pos">R$ 17.870</div>
+        <div class="lbl">Saldo em caixa</div>
+        <div class="sub">recebido − pago, com a tendência do mês</div>
+      </div>
+      <div class="kpi">
+        <div class="n">14,8%</div>
+        <div class="lbl">Margem projetada</div>
+        <div class="sub">contra o alvo definido para a obra</div>
+      </div>
+      <div class="kpi">
+        <div class="n">R$ 2.094</div>
+        <div class="lbl">Custo previsto / m²</div>
+        <div class="sub">contra o teto físico do financiamento</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="module">
+  <div class="wrap col">
+    <span class="ref">05 — Para quem faz obra financiada</span>
+    <div style="height:20px"></div>
+    <span class="tag">MÓDULO CAIXA / MCMV</span>
+    <h2 style="font-size:clamp(22px,3.2vw,30px);margin-top:16px">A camada que os genéricos de obra não têm.</h2>
+    <p style="margin-top:14px;max-width:52ch">Some da tela de quem não precisa. Para quem toca MCMV, resolve a parte mais chata:</p>
+    <ul>
+      <li>Recebimento por etapa, casado com o cronograma físico</li>
+      <li>Escopo padrão da empreitada MCMV como referência</li>
+      <li>Teto de custo físico por m² com alerta ao ultrapassar</li>
+      <li>Memória de medição no formato que o financiador espera</li>
+      <li>Importação da planilha MCMV — a obra nasce montada</li>
+      <li>Conciliação entre etapa liberada e empreiteiro pago</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head col">
+      <span class="ref">06 — Como começa</span>
+      <h2>Da planilha para o sistema numa conversa.</h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="num"></div>
+        <h3>Agende uma demonstração</h3>
+        <p>30 minutos. Mostramos o sistema com uma obra parecida com a sua e você diz o que faz sentido.</p>
+      </div>
+      <div class="step">
+        <div class="num"></div>
+        <h3>Traga a sua planilha</h3>
+        <p>Importamos contratos, cronograma e materiais. Você não redigita nada para começar.</p>
+      </div>
+      <div class="step">
+        <div class="num"></div>
+        <h3>Rode uma obra de verdade</h3>
+        <p>Uma obra ativa no sistema por um ciclo de medição. Se fizer diferença, a gente fecha.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <div class="sec-head col">
+      <span class="ref">07 — Perguntas frequentes</span>
+      <h2>O que a empresa costuma perguntar.</h2>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>Quanto custa?</summary>
+        <p>A assinatura é mensal e a faixa depende do número de obras ativas. O valor certo para a sua operação sai na conversa — é rápido.</p>
+      </details>
+      <details>
+        <summary>Funciona no celular, no canteiro?</summary>
+        <p>Sim. O sistema roda no navegador do computador e do celular. O diário de obra com fotos foi feito para usar em pé, no canteiro.</p>
+      </details>
+      <details>
+        <summary>Meus dados ficam seguros?</summary>
+        <p>Cada empresa tem os dados isolados no banco (PostgreSQL), com a regra de acesso no próprio banco e não só na tela. Você exporta tudo quando quiser e conecta o Power BI direto.</p>
+      </details>
+      <details>
+        <summary>Serve para obra que não é MCMV?</summary>
+        <p>Serve. O núcleo — contrato, medição, compra, recebimento, cronograma, curva S — vale para qualquer obra. O módulo CAIXA fica escondido de quem não faz financiado.</p>
+      </details>
+      <details>
+        <summary>E a migração da minha planilha?</summary>
+        <p>O importador lê o modelo MCMV e traz a obra montada. Para outros modelos de planilha, a gente ajusta com você.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="contact" id="contato">
+  <div class="wrap">
+    <div class="grid">
+      <div>
+        <span class="ref">08 — Contato</span>
+        <h2 style="margin-top:14px">Vamos falar sobre a sua operação.</h2>
+        <p class="pitch">Conte quantas obras você toca hoje e como controla. Respondemos em até um dia útil com um horário.</p>
+        <p class="direct">
+          Prefere direto? <a href="mailto:SEU-EMAIL@DOMINIO?subject=Quero%20conhecer%20o%20Souz%20Controle%20de%20Obra">SEU-EMAIL@DOMINIO</a>
+          &nbsp;·&nbsp; <a href="LINK-DA-SUA-AGENDA" target="_blank" rel="noopener">Ver agenda</a>
+        </p>
+      </div>
+      <form id="lead" novalidate>
+        <div class="row2">
+          <div class="field">
+            <label for="nome">Nome</label>
+            <input id="nome" name="nome" autocomplete="name" required>
+          </div>
+          <div class="field">
+            <label for="empresa">Empresa</label>
+            <input id="empresa" name="empresa" autocomplete="organization" required>
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label for="contato">E-mail ou WhatsApp</label>
+            <input id="contato" name="contato" required>
+          </div>
+          <div class="field">
+            <label for="obras">Obras hoje</label>
+            <select id="obras" name="obras">
+              <option>1 a 3</option>
+              <option>4 a 10</option>
+              <option>11 a 30</option>
+              <option>mais de 30</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="msg">Como você controla hoje</label>
+          <textarea id="msg" name="msg" placeholder="Planilha, outro sistema, papel…"></textarea>
+        </div>
+        <button class="btn primary" type="submit">Enviar e receber um horário</button>
+        <p class="sent" id="sent">Abrindo seu e-mail com a mensagem pronta. Se não abrir, escreva para SEU-EMAIL@DOMINIO.</p>
+      </form>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <a class="brand" href="#topo" style="font-size:14px">
+      <svg viewBox="0 0 48 48" fill="none" aria-hidden="true">
+        <g stroke="currentColor" stroke-width="1.8" stroke-linejoin="round">
+          <path d="M17 8 26 12.5 17 17 8 12.5Z" fill="currentColor" fill-opacity=".24"/>
+          <path d="M8 12.5 17 17 17 25 8 20.5Z" fill="currentColor" fill-opacity=".1"/>
+          <path d="M17 17 26 12.5 26 20.5 17 25Z" fill="currentColor" fill-opacity=".34"/>
+          <path d="M31 23 40 27.5 31 32 22 27.5Z" fill="currentColor" fill-opacity=".24"/>
+          <path d="M22 27.5 31 32 31 40 22 35.5Z" fill="currentColor" fill-opacity=".1"/>
+          <path d="M31 32 40 27.5 40 35.5 31 40Z" fill="currentColor" fill-opacity=".34"/>
+        </g>
+      </svg>
+      <b>SouZ <span>Controle de Obra</span></b>
+    </a>
+    <div class="links">
+      <a href="https://gus-hcs.github.io/souz-controle-obra/" target="_blank" rel="noopener">Sistema no ar</a>
+      <a href="LINK-DA-SUA-AGENDA" target="_blank" rel="noopener">Agendar</a>
+      <a href="mailto:SEU-EMAIL@DOMINIO">Contato</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // revela seções no scroll
+  var io = new IntersectionObserver(function (es) {
+    es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: .12 });
+  document.querySelectorAll('section .wrap > *').forEach(function (el) {
+    el.classList.add('reveal'); io.observe(el);
+  });
+
+  // form -> mailto (sem backend)
+  var f = document.getElementById('lead');
+  f.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var g = function (n) { return (f.elements[n].value || '').trim(); };
+    if (!g('nome') || !g('empresa') || !g('contato')) {
+      f.reportValidity(); return;
+    }
+    var corpo =
+      'Nome: ' + g('nome') + '\n' +
+      'Empresa: ' + g('empresa') + '\n' +
+      'Contato: ' + g('contato') + '\n' +
+      'Obras hoje: ' + g('obras') + '\n\n' +
+      'Como controla hoje:\n' + (g('msg') || '—');
+    var href = 'mailto:SEU-EMAIL@DOMINIO'
+      + '?subject=' + encodeURIComponent('Contato pelo site — ' + g('empresa'))
+      + '&body=' + encodeURIComponent(corpo);
+    document.getElementById('sent').classList.add('show');
+    window.location.href = href;
+  });
+</script>
