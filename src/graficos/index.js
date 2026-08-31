@@ -16,8 +16,11 @@ function ticks(min, max, n = 4) {
   const mag = Math.pow(10, Math.floor(Math.log10(Math.abs(bruto) || 1)));
   const passo = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((p) => p >= bruto) || mag * 10;
   const ini = Math.floor(min / passo) * passo;
+  /* o topo do eixo tem que ficar acima do maior valor (com uma folga),
+     senão a linha do acumulado sai da área do gráfico */
+  const fim = Math.ceil((max + (max - min) * 0.05) / passo) * passo;
   const out = [];
-  for (let v = ini; v <= max + passo * 0.001; v += passo) out.push(round2(v));
+  for (let v = ini; v <= fim + passo * 0.001; v += passo) out.push(round2(v));
   return out;
 }
 
