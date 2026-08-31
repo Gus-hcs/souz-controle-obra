@@ -79,6 +79,7 @@ function restaurarRota() {
   try {
     const t = localStorage.getItem('souz_tema');
     if (t) document.documentElement.setAttribute('data-theme', t);
+    if (localStorage.getItem('souz_rail') === '1') document.body.classList.add('rail-recolhido');
   } catch (e) {}
 })();
 

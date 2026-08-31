@@ -16,7 +16,14 @@ ACOES['ir-alertas-carteira'] = () => {
   const o = Store.estado.obras.find((x) => alertasObra(x).some((a) => a.sev === 3)) || Store.estado.obras[0];
   App.ir('alertas', o && o.id);
 };
-ACOES.menu = () => document.body.classList.toggle('menu-aberto');
+ACOES.menu = () => {
+  if (window.innerWidth > 860) {
+    const oculto = document.body.classList.toggle('rail-recolhido');
+    try { localStorage.setItem('souz_rail', oculto ? '1' : ''); } catch (e) { /* privado */ }
+  } else {
+    document.body.classList.toggle('menu-aberto');
+  }
+};
 ACOES['recarregar-auditoria'] = () => {
   const o = App.obra();
   if (o) { carregarAuditoria(o.id, true); App.renderConteudo(); }

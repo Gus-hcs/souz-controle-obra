@@ -236,7 +236,11 @@ a { color: var(--marca); }
 
 #conteudo { padding: 20px; flex: 1; max-width: 1500px; width: 100%; }
 
-.menu-mob { display: none; }
+/* botão de menu: recolhe o rail no desktop, abre a gaveta no celular */
+.menu-mob { display: inline-flex; }
+@media (min-width: 861px) {
+  body.rail-recolhido #rail { display: none; }
+}
 
 /* ------------------------------------------------------- componentes */
 .btn {
@@ -575,7 +579,6 @@ select { cursor: pointer; }
   body.menu-aberto::after {
     content: ''; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 80;
   }
-  .menu-mob { display: inline-flex; }
   #conteudo { padding: 12px; }
   .g2 { grid-template-columns: minmax(0, 1fr); }
   .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
