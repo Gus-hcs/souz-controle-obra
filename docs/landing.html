@@ -274,7 +274,9 @@
 </style>
 
 <!-- faixa de configuração: apague depois de preencher -->
-<div class="setup"><div class="wrap">⚙ Antes de publicar: troque <b>LINK-DA-SUA-AGENDA</b> e <b>SEU-EMAIL@DOMINIO</b> no HTML. Depois remova esta faixa.</div></div>
+<!-- Contato: contato@souztech.com. Quando tiver Calendly/Cal.com, troque os links
+     "mailto:contato@souztech.com?subject=Quero agendar..." pela URL da agenda. -->
+<div class="setup"><div class="wrap">⚙ Crie o e-mail <b>contato@souztech.com</b> no seu provedor e teste os botões. Depois apague esta faixa (procure por <b>class="setup"</b> no HTML).</div></div>
 
 <nav>
   <div class="wrap">
@@ -294,7 +296,7 @@
     <div class="push"></div>
     <div class="links">
       <a class="btn ghost" href="https://gus-hcs.github.io/souz-controle-obra/" target="_blank" rel="noopener">Ver o sistema</a>
-      <a class="btn primary" href="LINK-DA-SUA-AGENDA" target="_blank" rel="noopener">Agendar conversa</a>
+      <a class="btn primary" href="mailto:contato@souztech.com?subject=Quero%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20do%20Souz" target="_blank" rel="noopener">Agendar conversa</a>
     </div>
   </div>
 </nav>
@@ -319,7 +321,7 @@
     <h1>Sua obra,<br>do contrato <span class="dim">ao resultado.</span></h1>
     <p class="lede">Contrato, medição, compra, recebimento e prazo numa tela só — com o resultado de cada obra sempre à vista.</p>
     <div class="cta">
-      <a class="btn primary" href="LINK-DA-SUA-AGENDA" target="_blank" rel="noopener">Agendar uma demonstração</a>
+      <a class="btn primary" href="mailto:contato@souztech.com?subject=Quero%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20do%20Souz" target="_blank" rel="noopener">Agendar uma demonstração</a>
       <a class="btn" href="https://gus-hcs.github.io/souz-controle-obra/" target="_blank" rel="noopener">Ver o sistema no ar</a>
     </div>
     <div class="strip">
@@ -533,8 +535,8 @@
         <h2 style="margin-top:14px">Vamos falar sobre a sua operação.</h2>
         <p class="pitch">Conte quantas obras você toca hoje e como controla. Respondemos em até um dia útil com um horário.</p>
         <p class="direct">
-          Prefere direto? <a href="mailto:SEU-EMAIL@DOMINIO?subject=Quero%20conhecer%20o%20Souz%20Controle%20de%20Obra">SEU-EMAIL@DOMINIO</a>
-          &nbsp;·&nbsp; <a href="LINK-DA-SUA-AGENDA" target="_blank" rel="noopener">Ver agenda</a>
+          Prefere direto? <a href="mailto:contato@souztech.com?subject=Quero%20conhecer%20o%20Souz%20Controle%20de%20Obra">contato@souztech.com</a>
+          &nbsp;·&nbsp; <a href="mailto:contato@souztech.com?subject=Quero%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20do%20Souz" target="_blank" rel="noopener">Ver agenda</a>
         </p>
       </div>
       <form id="lead" novalidate>
@@ -568,7 +570,7 @@
           <textarea id="msg" name="msg" placeholder="Planilha, outro sistema, papel…"></textarea>
         </div>
         <button class="btn primary" type="submit">Enviar e receber um horário</button>
-        <p class="sent" id="sent">Abrindo seu e-mail com a mensagem pronta. Se não abrir, escreva para SEU-EMAIL@DOMINIO.</p>
+        <p class="sent" id="sent">Abrindo seu e-mail com a mensagem pronta. Se não abrir, escreva para contato@souztech.com.</p>
       </form>
     </div>
   </div>
@@ -591,8 +593,8 @@
     </a>
     <div class="links">
       <a href="https://gus-hcs.github.io/souz-controle-obra/" target="_blank" rel="noopener">Sistema no ar</a>
-      <a href="LINK-DA-SUA-AGENDA" target="_blank" rel="noopener">Agendar</a>
-      <a href="mailto:SEU-EMAIL@DOMINIO">Contato</a>
+      <a href="mailto:contato@souztech.com?subject=Quero%20agendar%20uma%20demonstra%C3%A7%C3%A3o%20do%20Souz" target="_blank" rel="noopener">Agendar</a>
+      <a href="mailto:contato@souztech.com">Contato</a>
     </div>
   </div>
 </footer>
@@ -620,7 +622,7 @@
       'Contato: ' + g('contato') + '\n' +
       'Obras hoje: ' + g('obras') + '\n\n' +
       'Como controla hoje:\n' + (g('msg') || '—');
-    var href = 'mailto:SEU-EMAIL@DOMINIO'
+    var href = 'mailto:contato@souztech.com'
       + '?subject=' + encodeURIComponent('Contato pelo site — ' + g('empresa'))
       + '&body=' + encodeURIComponent(corpo);
     document.getElementById('sent').classList.add('show');
