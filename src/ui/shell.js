@@ -275,11 +275,49 @@ function toast(msg, tom = 'ok', ms = 3600) {
   setTimeout(() => el.remove(), ms);
 }
 
-function kpi(rotulo, valor, sub, tom = '') {
-  return `<div class="kpi ${tom}"><span class="faixa"></span>
-    <span class="rotulo">${rotulo}</span>
-    <span class="valor">${valor}</span>
-    ${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
+/* kpi(rotulo, valor, sub, opts)
+   opts: string de tom ('ok'|'aviso'|'critico') OU
+         { tom, visual (svg de sparkline/anel), destaque (true = card grande) } */
+function kpi(rotulo, valor, sub, opts = '') {
+  const o = typeof opts === 'string' ? { tom: opts } : (opts || {});
+  return `<div class="kpi ${o.tom || ''}${o.visual ? ' com-visual' : ''}${o.destaque ? ' destaque' : ''}">
+    <span class="faixa"></span>
+    <div class="kpi-txt">
+      <span class="rotulo">${rotulo}</span>
+      <span class="valor">${valor}</span>
+      ${sub ? `<span class="sub">${sub}</span>` : ''}
+    </div>
+    ${o.visual ? `<div class="kpi-vis">${o.visual}</div>` : ''}
+  </div>`;
+}
+
+/* mini-gráfico de linha (tendência). tom: 'marca'|'ok'|'aviso'|'critico' */
+function sparkline(valores, tom = 'marca') {
+  const v = (valores || []).map((x) => (isFinite(+x) ? +x : 0));
+  if (v.length < 2) return '';
+  const min = Math.min(...v), max = Math.max(...v), rng = (max - min) || 1;
+  const W = 104, H = 36;
+  const pts = v.map((y, i) => [(i / (v.length - 1)) * W, H - 3 - ((y - min) / rng) * (H - 6)]);
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const cor = `var(--${tom})`;
+  const [ex, ey] = pts[pts.length - 1];
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+    <path d="${d} L ${W} ${H} L 0 ${H} Z" fill="${cor}" opacity=".09"/>
+    <path d="${d}" fill="none" stroke="${cor}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="2.4" fill="${cor}" vector-effect="non-scaling-stroke"/>
+  </svg>`;
+}
+
+/* anel de progresso com rótulo central */
+function anel(frac, tom = 'marca', centro = '') {
+  const f = Math.max(0, Math.min(1, isFinite(+frac) ? +frac : 0));
+  const r = 15.5, c = 2 * Math.PI * r;
+  return `<svg class="anel" viewBox="0 0 40 40" aria-hidden="true">
+    <circle cx="20" cy="20" r="${r}" fill="none" stroke="var(--sup3)" stroke-width="4"/>
+    <circle cx="20" cy="20" r="${r}" fill="none" stroke="var(--${tom})" stroke-width="4" stroke-linecap="round"
+      stroke-dasharray="${(f * c).toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 20 20)"/>
+    <text x="20" y="23.5" text-anchor="middle" class="anel-t">${esc(centro || Math.round(f * 100) + '%')}</text>
+  </svg>`;
 }
 
 function chip(texto, tom = '') {
@@ -530,6 +568,8 @@ export {
   App,
   toast,
   kpi,
+  sparkline,
+  anel,
   chip,
   barra,
   vazio,

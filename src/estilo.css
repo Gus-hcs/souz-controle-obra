@@ -318,6 +318,33 @@ a { color: var(--marca); }
 .kpi.aviso .faixa { background: var(--aviso); }
 .kpi.critico .faixa { background: var(--critico); }
 
+.kpi .kpi-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.kpi.com-visual { flex-direction: row; align-items: center; gap: 14px; }
+.kpi.com-visual .kpi-txt { flex: 1; }
+.kpi.com-visual .kpi-vis { flex: 0 0 auto; display: grid; place-items: center; }
+.kpi.destaque { padding: 18px 20px; }
+.kpi.destaque .valor { font-size: 33px; }
+.kpi.destaque .rotulo { font-size: 11px; }
+
+.spark { width: 104px; height: 34px; display: block; flex: 0 0 104px; }
+.anel { width: 46px; height: 46px; display: block; overflow: visible; }
+.anel-t {
+  font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600;
+  fill: var(--tinta); font-variant-numeric: tabular-nums;
+}
+
+/* faixa hero: bloco de indicadores primordiais */
+.hero {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px;
+  background: var(--linha); border: 1px solid var(--linha);
+  border-radius: var(--r2); overflow: hidden; box-shadow: var(--sombra), var(--realce);
+}
+.hero > .kpi {
+  border: 0; border-radius: 0; box-shadow: none; background: var(--sup);
+}
+.hero > .kpi:hover { background: var(--sup2); }
+@media (max-width: 720px) { .hero { grid-template-columns: minmax(0, 1fr); } }
+
 /* barra de progresso */
 .barra { height: 6px; background: var(--sup3); border-radius: 999px; overflow: hidden; }
 .barra > i { display: block; height: 100%; background: var(--marca); border-radius: 999px; }
@@ -485,24 +512,9 @@ select { cursor: pointer; }
 .alerta .txt p { margin: 2px 0 0; font-size: 12.5px; color: var(--tinta2); }
 .alerta .txt .acao { font-size: 12px; color: var(--mudo); margin-top: 4px; display: block; }
 
-/* faixa de saúde da obra (painel) */
-.saude {
-  display: flex; align-items: center; gap: 18px 24px; flex-wrap: wrap;
-  padding: 14px 18px; border-radius: var(--r2);
-  background: linear-gradient(180deg, var(--sup2), var(--sup));
-  border: 1px solid var(--linha); box-shadow: var(--sombra), var(--realce);
-}
-.saude .titulo-obra { display: flex; flex-direction: column; gap: 3px; margin-right: auto; min-width: 0; }
-.saude .titulo-obra h2 { font-size: 22px; line-height: 1.1; }
-.saude .titulo-obra .local { font-size: 12px; color: var(--mudo); }
-.saude .metrica { display: flex; flex-direction: column; gap: 1px; }
-.saude .metrica .rotulo { font-size: 10px; }
-.saude .metrica b {
-  font-family: 'Barlow Condensed', sans-serif; font-size: 19px; font-weight: 600;
-  font-variant-numeric: tabular-nums; line-height: 1;
-}
-.saude .metrica b.neg { color: var(--critico); }
-.saude .metrica b.pos { color: var(--ok); }
+/* linha de contexto da obra (painel) */
+.contexto-obra { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.contexto-obra .chip { font-size: 12px; padding: 4px 11px; }
 
 /* obra na carteira */
 .obra-cartao {
@@ -511,8 +523,10 @@ select { cursor: pointer; }
   display: flex; flex-direction: column; gap: 10px; text-align: left; width: 100%;
 }
 .obra-cartao:hover { border-color: var(--marca); transform: translateY(-2px); }
-.obra-cartao .topo { display: flex; align-items: flex-start; gap: 8px; }
-.obra-cartao h4 { font-size: 17px; line-height: 1.15; }
+.obra-cartao .topo { display: flex; align-items: center; gap: 11px; }
+.obra-cartao .anel-obra { flex: 0 0 auto; }
+.obra-cartao .anel-obra .anel { width: 42px; height: 42px; }
+.obra-cartao h4 { font-size: 16.5px; line-height: 1.15; }
 .obra-cartao .meta { font-size: 11.5px; color: var(--mudo); }
 .obra-cartao .linhas { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; font-size: 12.5px; }
 .obra-cartao .linhas span { color: var(--mudo); }
@@ -522,10 +536,12 @@ select { cursor: pointer; }
 .grafico { width: 100%; display: block; }
 .grafico text { font-family: 'IBM Plex Sans', sans-serif; font-size: 10.5px; fill: var(--mudo); }
 .grafico .eixo { stroke: var(--linha-forte); stroke-width: 1; }
-.grafico .grade-l { stroke: var(--grade); stroke-width: 1; }
+.grafico .grade-l { stroke: var(--grade); stroke-width: 1; stroke-dasharray: 2 4; }
+.grafico .cursor { stroke: var(--marca); stroke-width: 1; opacity: .6; }
 .legenda { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--tinta2); }
 .legenda i { width: 12px; height: 3px; border-radius: 2px; display: inline-block; vertical-align: middle; margin-right: 5px; }
 .legenda .traco { background: none !important; border-top: 2px dashed currentColor; height: 0; }
+.grafico-cx .tt { border: 1px solid var(--linha-forte); }
 
 /* fotos do diário */
 .fotos { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -570,8 +586,6 @@ select { cursor: pointer; }
   .modal { border-radius: 0; min-height: 100vh; }
   #topo { padding: 0 12px; }
   #topo .titulo span { display: none; }
-  .saude { gap: 12px 18px; }
-  .saude .titulo-obra { flex-basis: 100%; }
 }
 
 /* celular: cada linha da tabela vira um cartão */
@@ -604,7 +618,6 @@ select { cursor: pointer; }
   #conteudo { padding: 10px; }
   .kpi { padding: 11px 13px; }
   .kpi .valor { font-size: 21px; }
-  .saude .metrica { flex: 1 0 40%; }
   .status-salvo { font-size: 0; gap: 0; }
   .status-salvo .pt { width: 9px; height: 9px; flex: 0 0 9px; }
 }

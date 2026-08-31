@@ -13,6 +13,12 @@
 - Todas as tabelas ganharam **ordenação por coluna** (clique no cabeçalho, a
   escolha persiste entre filtros) e, no **celular**, cada linha vira um cartão
   com rótulo → valor.
+- **Indicadores primordiais em destaque**: painel e carteira abrem com uma faixa
+  de 3 KPIs grandes — saldo em caixa (com mini-gráfico de tendência), resultado
+  projetado e avanço físico (com anel de progresso). Cartões de obra na carteira
+  ganharam anel de avanço.
+- Gráficos: preenchimento em degradê sob a curva realizada, rótulo de % no ponto
+  final, linhas de grade pontilhadas, cursor na cor da marca.
 - Impressão força tema claro.
 
 **Equipe da obra**

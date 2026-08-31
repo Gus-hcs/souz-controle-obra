@@ -5,7 +5,7 @@ import { competencia, diasEntre, esc, fmtCompetencia, fmtData, fmtDataCurta, fmt
 import { alertasObra, basesContratuais, contratoValor, curvaS, etapaCalc, fluxoCaixa, kpisCarteira, kpisObra, lancamentoTotal, materialCalc, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
-import { App, acoesLinha, barra, botao, campoBusca, campoHTML, cartao, chip, filtraTexto, kpi, nomeCliente, opcoesEtapas, opcoesLista, selectFiltro, tomSituacao, tomStatus, vazio } from './shell.js';
+import { anel, App, acoesLinha, barra, botao, campoBusca, campoHTML, cartao, chip, filtraTexto, kpi, nomeCliente, opcoesEtapas, opcoesLista, selectFiltro, sparkline, tomSituacao, tomStatus, vazio } from './shell.js';
 import { graficoBarras, graficoCurvaS, graficoFluxo, graficoGantt } from '../graficos/index.js';
 
 const VIEWS = {};
@@ -32,27 +32,21 @@ VIEWS.carteira = () => {
     const crit = al.filter((a) => a.sev === 3).length;
     return `<button class="obra-cartao" data-acao="ir" data-view="painel" data-obra="${o.id}">
       <div class="topo">
-        <div style="min-width:0">
+        <div class="anel-obra">${anel(ko.progressoFisico, crit ? 'critico' : ko.etapasAtrasadas ? 'aviso' : 'marca')}</div>
+        <div style="min-width:0;flex:1">
           <h4>${esc(o.nome)}</h4>
           <div class="meta">${esc([nomeCliente(o.clienteId), o.cidade].filter(Boolean).join(' · ') || 'sem cliente vinculado')}</div>
         </div>
-        <div style="margin-left:auto;display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
           ${chip(o.status, tomStatus(o.status))}
           ${crit ? `<span class="chip critico"><span class="pt"></span>${crit} crítico${crit > 1 ? 's' : ''}</span>`
             : al.length ? `<span class="chip aviso"><span class="pt"></span>${al.length} pendência${al.length > 1 ? 's' : ''}</span>` : ''}
         </div>
       </div>
-      <div>
-        <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px">
-          <span class="rotulo" style="font-size:10.5px">Avanço físico</span>
-          <b class="mono">${fmtPct(ko.progressoFisico, 0)}</b>
-        </div>
-        ${barra(ko.progressoFisico, ko.etapasAtrasadas ? 'aviso' : '')}
-      </div>
       <div class="linhas">
-        <div><span>Custo/m²</span><br><b>${ko.area ? fmtMoney(ko.custoM2, { dec: 0 }) : '—'}</b></div>
         <div><span>Saldo em caixa</span><br><b class="${ko.saldoCaixa < 0 ? 'neg' : ''}">${fmtMoneyCurto(ko.saldoCaixa)}</b></div>
-        <div><span>Recebido</span><br><b>${fmtMoneyCurto(ko.recebido)}</b></div>
+        <div><span>Resultado projet.</span><br><b class="${ko.resultado !== null && ko.resultado < 0 ? 'neg' : ''}">${ko.resultado === null ? '—' : fmtMoneyCurto(ko.resultado)}</b></div>
+        <div><span>Custo prev./m²</span><br><b>${ko.area ? fmtMoney(ko.custoPrevistoM2, { dec: 0 }) : '—'}</b></div>
         <div><span>Saldo contratual</span><br><b class="${ko.saldoContratual < 0 ? 'neg' : ''}">${fmtMoneyCurto(ko.saldoContratual)}</b></div>
       </div>
     </button>`;
@@ -66,18 +60,24 @@ VIEWS.carteira = () => {
     { formata: (v) => fmtMoney(v, { dec: 0 }) + '/m²' }
   );
 
+  const tomResultado = k.resultado === null ? '' : k.resultado < 0 ? 'critico' : 'ok';
   return `
   <div class="grade" style="gap:16px">
-    <div class="grade g4">
-      ${kpi('Obras ativas', k.ativas, `${e.obras.length} no total · ${k.concluidas} concluída${k.concluidas === 1 ? '' : 's'}`)}
-      ${kpi('Recebido', fmtMoneyCurto(k.recebido), 'CAIXA, cliente e recursos próprios')}
-      ${kpi('Pago', fmtMoneyCurto(k.pago), 'medições + compras e taxas')}
-      ${kpi('Saldo em caixa', fmtMoneyCurto(k.saldoCaixa), 'somando todas as obras', k.saldoCaixa < 0 ? 'critico' : 'ok')}
+    <div class="hero">
+      ${kpi('Resultado projetado', k.resultado === null ? '—' : fmtMoney(k.resultado, { dec: 0 }),
+        k.margem === null ? 'informe o valor de venda das obras' : `margem média ${fmtPct(k.margem)} na carteira`,
+        { tom: tomResultado, destaque: true })}
+      ${kpi('Saldo em caixa', fmtMoney(k.saldoCaixa, { dec: 0 }),
+        `recebido ${fmtMoneyCurto(k.recebido)} · pago ${fmtMoneyCurto(k.pago)}`,
+        { tom: k.saldoCaixa < 0 ? 'critico' : 'ok', destaque: true })}
+      ${kpi('Avanço físico médio', fmtPct(k.progressoMedio, 0),
+        `${k.ativas} obra${k.ativas === 1 ? '' : 's'} em andamento`,
+        { destaque: true, visual: anel(k.progressoMedio, 'marca', ' ') })}
     </div>
     <div class="grade g4">
-      ${kpi('Custo realizado/m²', k.area ? fmtMoney(k.custoMedioM2, { dec: 0 }) : '—', `${fmtNum(k.area, k.area % 1 ? 1 : 0)} m² em carteira`)}
-      ${kpi('Custo previsto/m²', k.area ? fmtMoney(k.custoPrevistoM2, { dec: 0 }) : '—', 'com contratos e materiais a comprar')}
-      ${kpi('Avanço físico médio', fmtPct(k.progressoMedio, 0), 'ponderado pelo cronograma')}
+      ${kpi('Obras ativas', k.ativas, `${e.obras.length} no total · ${k.concluidas} concluída${k.concluidas === 1 ? '' : 's'}`)}
+      ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }), 'CAIXA, cliente e recursos próprios')}
+      ${kpi('Custo previsto/m²', k.area ? fmtMoney(k.custoPrevistoM2, { dec: 0 }) : '—', 'contratos + materiais a comprar')}
       ${kpi('Alertas críticos', k.criticos, `${k.atencao} em atenção`, k.criticos ? 'critico' : 'ok')}
     </div>
 
@@ -130,23 +130,32 @@ VIEWS.painel = () => {
     custoPorEtapa[et] = (custoPorEtapa[et] || 0) + num(m.valorPago);
   });
 
-  /* faixa de saúde: identidade + o que importa num relance */
-  const prazoTxt = k.diasParaFim === null ? '—'
-    : k.diasParaFim < 0 ? `${-k.diasParaFim} d em atraso` : `${k.diasParaFim} d restantes`;
-  const saude = `<div class="saude">
-    <div class="titulo-obra">
-      <h2>${esc(o.nome)}</h2>
-      <span class="local">${[o.cidade, o.responsavel].filter(Boolean).map(esc).join(' · ') || 'sem cidade definida'}</span>
-    </div>
+  /* indicadores primordiais: caixa, resultado e avanço */
+  const prazoTxt = k.diasParaFim === null ? 'sem previsão'
+    : k.diasParaFim < 0 ? `${-k.diasParaFim} dias em atraso` : `${k.diasParaFim} dias restantes`;
+  const acumFluxo = fluxoCaixa(o).map((m) => m.acumulado);
+  const tomCaixa = k.saldoCaixa < 0 ? 'critico' : 'ok';
+  const tomMargem = k.margem === null ? '' : k.margem < num(o.fin.margemDesejada) ? 'aviso' : 'ok';
+  const tomFisico = k.desvioFisicoFinanceiro < -0.1 ? 'aviso' : 'marca';
+
+  const contexto = `<div class="contexto-obra">
     ${chip(o.status || 'Planejada', tomStatus(o.status))}
-    <div class="metrica"><span class="rotulo">Caixa</span>
-      <b class="${k.saldoCaixa < 0 ? 'neg' : 'pos'}">${fmtMoneyCurto(k.saldoCaixa)}</b></div>
-    <div class="metrica"><span class="rotulo">Avanço físico</span>
-      <b>${fmtPct(k.progressoFisico, 0)}</b></div>
-    <div class="metrica"><span class="rotulo">Prazo</span>
-      <b class="${k.diasParaFim !== null && k.diasParaFim < 0 ? 'neg' : ''}">${prazoTxt}</b></div>
-    <div class="metrica"><span class="rotulo">Pendências</span>
-      <b class="${criticos.length ? 'neg' : ''}">${criticos.length ? criticos.length + ' críticas' : atencao.length + ' de atenção'}</b></div>
+    ${chip(prazoTxt, k.diasParaFim !== null && k.diasParaFim < 0 ? 'critico' : '')}
+    ${criticos.length ? chip(`${criticos.length} alerta${criticos.length > 1 ? 's' : ''} crítico${criticos.length > 1 ? 's' : ''}`, 'critico')
+      : atencao.length ? chip(`${atencao.length} em atenção`, 'aviso') : chip('sem pendências', 'ok')}
+  </div>`;
+
+  const hero = `<div class="hero">
+    ${kpi('Saldo em caixa', fmtMoney(k.saldoCaixa, { dec: 0 }),
+      `recebido ${fmtMoneyCurto(k.recebido)} · pago ${fmtMoneyCurto(k.totalPago)}`,
+      { tom: tomCaixa, destaque: true, visual: sparkline(acumFluxo, tomCaixa === 'critico' ? 'critico' : 'marca') })}
+    ${kpi('Resultado projetado', k.resultado === null ? '—' : fmtMoney(k.resultado, { dec: 0 }),
+      k.margem === null ? 'informe o valor de venda' : `margem ${fmtPct(k.margem)} · alvo ${fmtPct(o.fin.margemDesejada)}`,
+      { tom: tomMargem, destaque: true })}
+    ${kpi('Avanço físico', fmtPct(k.progressoFisico, 0),
+      `financeiro ${fmtPct(k.progressoFinanceiro, 0)}${k.desvioFisicoFinanceiro < -0.1 ? ' — desembolso à frente' : ''}`,
+      { tom: tomFisico === 'aviso' ? 'aviso' : '', destaque: true,
+        visual: anel(k.progressoFisico, tomFisico === 'aviso' ? 'aviso' : 'marca', ' ') })}
   </div>`;
 
   /* resumo antes do detalhe: o que exige ação primeiro */
@@ -180,25 +189,17 @@ VIEWS.painel = () => {
 
   return `
   <div class="grade" style="gap:16px">
-    ${saude}
+    ${contexto}
+    ${hero}
     ${blocoAcao}
 
     <div class="grade g4">
       ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }), `a receber: ${fmtMoneyCurto(k.previstoNaoRecebido)}`)}
       ${kpi('Total pago', fmtMoney(k.totalPago, { dec: 0 }), `${fmtMoneyCurto(k.pagoMedicoes)} medições · ${fmtMoneyCurto(k.pagoLancamentos)} compras`)}
-      ${kpi('Saldo em caixa', fmtMoney(k.saldoCaixa, { dec: 0 }), `saldo inicial ${fmtMoneyCurto(k.saldoInicial)}`, k.saldoCaixa < 0 ? 'critico' : 'ok')}
       ${kpi('Saldo contratual', fmtMoney(k.saldoContratual, { dec: 0 }), `de ${fmtMoneyCurto(k.contratado)} contratados`, k.saldoContratual < 0 ? 'critico' : '')}
-    </div>
-    <div class="grade g4">
-      ${kpi('Custo realizado/m²', k.area ? fmtMoney(k.custoM2, { dec: 0 }) : '—', `${fmtNum(k.area, 2)} m² construídos`)}
       ${kpi('Custo previsto/m²', k.area ? fmtMoney(k.custoPrevistoM2, { dec: 0 }) : '—',
         num(o.fin.custoFisicoMaxM2) > 0 ? `teto ${fmtMoney(o.fin.custoFisicoMaxM2, { dec: 0 })}/m²` : 'defina o teto na configuração',
         num(o.fin.custoFisicoMaxM2) > 0 && k.custoPrevistoM2 > num(o.fin.custoFisicoMaxM2) ? 'critico' : '')}
-      ${kpi('Avanço físico', fmtPct(k.progressoFisico, 0), `financeiro ${fmtPct(k.progressoFinanceiro, 0)}`,
-        k.desvioFisicoFinanceiro < -0.1 ? 'aviso' : '')}
-      ${kpi('Margem projetada', k.margem === null ? '—' : fmtPct(k.margem),
-        k.margem === null ? 'informe o valor de venda' : `resultado ${fmtMoneyCurto(k.resultado)}`,
-        k.margem !== null && k.margem < num(o.fin.margemDesejada) ? 'aviso' : k.margem !== null ? 'ok' : '')}
     </div>
 
     <div class="grade g-2-1" style="align-items:start">

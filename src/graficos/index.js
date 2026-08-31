@@ -47,13 +47,18 @@ function graficoCurvaS(obra, altura = 300) {
   const sFinReal = serie('financeiroRealizado');
 
   const areaReal = sFisReal.length > 1
-    ? `<path d="${caminho(sFisReal)} L ${sFisReal[sFisReal.length - 1][0].toFixed(1)} ${y0} L ${sFisReal[0][0].toFixed(1)} ${y0} Z" fill="var(--s1)" opacity=".08"/>` : '';
+    ? `<path d="${caminho(sFisReal)} L ${sFisReal[sFisReal.length - 1][0].toFixed(1)} ${y0} L ${sFisReal[0][0].toFixed(1)} ${y0} Z" fill="url(#gradS)"/>` : '';
 
   const linha = (pts, cor, tracejada, larg = 2) => pts.length > 1
     ? `<path d="${caminho(pts)}" fill="none" stroke="${cor}" stroke-width="${larg}" stroke-linejoin="round" stroke-linecap="round" ${tracejada ? 'stroke-dasharray="6 4"' : ''}/>` : '';
 
-  const fim = (pts, cor) => pts.length
-    ? `<circle cx="${pts[pts.length - 1][0].toFixed(1)}" cy="${pts[pts.length - 1][1].toFixed(1)}" r="4.5" fill="${cor}" stroke="var(--sup)" stroke-width="2"/>` : '';
+  const fim = (pts, cor, texto) => {
+    if (!pts.length) return '';
+    const [fx, fy] = pts[pts.length - 1];
+    const acima = fy > y1 + 22;
+    return `<circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="4" fill="${cor}" stroke="var(--sup)" stroke-width="2"/>
+      ${texto ? `<text x="${fx.toFixed(1)}" y="${(fy + (acima ? -9 : 15)).toFixed(1)}" text-anchor="end" fill="${cor}" style="font-size:11px;font-weight:600">${texto}</text>` : ''}`;
+  };
 
   const passo = Math.max(1, Math.ceil(n / 12));
   const rotulosX = dados.map((d, i) => (i % passo === 0 || i === n - 1)
@@ -84,6 +89,9 @@ function graficoCurvaS(obra, altura = 300) {
     ].filter(Boolean).join('<br>'))
   };
 
+  const ultReal = dados.filter((d) => d.fisicoRealizado !== null).pop();
+  const ultFin = dados.filter((d) => d.financeiroRealizado !== null).pop();
+
   return `
   <div class="legenda" style="margin-bottom:10px">
     <span style="color:var(--s1)"><i style="background:var(--s1)"></i>Físico realizado</span>
@@ -92,14 +100,18 @@ function graficoCurvaS(obra, altura = 300) {
   </div>
   <div class="grafico-cx" data-grafico="${id}" style="position:relative">
     <svg class="grafico" viewBox="0 0 ${W} ${H}" role="img" aria-label="Curva S de avanço físico e financeiro">
+      <defs><linearGradient id="gradS" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="var(--s1)" stop-opacity=".22"/>
+        <stop offset="1" stop-color="var(--s1)" stop-opacity="0"/>
+      </linearGradient></defs>
       ${grade}
       ${marcaHoje}
       ${areaReal}
       ${linha(sFisPrev, 'var(--s1)', true)}
       ${linha(sFinReal, 'var(--s2)', false)}
       ${linha(sFisReal, 'var(--s1)', false, 2.4)}
-      ${fim(sFisReal, 'var(--s1)')}
-      ${fim(sFinReal, 'var(--s2)')}
+      ${fim(sFisReal, 'var(--s1)', ultReal ? fmtPct(ultReal.fisicoRealizado, 0) : '')}
+      ${fim(sFinReal, 'var(--s2)', ultFin ? fmtPct(ultFin.financeiroRealizado, 0) : '')}
       <line class="eixo" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y0}"/>
       ${rotulosX}
       <line class="cursor" x1="0" y1="${y1}" x2="0" y2="${y0}" stroke="var(--linha-forte)" stroke-width="1" style="display:none"/>
