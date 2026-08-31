@@ -40,11 +40,18 @@ const ICO = {
 const svg = (d, tam = 16) =>
   `<svg class="ic" width="${tam}" height="${tam}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 
-/* Marca do sistema (dois cubos isométricos). Usada no rail e na tela de acesso.
-   O Vite embute a imagem no arquivo único da publicação. */
-import marcaUrl from '../marca.png';
-
-const LOGO = `<img src="${marcaUrl}" alt="SouZ" class="marca-img">`;
+/* Marca do sistema — dois cubos isométricos, monocromática (herda a cor do texto).
+   Usada no rail e na tela de acesso. */
+const LOGO = `<svg class="marca-svg" viewBox="3 3 40 40" fill="none" role="img" aria-label="SouZ">
+  <g stroke="currentColor" stroke-width="1.6" stroke-linejoin="round">
+    <path d="M16 7 25 11.5 16 16 7 11.5Z" fill="currentColor" fill-opacity=".16"/>
+    <path d="M7 11.5 16 16 16 24.5 7 20Z" fill="currentColor" fill-opacity=".04"/>
+    <path d="M16 16 25 11.5 25 20 16 24.5Z" fill="currentColor" fill-opacity=".09"/>
+    <path d="M30 20 39 24.5 30 29 21 24.5Z" fill="currentColor" fill-opacity=".16"/>
+    <path d="M21 24.5 30 29 30 37.5 21 33Z" fill="currentColor" fill-opacity=".04"/>
+    <path d="M30 29 39 24.5 39 33 30 37.5Z" fill="currentColor" fill-opacity=".09"/>
+  </g>
+</svg>`;
 
 const MENU = [
   { grupo: 'Carteira', itens: [

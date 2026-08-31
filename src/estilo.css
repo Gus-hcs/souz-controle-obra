@@ -20,11 +20,11 @@
   --tinta2: #AEB4BF;
   --mudo: #6B7280;
 
-  /* marca — cinza chumbo (monocromático, moderno) */
-  --marca: #AEB6C2;
-  --marca-forte: #C9CFD9;
-  --marca-fraca: #1B2029;
-  --marca-tinta: #0E1116;
+  /* marca — preto e branco (monocromática) */
+  --marca: #BABABE;
+  --marca-forte: #DBDBDE;
+  --marca-fraca: #1C1C1F;
+  --marca-tinta: #0B0B0D;
 
   /* semânticos — separados da marca */
   --ok: #43C98A;
@@ -35,7 +35,7 @@
   --critico-fraco: #33191A;
 
   /* séries de gráfico (contraste e daltonismo) */
-  --s1: #8992A0; --s2: #F59E5B; --s3: #8B93F8;
+  --s1: #8C8C90; --s2: #F59E5B; --s3: #8B93F8;
   --s4: #86BE3C; --s5: #C879C4; --s6: #C79A45;
   --grade: #1F242D;
 
@@ -77,9 +77,9 @@
   --tinta2: #494E51;
   --mudo: #7B7F7D;
 
-  --marca: #3B4552;
-  --marca-forte: #2A323D;
-  --marca-fraca: #E6E8EC;
+  --marca: #262628;
+  --marca-forte: #121213;
+  --marca-fraca: #E9E9EA;
   --marca-tinta: #FFFFFF;
 
   --ok: #2C7350;
@@ -89,7 +89,7 @@
   --critico: #A32B20;
   --critico-fraco: #F7E3E0;
 
-  --s1: #59626F; --s2: #C0561D; --s3: #4B5EAE;
+  --s1: #56565A; --s2: #C0561D; --s3: #4B5EAE;
   --s4: #6D8F1E; --s5: #93498F; --s6: #A9822F;
   --grade: #E2E0D7;
 
@@ -167,13 +167,10 @@ a { color: var(--marca); }
   display: flex; gap: 10px; align-items: center;
 }
 .marca-mark {
-  width: 40px; height: 40px; flex: 0 0 40px; display: grid; place-items: center;
-  background: #0A0B0D;                       /* fundo preto/chumbo: contraste com a logo clara */
-  border: 1px solid var(--rail-linha); border-radius: var(--r); padding: 5px;
+  width: 34px; height: 34px; flex: 0 0 34px; display: grid; place-items: center;
+  color: var(--rail-tinta);
 }
-.marca-mark svg, .marca-mark .marca-img {
-  width: 100%; height: 100%; display: block; object-fit: contain;
-}
+.marca-mark .marca-svg { width: 100%; height: 100%; display: block; }
 .rail-marca b {
   font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 18px;
   font-weight: 600; letter-spacing: .02em; line-height: 1.05; display: block;
