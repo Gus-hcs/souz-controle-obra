@@ -331,16 +331,37 @@ const SUPA = {
   },
 
   /* Admin altera plano / bloqueio / abas / limite de obras de um cliente.
-     Vai por RPC: o cliente não tem UPDATE nessas colunas (migração 0006).
+     Caminho ideal: RPC admin_definir_perfil (migrações 0006/0007). Enquanto
+     essas migrações não estão aplicadas, cai para gravação direta.
      limiteObras: número >= 0 define o teto · -1 remove · ausente não mexe. */
   async adminSalvarPerfil(usuarioId, campos) {
-    const { error } = await this.sb.rpc('admin_definir_perfil', {
+    const semFn = (e) => e && /Could not find the function|schema cache|does not exist/i.test(e.message || '');
+    const base = {
       p_id: usuarioId,
       p_plano: campos.plano ?? null,
       p_bloqueado: campos.bloqueado ?? null,
       p_abas: campos.abas ?? null,
-      p_limite_obras: campos.limiteObras ?? null,
-    });
+    };
+
+    let { error } = await this.sb.rpc('admin_definir_perfil', { ...base, p_limite_obras: campos.limiteObras ?? null });
+    if (semFn(error)) ({ error } = await this.sb.rpc('admin_definir_perfil', base));
+
+    if (semFn(error)) {
+      /* 0006 ainda não aplicada — grava direto (a política ainda é for all). */
+      const linha = {};
+      if (campos.plano != null) linha.plano = campos.plano;
+      if (campos.bloqueado != null) linha.bloqueado = campos.bloqueado;
+      if (campos.abas != null) linha.abas = campos.abas;
+      if (Object.keys(linha).length) {
+        ({ error } = await this.sb.from('perfis').update(linha).eq('id', usuarioId));
+      } else {
+        error = null;
+      }
+      if (!error && campos.limiteObras != null) {
+        throw new Error('O limite de obras precisa das migrações 0006 e 0007 aplicadas no Supabase.');
+      }
+    }
+
     if (error) throw error;
   },
 
