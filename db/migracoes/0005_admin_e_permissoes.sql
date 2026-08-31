@@ -11,8 +11,11 @@
 --
 --  Quem controla é só o admin: a função pode_admin() e as políticas abaixo.
 --
---  DEPOIS DE APLICAR, marque a sua conta como admin (uma vez):
---    update public.perfis set admin = true where id = auth.uid();
+--  DEPOIS DE APLICAR, marque a sua conta como admin (uma vez). No SQL Editor
+--  o auth.uid() é nulo, então identifique-se pelo e-mail:
+--
+--    update public.perfis set admin = true
+--    where id = (select id from auth.users where email = 'SEU-EMAIL');
 --
 --  Pode ser rodado de novo sem quebrar.
 --  APLICAR NO SUPABASE É MANUAL. Rode 0001–0004 antes.

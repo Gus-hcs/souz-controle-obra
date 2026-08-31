@@ -111,10 +111,12 @@ Acrescenta ao `perfis`: `admin`, `plano` (com `CHECK`), `bloqueado`, `abas`
 `admin_consumo()` (`security definer`), que agrega o uso de todos os clientes e
 só responde para quem é admin.
 
-**Depois de aplicar**, marque a sua conta como administradora, uma vez:
+**Depois de aplicar**, marque a sua conta como administradora, uma vez. No SQL
+Editor o `auth.uid()` é nulo, então identifique-se pelo e-mail:
 
 ```sql
-update public.perfis set admin = true where id = auth.uid();
+update public.perfis set admin = true
+where id = (select id from auth.users where email = 'seu-email@exemplo.com');
 ```
 
 Aí aparece o grupo **Administração** no menu, só para você.
