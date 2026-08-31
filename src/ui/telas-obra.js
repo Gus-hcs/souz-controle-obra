@@ -16,9 +16,9 @@ VIEWS.carteira = () => {
   if (!e.obras.length) {
     return `<div class="cartao"><div class="corpo">${vazio(
       'Nenhuma obra cadastrada',
-      'Cadastre a primeira casa para começar a controlar contratos, medições, recebimentos e materiais. Você também pode importar uma planilha do modelo MCMV que já usa.',
+      'Cadastre a primeira obra para começar a controlar contratos, medições, recebimentos e materiais. Se já usa uma planilha de acompanhamento (inclusive do modelo MCMV), pode importar.',
       `${botao('Nova obra', 'nova-obra', {}, 'btn primario', 'mais')}
-       ${botao('Importar planilha MCMV', 'importar-xlsx', {}, 'btn', 'baixar')}
+       ${botao('Importar planilha', 'importar-xlsx', {}, 'btn', 'baixar')}
        ${botao('Carregar dados de exemplo', 'exemplo', {}, 'btn sutil')}`
     )}</div></div>`;
   }
@@ -76,7 +76,7 @@ VIEWS.carteira = () => {
     </div>
     <div class="grade g4">
       ${kpi('Obras ativas', k.ativas, `${e.obras.length} no total · ${k.concluidas} concluída${k.concluidas === 1 ? '' : 's'}`)}
-      ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }), 'CAIXA, cliente e recursos próprios')}
+      ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }), 'financiamento, cliente e recursos próprios')}
       ${kpi('Custo previsto/m²', k.area ? fmtMoney(k.custoPrevistoM2, { dec: 0 }) : '—', 'contratos + materiais a comprar')}
       ${kpi('Alertas críticos', k.criticos, `${k.atencao} em atenção`, k.criticos ? 'critico' : 'ok')}
     </div>
@@ -225,7 +225,7 @@ VIEWS.painel = () => {
               <b class="${k.diasParaFim !== null && k.diasParaFim < 0 ? 'neg' : ''}">${k.diasParaFim === null ? '—' : k.diasParaFim + ' dias'}</b></div>
           </div>
           <div style="border-top:1px solid var(--linha);padding-top:10px">
-            <span class="rotulo" style="font-size:10.5px">Financiamento CAIXA</span>
+            <span class="rotulo" style="font-size:10.5px">Financiamento da obra</span>
             <div style="display:flex;justify-content:space-between;font-size:12.5px;margin:4px 0">
               <span>${fmtMoney(k.recebido, { dec: 0 })} de ${fmtMoney(k.financiado, { dec: 0 })}</span>
               <b class="mono">${k.financiado ? fmtPct(k.recebido / k.financiado, 0) : '—'}</b>
@@ -365,7 +365,7 @@ VIEWS.medicoes = () => {
     })}
     <div class="cartao"><div class="corpo" style="font-size:12.5px;color:var(--tinta2)">
       <b>Regra anti-duplicidade:</b> pagamento por medição entra somente nesta tela.
-      Compras, taxas e serviços sem medição entram em Lançamentos. Entradas da CAIXA ou do cliente, em Recebimentos.
+      Compras, taxas e serviços sem medição entram em Lançamentos. Entradas de financiamento ou do cliente, em Recebimentos.
     </div></div>
   </div>`;
 };
@@ -401,14 +401,14 @@ VIEWS.recebimentos = () => {
     <div class="grade g4">
       ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }), `de ${fmtMoney(k.financiado, { dec: 0 })} financiados`)}
       ${kpi('A receber (previsto)', fmtMoney(k.previstoNaoRecebido, { dec: 0 }), 'parcelas não creditadas')}
-      ${kpi('Descontos e tarifas', fmtMoney(o.recebimentos.reduce((s, r) => s + num(r.descontos), 0), { dec: 0 }), 'retidos pela CAIXA')}
+      ${kpi('Descontos e tarifas', fmtMoney(o.recebimentos.reduce((s, r) => s + num(r.descontos), 0), { dec: 0 }), 'retidos na liberação')}
       ${kpi('Diferença previsto x recebido', fmtMoney(tRec - tPrev, { dec: 0 }), 'no conjunto das parcelas', tRec - tPrev < 0 ? 'aviso' : 'ok')}
     </div>
     ${cartao('Cronograma de recebimentos', `
       <div class="tab-rolagem"><table class="tab">
         <thead><tr><th>Origem</th><th>Etapa / medição</th><th>Previsto p/</th>
           <th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Diferença</th><th>Status</th><th></th></tr></thead>
-        <tbody>${linhas || `<tr><td colspan="8">${vazio('Nenhum recebimento', 'Cadastre o cronograma do PCI e vá atualizando o que a CAIXA efetivamente creditou.', botao('Nova parcela', 'novo-recebimento', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
+        <tbody>${linhas || `<tr><td colspan="8">${vazio('Nenhum recebimento', 'Cadastre as parcelas previstas de financiamento ou do cliente e atualize o que foi efetivamente creditado.', botao('Nova parcela', 'novo-recebimento', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
         ${lista.length ? `<tfoot><tr><td colspan="3">${lista.length} parcela(s)</td>
           <td class="num mono">${fmtMoney(tPrev)}</td>
           <td class="num mono">${fmtMoney(tRec)}</td>
@@ -554,7 +554,7 @@ VIEWS.cronograma = () => {
   if (!o.cronograma.length) {
     return cartao('Cronograma da obra', vazio(
       'Cronograma não montado',
-      'Gere as etapas padrão de uma casa MCMV e depois ajuste datas, responsáveis e progresso a cada visita.',
+      'Gere as etapas padrão de uma casa e depois ajuste datas, responsáveis e progresso a cada visita.',
       `${botao('Gerar etapas padrão', 'gerar-cronograma', {}, 'btn primario')} ${botao('Adicionar etapa', 'nova-etapa', {}, 'btn')}`));
   }
   const k = kpisObra(o);
@@ -924,7 +924,7 @@ VIEWS['obra-config'] = () => {
     { k: 'fin.custoFisicoMaxM2', label: 'Custo físico máximo/m²', tipo: 'dinheiro', col: 3, dica: 'gera alerta se ultrapassar' },
     { k: 'fin.valorVenda', label: 'Valor de venda/contrato', tipo: 'dinheiro', col: 3 },
     { k: 'fin.margemDesejada', label: 'Margem desejada (%)', tipo: 'pct', col: 3 },
-    { k: 'fin.contratoCaixa', label: 'Nº contrato CAIXA', tipo: 'texto', col: 4 },
+    { k: 'fin.contratoCaixa', label: 'Nº do contrato de financiamento', tipo: 'texto', col: 4 },
     { k: 'fin.dataAssinatura', label: 'Data da assinatura', tipo: 'data', col: 4 },
     { k: 'observacoes', label: 'Observações', tipo: 'area', col: 12 }
   ];
@@ -951,7 +951,7 @@ VIEWS['obra-config'] = () => {
           k.margem === null ? 'informe o valor de venda' : `margem de ${fmtPct(k.margem)}`,
           k.margem !== null && k.margem < num(o.fin.margemDesejada) ? 'aviso' : 'ok')}
       </div>`)}
-    ${cartao('Escopo padrão da empreitada MCMV', `
+    ${/MCMV/i.test(o.padrao || '') || o.fin.contratoCaixa || num(o.fin.valorFinanciado) > 0 ? cartao('Escopo típico da empreitada financiada (MCMV)', `
       <table class="tab">
         <tbody>
           <tr><td style="width:190px"><b>Incluído</b></td><td>Parte cinza, hidráulica e sanitário sem fossa, eletrodutos e caixas, assentamento de piso e revestimento</td></tr>
@@ -960,7 +960,7 @@ VIEWS['obra-config'] = () => {
           <tr><td><b>Fornecimento + instalação</b></td><td>Calhas, rufos, mármores e portas quando o preço já inclui material e instalação</td></tr>
           <tr><td><b>Regra</b></td><td>Medições nunca devem ultrapassar contrato + aditivos aprovados</td></tr>
         </tbody>
-      </table>`, { semPadding: true })}
+      </table>`, { semPadding: true }) : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${botao('Duplicar esta obra', 'duplicar-obra', {}, 'btn')}
       ${botao('Excluir obra', 'excluir-obra', {}, 'btn perigo', 'lixo')}

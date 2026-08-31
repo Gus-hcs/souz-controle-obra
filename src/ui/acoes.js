@@ -363,8 +363,8 @@ function formRecebimento(r, novo, aoSalvar) {
     largura: 'largo',
     campos: [
       { k: 'origem', label: 'Origem', tipo: 'select', opcoes: opcoesLista('origensRecebimento'), col: 3, vazio: false },
-      { k: 'numeroMedicao', label: 'Nº medição CAIXA', tipo: 'texto', col: 3 },
-      { k: 'etapaPci', label: 'Etapa / descrição PCI', tipo: 'texto', col: 6 },
+      { k: 'numeroMedicao', label: 'Nº da parcela / medição', tipo: 'texto', col: 3 },
+      { k: 'etapaPci', label: 'Etapa / descrição', tipo: 'texto', col: 6 },
       { k: 'dataPrevista', label: 'Data prevista', tipo: 'data', col: 3 },
       { k: 'valorPrevisto', label: 'Valor previsto', tipo: 'dinheiro', col: 3 },
       { k: 'dataSolicitacao', label: 'Data da solicitação', tipo: 'data', col: 3 },

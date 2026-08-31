@@ -136,8 +136,8 @@ VIEWS.relatorio = () => {
           <span class="chip marca" style="align-self:flex-start">PDF</span>
         </button>
         <button class="obra-cartao" data-acao="pdf-medicao">
-          <h4>Memória de medição CAIXA</h4>
-          <p style="font-size:12.5px;color:var(--mudo);margin:0">PDF com o percentual por etapa e o valor a solicitar na próxima medição do PCI.</p>
+          <h4>Memória de medição</h4>
+          <p style="font-size:12.5px;color:var(--mudo);margin:0">PDF com o percentual por etapa e o valor a solicitar na próxima medição — no formato que o financiador (CAIXA e outros) espera.</p>
           <span class="chip marca" style="align-self:flex-start">PDF</span>
         </button>
       </div>
@@ -176,7 +176,7 @@ VIEWS.ajustes = () => {
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${botao('Baixar backup (JSON)', 'backup-json', {}, 'btn', 'baixar')}
           ${botao('Restaurar backup', 'restaurar-json', {}, 'btn')}
-          ${botao('Importar planilha MCMV', 'importar-xlsx', {}, 'btn')}
+          ${botao('Importar planilha (modelo MCMV)', 'importar-xlsx', {}, 'btn')}
           ${botao('Carregar dados de exemplo', 'exemplo', {}, 'btn sutil')}
         </div>
         <table class="tab">

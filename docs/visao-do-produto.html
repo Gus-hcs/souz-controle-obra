@@ -271,10 +271,11 @@
       </div>
     </div>
 
-    <h1>Controle de obra que fala CAIXA de verdade.</h1>
+    <h1>Gestão de obra, do contrato ao resultado.</h1>
     <p class="lede">
-      Um sistema web de gestão financeira e de produção de obras, nascido de uma planilha
-      de acompanhamento MCMV e transformado em produto SaaS. Já está no ar.
+      Um sistema web para a empresa de engenharia controlar suas obras — financeiro,
+      produção, prazo e materiais num lugar só. Serve qualquer obra; para quem toca
+      MCMV, entende também o financiamento da CAIXA. Já está no ar.
     </p>
 
     <div class="facts">
@@ -288,18 +289,24 @@
   <section>
     <h2><span class="idx">01</span>O produto</h2>
     <p>
-      A construtora que toca MCMV financiado pela CAIXA vive de planilha: a medição do
-      empreiteiro numa aba, o cronograma de recebimento da CAIXA em outra, a compra de
-      material numa terceira, o prazo numa quarta. Nada conversa. O erro mais comum —
-      pagar o mesmo serviço duas vezes, uma como medição e outra como compra — só
-      aparece no fechamento, quando a obra já consumiu a margem.
+      A empresa de engenharia que gerencia obra vive de planilha: a medição do empreiteiro
+      numa aba, o recebimento do cliente em outra, a compra de material numa terceira, o
+      prazo numa quarta. Nada conversa. O erro mais comum — pagar o mesmo serviço duas
+      vezes, uma como medição e outra como compra — só aparece no fechamento, quando a
+      obra já consumiu a margem.
     </p>
     <p>
-      O <strong>Souz Controle de Obra</strong> junta tudo isso num lugar só, com uma regra
-      que o Excel não impõe: <strong>cada real entra uma vez e num lugar certo</strong>.
-      Medição de prestador é medição. Compra sem medição é lançamento. Crédito da CAIXA é
-      recebimento. O sistema recusa a duplicidade e mostra, a qualquer momento, se a obra
-      está dando lucro.
+      O <strong>Souz Controle de Obra</strong> junta tudo num lugar só, com uma regra que
+      o Excel não impõe: <strong>cada real entra uma vez e num lugar certo</strong>.
+      Medição de prestador é medição. Compra sem medição é lançamento. Entrada do cliente
+      ou do financiamento é recebimento. O sistema recusa a duplicidade e mostra, a
+      qualquer momento, se a obra está dando lucro.
+    </p>
+    <p>
+      Funciona para obra particular, contrato com incorporadora ou empreitada de terceiros.
+      Para quem toca <strong>MCMV financiado pela CAIXA</strong>, há uma camada a mais:
+      recebimento por etapa, escopo padrão da empreitada, teto de custo por m² e a memória
+      de medição no formato do financiador.
     </p>
   </section>
 
@@ -311,7 +318,7 @@
       <div class="cols"><ul class="feat">
         <li><b>Contratos e aditivos</b> agrupados por código-base, com posição contratual</li>
         <li><b>Medições</b> de prestadores e controle de pagamento, com alerta de pagamento acima do medido</li>
-        <li><b>Recebimentos da CAIXA</b> — cronograma PCI, solicitações e créditos efetivos</li>
+        <li><b>Recebimentos</b> — parcelas do cliente, do financiamento (CAIXA e outros) e recursos próprios</li>
         <li><b>Lançamentos</b> — compras, taxas, honorários e serviços sem medição</li>
       </ul><ul class="feat">
         <li><b>Fluxo de caixa</b> mês a mês, com previsto não recebido e medições não pagas</li>
@@ -359,16 +366,20 @@
     <h2><span class="idx">03</span>O diferencial</h2>
     <div class="diff">
       <article>
-        <h3>Profundidade em CAIXA / MCMV</h3>
-        <p>Recebimento por etapa do PCI, escopo padrão da empreitada MCMV, teto de custo físico por m², relatório no formato que o engenheiro credenciado espera. Os concorrentes genéricos de obra não modelam nada disso.</p>
+        <h3>Regra anti-duplicidade</h3>
+        <p>Medição, lançamento e recebimento são fluxos separados por desenho. O sistema não deixa o mesmo pagamento entrar duas vezes — a causa nº 1 de margem perdida em obra. É o que a planilha não impõe.</p>
       </article>
       <article>
-        <h3>Regra anti-duplicidade</h3>
-        <p>Medição, lançamento e recebimento são fluxos separados por desenho. O sistema não deixa o mesmo pagamento entrar duas vezes — a causa nº 1 de margem perdida em obra.</p>
+        <h3>Resultado da obra em tempo real</h3>
+        <p>Contrato, aditivo, medição, compra, recebimento e cronograma alimentam um único cálculo de margem e custo por m². Não é preciso esperar o fechamento para saber se a obra dá lucro.</p>
       </article>
       <article>
         <h3>Cálculo provado, não confiado</h3>
-        <p>Toda regra de negócio vive numa camada isolada da tela e é conferida, número por número, contra a planilha MCMV original. Uma mudança no código nunca altera um resultado financeiro em silêncio.</p>
+        <p>Toda regra de negócio vive numa camada isolada da tela e é conferida, número por número, contra a planilha de origem. Uma mudança no código nunca altera um resultado financeiro em silêncio.</p>
+      </article>
+      <article>
+        <h3>Módulo CAIXA / MCMV</h3>
+        <p>Para quem toca obra financiada: recebimento por etapa, escopo padrão da empreitada, teto de custo físico por m², memória de medição no formato do financiador. Os concorrentes genéricos não modelam isso — e some da tela de quem não precisa.</p>
       </article>
       <article>
         <h3>Portátil e sem trava</h3>
@@ -415,7 +426,7 @@
     <h2><span class="idx">06</span>Estado atual</h2>
     <div class="status">
       <div class="row"><span class="dot ok"></span><div class="t"><b>No ar e funcional.</b> <span>18 telas, dados reais, publicação automática.</span></div></div>
-      <div class="row"><span class="dot mid"></span><div class="t"><b>Migrações 0002–0007 pendentes de aplicação.</b> <span>O SQL está pronto no repositório; cola no editor do Supabase. Sem elas, o núcleo roda, mas validação no banco, auditoria, papéis e limites ficam desligados. A 0006 é urgente (segurança).</span></div></div>
+      <div class="row"><span class="dot mid"></span><div class="t"><b>Migrações 0002–0007 pendentes de aplicação.</b> <span>O SQL está pronto no repositório; cola no editor do Supabase. Sem elas o núcleo roda, mas validação no banco, auditoria, papéis e limite de obras ficam desligados. A 0006 é urgente (corrige a falha de segurança).</span></div></div>
       <div class="row"><span class="dot mid"></span><div class="t"><b>Configuração de autenticação do Supabase.</b> <span>Cadastro, confirmação de e-mail, senha forte, rate limit e MFA — trabalho de painel.</span></div></div>
       <div class="row"><span class="dot no"></span><div class="t"><b>Sincronização multiusuário simultâneo.</b> <span>Hoje é "última gravação vence". Ok com um usuário por obra; precisa de tratamento quando duas pessoas editam a mesma obra ao mesmo tempo.</span></div></div>
       <div class="row"><span class="dot no"></span><div class="t"><b>Tela de convite de engenheiro / cliente.</b> <span>O esquema de papéis existe; falta a interface de convite e de esconder ação por papel.</span></div></div>
@@ -469,7 +480,7 @@
     <div class="wave">
       <div class="num">5</div>
       <div>
-        <h3>A vantagem que ninguém copia</h3>
+        <h3>Módulo CAIXA avançado + operação</h3>
         <p>Importar a PCI da CAIXA (a obra nasce montada), conciliação etapa liberada × empreiteiro pago, relatório de vistoria no formato do engenheiro credenciado, leitura de nota fiscal por foto com IA, alerta por WhatsApp, multiempresa matriz e filial.</p>
       </div>
     </div>
@@ -479,32 +490,32 @@
     <h2><span class="idx">08</span>Como vender</h2>
 
     <div class="pitch">
-      O único controle de obra que entende o financiamento da CAIXA — da medição do PCI
-      ao fechamento com margem.
+      Pare de controlar obra por planilha. Contrato, medição, compra, recebimento e prazo
+      numa tela — com o resultado de cada obra sempre à vista.
     </div>
 
     <div class="sell">
       <div class="card">
         <div class="lbl">Para quem</div>
-        <p><strong>Primário:</strong> construtoras pequenas e médias que tocam obra MCMV financiada pela CAIXA e ainda controlam por planilha — de 1 a algumas dezenas de casas por vez.</p>
-        <p><strong>Secundário:</strong> engenheiros autônomos que gerenciam obras de terceiros e precisam prestar contas ao cliente e ao banco.</p>
+        <p><strong>Alvo:</strong> empresas de engenharia e construtoras pequenas e médias que tocam de uma a algumas dezenas de obras e ainda controlam por planilha — obra particular, contrato com incorporadora ou empreitada de terceiros.</p>
+        <p><strong>Nicho de entrada:</strong> quem faz MCMV financiado pela CAIXA. É onde a dor é maior e o módulo específico já resolve. Serve de cabeça de ponte para o mercado geral.</p>
       </div>
       <div class="card">
         <div class="lbl">Modelo de receita</div>
         <p>Assinatura mensal, com faixa por <strong>número de obras ativas</strong> — o limite por conta já está implementado no banco. Trial → ativo → suspenso já existe como estado de conta.</p>
-        <p>Ancorar o preço entre o de Vobi e Obra Prima, justificado pela profundidade em CAIXA que eles não têm.</p>
+        <p>Ancorar o preço na faixa de Vobi e Obra Prima, com um plano de entrada mais enxuto para o engenheiro autônomo.</p>
       </div>
       <div class="card">
         <div class="lbl">Porta de entrada</div>
-        <p>"Importe a sua planilha MCMV e comece hoje." O importador já existe e traz contratos, cronograma e materiais sem digitação — o atrito de migração cai a quase zero.</p>
+        <p>"Importe a sua planilha e comece hoje." O importador já traz contratos, cronograma e materiais sem digitação — o atrito de migração cai a quase zero. Hoje ele lê o modelo MCMV; ampliar para outros modelos é trabalho pequeno.</p>
       </div>
       <div class="card">
         <div class="lbl">Concorrência</div>
-        <p><strong>Vobi, Obra Prima, VIGHA</strong> — todos genéricos de obra. O Souz iguala no básico (carteira, cronograma, financeiro, curva S) e ganha onde a construtora MCMV mais sofre: o casamento entre a obra e o cronograma de liberação da CAIXA.</p>
+        <p><strong>Vobi, Obra Prima, VIGHA</strong> — genéricos de obra. O Souz iguala no essencial (carteira, cronograma, financeiro, curva S, diário) e ganha em duas frentes: a regra anti-duplicidade que trava a perda de margem, e o módulo CAIXA para quem faz financiado.</p>
       </div>
       <div class="card">
         <div class="lbl">Antes de escalar</div>
-        <p>Fechar a autenticação do Supabase, aplicar as migrações pendentes, ligar a cobrança, publicar os termos e resolver a sincronização simultânea. São itens de dias, não de meses — o produto em si já está de pé.</p>
+        <p>Fechar a autenticação do Supabase, aplicar as migrações pendentes, ligar a cobrança, publicar os termos e resolver a sincronização simultânea. Também: contas a pagar/receber gerais, anexos e DRE por obra — o que um cliente não-MCMV vai cobrar primeiro. São semanas, não meses.</p>
       </div>
     </div>
   </section>

@@ -170,7 +170,7 @@ const novaObra = (nome = 'Nova obra') => ({
   areaConstruida: 0,
   areaMuro: 0,
   sistema: '',
-  padrao: 'MCMV',
+  padrao: '',
   dataInicio: '',
   previsaoConclusao: '',
   responsavel: '',
