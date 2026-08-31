@@ -7,44 +7,44 @@
 :root {
   color-scheme: dark;
 
-  /* superfícies — do mais fundo ao mais alto */
-  --bg: #0B0D11;
-  --sup: #13161C;
-  --sup2: #191D25;
-  --sup3: #232833;
-  --linha: #23272F;
-  --linha-forte: #333A47;
+  /* superfícies — do preto ao mais alto (viés teal sutil) */
+  --bg: #000000;
+  --sup: #0A0D0C;
+  --sup2: #101413;
+  --sup3: #1A201E;
+  --linha: #1B211F;
+  --linha-forte: #2C3431;
 
   /* texto */
-  --tinta: #EAECEF;
-  --tinta2: #AEB4BF;
-  --mudo: #6B7280;
+  --tinta: #E8EDEB;
+  --tinta2: #A4AEAB;
+  --mudo: #6B7874;
 
-  /* marca — preto e branco (monocromática) */
-  --marca: #BABABE;
-  --marca-forte: #DBDBDE;
-  --marca-fraca: #1C1C1F;
-  --marca-tinta: #0B0B0D;
+  /* marca — verde ciano sobre preto */
+  --marca: #2FD4C1;
+  --marca-forte: #5CE3D3;
+  --marca-fraca: #082521;
+  --marca-tinta: #03231F;
 
   /* semânticos — separados da marca */
-  --ok: #43C98A;
-  --ok-fraco: #0E2720;
+  --ok: #5FE0A3;
+  --ok-fraco: #08261C;
   --aviso: #E4A73E;
   --aviso-fraco: #2C2411;
   --critico: #F06A5E;
   --critico-fraco: #33191A;
 
   /* séries de gráfico (contraste e daltonismo) */
-  --s1: #8C8C90; --s2: #F59E5B; --s3: #8B93F8;
+  --s1: #2FD4C1; --s2: #F59E5B; --s3: #8B93F8;
   --s4: #86BE3C; --s5: #C879C4; --s6: #C79A45;
-  --grade: #1F242D;
+  --grade: #141A18;
 
-  /* rail — âncora escura da identidade */
-  --rail: #090B0E;
-  --rail2: #14181F;
-  --rail-linha: #1E232C;
-  --rail-tinta: #E4E6EA;
-  --rail-mudo: #6B7280;
+  /* rail — âncora preta da identidade */
+  --rail: #000000;
+  --rail2: #0C110F;
+  --rail-linha: #1A211E;
+  --rail-tinta: #E6EBE9;
+  --rail-mudo: #6B7874;
 
   /* raio */
   --r: 7px;
@@ -66,40 +66,40 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg: #ECEBE6;
-  --sup: #FCFBF8;
-  --sup2: #F3F1EB;
-  --sup3: #E7E4DB;
-  --linha: #E0DDD3;
-  --linha-forte: #C6C2B6;
+  --bg: #EDEFEE;
+  --sup: #FBFCFB;
+  --sup2: #F1F4F3;
+  --sup3: #E5E9E8;
+  --linha: #DFE4E2;
+  --linha-forte: #C4CBC8;
 
-  --tinta: #15181B;
-  --tinta2: #494E51;
-  --mudo: #7B7F7D;
+  --tinta: #10201D;
+  --tinta2: #45514E;
+  --mudo: #6E7A76;
 
-  --marca: #262628;
-  --marca-forte: #121213;
-  --marca-fraca: #E9E9EA;
+  --marca: #0B7D72;
+  --marca-forte: #096A61;
+  --marca-fraca: #DCEFEC;
   --marca-tinta: #FFFFFF;
 
-  --ok: #2C7350;
-  --ok-fraco: #E1EFE7;
+  --ok: #17794C;
+  --ok-fraco: #DEF0E6;
   --aviso: #935E0E;
   --aviso-fraco: #F6EBD9;
   --critico: #A32B20;
   --critico-fraco: #F7E3E0;
 
-  --s1: #56565A; --s2: #C0561D; --s3: #4B5EAE;
+  --s1: #0B7D72; --s2: #C0561D; --s3: #4B5EAE;
   --s4: #6D8F1E; --s5: #93498F; --s6: #A9822F;
-  --grade: #E2E0D7;
+  --grade: #E1E6E4;
 
-  --rail: #0E1114;
-  --rail2: #171C20;
-  --rail-linha: #262C31;
-  --rail-tinta: #E7E5DF;
-  --rail-mudo: #8B9497;
+  --rail: #05100E;
+  --rail2: #0E1A17;
+  --rail-linha: #23302C;
+  --rail-tinta: #E7EBE9;
+  --rail-mudo: #8A9591;
 
-  --sombra: 0 1px 2px rgba(20,24,26,.07);
+  --sombra: 0 1px 2px rgba(16,32,29,.07);
   --realce: 0 0 transparent;
 }
 
@@ -632,7 +632,7 @@ select { cursor: pointer; }
     --bg: #fff; --sup: #fff; --sup2: #f5f4f0; --sup3: #ecebe5;
     --linha: #d9d6cc; --linha-forte: #b9b5a8;
     --tinta: #111; --tinta2: #333; --mudo: #666;
-    --marca: #0b5f6b; --grade: #ddd;
+    --marca: #0B6F66; --grade: #ddd;
     --sombra: none; --realce: none;
   }
   #rail, #topo, .nao-imprime { display: none !important; }
@@ -645,12 +645,12 @@ select { cursor: pointer; }
 #acesso {
   position: fixed; inset: 0; z-index: 150; display: none;
   align-items: center; justify-content: center; padding: 20px;
-  background: #06070A;
+  background: #000000;
   background-image:
-    radial-gradient(70% 60% at 50% 0%, rgba(255,255,255,.03), transparent 70%);
+    radial-gradient(70% 55% at 50% 0%, rgba(47,212,193,.07), transparent 70%);
   overflow-y: auto;
 }
-:root[data-theme="light"] #acesso { background: #E7E6E1; background-image: none; }
+:root[data-theme="light"] #acesso { background: #E7EAE9; background-image: none; }
 .acesso-painel {
   background: var(--sup); border: 1px solid var(--linha-forte); border-radius: var(--r2);
   width: 100%; max-width: 420px; padding: 28px 28px 24px; margin: auto;
