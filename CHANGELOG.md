@@ -13,6 +13,10 @@
 - `SECURITY.md` reescrito com a auditoria completa e o checklist do Supabase.
 
 **Administração**
+- Migração `0007_limite_obras.sql`: teto de obras por conta
+  (`perfis.limite_obras`). Checado no banco (gatilho `before insert` em
+  `obras`), então vale para o app, a importação e qualquer inserção. Só o
+  admin define, no modal "Acesso e limites" da tela de administração.
 - Migração `0005_admin_e_permissoes.sql`: `perfis` ganha `admin`, `plano`,
   `bloqueado` e `abas`; função `admin_consumo()` agrega o uso de cada cliente.
 - Tela **Administração** (só para quem é admin): consumo por cliente — obras,

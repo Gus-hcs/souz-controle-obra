@@ -209,6 +209,7 @@ const SUPA = {
   plano: 'ativo',
   bloqueado: false,
   abas: {},          // { "<aba>": false } = abas bloqueadas para este usuário
+  limiteObras: null, // null = sem limite; número = teto de obras da conta
 
   lerConfig() {
     let cfg = { ...SUPABASE_PADRAO };
@@ -329,16 +330,24 @@ const SUPA = {
     return data || [];
   },
 
-  /* Admin altera plano / bloqueio / abas de um cliente.
-     Vai por RPC: o cliente não tem UPDATE nessas colunas (migração 0006). */
+  /* Admin altera plano / bloqueio / abas / limite de obras de um cliente.
+     Vai por RPC: o cliente não tem UPDATE nessas colunas (migração 0006).
+     limiteObras: número >= 0 define o teto · -1 remove · ausente não mexe. */
   async adminSalvarPerfil(usuarioId, campos) {
     const { error } = await this.sb.rpc('admin_definir_perfil', {
       p_id: usuarioId,
       p_plano: campos.plano ?? null,
       p_bloqueado: campos.bloqueado ?? null,
       p_abas: campos.abas ?? null,
+      p_limite_obras: campos.limiteObras ?? null,
     });
     if (error) throw error;
+  },
+
+  /* Quantas obras a conta ainda pode criar (null = sem limite). */
+  obrasRestantes(qtdAtual) {
+    if (this.limiteObras == null) return null;
+    return Math.max(0, this.limiteObras - qtdAtual);
   },
 
   /* Lista de membros de uma obra, para uma futura tela de equipe. */
@@ -412,6 +421,7 @@ const SUPA = {
       this.plano = perfil.plano || 'ativo';
       this.bloqueado = !!perfil.bloqueado;
       this.abas = perfil.abas && typeof perfil.abas === 'object' ? perfil.abas : {};
+      this.limiteObras = perfil.limite_obras == null ? null : Number(perfil.limite_obras);
     } else {
       estado.empresa.email = (this.usuario && this.usuario.email) || '';
     }

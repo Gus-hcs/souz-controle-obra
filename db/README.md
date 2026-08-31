@@ -64,6 +64,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0004_membros_e_papeis.sql` | `obra_membros`, funções de autorização e políticas por papel |
 | `0005_admin_e_permissoes.sql` | painel de administração: consumo por cliente e liberação de acesso por aba |
 | `0006_seguranca.sql` | corrige a falha de auto-promoção a admin; endurece funções e schema |
+| `0007_limite_obras.sql` | teto de obras por conta (`perfis.limite_obras`), com gatilho no banco |
 
 Ao criar uma migração nova, numere em sequência e descreva a mudança aqui.
 

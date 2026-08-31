@@ -272,6 +272,12 @@ function validarPerfilAdmin(p) {
   if (p.abas !== undefined && (typeof p.abas !== 'object' || Array.isArray(p.abas) || p.abas === null)) {
     out.push(problema('abas', 'A configuração de abas precisa ser um objeto.'));
   }
+  if (p.limiteObras !== undefined && p.limiteObras !== null && p.limiteObras !== -1) {
+    const n = num(p.limiteObras);
+    if (!Number.isInteger(n) || n < 0) {
+      out.push(problema('limiteObras', 'O limite de obras deve ser um número inteiro de 0 ou mais.'));
+    }
+  }
   return out;
 }
 

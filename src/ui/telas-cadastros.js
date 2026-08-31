@@ -281,6 +281,11 @@ VIEWS.admin = () => {
 
   const linhaHTML = (l) => {
     const abasBloqueadas = l.abas ? Object.values(l.abas).filter((x) => x === false).length : 0;
+    const lim = l.limite_obras == null ? null : Number(l.limite_obras);
+    const acessoTxt = [
+      lim == null ? 'obras livres' : `${l.obras}/${lim} obras`,
+      abasBloqueadas ? `${abasBloqueadas} aba(s) bloqueada(s)` : null,
+    ].filter(Boolean).join(' · ');
     return `<tr>
       <td>
         <b>${esc(l.empresa || l.email || '—')}</b>
@@ -292,13 +297,13 @@ VIEWS.admin = () => {
           ${PLANOS.map((p) => `<option value="${p}" ${p === l.plano ? 'selected' : ''}>${p}</option>`).join('')}
         </select>
       </td>
-      <td class="num">${l.obras}</td>
+      <td class="num ${lim != null && Number(l.obras) >= lim ? 'neg' : ''}">${l.obras}${lim == null ? '' : ` / ${lim}`}</td>
       <td class="num">${l.contratos}</td>
       <td class="num">${l.medicoes}</td>
       <td class="num">${l.lancamentos}</td>
       <td class="num">${l.fotos}</td>
       <td>${quandoRelativo(l.ultima_atividade)}</td>
-      <td>${botao(abasBloqueadas ? `${abasBloqueadas} bloqueada(s)` : 'tudo liberado', 'admin-abas', { id: l.usuario_id }, 'btn sutil pequeno')}</td>
+      <td>${botao(acessoTxt, 'admin-acesso', { id: l.usuario_id }, 'btn sutil pequeno')}</td>
       <td class="acoes" style="opacity:1">
         ${l.eh_admin ? '' : botao(l.bloqueado ? 'liberar' : 'bloquear', 'admin-bloquear',
           { id: l.usuario_id, para: l.bloqueado ? '0' : '1' }, l.bloqueado ? 'btn pequeno' : 'btn perigo pequeno')}
@@ -319,7 +324,7 @@ VIEWS.admin = () => {
           <th>Cliente</th><th>Plano</th>
           <th class="num">Obras</th><th class="num">Contr.</th><th class="num">Medições</th>
           <th class="num">Lançam.</th><th class="num">Fotos</th>
-          <th>Última atividade</th><th>Acesso por aba</th><th></th>
+          <th>Última atividade</th><th>Acesso e limites</th><th></th>
         </tr></thead>
         <tbody>${vis.map(linhaHTML).join('') || `<tr><td colspan="10">${vazio('Nenhum cliente', 'Ainda não há contas cadastradas além da sua.')}</td></tr>`}</tbody>
       </table></div>`, {
@@ -366,16 +371,24 @@ ACOES['admin-bloquear'] = (el, d) => {
     bloquear ? 'Bloquear' : 'Liberar');
 };
 
-ACOES['admin-abas'] = (el, d) => {
+ACOES['admin-acesso'] = (el, d) => {
   const alvo = (Admin.linhas || []).find((l) => l.usuario_id === d.id);
   if (!alvo) return;
   const abas = (alvo.abas && typeof alvo.abas === 'object') ? alvo.abas : {};
+  const lim = alvo.limite_obras == null ? '' : Number(alvo.limite_obras);
   abrirModal({
-    titulo: 'Acesso por aba',
+    titulo: 'Acesso e limites',
     largura: 'estreito',
-    corpo: `<p style="margin:0 0 12px;font-size:12.5px;color:var(--mudo)">
-        ${esc(alvo.empresa || alvo.email || '')} — desmarque o que este cliente <b>não</b> deve ver.
+    corpo: `<p style="margin:0 0 14px;font-size:12.5px;color:var(--mudo)">
+        ${esc(alvo.empresa || alvo.email || '')}
       </p>
+      <div class="campo" style="margin-bottom:16px">
+        <label for="adm_lim">Limite de obras</label>
+        <input type="number" id="adm_lim" min="0" value="${lim}" placeholder="sem limite" style="max-width:160px">
+        <span class="dica">Vazio = sem limite. O cliente tem ${alvo.obras} obra(s) hoje.</span>
+      </div>
+      <div class="secao-form"><span class="rotulo">Abas liberadas</span></div>
+      <p style="margin:4px 0 10px;font-size:12px;color:var(--mudo)">Desmarque o que este cliente <b>não</b> deve ver.</p>
       <div style="display:flex;flex-direction:column;gap:7px">
         ${ABAS_CONTROLAVEIS.map((it) => `
           <label style="display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer">
@@ -384,17 +397,20 @@ ACOES['admin-abas'] = (el, d) => {
           </label>`).join('')}
       </div>`,
     rodape: `<button class="btn" data-acao="fechar-modal">Cancelar</button>
-             <button class="btn primario" data-acao="admin-salvar-abas" data-id="${d.id}">Salvar acesso</button>`,
+             <button class="btn primario" data-acao="admin-salvar-acesso" data-id="${d.id}">Salvar</button>`,
   });
 };
 
-ACOES['admin-salvar-abas'] = (el, d) => {
+ACOES['admin-salvar-acesso'] = (el, d) => {
   const abas = {};
   document.querySelectorAll('#modal-camada [data-aba]').forEach((c) => {
     if (!c.checked) abas[c.dataset.aba] = false;
   });
-  const probs = apenasErros(validarPerfilAdmin({ abas }));
+  const campoLim = document.getElementById('adm_lim');
+  const bruto = campoLim ? campoLim.value.trim() : '';
+  const limiteObras = bruto === '' ? -1 : Number(bruto);
+  const probs = apenasErros(validarPerfilAdmin({ abas, limiteObras }));
   if (probs.length) return toast(probs[0].mensagem, 'critico');
   fecharModal();
-  admChamar(() => SUPA.adminSalvarPerfil(d.id, { abas }), 'Acesso por aba atualizado.');
+  admChamar(() => SUPA.adminSalvarPerfil(d.id, { abas, limiteObras }), 'Acesso e limites atualizados.');
 };

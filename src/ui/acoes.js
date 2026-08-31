@@ -5,6 +5,7 @@ import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, hojeISO, isISO, nov
 import { alertasObra, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, materialCalc, medicaoAlerta } from '../dominio/calculos.js';
 import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapa, validarLancamento, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
+import { SUPA } from '../dados/supabase.js';
 import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, toast } from './shell.js';
 import { carregarAuditoria } from './telas-obra.js';
 
@@ -117,7 +118,19 @@ function formObra(obra, aoConcluir) {
   });
 }
 
+/* Teto de obras da conta (definido pelo admin). O banco também recusa,
+   mas aqui a mensagem é clara e a obra não chega a ser criada. */
+function limiteObrasAtingido() {
+  const restantes = SUPA.obrasRestantes(Store.estado.obras.length);
+  if (restantes !== null && restantes <= 0) {
+    toast(`Sua conta permite ${SUPA.limiteObras} obra${SUPA.limiteObras === 1 ? '' : 's'}. Fale com o administrador para aumentar.`, 'aviso', 6000);
+    return true;
+  }
+  return false;
+}
+
 ACOES['nova-obra'] = () => {
+  if (limiteObrasAtingido()) return;
   const obra = novaObra('');
   formObra(obra, (o) => {
     mutar((e) => { e.obras.push(o); });
@@ -140,6 +153,7 @@ ACOES['salvar-obra-config'] = () => {
 };
 
 ACOES['duplicar-obra'] = () => {
+  if (limiteObrasAtingido()) return;
   const o = App.obra();
   confirmar('Duplicar obra', `Criar uma cópia de "${o.nome}" com contratos, cronograma e plano de materiais, sem medições, recebimentos e lançamentos?`, () => {
     const copia = JSON.parse(JSON.stringify(o));

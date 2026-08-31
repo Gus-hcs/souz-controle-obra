@@ -276,6 +276,15 @@ describe('perfil (administração)', () => {
     expect(temErroNoCampo(validarPerfilAdmin({ abas: ['diario'] }), 'abas')).toBe(true);
     expect(temErroNoCampo(validarPerfilAdmin({ abas: null }), 'abas')).toBe(true);
   });
+
+  it('limite de obras: aceita inteiro >= 0, -1 (remover) e vazio; recusa o resto', () => {
+    expect(validarPerfilAdmin({ limiteObras: 3 })).toEqual([]);
+    expect(validarPerfilAdmin({ limiteObras: 0 })).toEqual([]);
+    expect(validarPerfilAdmin({ limiteObras: -1 })).toEqual([]);
+    expect(validarPerfilAdmin({ limiteObras: null })).toEqual([]);
+    expect(temErroNoCampo(validarPerfilAdmin({ limiteObras: -5 }), 'limiteObras')).toBe(true);
+    expect(temErroNoCampo(validarPerfilAdmin({ limiteObras: 2.5 }), 'limiteObras')).toBe(true);
+  });
 });
 
 describe('validação em conjunto', () => {
