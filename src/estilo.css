@@ -58,9 +58,9 @@
   --rail-w: 236px;
   --topo-h: 58px;
 
-  /* elevação */
-  --sombra: 0 1px 2px rgba(0,0,0,.35), 0 10px 28px -8px rgba(0,0,0,.5);
-  --realce: inset 0 1px 0 rgba(255,255,255,.04);
+  /* elevação — discreta, minimalista */
+  --sombra: 0 1px 2px rgba(0,0,0,.28);
+  --realce: 0 0 transparent;
 }
 
 :root[data-theme="light"] {
@@ -99,8 +99,8 @@
   --rail-tinta: #E7E5DF;
   --rail-mudo: #8B9497;
 
-  --sombra: 0 1px 2px rgba(20,24,26,.06), 0 6px 16px -4px rgba(20,24,26,.1);
-  --realce: inset 0 1px 0 rgba(255,255,255,.55);
+  --sombra: 0 1px 2px rgba(20,24,26,.07);
+  --realce: 0 0 transparent;
 }
 
 * { box-sizing: border-box; }
@@ -262,26 +262,26 @@ a { color: var(--marca); }
 
 .chip {
   display: inline-flex; align-items: center; gap: 5px;
-  font-size: 11.5px; font-weight: 500; padding: 3px 9px; border-radius: 999px;
-  border: 1px solid var(--linha-forte); background: var(--sup2); color: var(--tinta2);
+  font-size: 11.5px; font-weight: 500; padding: 2px 9px; border-radius: 999px;
+  border: 1px solid var(--linha); background: var(--sup2); color: var(--tinta2);
   white-space: nowrap;
 }
-.chip.ok { background: var(--ok-fraco); border-color: color-mix(in srgb, var(--ok) 30%, transparent); color: var(--ok); }
-.chip.aviso { background: var(--aviso-fraco); border-color: color-mix(in srgb, var(--aviso) 30%, transparent); color: var(--aviso); }
-.chip.critico { background: var(--critico-fraco); border-color: color-mix(in srgb, var(--critico) 30%, transparent); color: var(--critico); }
-.chip.marca { background: var(--marca-fraca); border-color: color-mix(in srgb, var(--marca) 30%, transparent); color: var(--marca-forte); }
-.chip .pt { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: 0 0 6px; }
+.chip.ok { background: transparent; border-color: color-mix(in srgb, var(--ok) 35%, transparent); color: var(--ok); }
+.chip.aviso { background: transparent; border-color: color-mix(in srgb, var(--aviso) 35%, transparent); color: var(--aviso); }
+.chip.critico { background: transparent; border-color: color-mix(in srgb, var(--critico) 40%, transparent); color: var(--critico); }
+.chip.marca { background: transparent; border-color: color-mix(in srgb, var(--marca) 35%, transparent); color: var(--marca-forte); }
+.chip .pt { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: 0 0 5px; }
 
 .cartao {
   background: var(--sup); border: 1px solid var(--linha); border-radius: var(--r2);
-  box-shadow: var(--sombra), var(--realce); overflow: hidden;
+  box-shadow: var(--sombra); overflow: hidden;
 }
 .cartao > header {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 12px 16px; border-bottom: 1px solid var(--linha);
 }
 .cartao > header h3 {
-  font-size: 15px; letter-spacing: .01em;
+  font-size: 14px; font-weight: 600; letter-spacing: 0; color: var(--tinta2);
 }
 .cartao > header .dir { margin-left: auto; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .cartao .corpo { padding: 16px; }
@@ -297,21 +297,22 @@ a { color: var(--marca); }
 .kpi {
   background: var(--sup); border: 1px solid var(--linha); border-radius: var(--r2);
   padding: 14px 16px; display: flex; flex-direction: column; gap: 3px;
-  box-shadow: var(--sombra), var(--realce); position: relative; overflow: hidden;
+  box-shadow: var(--sombra); position: relative; overflow: hidden;
 }
-.kpi:hover { border-color: var(--linha-forte); }
 .kpi .rotulo { font-size: 10.5px; letter-spacing: .1em; }
 .kpi .valor {
   font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 28px; font-weight: 600;
   line-height: 1.12; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
-  margin-top: 1px;
+  margin-top: 1px; color: var(--tinta);
 }
 .kpi .sub { font-size: 11.5px; color: var(--mudo); }
 .kpi.ok .valor { color: var(--ok); }
 .kpi.aviso .valor { color: var(--aviso); }
 .kpi.critico .valor { color: var(--critico); }
-.kpi .faixa {
-  position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px;
+/* faixa lateral só quando há um estado a sinalizar */
+.kpi .faixa { display: none; }
+.kpi.ok .faixa, .kpi.aviso .faixa, .kpi.critico .faixa {
+  display: block; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px;
   border-radius: 999px; background: var(--marca);
 }
 .kpi.ok .faixa { background: var(--ok); }

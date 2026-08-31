@@ -2,7 +2,7 @@
  * telas-obra.js — Telas da obra: painel, contratos, medições, recebimentos, materiais, cronograma.
  */
 import { competencia, diasEntre, esc, fmtCompetencia, fmtData, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtNum, fmtPct, hojeISO, isISO, num, round2 } from '../nucleo/base.js';
-import { alertasObra, basesContratuais, contratoValor, curvaS, etapaCalc, fluxoCaixa, kpisCarteira, kpisObra, lancamentoTotal, materialCalc, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
+import { alertasObra, basesContratuais, contratoValor, curvaS, etapaCalc, fluxoCaixa, kpisCarteira, kpisObra, lancamentoTotal, materialCalc, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca } from '../dominio/calculos.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { anel, App, acoesLinha, barra, botao, campoBusca, campoHTML, cartao, chip, filtraTexto, kpi, nomeCliente, opcoesEtapas, opcoesLista, selectFiltro, sparkline, tomSituacao, tomStatus, vazio } from './shell.js';
@@ -325,27 +325,21 @@ VIEWS.medicoes = () => {
   if (App.filtros.status) lista = lista.filter((m) => m.status === App.filtros.status);
   lista = filtraTexto(lista, App.filtros.busca, ['descricao', 'contratoBase', 'documento']);
 
-  const tMedido = lista.reduce((s, m) => s + num(m.valorMedido), 0);
   const tLiquido = lista.reduce((s, m) => s + medicaoLiquido(m), 0);
   const tPago = lista.reduce((s, m) => s + num(m.valorPago), 0);
 
   const linhas = lista.map((m) => {
     const alerta = medicaoAlerta(o, m);
-    const tomA = alerta === 'OK' ? 'ok' : alerta === 'PAGO ACIMA DA MEDIÇÃO' || alerta === 'CONTRATO ULTRAPASSADO' ? 'critico' : 'aviso';
+    const tomA = alerta === 'PAGO ACIMA DA MEDIÇÃO' || alerta === 'CONTRATO ULTRAPASSADO' ? 'critico' : 'aviso';
     const falta = medicaoLiquido(m) - num(m.valorPago);
     return `<tr>
-      <td class="mono">${esc(m.numero || '—')}</td>
       <td class="mono">${esc(m.contratoBase)}</td>
       <td class="mono">${fmtDataCurta(m.data)}</td>
-      <td class="trunc">${esc(m.descricao)}</td>
-      <td class="num mono">${m.progresso ? fmtPct(m.progresso, 0) : '—'}</td>
-      <td class="num mono">${fmtMoney(m.valorMedido)}</td>
-      <td class="num mono">${num(m.desconto) ? '−' + fmtMoney(m.desconto) : '—'}</td>
+      <td class="trunc">${esc(m.descricao || '—')}</td>
       <td class="num mono"><b>${fmtMoney(medicaoLiquido(m))}</b></td>
       <td class="num mono">${fmtMoney(m.valorPago)}</td>
       <td class="num mono ${falta > 0.005 ? 'neg' : ''}">${Math.abs(falta) < 0.005 ? '—' : fmtMoney(falta)}</td>
-      <td>${chip(m.status, tomStatus(m.status))}</td>
-      <td>${alerta && alerta !== 'OK' ? chip(alerta, tomA) : '<span style="color:var(--ok)">OK</span>'}</td>
+      <td>${chip(m.status, tomStatus(m.status))}${alerta && alerta !== 'OK' ? ' ' + chip(alerta, tomA) : ''}</td>
       <td class="acoes">${acoesLinha('medicao', m.id)}</td>
     </tr>`;
   }).join('');
@@ -353,15 +347,13 @@ VIEWS.medicoes = () => {
   return `<div class="grade" style="gap:16px">
     ${cartao('Medições de prestadores', `
       <div class="tab-rolagem"><table class="tab">
-        <thead><tr><th>Nº</th><th>Contrato</th><th>Data</th><th>Descrição</th><th class="num">Progr.</th>
-          <th class="num">Medido</th><th class="num">Desconto</th><th class="num">Líquido</th>
-          <th class="num">Pago</th><th class="num">A pagar</th><th>Status</th><th>Alerta</th><th></th></tr></thead>
-        <tbody>${linhas || `<tr><td colspan="13">${vazio('Nenhuma medição', 'Registre a medição do prestador aqui — nunca em Lançamentos, para não duplicar o pagamento.')}</td></tr>`}</tbody>
-        ${lista.length ? `<tfoot><tr><td colspan="5">${lista.length} medição(ões)</td>
-          <td class="num mono">${fmtMoney(tMedido)}</td><td></td>
+        <thead><tr><th>Contrato</th><th>Data</th><th>Descrição</th>
+          <th class="num">Líquido</th><th class="num">Pago</th><th class="num">A pagar</th><th>Status</th><th></th></tr></thead>
+        <tbody>${linhas || `<tr><td colspan="8">${vazio('Nenhuma medição', 'Registre a medição do prestador aqui — nunca em Lançamentos, para não duplicar o pagamento.', botao('Nova medição', 'nova-medicao', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
+        ${lista.length ? `<tfoot><tr><td colspan="3">${lista.length} medição(ões)</td>
           <td class="num mono">${fmtMoney(tLiquido)}</td>
           <td class="num mono">${fmtMoney(tPago)}</td>
-          <td class="num mono">${fmtMoney(tLiquido - tPago)}</td><td colspan="3"></td></tr></tfoot>` : ''}
+          <td class="num mono">${fmtMoney(tLiquido - tPago)}</td><td colspan="2"></td></tr></tfoot>` : ''}
       </table></div>`, {
       semPadding: true,
       acoes: `<div class="filtros">
@@ -395,18 +387,11 @@ VIEWS.recebimentos = () => {
     const atrasado = r.status !== 'Recebido' && r.status !== 'Cancelado' && isISO(r.dataPrevista) && r.dataPrevista < hojeISO();
     return `<tr>
       <td>${chip(r.origem, r.origem === 'CAIXA' ? 'marca' : '')}</td>
-      <td class="mono">${esc(r.numeroMedicao || '—')}</td>
-      <td class="trunc">${esc(r.etapaPci)}</td>
+      <td class="trunc">${esc(r.numeroMedicao ? 'nº ' + r.numeroMedicao + ' · ' : '')}${esc(r.etapaPci || '—')}</td>
       <td class="mono ${atrasado ? 'neg' : ''}">${fmtDataCurta(r.dataPrevista)}</td>
       <td class="num mono">${fmtMoney(r.valorPrevisto)}</td>
-      <td class="mono">${fmtDataCurta(r.dataSolicitacao)}</td>
-      <td class="num mono">${r.percentObra ? fmtPct(r.percentObra, 0) : '—'}</td>
-      <td class="num mono">${fmtMoney(r.valorAprovado)}</td>
-      <td class="num mono">${num(r.descontos) ? '−' + fmtMoney(r.descontos) : '—'}</td>
-      <td class="num mono"><b>${fmtMoney(recebimentoLiquido(r))}</b></td>
-      <td class="mono">${fmtDataCurta(r.dataRecebimento)}</td>
-      <td class="num mono">${fmtMoney(r.valorRecebido)}</td>
-      <td class="num mono ${dif < -0.005 ? 'neg' : dif > 0.005 ? 'pos' : ''}">${fmtMoney(dif)}</td>
+      <td class="num mono"><b>${fmtMoney(r.valorRecebido)}</b></td>
+      <td class="num mono ${dif < -0.005 ? 'neg' : dif > 0.005 ? 'pos' : ''}">${Math.abs(dif) < 0.005 ? '—' : fmtMoney(dif)}</td>
       <td>${chip(r.status, tomStatus(r.status))}</td>
       <td class="acoes">${acoesLinha('recebimento', r.id)}</td>
     </tr>`;
@@ -421,12 +406,11 @@ VIEWS.recebimentos = () => {
     </div>
     ${cartao('Cronograma de recebimentos', `
       <div class="tab-rolagem"><table class="tab">
-        <thead><tr><th>Origem</th><th>Nº</th><th>Etapa PCI</th><th>Previsto p/</th><th class="num">Valor previsto</th>
-          <th>Solicitado</th><th class="num">% obra</th><th class="num">Aprovado</th><th class="num">Descontos</th>
-          <th class="num">Líquido</th><th>Recebido em</th><th class="num">Recebido</th><th class="num">Diferença</th><th>Status</th><th></th></tr></thead>
-        <tbody>${linhas || `<tr><td colspan="15">${vazio('Nenhum recebimento', 'Cadastre o cronograma do PCI e vá atualizando o que a CAIXA efetivamente creditou.')}</td></tr>`}</tbody>
-        ${lista.length ? `<tfoot><tr><td colspan="4">${lista.length} parcela(s)</td>
-          <td class="num mono">${fmtMoney(tPrev)}</td><td colspan="6"></td>
+        <thead><tr><th>Origem</th><th>Etapa / medição</th><th>Previsto p/</th>
+          <th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Diferença</th><th>Status</th><th></th></tr></thead>
+        <tbody>${linhas || `<tr><td colspan="8">${vazio('Nenhum recebimento', 'Cadastre o cronograma do PCI e vá atualizando o que a CAIXA efetivamente creditou.', botao('Nova parcela', 'novo-recebimento', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
+        ${lista.length ? `<tfoot><tr><td colspan="3">${lista.length} parcela(s)</td>
+          <td class="num mono">${fmtMoney(tPrev)}</td>
           <td class="num mono">${fmtMoney(tRec)}</td>
           <td class="num mono ${tRec - tPrev < 0 ? 'neg' : ''}">${fmtMoney(tRec - tPrev)}</td><td colspan="2"></td></tr></tfoot>` : ''}
       </table></div>`, {
@@ -460,47 +444,39 @@ VIEWS.lancamentos = () => {
     <td>${chip(l.tipo, l.tipo === 'Material' ? 'marca' : '')}</td>
     <td>${esc(l.etapa || '—')}</td>
     <td class="trunc">${esc(l.descricao)}${l.materialId ? ' <span class="chip" style="font-size:10px">plano</span>' : ''}</td>
-    <td class="trunc">${esc(l.fornecedor)}</td>
-    <td class="mono">${esc(l.documento || '—')}</td>
+    <td class="trunc">${esc(l.fornecedor || '—')}</td>
     <td class="num mono">${fmtNum(l.quantidade, 2)} ${esc(l.unidade)}</td>
-    <td class="num mono">${fmtMoney(l.precoUnitario)}</td>
-    <td class="num mono">${num(l.desconto) ? '−' + fmtMoney(l.desconto) : '—'}</td>
-    <td class="num mono">${num(l.frete) ? fmtMoney(l.frete) : '—'}</td>
     <td class="num mono"><b>${fmtMoney(lancamentoTotal(l))}</b></td>
-    <td>${esc(l.formaPagamento)}</td>
     <td class="acoes">${acoesLinha('lancamento', l.id)}</td>
   </tr>`).join('');
 
   return `<div class="grade" style="gap:16px">
-    <div class="grade g-2-1">
-      ${cartao('Saídas lançadas', `
-        <div class="tab-rolagem"><table class="tab">
-          <thead><tr><th>Data</th><th>Tipo</th><th>Etapa</th><th>Descrição</th><th>Fornecedor</th><th>Documento</th>
-            <th class="num">Qtde</th><th class="num">Preço unit.</th><th class="num">Desconto</th><th class="num">Frete</th>
-            <th class="num">Total</th><th>Pagamento</th><th></th></tr></thead>
-          <tbody>${linhas || `<tr><td colspan="13">${vazio('Nenhum lançamento', 'Registre aqui compras de material, taxas, honorários e serviços sem medição.')}</td></tr>`}</tbody>
-          ${lista.length ? `<tfoot><tr><td colspan="10">${lista.length} lançamento(s)</td>
-            <td class="num mono">${fmtMoney(total)}</td><td colspan="2"></td></tr></tfoot>` : ''}
-        </table></div>`, {
-        semPadding: true,
-        acoes: `<div class="filtros">
-          ${campoBusca('busca', 'Buscar descrição, fornecedor…')}
-          ${selectFiltro('tipo', opcoesLista('tiposSaida'), 'Todos os tipos')}
-          ${selectFiltro('etapa', opcoesEtapas(), 'Todas as etapas')}
-          ${selectFiltro('mes', meses, 'Todos os meses')}
-          ${botao('Novo lançamento', 'novo-lancamento', {}, 'btn primario pequeno', 'mais')}
-        </div>`
-      })}
-      <div class="grade" style="gap:16px;align-content:start">
-        ${cartao('Por tipo de saída', graficoBarras(
-          Object.entries(porTipo).map(([rotulo, valor]) => ({ rotulo, valor }))))}
-        ${cartao('Por etapa', graficoBarras(
-          Object.entries(lista.reduce((a, l) => {
-            const e = l.etapa || 'Não classificado';
-            a[e] = (a[e] || 0) + lancamentoTotal(l); return a;
-          }, {})).map(([rotulo, valor]) => ({ rotulo, valor })), { limite: 10 }))}
-      </div>
-    </div>
+    ${cartao('Saídas lançadas', `
+      <div class="tab-rolagem"><table class="tab">
+        <thead><tr><th>Data</th><th>Tipo</th><th>Etapa</th><th>Descrição</th><th>Fornecedor</th>
+          <th class="num">Qtde</th><th class="num">Total</th><th></th></tr></thead>
+        <tbody>${linhas || `<tr><td colspan="8">${vazio('Nenhum lançamento', 'Registre aqui compras de material, taxas, honorários e serviços sem medição.', botao('Novo lançamento', 'novo-lancamento', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
+        ${lista.length ? `<tfoot><tr><td colspan="5">${lista.length} lançamento(s)</td>
+          <td></td><td class="num mono">${fmtMoney(total)}</td><td></td></tr></tfoot>` : ''}
+      </table></div>`, {
+      semPadding: true,
+      acoes: `<div class="filtros">
+        ${campoBusca('busca', 'Buscar descrição, fornecedor…')}
+        ${selectFiltro('tipo', opcoesLista('tiposSaida'), 'Todos os tipos')}
+        ${selectFiltro('etapa', opcoesEtapas(), 'Todas as etapas')}
+        ${selectFiltro('mes', meses, 'Todos os meses')}
+        ${botao('Novo lançamento', 'novo-lancamento', {}, 'btn primario pequeno', 'mais')}
+      </div>`
+    })}
+    ${lista.length ? `<div class="grade g2">
+      ${cartao('Por tipo de saída', graficoBarras(
+        Object.entries(porTipo).map(([rotulo, valor]) => ({ rotulo, valor }))))}
+      ${cartao('Por etapa', graficoBarras(
+        Object.entries(lista.reduce((a, l) => {
+          const e = l.etapa || 'Não classificado';
+          a[e] = (a[e] || 0) + lancamentoTotal(l); return a;
+        }, {})).map(([rotulo, valor]) => ({ rotulo, valor })), { limite: 10 }))}
+    </div>` : ''}
   </div>`;
 };
 
@@ -528,16 +504,12 @@ VIEWS.materiais = () => {
     const tom = c.vencido ? 'critico' : c.saldo > 0 ? 'aviso' : 'ok';
     return `<tr>
       <td>${esc(m.etapa)}</td>
-      <td class="trunc"><b>${esc(m.material)}</b>${m.observacoes ? `<br><span style="font-size:11px;color:var(--mudo)">${esc(m.observacoes)}</span>` : ''}</td>
+      <td class="trunc"><b>${esc(m.material)}</b></td>
       <td class="num mono">${fmtNum(m.quantidadeNecessaria, 2)} ${esc(m.unidade)}</td>
       <td class="num mono">${fmtNum(c.comprada, 2)}</td>
       <td class="num mono ${c.saldo > 0 ? 'neg' : ''}"><b>${fmtNum(c.saldo, 2)}</b></td>
+      <td class="num mono">${fmtMoney(c.saldoValor)}</td>
       <td class="mono ${c.vencido ? 'neg' : ''}">${fmtDataCurta(m.dataNecessaria)}</td>
-      <td>${chip(m.prioridade, m.prioridade === 'Alta' ? 'aviso' : '')}</td>
-      <td class="num mono">${fmtMoney(m.precoPrevisto)}</td>
-      <td class="num mono">${fmtMoney(c.orcamento)}</td>
-      <td class="num mono">${fmtMoney(c.valorComprado)}</td>
-      <td class="num mono ${c.desvio > 0.005 ? 'neg' : c.desvio < -0.005 ? 'pos' : ''}">${c.compras ? fmtMoney(c.desvio) : '—'}</td>
       <td>${chip(c.vencido ? 'Vencido' : m.status, tom)}</td>
       <td class="acoes">
         ${!Store.somenteLeitura() && c.saldo > 0 ? `<button class="btn pequeno" data-acao="comprar-material" data-id="${m.id}">comprar</button>` : ''}
@@ -558,9 +530,8 @@ VIEWS.materiais = () => {
     ${cartao('Plano de materiais', `
       <div class="tab-rolagem"><table class="tab">
         <thead><tr><th>Etapa</th><th>Material</th><th class="num">Necessário</th><th class="num">Comprado</th>
-          <th class="num">Falta</th><th>Data limite</th><th>Prioridade</th><th class="num">Preço prev.</th>
-          <th class="num">Orçamento</th><th class="num">Gasto real</th><th class="num">Desvio</th><th>Status</th><th></th></tr></thead>
-        <tbody>${linhas || `<tr><td colspan="13">${vazio('Plano vazio', 'Liste o que será necessário por etapa. Ao lançar a compra, o saldo é atualizado sozinho.')}</td></tr>`}</tbody>
+          <th class="num">Falta</th><th class="num">Falta (R$)</th><th>Data limite</th><th>Status</th><th></th></tr></thead>
+        <tbody>${linhas || `<tr><td colspan="9">${vazio('Plano vazio', 'Liste o que será necessário por etapa. Ao lançar a compra, o saldo é atualizado sozinho.', botao('Novo material', 'novo-material', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
       </table></div>`, {
       semPadding: true,
       acoes: `<div class="filtros">

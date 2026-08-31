@@ -35,6 +35,11 @@
 - Fundo preto atrás da logo, para contraste.
 - Tipografia nova: **Space Grotesk** nos títulos e números, **Inter** no texto,
   JetBrains Mono no monoespaçado. A marca escreve **SouZ**.
+- **Passada minimalista**: sombras discretas, chips só de contorno, cabeçalhos
+  de cartão mais leves, barra lateral do KPI só quando há estado a sinalizar.
+- Telas de lista (medições, recebimentos, lançamentos, materiais) enxutas:
+  tabela ocupa a largura toda, só as colunas essenciais, o detalhe fica na
+  edição da linha. Estados vazios com botão de ação.
 - Impressão força tema claro.
 
 **Equipe da obra**
