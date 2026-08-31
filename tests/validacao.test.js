@@ -8,12 +8,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   novaObra, novoContrato, novaMedicao, novoRecebimento, novoLancamento,
-  novoMaterial, novaEtapaCronograma, novoDiario, novoCliente, novoPrestador,
+  novoMaterial, novaEtapaCronograma, novoDiario, novoCliente, novoPrestador, novoMembro,
 } from '../src/nucleo/base.js';
 import {
   validarObra, validarContrato, validarMedicao, validarRecebimento,
   validarLancamento, validarMaterial, validarEtapa, validarDiario,
-  validarCliente, validarPrestador, validarObraCompleta, validarEstado,
+  validarCliente, validarPrestador, validarMembro, validarObraCompleta, validarEstado,
   apenasErros, apenasAlertas,
 } from '../src/dominio/validacao.js';
 
@@ -237,6 +237,28 @@ describe('cliente e prestador', () => {
     p.avaliacao = 7;
     expect(temErroNoCampo(validarPrestador(p), 'nome')).toBe(true);
     expect(temErroNoCampo(validarPrestador(p), 'avaliacao')).toBe(true);
+  });
+});
+
+describe('membro da obra', () => {
+  it('membro completo é válido', () => {
+    const m = novoMembro('engenheiro');
+    m.obraId = 'obra_1';
+    m.usuarioId = 'uuid-1';
+    expect(validarMembro(m)).toEqual([]);
+  });
+
+  it('recusa papel fora de dono/engenheiro/cliente', () => {
+    const m = novoMembro('visitante');
+    m.obraId = 'obra_1';
+    m.usuarioId = 'uuid-1';
+    expect(temErroNoCampo(validarMembro(m), 'papel')).toBe(true);
+  });
+
+  it('exige obra e usuário', () => {
+    const m = novoMembro('cliente');
+    expect(temErroNoCampo(validarMembro(m), 'obraId')).toBe(true);
+    expect(temErroNoCampo(validarMembro(m), 'usuarioId')).toBe(true);
   });
 });
 

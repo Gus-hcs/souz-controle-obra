@@ -2,12 +2,19 @@
 
 ## O que já protege o sistema
 
-**Isolamento por usuário no banco.** Todas as tabelas têm `usuario_id` e uma
-política `dono_total` (`usuario_id = auth.uid()`), de leitura e de escrita.
-A regra vive no PostgreSQL: mesmo que alguém chame a API direto, sem passar pela
-tela, não enxerga nem grava linha de outro usuário. Isso foi verificado com dois
-usuários — um não consegue ler, renomear nem apagar a obra do outro, e a
-tentativa de inserir linha em nome de terceiro é recusada pelo banco.
+**Isolamento por obra no banco.** O acesso a uma obra e a tudo que pende dela
+(contratos, medições, recebimentos, lançamentos, materiais, cronograma, diário,
+auditoria) é decidido pela tabela `obra_membros` e pelo papel do usuário —
+`dono`, `engenheiro` ou `cliente` (migração `0004`). A regra vive no PostgreSQL,
+em políticas por comando: mesmo chamando a API direto, quem não é membro não lê
+nem grava, e o papel `cliente` só lê. `clientes` e `prestadores` continuam
+isolados pelo `usuario_id` do dono. Antes da `0004` o isolamento era por
+`usuario_id` em toda tabela (política `dono_total`); a migração converte tudo e
+dá a cada obra existente um membro `dono`.
+
+Ainda sem cobertura: a **interface** não esconde ação por papel nem tem tela
+para convidar membro. O banco recusa a escrita indevida; a tela, por enquanto,
+deixaria o `cliente` tentar e tomar erro.
 
 **Chaves.** O navegador recebe apenas a chave **publicável**, que é pública por
 definição e sozinha não abre nada. A chave `service_role`, que ignora as
@@ -32,15 +39,16 @@ nem transmite senha para outro lugar.
    e *Attack Protection*.
 4. **Senha forte.** O mínimo hoje é 6 caracteres. Subir para 10 e ligar
    *Password requirements*.
-5. **Equipe dentro da obra.** Hoje a obra pertence a uma pessoa. Para engenheiro
-   lançar e cliente só consultar, é preciso uma tabela de membros por obra e
-   políticas apontando para ela.
-6. **Trilha de auditoria.** Uma tabela de eventos (quem alterou o quê e quando),
-   preenchida por gatilho, para valores financeiros.
-7. **Verificação de dependências.** Ligar o Dependabot e `npm audit` na CI.
-8. **Cabeçalhos de segurança.** O GitHub Pages não permite definir CSP por
+5. **Interface consciente de papel.** O esquema de equipe existe (migração
+   `0004`), mas falta a tela para convidar engenheiro/cliente e falta a
+   interface esconder ação que o papel não permite.
+6. **Verificação de dependências.** Ligar o Dependabot e `npm audit` na CI.
+7. **Cabeçalhos de segurança.** O GitHub Pages não permite definir CSP por
    cabeçalho; se um dia o sistema sair para servidor próprio, vale configurar
    `Content-Security-Policy`, `X-Frame-Options` e `Referrer-Policy`.
+
+Feito: **equipe dentro da obra** (migração `0004`) e **trilha de auditoria**
+(migração `0003`).
 
 ## Encontrou uma falha?
 

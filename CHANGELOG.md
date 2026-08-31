@@ -2,6 +2,19 @@
 
 ## Não publicado
 
+**Equipe da obra**
+- Migração `0004_membros_e_papeis.sql`: tabela `obra_membros` com papel
+  (dono / engenheiro / cliente), funções de autorização `security definer` e
+  políticas de segurança por papel em todas as tabelas da obra. Toda obra
+  existente recebe um membro `dono` — nada muda para quem usa o sistema sozinho.
+- `usuario_id` das linhas passa a significar "quem criou/alterou"; a correção
+  em `paraLinha`/`paraApp` evita que a linha nasça com dono errado quando
+  alguém que não é o dono grava.
+- `SUPA.papelNaObra()` / `podeEditarObra()` / `lerMembros()` disponíveis para a
+  próxima etapa (tela de equipe).
+- A interface ainda não convida ninguém nem esconde botão por papel; o esquema
+  está pronto e o banco recusa a escrita indevida.
+
 **Auditoria**
 - Migração `0003_auditoria.sql`: tabela `auditoria` e gatilho que registra toda
   alteração de valor financeiro em contratos, medições, recebimentos e

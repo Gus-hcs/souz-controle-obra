@@ -11,6 +11,7 @@ já calculados para o Power BI.
 | `perfis` | dados da empresa e listas configuráveis, um por usuário |
 | `clientes` · `prestadores` | cadastros compartilhados entre obras |
 | `obras` | a obra e seus parâmetros financeiros |
+| `obra_membros` | quem participa de cada obra e com que papel (dono/engenheiro/cliente) |
 | `contratos` | contratos e aditivos, agrupados por `codigo_base` |
 | `medicoes` | medições do empreiteiro e seus pagamentos |
 | `recebimentos` | entradas da CAIXA e do cliente |
@@ -26,15 +27,28 @@ respeitam a segurança por usuário de quem consulta.
 
 ## Segurança
 
-Toda tabela tem `usuario_id` e uma política `dono_total`:
+Até a migração `0003`, cada obra pertencia a uma pessoa (`usuario_id = auth.uid()`).
+A partir da `0004`, o acesso é **pela obra**, via `obra_membros`:
 
-```sql
-using (usuario_id = auth.uid()) with check (usuario_id = auth.uid())
-```
+| Papel | Pode |
+|---|---|
+| `dono` | tudo — inclusive gerenciar a equipe e excluir a obra |
+| `engenheiro` | lançar, medir, editar; não gerencia equipe nem exclui a obra |
+| `cliente` | só leitura |
 
-Ninguém enxerga nem grava linha de outro usuário — a regra vive no banco, não na
-tela. A chave que vai para o navegador é a **publicável**; a `service_role`
-nunca entra neste repositório.
+As políticas das tabelas da obra chamam três funções `security definer` —
+`pode_ler_obra()`, `pode_escrever_obra()`, `eh_dono_obra()` — que consultam
+`obra_membros` por fora da RLS (senão a política entra em recursão consigo mesma).
+
+`clientes` e `prestadores` continuam do dono: só ele cria e edita. Um membro
+convidado enxerga apenas os cadastros que a obra dele usa.
+
+O `usuario_id` das linhas passou a significar **quem criou/alterou**, não "dono".
+Toda obra existente ganhou um membro `dono` na migração, então nada muda para
+quem usa o sistema sozinho.
+
+A chave que vai para o navegador é a **publicável**; a `service_role` nunca entra
+neste repositório.
 
 ## Migrações
 
@@ -47,6 +61,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0001_estrutura_inicial.sql` | tabelas, índices, gatilhos, políticas e visões |
 | `0002_validacao.sql` | restrições `CHECK` que espelham `src/dominio/validacao.js` |
 | `0003_auditoria.sql` | tabela `auditoria` e gatilho de trilha de valores financeiros |
+| `0004_membros_e_papeis.sql` | `obra_membros`, funções de autorização e políticas por papel |
 
 Ao criar uma migração nova, numere em sequência e descreva a mudança aqui.
 
@@ -72,3 +87,21 @@ sobrevive à exclusão da obra.
 
 A tela **Trilha de auditoria** (por obra) lê `public.auditoria` direto, fora do
 ciclo de sincronização do sistema.
+
+### 0004 — equipe e papéis
+
+Roda direto (é re-executável). Rode `0001`, `0002` e `0003` antes.
+
+Cria `obra_membros`, as funções de autorização e um gatilho que adiciona o `dono`
+como membro sempre que uma obra é criada. Toda obra já existente recebe o membro
+`dono` na hora. Troca as políticas `dono_total` das tabelas da obra por políticas
+por comando que chamam `pode_ler_obra()` / `pode_escrever_obra()`.
+
+Ainda **não há tela** para convidar engenheiro ou cliente — o esquema está
+pronto, a interface de equipe é o próximo passo. Enquanto isso, todo mundo é
+`dono` da própria obra e nada muda.
+
+Um ponto a conferir ao aplicar: criar uma obra pela primeira vez deve retornar a
+obra normalmente (a política de leitura tem um ramo `usuario_id = auth.uid()`
+justamente para isso). Se o `RETURNING` do insert vier vazio, é sinal de que esse
+ramo não pegou.

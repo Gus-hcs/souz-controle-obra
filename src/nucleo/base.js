@@ -251,6 +251,12 @@ const novoPrestador = () => ({
   avaliacao: 0, observacoes: ''
 });
 
+const PAPEIS_OBRA = ['dono', 'engenheiro', 'cliente'];
+
+const novoMembro = (papel = 'engenheiro') => ({
+  id: uid('mbr'), obraId: '', usuarioId: '', papel, criadoEm: hojeISO()
+});
+
 const estadoInicial = () => ({
   meta: { schema: APP.schema, versao: APP.versao, savedAt: new Date().toISOString(), autor: '' },
   empresa: { nome: 'Souz Engenharia', responsavel: '', creaCau: '', telefone: '', email: '' },
@@ -318,6 +324,8 @@ export {
   norm,
   slug,
   LISTAS_PADRAO,
+  PAPEIS_OBRA,
+  novoMembro,
   novaObra,
   novoContrato,
   novaMedicao,

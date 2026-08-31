@@ -54,9 +54,13 @@ documento lê `data-acao` e chama a função em `ui/acoes.js`.
    de lista personalizável pelo usuário, ou é situação incomum mas legítima),
    ela é um **alerta**, não um **erro** — não bloqueia gravação.
 
-3. **Toda tabela nova precisa de `usuario_id` e política de segurança (RLS).**
-   Nunca crie tabela sem isolamento por usuário. Padrão atual: política
-   `dono_total` com `using (usuario_id = auth.uid()) with check (mesmo)`.
+3. **Toda tabela nova precisa de isolamento por usuário via RLS.**
+   Nunca crie tabela sem isolamento. Tabela ligada a uma obra: coluna `obra_id`
+   e políticas por comando chamando `pode_ler_obra()` / `pode_escrever_obra()`
+   (migração 0004). Tabela de cadastro do usuário: `usuario_id` e política
+   `using (usuario_id = auth.uid()) with check (mesmo)`.
+   `usuario_id` significa **quem criou/alterou** a linha, não "dono" — o acesso
+   é pela obra, via `obra_membros`.
 
 4. **Toda regra de negócio precisa de teste.** Cálculo se prova em `tests/`, não
    na tela.
@@ -96,6 +100,18 @@ Todos são escritos para rodar de novo sem quebrar (`if not exists`,
   ciclo do `Store` nem no `TABELAS_DB`. Tem um leitor dedicado
   (`SUPA.lerAuditoria`) porque o `Store` sincroniza por diferença e a auditoria
   nunca é escrita pela tela — só pelo gatilho do banco.
+- **`obra_membros`** também fica fora do `TABELAS_DB`: `SUPA.carregarPapeis()`
+  lê os papéis do usuário no login para `SUPA.papeis`, e `SUPA.lerMembros()`
+  serve a futura tela de equipe. Não há gravação de membro pela tela ainda.
+
+## Pendências conhecidas
+
+- **UI cega a papel.** `SUPA.papelNaObra()` / `SUPA.podeEditarObra()` existem,
+  mas nenhuma tela ramifica por papel ainda, e não há tela para convidar
+  engenheiro/cliente. O banco recusa a escrita indevida (RLS); a tela ainda não.
+- **Sincronização e concorrência.** Ver [docs/SINCRONIZACAO.md](docs/SINCRONIZACAO.md):
+  `SUPA.sincronizar()` é last-write-wins por linha inteira. Some com um usuário
+  por obra; quebra com dois. Decisão pendente.
 
 ## Comandos
 

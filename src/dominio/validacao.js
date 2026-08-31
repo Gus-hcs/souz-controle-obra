@@ -20,7 +20,7 @@
  * Ajustes, então status inválido também é 'alerta', nunca 'erro' — o banco não
  * conhece a lista de cada empresa.
  */
-import { isISO, num } from '../nucleo/base.js';
+import { isISO, num, PAPEIS_OBRA } from '../nucleo/base.js';
 
 const REGISTROS_CONTRATO = ['Contrato', 'Aditivo'];
 
@@ -218,6 +218,22 @@ function validarPrestador(p) {
   return out;
 }
 
+/* -------------------------------------------- MEMBRO DA OBRA (equipe) */
+/* Espelha o CHECK de obra_membros.papel na migração 0004. */
+function validarMembro(m) {
+  const out = [];
+  if (!PAPEIS_OBRA.includes(m.papel)) {
+    out.push(problema('papel', `Papel inválido: "${m.papel}". Use dono, engenheiro ou cliente.`));
+  }
+  if (!String(m.obraId || '').trim()) {
+    out.push(problema('obraId', 'O membro precisa estar ligado a uma obra.'));
+  }
+  if (!String(m.usuarioId || '').trim()) {
+    out.push(problema('usuarioId', 'O membro precisa estar ligado a um usuário.'));
+  }
+  return out;
+}
+
 /* ============================================ VALIDAÇÃO EM CONJUNTO */
 /* Percorre uma obra inteira e devolve os problemas com o contexto de onde
    vieram. Útil na importação de planilha e numa futura tela de conferência. */
@@ -261,6 +277,7 @@ export {
   validarDiario,
   validarCliente,
   validarPrestador,
+  validarMembro,
   validarObraCompleta,
   validarEstado,
   apenasErros,

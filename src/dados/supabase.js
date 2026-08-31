@@ -144,6 +144,12 @@ function paraLinha(item, tab) {
     else if (tipo === 'json') linha[coluna] = v || [];
     else linha[coluna] = v === undefined || v === '' ? null : String(v);
   });
+  /* Autoria da linha: preserva quem criou; item novo fica com o usuário atual.
+     O acesso não depende mais disto — quem controla é a tabela de membros —,
+     mas a coluna deixa de nascer errada quando um engenheiro grava numa obra
+     de outro dono. */
+  if (item.usuarioId) linha.usuario_id = item.usuarioId;
+  else if (SUPA.usuario) linha.usuario_id = SUPA.usuario.id;
   return linha;
 }
 
@@ -170,6 +176,7 @@ function paraApp(linha, tab) {
     else if (tipo === 'json') definir(item, caminho, Array.isArray(v) ? v : []);
     else definir(item, caminho, v === null || v === undefined ? '' : String(v));
   });
+  if (linha.usuario_id) item.usuarioId = linha.usuario_id;
   return item;
 }
 
@@ -197,6 +204,7 @@ const SUPA = {
   usuario: null,
   cfg: { url: '', anon: '' },
   pronto: false,
+  papeis: {},        // obraId -> 'dono' | 'engenheiro' | 'cliente' (carregado no login)
 
   lerConfig() {
     let cfg = { ...SUPABASE_PADRAO };
@@ -271,6 +279,48 @@ const SUPA = {
     location.reload();
   },
 
+  /* ---------------------------------------------------------- equipe */
+  /* Papel do usuário atual em cada obra. Carregado uma vez no login; a
+     tela usa para decidir o que mostrar. A autorização real vive no banco. */
+  async carregarPapeis() {
+    this.papeis = {};
+    if (!this.sb || !this.usuario) return this.papeis;
+    try {
+      const { data, error } = await this.sb
+        .from('obra_membros')
+        .select('obra_id, papel')
+        .eq('usuario_id', this.usuario.id);
+      if (error) throw error;
+      (data || []).forEach((m) => { this.papeis[m.obra_id] = m.papel; });
+    } catch (e) {
+      /* tabela ainda não criada (migração 0004 pendente): trata como dono de tudo */
+    }
+    return this.papeis;
+  },
+
+  /* 'dono' quando a tabela de membros ainda não existe — preserva o
+     comportamento de antes da migração 0004. */
+  papelNaObra(obraId) {
+    return this.papeis[obraId] || 'dono';
+  },
+
+  podeEditarObra(obraId) {
+    const p = this.papelNaObra(obraId);
+    return p === 'dono' || p === 'engenheiro';
+  },
+
+  /* Lista de membros de uma obra, para uma futura tela de equipe. */
+  async lerMembros(obraId) {
+    if (!this.sb || !obraId) return [];
+    const { data, error } = await this.sb
+      .from('obra_membros')
+      .select('*')
+      .eq('obra_id', obraId)
+      .order('criado_em', { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
   /* --------------------------------------------------------- auditoria */
   /* Leitor dedicado: a trilha é só leitura e não entra no ciclo do Store
      (ele sincroniza por diferença, e a auditoria nunca é escrita pela tela). */
@@ -329,6 +379,9 @@ const SUPA = {
     } else {
       estado.empresa.email = (this.usuario && this.usuario.email) || '';
     }
+
+    await this.carregarPapeis();
+
     estado.meta.savedAt = new Date().toISOString();
     return estado;
   },
