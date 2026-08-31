@@ -167,9 +167,11 @@ a { color: var(--marca); }
   display: flex; gap: 10px; align-items: center;
 }
 .marca-mark {
-  width: 38px; height: 38px; flex: 0 0 38px; display: block;
+  width: 38px; height: 38px; flex: 0 0 38px; display: grid; place-items: center;
 }
-.marca-mark svg { width: 100%; height: 100%; display: block; }
+.marca-mark svg, .marca-mark .marca-img {
+  width: 100%; height: 100%; display: block; object-fit: contain;
+}
 .rail-marca b {
   font-family: 'Barlow Condensed', sans-serif; font-size: 18px;
   font-weight: 600; letter-spacing: .02em; line-height: 1.05; display: block;
