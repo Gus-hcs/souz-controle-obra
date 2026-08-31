@@ -22,10 +22,11 @@ ACOES['recarregar-auditoria'] = () => {
   if (o) { carregarAuditoria(o.id, true); App.renderConteudo(); }
 };
 ACOES.tema = () => {
-  const atual = document.documentElement.getAttribute('data-theme');
-  const escuro = atual ? atual === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-  document.documentElement.setAttribute('data-theme', escuro ? 'light' : 'dark');
-  try { localStorage.setItem('souz_tema', escuro ? 'light' : 'dark'); } catch (e) {}
+  /* O escuro é o padrão; alterna só entre padrão e claro. */
+  const claro = document.documentElement.getAttribute('data-theme') === 'light';
+  const novo = claro ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', novo);
+  try { localStorage.setItem('souz_tema', novo); } catch (e) {}
 };
 ACOES['fechar-modal'] = () => fecharModal();
 ACOES.imprimir = () => window.print();

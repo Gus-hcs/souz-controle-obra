@@ -116,6 +116,8 @@ VIEWS.painel = () => {
   const medPend = o.medicoes.filter((m) => m.status !== 'Cancelado' && medicaoLiquido(m) - num(m.valorPago) > 0.005);
   const recPend = o.recebimentos.filter((r) => r.status !== 'Recebido' && r.status !== 'Cancelado');
   const basesNeg = basesContratuais(o).filter((b) => b.saldo < -0.005);
+  const criticos = al.filter((a) => a.sev === 3);
+  const atencao = al.filter((a) => a.sev === 2);
 
   const custoPorEtapa = {};
   o.lancamentos.forEach((l) => {
@@ -128,8 +130,59 @@ VIEWS.painel = () => {
     custoPorEtapa[et] = (custoPorEtapa[et] || 0) + num(m.valorPago);
   });
 
+  /* faixa de saúde: identidade + o que importa num relance */
+  const prazoTxt = k.diasParaFim === null ? '—'
+    : k.diasParaFim < 0 ? `${-k.diasParaFim} d em atraso` : `${k.diasParaFim} d restantes`;
+  const saude = `<div class="saude">
+    <div class="titulo-obra">
+      <h2>${esc(o.nome)}</h2>
+      <span class="local">${[o.cidade, o.responsavel].filter(Boolean).map(esc).join(' · ') || 'sem cidade definida'}</span>
+    </div>
+    ${chip(o.status || 'Planejada', tomStatus(o.status))}
+    <div class="metrica"><span class="rotulo">Caixa</span>
+      <b class="${k.saldoCaixa < 0 ? 'neg' : 'pos'}">${fmtMoneyCurto(k.saldoCaixa)}</b></div>
+    <div class="metrica"><span class="rotulo">Avanço físico</span>
+      <b>${fmtPct(k.progressoFisico, 0)}</b></div>
+    <div class="metrica"><span class="rotulo">Prazo</span>
+      <b class="${k.diasParaFim !== null && k.diasParaFim < 0 ? 'neg' : ''}">${prazoTxt}</b></div>
+    <div class="metrica"><span class="rotulo">Pendências</span>
+      <b class="${criticos.length ? 'neg' : ''}">${criticos.length ? criticos.length + ' críticas' : atencao.length + ' de atenção'}</b></div>
+  </div>`;
+
+  /* resumo antes do detalhe: o que exige ação primeiro */
+  const linhasAcao = [
+    ['Materiais vencidos sem compra', vencidos.length, vencidos.reduce((s, c) => s + c.saldoValor, 0), 'materiais', vencidos.length > 0],
+    ['Contratos com saldo negativo', basesNeg.length, basesNeg.reduce((s, b) => s + b.saldo, 0), 'contratos', basesNeg.length > 0],
+    ['Medições ainda não pagas', medPend.length, k.medicoesNaoPagas, 'medicoes', false],
+    ['Recebimentos previstos pendentes', recPend.length, k.previstoNaoRecebido, 'recebimentos', false],
+    ['Materiais com saldo a comprar', matSaldo.filter((c) => c.saldo > 0).length,
+      matSaldo.reduce((s, c) => s + c.saldoValor, 0), 'materiais', false],
+  ];
+  const acaoTabela = `<table class="tab">
+    <thead><tr><th>Indicador</th><th class="num">Qtde</th><th class="num">Valor</th><th></th></tr></thead>
+    <tbody>${linhasAcao.map(([rot, qt, val, view, alerta]) => `<tr>
+      <td>${rot}</td>
+      <td class="num ${alerta ? 'neg' : ''}">${qt}</td>
+      <td class="num">${fmtMoney(val, { dec: 0 })}</td>
+      <td class="acoes" style="opacity:1">${botao('abrir', 'ir', { view }, 'btn sutil pequeno')}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+
+  const blocoAcao = (criticos.length || atencao.length)
+    ? cartao(`Precisa de atenção`, `
+        ${(criticos.length ? criticos : atencao).slice(0, 4).map((a) => alertaHTML(a)).join('')}
+        ${acaoTabela}`, {
+      semPadding: true,
+      acoes: botao(`Ver ${al.length} alertas`, 'ir', { view: 'alertas' }, 'btn pequeno'),
+    })
+    : cartao('Situação', `<div class="corpo" style="padding:16px"><p style="margin:0;color:var(--ok)">
+        ✓ Sem pendências. A obra está em dia com o que foi lançado.</p></div>${acaoTabela}`, { semPadding: true });
+
   return `
   <div class="grade" style="gap:16px">
+    ${saude}
+    ${blocoAcao}
+
     <div class="grade g4">
       ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }), `a receber: ${fmtMoneyCurto(k.previstoNaoRecebido)}`)}
       ${kpi('Total pago', fmtMoney(k.totalPago, { dec: 0 }), `${fmtMoneyCurto(k.pagoMedicoes)} medições · ${fmtMoneyCurto(k.pagoLancamentos)} compras`)}
@@ -182,38 +235,12 @@ VIEWS.painel = () => {
     </div>
 
     <div class="grade g-2-1">
-      ${cartao('Pendências para a próxima ação', `
-        <table class="tab">
-          <thead><tr><th>Indicador</th><th class="num">Qtde</th><th class="num">Valor</th><th></th></tr></thead>
-          <tbody>
-            <tr><td>Materiais com saldo a comprar</td><td class="num mono">${matSaldo.filter((c) => c.saldo > 0).length}</td>
-              <td class="num mono">${fmtMoney(matSaldo.reduce((s, c) => s + c.saldoValor, 0))}</td>
-              <td class="acoes" style="opacity:1">${botao('abrir', 'ir', { view: 'materiais' }, 'btn sutil pequeno')}</td></tr>
-            <tr><td>Materiais vencidos sem compra</td><td class="num mono ${vencidos.length ? 'neg' : ''}">${vencidos.length}</td>
-              <td class="num mono">${fmtMoney(vencidos.reduce((s, c) => s + c.saldoValor, 0))}</td>
-              <td class="acoes" style="opacity:1">${botao('abrir', 'ir', { view: 'materiais' }, 'btn sutil pequeno')}</td></tr>
-            <tr><td>Medições ainda não pagas</td><td class="num mono">${medPend.length}</td>
-              <td class="num mono">${fmtMoney(k.medicoesNaoPagas)}</td>
-              <td class="acoes" style="opacity:1">${botao('abrir', 'ir', { view: 'medicoes' }, 'btn sutil pequeno')}</td></tr>
-            <tr><td>Recebimentos previstos pendentes</td><td class="num mono">${recPend.length}</td>
-              <td class="num mono">${fmtMoney(k.previstoNaoRecebido)}</td>
-              <td class="acoes" style="opacity:1">${botao('abrir', 'ir', { view: 'recebimentos' }, 'btn sutil pequeno')}</td></tr>
-            <tr><td>Contratos com saldo negativo</td><td class="num mono ${basesNeg.length ? 'neg' : ''}">${basesNeg.length}</td>
-              <td class="num mono">${fmtMoney(basesNeg.reduce((s, b) => s + b.saldo, 0))}</td>
-              <td class="acoes" style="opacity:1">${botao('abrir', 'ir', { view: 'contratos' }, 'btn sutil pequeno')}</td></tr>
-          </tbody>
-        </table>`, { semPadding: true })}
+      ${cartao('Fluxo de caixa mensal', graficoFluxo(o, 260),
+        { acoes: botao('Ver tabela completa', 'ir', { view: 'fluxo' }, 'btn pequeno') })}
       ${cartao('Onde o dinheiro foi', graficoBarras(
         Object.entries(custoPorEtapa).map(([rotulo, valor]) => ({ rotulo, valor })),
         { limite: 8 }))}
     </div>
-
-    ${al.length ? cartao(`Alertas (${al.length})`, al.slice(0, 5).map((a) => alertaHTML(a)).join(''),
-      { semPadding: true, acoes: botao('Ver todos', 'ir', { view: 'alertas' }, 'btn pequeno') })
-      : cartao('Alertas', `<p style="margin:0;color:var(--ok)">Nenhuma pendência. Obra em dia com o que foi lançado.</p>`)}
-
-    ${cartao('Fluxo de caixa mensal', graficoFluxo(o, 260),
-      { acoes: botao('Ver tabela completa', 'ir', { view: 'fluxo' }, 'btn pequeno') })}
   </div>`;
 };
 
