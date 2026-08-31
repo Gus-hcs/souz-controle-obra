@@ -2,11 +2,11 @@
  * telas-obra.js — Telas da obra: painel, contratos, medições, recebimentos, materiais, cronograma.
  */
 import { competencia, diasEntre, esc, fmtCompetencia, fmtData, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtNum, fmtPct, hojeISO, isISO, num, round2 } from '../nucleo/base.js';
-import { alertasObra, basesContratuais, contratoValor, curvaS, etapaCalc, fluxoCaixa, kpisCarteira, kpisObra, lancamentoTotal, materialCalc, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca } from '../dominio/calculos.js';
+import { alertasObra, basesContratuais, contratoValor, curvaS, etapaCalc, fluxoCaixa, fluxoCarteira, kpisCarteira, kpisObra, lancamentoTotal, materialCalc, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca } from '../dominio/calculos.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { anel, App, acoesLinha, barra, botao, campoBusca, campoHTML, cartao, chip, filtraTexto, kpi, nomeCliente, opcoesEtapas, opcoesLista, selectFiltro, sparkline, tomSituacao, tomStatus, vazio } from './shell.js';
-import { graficoBarras, graficoCurvaS, graficoFluxo, graficoGantt } from '../graficos/index.js';
+import { graficoBarras, graficoCurvaS, graficoFluxo, graficoFluxoCarteira, graficoGantt } from '../graficos/index.js';
 
 const VIEWS = {};
 
@@ -52,13 +52,38 @@ VIEWS.carteira = () => {
     </button>`;
   }).join('');
 
-  const comparativo = graficoBarras(
-    e.obras.filter((o) => kpisObra(o).area > 0).map((o) => {
-      const ko = kpisObra(o);
-      return { rotulo: o.nome, valor: round2(ko.custoPrevistoM2) };
-    }),
-    { formata: (v) => fmtMoney(v, { dec: 0 }) + '/m²' }
-  );
+  const dObra = e.obras.map((o) => ({ o, ko: kpisObra(o) }));
+  const temFluxo = fluxoCarteira(e).some((m) => m.entradas || m.saidas);
+
+  const graf = (titulo, itens, opcoes, minimo = 1) =>
+    itens.length >= minimo ? cartao(titulo, graficoBarras(itens, opcoes)) : '';
+
+  const cartoesGraf = [
+    graf('Resultado projetado por obra',
+      dObra.filter((d) => d.ko.resultado !== null).map((d) => ({
+        rotulo: d.o.nome, valor: round2(d.ko.resultado),
+        cor: d.ko.resultado < 0 ? 'var(--critico)' : 'var(--ok)'
+      })), { formata: (v) => fmtMoneyCurto(v) }),
+    graf('Avanço físico por obra',
+      dObra.map((d) => ({
+        rotulo: d.o.nome, valor: d.ko.progressoFisico,
+        cor: d.ko.etapasAtrasadas ? 'var(--aviso)' : 'var(--marca)'
+      })), { formata: (v) => fmtPct(v, 0), max: 1, manterZeros: true }, 2),
+    graf('Saldo em caixa por obra',
+      dObra.map((d) => ({
+        rotulo: d.o.nome, valor: round2(d.ko.saldoCaixa),
+        cor: d.ko.saldoCaixa < 0 ? 'var(--critico)' : 'var(--s1)'
+      })), { formata: (v) => fmtMoneyCurto(v), manterZeros: true }, 2),
+    e.obras.length > 1
+      ? graf('Custo previsto por m²',
+        dObra.filter((d) => d.ko.area > 0).map((d) => ({ rotulo: d.o.nome, valor: round2(d.ko.custoPrevistoM2) })),
+        { formata: (v) => fmtMoney(v, { dec: 0 }) + '/m²' })
+      : '',
+    graf('A receber por obra',
+      dObra.filter((d) => d.ko.previstoNaoRecebido > 0).map((d) => ({
+        rotulo: d.o.nome, valor: round2(d.ko.previstoNaoRecebido), cor: 'var(--s3)'
+      })), { formata: (v) => fmtMoneyCurto(v) })
+  ].join('');
 
   const tomResultado = k.resultado === null ? '' : k.resultado < 0 ? 'critico' : 'ok';
   return `
@@ -74,7 +99,7 @@ VIEWS.carteira = () => {
         `${k.ativas} obra${k.ativas === 1 ? '' : 's'} em andamento`,
         { destaque: true, visual: anel(k.progressoMedio, 'marca', ' ') })}
     </div>
-    <div class="grade g4">
+    <div class="grade g-kpi">
       ${kpi('Obras ativas', k.ativas, `${e.obras.length} no total · ${k.concluidas} concluída${k.concluidas === 1 ? '' : 's'}`)}
       ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }), 'financiamento, cliente e recursos próprios')}
       ${kpi('Custo previsto/m²', k.area ? fmtMoney(k.custoPrevistoM2, { dec: 0 }) : '—', 'contratos + materiais a comprar')}
@@ -85,11 +110,14 @@ VIEWS.carteira = () => {
       criticos.map((a) => alertaHTML(a, true)).join(''),
       { semPadding: true, acoes: botao('Ver todos os alertas', 'ir-alertas-carteira', {}, 'btn pequeno') }) : ''}
 
-    ${cartao(`Obras (${e.obras.length})`, `<div class="grade g3">${cartoesObra}</div>`, {
+    ${cartao(`Obras (${e.obras.length})`, `<div class="grade g-cartoes">${cartoesObra}</div>`, {
       acoes: `${botao('Importar planilha', 'importar-xlsx', {}, 'btn pequeno', 'baixar')} ${botao('Nova obra', 'nova-obra', {}, 'btn primario pequeno', 'mais')}`
     })}
 
-    ${e.obras.length > 1 ? cartao('Custo previsto por m² — comparativo', comparativo) : ''}
+    ${temFluxo || cartoesGraf ? `<div class="grade g-graf">
+      ${temFluxo ? `<div class="largo">${cartao('Fluxo de caixa consolidado', graficoFluxoCarteira(e, 240))}</div>` : ''}
+      ${cartoesGraf}
+    </div>` : ''}
   </div>`;
 };
 

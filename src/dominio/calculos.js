@@ -486,6 +486,29 @@ function alertasObra(obra) {
 }
 
 /* ------------------------------------------------- CARTEIRA (todas) */
+/* Fluxo de caixa consolidado da carteira: soma mês a mês de todas as obras. */
+function fluxoCarteira(estado) {
+  const porMes = new Map();
+  estado.obras.forEach((o) => {
+    fluxoCaixa(o).forEach((m) => {
+      const a = porMes.get(m.ym) || { ym: m.ym, entradas: 0, medicoes: 0, outras: 0, saidas: 0 };
+      a.entradas += m.entradas;
+      a.medicoes += m.medicoes;
+      a.outras += m.outras;
+      a.saidas += m.saidas;
+      porMes.set(m.ym, a);
+    });
+  });
+  const meses = [...porMes.values()].sort((a, b) => (a.ym < b.ym ? -1 : 1));
+  let acumulado = estado.obras.reduce((s, o) => s + num(o.fin.saldoInicial), 0);
+  return meses.map((m) => {
+    m.saldoMes = m.entradas - m.saidas;
+    acumulado += m.saldoMes;
+    m.acumulado = acumulado;
+    return m;
+  });
+}
+
 function kpisCarteira(estado) {
   const obras = estado.obras;
   const ativas = obras.filter((o) => o.status !== 'Concluída');
@@ -539,5 +562,6 @@ export {
   fracaoRealizada,
   curvaS,
   alertasObra,
+  fluxoCarteira,
   kpisCarteira
 };

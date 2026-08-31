@@ -231,6 +231,9 @@ a { color: var(--marca); }
 #topo .dir { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
 #conteudo { padding: 20px; flex: 1; max-width: 1500px; width: 100%; }
+/* painéis: aproveitam telas largas; telas de tabela ficam no limite legível */
+body[data-view="carteira"] #conteudo,
+body[data-view="painel"] #conteudo { max-width: 1780px; }
 
 /* botão de menu: recolhe o rail no desktop, abre a gaveta no celular */
 .menu-mob { display: inline-flex; }
@@ -292,6 +295,12 @@ a { color: var(--marca); }
 .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .g-2-1 { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
 .g-1-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+
+/* grades fluidas: acompanham a largura sem quebra brusca de coluna */
+.g-kpi { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.g-cartoes { grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
+.g-graf { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
+.g-graf > .largo { grid-column: 1 / -1; }
 
 /* KPI */
 .kpi {

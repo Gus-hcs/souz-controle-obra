@@ -191,6 +191,7 @@ const App = {
 
   renderConteudo() {
     const alvo = document.getElementById('conteudo');
+    document.body.dataset.view = this.rota.view;
     const fn = VIEWS[this.rota.view];
     try {
       alvo.innerHTML = fn ? fn() : '<div class="vazio">Tela não encontrada.</div>';

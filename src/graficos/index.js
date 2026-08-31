@@ -2,7 +2,7 @@
  * index.js — Gráficos em SVG puro: curva S, fluxo de caixa, Gantt e barras.
  */
 import { addMeses, competencia, diasEntre, esc, fimDoMes, fmtCompetencia, fmtMoney, fmtMoneyCurto, fmtPct, hojeISO, inicioDoMes, isISO, num, round2 } from '../nucleo/base.js';
-import { curvaS, etapaCalc, fluxoCaixa } from '../dominio/calculos.js';
+import { curvaS, etapaCalc, fluxoCaixa, fluxoCarteira } from '../dominio/calculos.js';
 import { vazio } from '../ui/shell.js';
 
 const GRAFICOS = {};   /* id → { pontos, rotulos, formata } para o hover */
@@ -122,7 +122,15 @@ function graficoCurvaS(obra, altura = 300) {
 
 /* ------------------------------------------------------ FLUXO DE CAIXA */
 function graficoFluxo(obra, altura = 280) {
-  const dados = fluxoCaixa(obra);
+  return renderFluxo(fluxoCaixa(obra), altura);
+}
+
+/* Fluxo de caixa somando todas as obras da carteira. */
+function graficoFluxoCarteira(estado, altura = 280) {
+  return renderFluxo(fluxoCarteira(estado), altura);
+}
+
+function renderFluxo(dados, altura = 280) {
   if (!dados.length) return vazio('Sem movimento', 'Registre recebimentos, medições ou lançamentos.');
   const W = 920, H = altura, ml = 62, mr = 16, mt = 14, mb = 34;
   const x0 = ml, x1 = W - mr, y0 = H - mb, y1 = mt;
@@ -247,10 +255,11 @@ function graficoGantt(obra) {
 
 /* ------------------------------------------------- BARRAS HORIZONTAIS */
 function graficoBarras(itens, opcoes = {}) {
-  const { formata = (v) => fmtMoney(v), cor = 'var(--s1)', max: maxForcado } = opcoes;
-  const lista = itens.filter((i) => num(i.valor) !== 0).sort((a, b) => b.valor - a.valor).slice(0, opcoes.limite || 12);
+  const { formata = (v) => fmtMoney(v), cor = 'var(--s1)', max: maxForcado, manterZeros = false } = opcoes;
+  const base = manterZeros ? itens.slice() : itens.filter((i) => num(i.valor) !== 0);
+  const lista = base.sort((a, b) => b.valor - a.valor).slice(0, opcoes.limite || 12);
   if (!lista.length) return `<p style="color:var(--mudo);margin:0">Sem dados para exibir.</p>`;
-  const max = maxForcado || Math.max(...lista.map((i) => Math.abs(i.valor)));
+  const max = maxForcado || Math.max(...lista.map((i) => Math.abs(i.valor))) || 1;
   return `<div style="display:flex;flex-direction:column;gap:9px">${lista.map((i) => `
     <div>
       <div style="display:flex;gap:8px;font-size:12.5px;margin-bottom:3px">
@@ -313,6 +322,7 @@ export {
   caminho,
   graficoCurvaS,
   graficoFluxo,
+  graficoFluxoCarteira,
   graficoGantt,
   graficoBarras,
   desenharGraficosPendentes
