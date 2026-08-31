@@ -5,7 +5,7 @@
  *   npm run test:e2e         (usa dist-local, o build de modo teste)
  *   node tests/fumaca.e2e.mjs <pasta-do-build>
  */
-import pw from '/home/claude/node_modules/playwright/index.js';
+import pw from 'playwright';
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
