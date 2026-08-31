@@ -63,6 +63,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0003_auditoria.sql` | tabela `auditoria` e gatilho de trilha de valores financeiros |
 | `0004_membros_e_papeis.sql` | `obra_membros`, funções de autorização e políticas por papel |
 | `0005_admin_e_permissoes.sql` | painel de administração: consumo por cliente e liberação de acesso por aba |
+| `0006_seguranca.sql` | corrige a falha de auto-promoção a admin; endurece funções e schema |
 
 Ao criar uma migração nova, numere em sequência e descreva a mudança aqui.
 

@@ -2,6 +2,16 @@
 
 ## Não publicado
 
+**Segurança**
+- Migração `0006_seguranca.sql`: corrige falha crítica da `0005` — o usuário
+  conseguia `update perfis set admin = true` na própria linha e virar admin.
+  Agora as colunas de controle (`admin`, `plano`, `bloqueado`, `abas`) só
+  mudam por admin, com `REVOKE UPDATE` + gatilho + RPC dedicada.
+- Funções `security definer` com `search_path` travado; `CREATE` em `public`
+  bloqueado para o cliente.
+- Detalhe de alerta passa a ser escapado (evita XSS entre membros da obra).
+- `SECURITY.md` reescrito com a auditoria completa e o checklist do Supabase.
+
 **Administração**
 - Migração `0005_admin_e_permissoes.sql`: `perfis` ganha `admin`, `plano`,
   `bloqueado` e `abas`; função `admin_consumo()` agrega o uso de cada cliente.

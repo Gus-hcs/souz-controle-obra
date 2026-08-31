@@ -329,9 +329,15 @@ const SUPA = {
     return data || [];
   },
 
-  /* Admin altera plano / bloqueio / abas de um cliente. */
+  /* Admin altera plano / bloqueio / abas de um cliente.
+     Vai por RPC: o cliente não tem UPDATE nessas colunas (migração 0006). */
   async adminSalvarPerfil(usuarioId, campos) {
-    const { error } = await this.sb.from('perfis').update(campos).eq('id', usuarioId);
+    const { error } = await this.sb.rpc('admin_definir_perfil', {
+      p_id: usuarioId,
+      p_plano: campos.plano ?? null,
+      p_bloqueado: campos.bloqueado ?? null,
+      p_abas: campos.abas ?? null,
+    });
     if (error) throw error;
   },
 

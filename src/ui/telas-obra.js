@@ -99,7 +99,7 @@ function alertaHTML(a, mostrarObra = false) {
     <div class="txt">
       <b>${esc(a.titulo)}</b>
       ${mostrarObra ? `<span class="chip" style="margin-left:6px">${esc(a.obraNome)}</span>` : ''}
-      <p>${a.detalhe}</p>
+      <p>${esc(a.detalhe)}</p>
       <span class="acao">→ ${esc(a.acao)}</span>
     </div>
     ${a.ref && a.ref.view ? `<button class="btn sutil pequeno" data-acao="ir" data-view="${a.ref.view}" data-obra="${a.obraId}">abrir</button>` : ''}
