@@ -2,15 +2,18 @@
 
 ## Não publicado
 
-**Interface (em curso — direção para aprovar)**
+**Interface (em curso)**
 - Tema escuro passa a ser o padrão; o claro entra só pelo botão de tema.
 - Paleta reorganizada em tokens: superfícies em camadas, cor de marca separada
   da cor semântica (crítico / atenção / positivo), raio e espaçamento nomeados.
 - Componentes repolidos: cartões com elevação, KPIs maiores, tabelas com linha
   de leitura mais clara, botões e campos com foco visível, topo com desfoque.
-- Painel da obra redesenhado como referência: faixa de saúde no topo (nome,
-  status, caixa, avanço, prazo, pendências) e bloco "Precisa de atenção" antes
-  do detalhe. As demais telas herdaram só a paleta nova; a estrutura vem depois.
+- Painel da obra redesenhado: faixa de saúde no topo (nome, status, caixa,
+  avanço, prazo, pendências) e bloco "Precisa de atenção" antes do detalhe.
+- Todas as tabelas ganharam **ordenação por coluna** (clique no cabeçalho, a
+  escolha persiste entre filtros) e, no **celular**, cada linha vira um cartão
+  com rótulo → valor.
+- Impressão força tema claro.
 
 **Equipe da obra**
 - Migração `0004_membros_e_papeis.sql`: tabela `obra_membros` com papel

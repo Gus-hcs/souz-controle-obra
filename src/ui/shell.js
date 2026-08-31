@@ -195,9 +195,74 @@ const App = {
       }
       this.foco = null;
     }
+    prepararTabelas(alvo);
     desenharGraficosPendentes();
   }
 };
+
+/* Pós-processa as tabelas depois de cada render:
+   - carimba cada <td> com o rótulo da coluna (usado no layout de celular,
+     em que a linha vira cartão);
+   - torna o cabeçalho clicável para ordenar, mantendo a escolha entre renders. */
+const ordenacao = new Map();   // assinatura da tabela -> { col, dir }
+
+function prepararTabelas(raiz) {
+  raiz.querySelectorAll('table.tab').forEach((tab) => {
+    const ths = [...tab.querySelectorAll('thead th')];
+    if (!ths.length) return;
+    const rotulos = ths.map((th) => th.textContent.trim());
+    const numerica = ths.map((th) => th.classList.contains('num'));
+
+    tab.querySelectorAll('tbody tr').forEach((tr) => {
+      [...tr.children].forEach((td, i) => {
+        if (rotulos[i] && !td.classList.contains('acoes')) td.setAttribute('data-rotulo', rotulos[i]);
+        if (numerica[i]) td.classList.add('num');
+      });
+    });
+
+    const corpo = tab.querySelector('tbody');
+    if (!corpo || corpo.children.length < 2) return;
+    const assinatura = rotulos.join('|');
+
+    ths.forEach((th, i) => {
+      if (!rotulos[i] || th.classList.contains('acoes')) return;
+      th.classList.add('ord');
+      th.addEventListener('click', () => {
+        const atual = ordenacao.get(assinatura);
+        const dir = atual && atual.col === i ? -atual.dir : 1;
+        ordenacao.set(assinatura, { col: i, dir });
+        aplicarOrdenacao(tab, i, dir, numerica[i]);
+      });
+    });
+
+    const guardada = ordenacao.get(assinatura);
+    if (guardada) aplicarOrdenacao(tab, guardada.col, guardada.dir, numerica[guardada.col]);
+  });
+}
+
+function valorCelula(td, numerico) {
+  const t = (td.textContent || '').replace(/−/g, '-').trim();
+  if (numerico || /^-?[R$\s]*[\d.,]+\s*%?$/.test(t)) {
+    const n = num(t);
+    return { n: isNaN(n) ? 0 : n, t: '' };
+  }
+  return { n: null, t: t.toLowerCase() };
+}
+
+function aplicarOrdenacao(tab, col, dir, numerico) {
+  const corpo = tab.querySelector('tbody');
+  const linhas = [...corpo.querySelectorAll('tr')].filter((tr) => tr.children.length > col);
+  linhas.sort((a, b) => {
+    const va = valorCelula(a.children[col], numerico);
+    const vb = valorCelula(b.children[col], numerico);
+    if (va.n !== null && vb.n !== null) return (va.n - vb.n) * dir;
+    return va.t.localeCompare(vb.t, 'pt') * dir;
+  });
+  linhas.forEach((tr) => corpo.appendChild(tr));
+  tab.querySelectorAll('thead th').forEach((th, i) => {
+    th.dataset.ord = i === col ? (dir === 1 ? 'asc' : 'desc') : '';
+  });
+}
 
 /* ======================================================== componentes */
 

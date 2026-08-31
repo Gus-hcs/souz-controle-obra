@@ -201,7 +201,7 @@ VIEWS.painel = () => {
         k.margem !== null && k.margem < num(o.fin.margemDesejada) ? 'aviso' : k.margem !== null ? 'ok' : '')}
     </div>
 
-    <div class="grade g-2-1">
+    <div class="grade g-2-1" style="align-items:start">
       ${cartao('Curva S — avanço físico x financeiro', graficoCurvaS(o, 280),
         { acoes: botao('Ver detalhes', 'ir', { view: 'curva' }, 'btn pequeno') })}
       ${cartao('Andamento da obra', `

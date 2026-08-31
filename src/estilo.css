@@ -335,6 +335,14 @@ table.tab th {
   background: var(--sup2); position: sticky; top: 0; white-space: nowrap; z-index: 2;
 }
 table.tab th.num, table.tab td.num { text-align: right; }
+table.tab th.ord { cursor: pointer; user-select: none; }
+table.tab th.ord:hover { color: var(--tinta2); }
+table.tab th.ord::after {
+  content: '↕'; margin-left: 5px; opacity: 0; font-size: 10px; transition: opacity .12s;
+}
+table.tab th.ord:hover::after { opacity: .4; }
+table.tab th.ord[data-ord="asc"]::after { content: '↑'; opacity: 1; color: var(--marca); }
+table.tab th.ord[data-ord="desc"]::after { content: '↓'; opacity: 1; color: var(--marca); }
 table.tab td {
   padding: 9px 12px; border-bottom: 1px solid var(--linha); vertical-align: middle;
   font-variant-numeric: tabular-nums;
@@ -548,13 +556,13 @@ select { cursor: pointer; }
   }
   body.menu-aberto #rail { transform: none; }
   body.menu-aberto::after {
-    content: ''; position: fixed; inset: 0; background: rgba(10,14,16,.5); z-index: 80;
+    content: ''; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 80;
   }
   .menu-mob { display: inline-flex; }
   #conteudo { padding: 12px; }
   .g2 { grid-template-columns: minmax(0, 1fr); }
   .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .kpi .valor { font-size: 22px; }
+  .kpi .valor { font-size: 24px; }
   .kpi .sub { font-size: 10.5px; }
   .form-grade > * { grid-column: span 12 !important; }
   .modal .corpo { max-height: none; }
@@ -562,8 +570,41 @@ select { cursor: pointer; }
   .modal { border-radius: 0; min-height: 100vh; }
   #topo { padding: 0 12px; }
   #topo .titulo span { display: none; }
+  .saude { gap: 12px 18px; }
+  .saude .titulo-obra { flex-basis: 100%; }
+}
+
+/* celular: cada linha da tabela vira um cartão */
+@media (max-width: 720px) {
+  .tab-rolagem { overflow-x: visible; }
+  table.tab, table.tab tbody, table.tab tr, table.tab td { display: block; width: 100%; }
+  table.tab thead, table.tab tfoot { display: none; }
+  table.tab tr {
+    border: 1px solid var(--linha); border-radius: var(--r2);
+    background: var(--sup); margin-bottom: 10px; padding: 4px 2px;
+    box-shadow: var(--sombra);
+  }
+  table.tab tbody tr:last-child td { border-bottom: 1px solid var(--linha); }
+  table.tab td {
+    border-bottom: 1px solid var(--linha); padding: 8px 12px;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    text-align: right;
+  }
+  table.tab td:last-child { border-bottom: 0; }
+  table.tab td[data-rotulo]::before {
+    content: attr(data-rotulo); text-align: left; flex: 0 0 42%;
+    font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600;
+    letter-spacing: .06em; text-transform: uppercase; color: var(--mudo);
+  }
+  table.tab td.trunc { max-width: none; white-space: normal; }
+  table.tab td.acoes { justify-content: flex-end; opacity: 1; background: var(--sup2); }
+  table.tab tbody tr:hover td { background: none; }
 }
 @media (max-width: 520px) {
+  #conteudo { padding: 10px; }
+  .kpi { padding: 11px 13px; }
+  .kpi .valor { font-size: 21px; }
+  .saude .metrica { flex: 1 0 40%; }
   .status-salvo { font-size: 0; gap: 0; }
   .status-salvo .pt { width: 9px; height: 9px; flex: 0 0 9px; }
 }
