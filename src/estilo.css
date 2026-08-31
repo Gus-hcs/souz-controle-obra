@@ -20,11 +20,11 @@
   --tinta2: #AEB4BF;
   --mudo: #6B7280;
 
-  /* marca — teal-nível */
-  --marca: #2FBECB;
-  --marca-forte: #57D3DE;
-  --marca-fraca: #0E2A2E;
-  --marca-tinta: #04191C;
+  /* marca — cinza chumbo (monocromático, moderno) */
+  --marca: #AEB6C2;
+  --marca-forte: #C9CFD9;
+  --marca-fraca: #1B2029;
+  --marca-tinta: #0E1116;
 
   /* semânticos — separados da marca */
   --ok: #43C98A;
@@ -35,7 +35,7 @@
   --critico-fraco: #33191A;
 
   /* séries de gráfico (contraste e daltonismo) */
-  --s1: #38BDF0; --s2: #F59E5B; --s3: #8B93F8;
+  --s1: #8992A0; --s2: #F59E5B; --s3: #8B93F8;
   --s4: #86BE3C; --s5: #C879C4; --s6: #C79A45;
   --grade: #1F242D;
 
@@ -77,9 +77,9 @@
   --tinta2: #494E51;
   --mudo: #7B7F7D;
 
-  --marca: #0B6B79;
-  --marca-forte: #08535F;
-  --marca-fraca: #E0EEF0;
+  --marca: #3B4552;
+  --marca-forte: #2A323D;
+  --marca-fraca: #E6E8EC;
   --marca-tinta: #FFFFFF;
 
   --ok: #2C7350;
@@ -89,7 +89,7 @@
   --critico: #A32B20;
   --critico-fraco: #F7E3E0;
 
-  --s1: #0083A0; --s2: #C0561D; --s3: #4B5EAE;
+  --s1: #59626F; --s2: #C0561D; --s3: #4B5EAE;
   --s4: #6D8F1E; --s5: #93498F; --s6: #A9822F;
   --grade: #E2E0D7;
 

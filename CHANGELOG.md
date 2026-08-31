@@ -21,6 +21,8 @@
   final, linhas de grade pontilhadas, cursor na cor da marca.
 - Marca do sistema (dois cubos isométricos) no rail, na tela de acesso e no
   favicon, no lugar do "S" provisório.
+- Cor de marca trocada do teal para **cinza chumbo** — visual monocromático,
+  com a cor reservada só para o semântico (crítico / atenção / positivo).
 - Impressão força tema claro.
 
 **Equipe da obra**
