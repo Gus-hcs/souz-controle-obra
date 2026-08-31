@@ -19,6 +19,8 @@
   ganharam anel de avanço.
 - Gráficos: preenchimento em degradê sob a curva realizada, rótulo de % no ponto
   final, linhas de grade pontilhadas, cursor na cor da marca.
+- Marca do sistema (dois cubos isométricos) no rail, na tela de acesso e no
+  favicon, no lugar do "S" provisório.
 - Impressão força tema claro.
 
 **Equipe da obra**

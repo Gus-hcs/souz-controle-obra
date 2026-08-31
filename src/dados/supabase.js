@@ -4,7 +4,7 @@
 import { CFG } from '../config.js';
 import { esc, estadoInicial, isISO, migrar, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num } from '../nucleo/base.js';
 import { CHAVE_LOCAL, Store } from './store.js';
-import { App, confirmar } from '../ui/shell.js';
+import { App, confirmar, LOGO } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
 import { carregarScript } from '../io/index.js';
 
@@ -453,7 +453,7 @@ function telaAcesso(conteudo) {
   }
   cx.innerHTML = `<div class="acesso-painel">
     <div class="acesso-marca">
-      <div class="rail-logo">S</div>
+      <span class="marca-mark">${LOGO}</span>
       <div><b>SOUZ</b><span>Controle de obra</span></div>
     </div>
     ${conteudo}

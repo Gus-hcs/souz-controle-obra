@@ -39,6 +39,18 @@ const ICO = {
 const svg = (d, tam = 16) =>
   `<svg class="ic" width="${tam}" height="${tam}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 
+/* Marca: dois cubos isométricos. Usado no rail e na tela de acesso. */
+const LOGO = `<svg viewBox="6 6 36 36" fill="none" aria-hidden="true">
+  <g stroke="#6e6e6e" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M17 8 26 12.5 17 17 8 12.5Z" fill="#d3d3d3"/>
+    <path d="M8 12.5 17 17 17 25 8 20.5Z" fill="#a9a9a9"/>
+    <path d="M17 17 26 12.5 26 20.5 17 25Z" fill="#e4e4e4"/>
+    <path d="M31 23 40 27.5 31 32 22 27.5Z" fill="#d3d3d3"/>
+    <path d="M22 27.5 31 32 31 40 22 35.5Z" fill="#a9a9a9"/>
+    <path d="M31 32 40 27.5 40 35.5 31 40Z" fill="#e4e4e4"/>
+  </g>
+</svg>`;
+
 const MENU = [
   { grupo: 'Carteira', itens: [
     { v: 'carteira', t: 'Visão geral', i: 'carteira' },
@@ -146,7 +158,7 @@ const App = {
 
     document.getElementById('rail').innerHTML = `
       <div class="rail-marca">
-        <div class="rail-logo">S</div>
+        <span class="marca-mark">${LOGO}</span>
         <div><b>SOUZ</b><span>Controle de obra</span></div>
       </div>
       <div class="rail-obra">
@@ -562,6 +574,7 @@ function selectFiltro(id, opcoes, rotulo) {
 export {
   ICO,
   svg,
+  LOGO,
   MENU,
   TITULOS,
   VIEWS_OBRA,
