@@ -13,7 +13,8 @@ import {
 import {
   validarObra, validarContrato, validarMedicao, validarRecebimento,
   validarLancamento, validarMaterial, validarEtapa, validarDiario,
-  validarCliente, validarPrestador, validarMembro, validarObraCompleta, validarEstado,
+  validarCliente, validarPrestador, validarMembro, validarPerfilAdmin,
+  validarObraCompleta, validarEstado,
   apenasErros, apenasAlertas,
 } from '../src/dominio/validacao.js';
 
@@ -259,6 +260,21 @@ describe('membro da obra', () => {
     const m = novoMembro('cliente');
     expect(temErroNoCampo(validarMembro(m), 'obraId')).toBe(true);
     expect(temErroNoCampo(validarMembro(m), 'usuarioId')).toBe(true);
+  });
+});
+
+describe('perfil (administração)', () => {
+  it('plano válido e abas objeto passam', () => {
+    expect(validarPerfilAdmin({ plano: 'ativo', abas: { diario: false } })).toEqual([]);
+  });
+
+  it('recusa plano fora da lista', () => {
+    expect(temErroNoCampo(validarPerfilAdmin({ plano: 'premium' }), 'plano')).toBe(true);
+  });
+
+  it('recusa abas que não sejam objeto', () => {
+    expect(temErroNoCampo(validarPerfilAdmin({ abas: ['diario'] }), 'abas')).toBe(true);
+    expect(temErroNoCampo(validarPerfilAdmin({ abas: null }), 'abas')).toBe(true);
   });
 });
 

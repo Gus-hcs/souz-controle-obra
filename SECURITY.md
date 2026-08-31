@@ -42,8 +42,11 @@ nem transmite senha para outro lugar.
 5. **Interface consciente de papel.** O esquema de equipe existe (migração
    `0004`), mas falta a tela para convidar engenheiro/cliente e falta a
    interface esconder ação que o papel não permite.
-6. **Verificação de dependências.** Ligar o Dependabot e `npm audit` na CI.
-7. **Cabeçalhos de segurança.** O GitHub Pages não permite definir CSP por
+6. **Autenticação de admin.** O painel de administração (migração `0005`) é
+   liberado pela coluna `perfis.admin` e pela RLS — não por senha na tela.
+   Ainda falta 2FA para a conta administradora.
+7. **Verificação de dependências.** Ligar o Dependabot e `npm audit` na CI.
+8. **Cabeçalhos de segurança.** O GitHub Pages não permite definir CSP por
    cabeçalho; se um dia o sistema sair para servidor próprio, vale configurar
    `Content-Security-Policy`, `X-Frame-Options` e `Referrer-Policy`.
 

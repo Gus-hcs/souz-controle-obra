@@ -8,7 +8,7 @@ já calculados para o Power BI.
 
 | Tabela | Guarda |
 |---|---|
-| `perfis` | dados da empresa e listas configuráveis, um por usuário |
+| `perfis` | dados da empresa, listas, e o controle de conta (admin, plano, bloqueio, abas liberadas) |
 | `clientes` · `prestadores` | cadastros compartilhados entre obras |
 | `obras` | a obra e seus parâmetros financeiros |
 | `obra_membros` | quem participa de cada obra e com que papel (dono/engenheiro/cliente) |
@@ -62,6 +62,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0002_validacao.sql` | restrições `CHECK` que espelham `src/dominio/validacao.js` |
 | `0003_auditoria.sql` | tabela `auditoria` e gatilho de trilha de valores financeiros |
 | `0004_membros_e_papeis.sql` | `obra_membros`, funções de autorização e políticas por papel |
+| `0005_admin_e_permissoes.sql` | painel de administração: consumo por cliente e liberação de acesso por aba |
 
 Ao criar uma migração nova, numere em sequência e descreva a mudança aqui.
 
@@ -100,6 +101,23 @@ por comando que chamam `pode_ler_obra()` / `pode_escrever_obra()`.
 Ainda **não há tela** para convidar engenheiro ou cliente — o esquema está
 pronto, a interface de equipe é o próximo passo. Enquanto isso, todo mundo é
 `dono` da própria obra e nada muda.
+
+### 0005 — administração
+
+Roda direto (é re-executável). Rode `0001`–`0004` antes.
+
+Acrescenta ao `perfis`: `admin`, `plano` (com `CHECK`), `bloqueado`, `abas`
+(jsonb — abas bloqueadas para aquele usuário). Cria `pode_admin()` e a função
+`admin_consumo()` (`security definer`), que agrega o uso de todos os clientes e
+só responde para quem é admin.
+
+**Depois de aplicar**, marque a sua conta como administradora, uma vez:
+
+```sql
+update public.perfis set admin = true where id = auth.uid();
+```
+
+Aí aparece o grupo **Administração** no menu, só para você.
 
 Um ponto a conferir ao aplicar: criar uma obra pela primeira vez deve retornar a
 obra normalmente (a política de leitura tem um ramo `usuario_id = auth.uid()`

@@ -23,6 +23,7 @@ const ICO = {
   alerta: '<path d="M8 2 15 13.5H1z"/><path d="M8 6.5v3.2M8 11.4v.1"/>',
   relatorio: '<path d="M3.5 1.5h6L13 5v9.5H3.5z"/><path d="M6 8.5h4M6 11h4"/>',
   auditoria: '<path d="M2.5 3h8M2.5 6h8M2.5 9h4"/><circle cx="10.5" cy="10.5" r="3"/><path d="M12.7 12.7 14.5 14.5"/>',
+  admin: '<path d="M8 1.7 13.5 4v4c0 3.4-2.3 5.6-5.5 6.6C4.8 13.6 2.5 11.4 2.5 8V4z"/><path d="M5.7 8 7.4 9.7 10.4 6.4"/>',
   config: '<circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/>',
   cadastro: '<circle cx="8" cy="5.5" r="2.5"/><path d="M2.5 14c0-3 2.5-4.5 5.5-4.5S13.5 11 13.5 14"/>',
   mais: '<path d="M8 3v10M3 8h10"/>',
@@ -69,6 +70,9 @@ const MENU = [
   ] },
   { grupo: 'Sistema', itens: [
     { v: 'ajustes', t: 'Ajustes e dados', i: 'config' }
+  ] },
+  { grupo: 'Administração', soAdmin: true, itens: [
+    { v: 'admin', t: 'Clientes e acessos', i: 'admin' }
   ] }
 ];
 
@@ -90,7 +94,8 @@ const TITULOS = {
   relatorio: ['Relatórios', 'Documentos para cliente, CAIXA e arquivo'],
   auditoria: ['Trilha de auditoria', 'Quem alterou cada valor financeiro e quando'],
   'obra-config': ['Configuração da obra', 'Identificação, financiamento e contrato'],
-  ajustes: ['Ajustes e dados', 'Empresa, listas, backup e importação']
+  ajustes: ['Ajustes e dados', 'Empresa, listas, backup e importação'],
+  admin: ['Administração', 'Consumo por cliente e liberação de acesso por aba']
 };
 
 const VIEWS_OBRA = new Set(MENU[1].itens.map((i) => i.v));
@@ -107,6 +112,8 @@ const App = {
 
   ir(view, obraId) {
     if (obraId !== undefined) this.rota.obraId = obraId;
+    if (view === 'admin' && !SUPA.ehAdmin) { toast('Acesso restrito.', 'aviso'); view = 'carteira'; }
+    if (!SUPA.abaLiberada(view)) { toast('Este acesso não está liberado para a sua conta.', 'aviso'); view = 'carteira'; }
     if (VIEWS_OBRA.has(view) && !this.obra()) {
       const primeira = Store.estado.obras[0];
       if (!primeira) { toast('Cadastre uma obra primeiro.', 'aviso'); view = 'carteira'; }
@@ -138,7 +145,8 @@ const App = {
 
     const nav = MENU.map((g) => {
       if (g.grupo === 'Obra' && !obras.length) return '';
-      const itens = g.itens.map((it) => {
+      if (g.soAdmin && !SUPA.ehAdmin) return '';
+      const itens = g.itens.filter((it) => SUPA.abaLiberada(it.v)).map((it) => {
         const ativo = this.rota.view === it.v ? ' aria-current="page"' : '';
         let cont = '';
         if (it.v === 'alertas' && alertas.length) {
@@ -147,7 +155,8 @@ const App = {
         if (it.v === 'carteira' && obras.length) cont = `<span class="cont">${obras.length}</span>`;
         return `<button data-acao="ir" data-view="${it.v}"${ativo}>${svg(ICO[it.i])}<span>${it.t}</span>${cont}</button>`;
       }).join('');
-      return `<div class="grupo">${g.grupo}${g.grupo === 'Obra' && obra ? '' : ''}</div>${itens}`;
+      if (!itens) return '';
+      return `<div class="grupo">${g.grupo}</div>${itens}`;
     }).join('');
 
     document.getElementById('rail').innerHTML = `

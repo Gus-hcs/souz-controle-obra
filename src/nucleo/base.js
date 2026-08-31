@@ -252,6 +252,7 @@ const novoPrestador = () => ({
 });
 
 const PAPEIS_OBRA = ['dono', 'engenheiro', 'cliente'];
+const PLANOS = ['trial', 'ativo', 'suspenso', 'cancelado'];
 
 const novoMembro = (papel = 'engenheiro') => ({
   id: uid('mbr'), obraId: '', usuarioId: '', papel, criadoEm: hojeISO()
@@ -325,6 +326,7 @@ export {
   slug,
   LISTAS_PADRAO,
   PAPEIS_OBRA,
+  PLANOS,
   novoMembro,
   novaObra,
   novoContrato,

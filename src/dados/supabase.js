@@ -205,6 +205,10 @@ const SUPA = {
   cfg: { url: '', anon: '' },
   pronto: false,
   papeis: {},        // obraId -> 'dono' | 'engenheiro' | 'cliente' (carregado no login)
+  ehAdmin: false,    // pode abrir o painel de administração
+  plano: 'ativo',
+  bloqueado: false,
+  abas: {},          // { "<aba>": false } = abas bloqueadas para este usuário
 
   lerConfig() {
     let cfg = { ...SUPABASE_PADRAO };
@@ -309,6 +313,28 @@ const SUPA = {
     return p === 'dono' || p === 'engenheiro';
   },
 
+  /* ------------------------------------------------------ administração */
+  /* Uma aba está liberada a menos que o admin a tenha bloqueado.
+     carteira, painel e ajustes são sempre acessíveis. */
+  abaLiberada(v) {
+    if (['carteira', 'painel', 'ajustes', 'admin'].includes(v)) return true;
+    return this.abas[v] !== false;
+  },
+
+  /* Consumo de todos os clientes (só responde para admin). */
+  async lerConsumo() {
+    if (!this.sb) return [];
+    const { data, error } = await this.sb.rpc('admin_consumo');
+    if (error) throw error;
+    return data || [];
+  },
+
+  /* Admin altera plano / bloqueio / abas de um cliente. */
+  async adminSalvarPerfil(usuarioId, campos) {
+    const { error } = await this.sb.from('perfis').update(campos).eq('id', usuarioId);
+    if (error) throw error;
+  },
+
   /* Lista de membros de uma obra, para uma futura tela de equipe. */
   async lerMembros(obraId) {
     if (!this.sb || !obraId) return [];
@@ -376,6 +402,10 @@ const SUPA = {
       if (perfil.listas && Object.keys(perfil.listas).length) {
         estado.listas = Object.assign(estado.listas, perfil.listas);
       }
+      this.ehAdmin = !!perfil.admin;
+      this.plano = perfil.plano || 'ativo';
+      this.bloqueado = !!perfil.bloqueado;
+      this.abas = perfil.abas && typeof perfil.abas === 'object' ? perfil.abas : {};
     } else {
       estado.empresa.email = (this.usuario && this.usuario.email) || '';
     }
@@ -609,6 +639,17 @@ async function entrarNoSistema() {
   telaAcesso('<h2>Carregando suas obras…</h2><p class="acesso-sub">Buscando os dados no banco.</p>');
   try {
     const estado = await SUPA.carregar();
+
+    if (SUPA.bloqueado) {
+      return telaAcesso(`<h2>Acesso suspenso</h2>
+        <p class="acesso-sub">Sua conta está temporariamente sem acesso ao sistema.
+        Fale com o administrador para regularizar.</p>
+        <div class="acesso-links">
+          <button class="btn" data-acao="auth-recarregar">Tentar de novo</button>
+          <button class="btn sutil pequeno" data-acao="auth-sair-simples">Sair</button>
+        </div>`);
+    }
+
     Store.estado = migrar(estado);
     Store.snapshot = JSON.parse(JSON.stringify(Store.estado));
     Store.backend = 'supabase';
@@ -616,6 +657,7 @@ async function entrarNoSistema() {
     Store.status = 'ok';
     Store.salvoEm = new Date().toISOString();
     if (!App.rota.obraId && Store.estado.obras.length) App.rota.obraId = Store.estado.obras[0].id;
+    if (!SUPA.abaLiberada(App.rota.view)) App.rota = { view: 'carteira', obraId: App.rota.obraId };
     fecharAcesso();
     App.render();
   } catch (err) {

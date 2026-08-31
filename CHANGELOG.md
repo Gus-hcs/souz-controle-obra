@@ -2,6 +2,15 @@
 
 ## Não publicado
 
+**Administração**
+- Migração `0005_admin_e_permissoes.sql`: `perfis` ganha `admin`, `plano`,
+  `bloqueado` e `abas`; função `admin_consumo()` agrega o uso de cada cliente.
+- Tela **Administração** (só para quem é admin): consumo por cliente — obras,
+  contratos, medições, lançamentos, fotos, última atividade — com plano,
+  bloqueio de conta e liberação de acesso por aba.
+- O usuário logado só vê no menu as abas que o admin liberou; conta bloqueada
+  não entra. Tudo garantido pela RLS, não só pela tela.
+
 **Interface (em curso)**
 - Tema escuro passa a ser o padrão; o claro entra só pelo botão de tema.
 - Paleta reorganizada em tokens: superfícies em camadas, cor de marca separada

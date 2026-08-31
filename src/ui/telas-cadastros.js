@@ -1,12 +1,14 @@
 /**
  * telas-cadastros.js — Telas de cadastro: clientes, prestadores, relatórios e ajustes.
  */
-import { esc, fmtData, fmtDataCurta, fmtMoney, fmtPct, hojeISO, norm, num } from '../nucleo/base.js';
+import { esc, fmtData, fmtDataCurta, fmtMoney, fmtPct, hojeISO, norm, num, PLANOS } from '../nucleo/base.js';
 import { alertasObra, basesContratuais, contratoValor, etapaCalc, kpisObra } from '../dominio/calculos.js';
+import { apenasErros, validarPerfilAdmin } from '../dominio/validacao.js';
 import { Store, horaCurta } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
-import { App, acoesLinha, botao, campoBusca, campoHTML, cartao, chip, filtraTexto, kpi, nomeCliente, tomSituacao, vazio } from './shell.js';
+import { App, abrirModal, acoesLinha, botao, campoBusca, campoHTML, cartao, chip, confirmar, fecharModal, filtraTexto, kpi, MENU, nomeCliente, toast, tomSituacao, vazio } from './shell.js';
 import { VIEWS } from './telas-obra.js';
+import { ACOES } from './acoes.js';
 
 /* =========================================================== CLIENTES */
 VIEWS.clientes = () => {
@@ -209,4 +211,190 @@ VIEWS.ajustes = () => {
       <p style="margin:0 0 10px;font-size:13px">Apaga toda a base do sistema. Baixe um backup antes.</p>
       ${botao('Apagar todos os dados', 'zerar', {}, 'btn perigo', 'lixo')}`)}
   </div>`;
+};
+
+/* ===================================================== ADMINISTRAÇÃO */
+/* Só para quem tem perfis.admin = true. Lê o consumo de todos os clientes
+   pela função admin_consumo() e libera/bloqueia acesso por aba. */
+const Admin = { linhas: null, erro: '', carregando: false };
+
+/* abas que o admin pode bloquear (carteira, painel e ajustes ficam sempre) */
+const ABAS_CONTROLAVEIS = MENU
+  .flatMap((g) => (g.soAdmin ? [] : g.itens))
+  .filter((it) => !['carteira', 'painel', 'ajustes'].includes(it.v));
+
+function carregarConsumo(forcar = false) {
+  if (Admin.carregando) return;
+  if (!forcar && (Admin.linhas || Admin.erro)) return;
+  Admin.linhas = null;
+  Admin.erro = '';
+  Admin.carregando = true;
+  SUPA.lerConsumo()
+    .then((l) => { Admin.linhas = l; })
+    .catch((e) => { Admin.erro = String((e && e.message) || e); })
+    .finally(() => {
+      Admin.carregando = false;
+      if (App.rota.view === 'admin') App.renderConteudo();
+    });
+}
+
+function quandoRelativo(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return '—';
+  const dias = Math.floor((Date.now() - d.getTime()) / 86400000);
+  if (dias <= 0) return 'hoje';
+  if (dias === 1) return 'ontem';
+  if (dias < 30) return `há ${dias} dias`;
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+VIEWS.admin = () => {
+  if (!SUPA.ehAdmin) {
+    return cartao('Administração', vazio('Acesso restrito', 'Esta área é só para o administrador do sistema.'));
+  }
+
+  carregarConsumo();
+
+  if (Admin.carregando && !Admin.linhas) {
+    return cartao('Administração', vazio('Carregando…', 'Buscando o consumo dos clientes.'));
+  }
+  if (Admin.erro) {
+    const naoInstalado = /admin_consumo.*does not exist|Could not find the function|schema cache/i.test(Admin.erro);
+    return cartao('Administração', `
+      ${vazio(naoInstalado ? 'Painel ainda não instalado' : 'Não foi possível carregar',
+        naoInstalado
+          ? 'Aplique db/migracoes/0005_admin_e_permissoes.sql no Supabase e marque a sua conta como admin.'
+          : Admin.erro)}
+      <div style="text-align:center;margin-top:8px">${botao('Tentar de novo', 'admin-recarregar', {}, 'btn')}</div>`);
+  }
+
+  const linhas = (Admin.linhas || []).slice();
+  const busca = norm(App.filtros.busca || '');
+  const vis = busca
+    ? linhas.filter((l) => norm(l.email).includes(busca) || norm(l.empresa).includes(busca))
+    : linhas;
+
+  const totObras = linhas.reduce((s, l) => s + Number(l.obras || 0), 0);
+  const ativos = linhas.filter((l) => l.plano === 'ativo').length;
+  const restritos = linhas.filter((l) => l.bloqueado || (l.abas && Object.values(l.abas).some((x) => x === false))).length;
+
+  const linhaHTML = (l) => {
+    const abasBloqueadas = l.abas ? Object.values(l.abas).filter((x) => x === false).length : 0;
+    return `<tr>
+      <td>
+        <b>${esc(l.empresa || l.email || '—')}</b>
+        ${l.eh_admin ? chip('admin', 'marca') : ''}
+        <br><span style="font-size:11px;color:var(--mudo)">${esc(l.email || '')}</span>
+      </td>
+      <td>
+        <select data-acao="admin-plano" data-id="${l.usuario_id}" style="width:auto;min-width:110px">
+          ${PLANOS.map((p) => `<option value="${p}" ${p === l.plano ? 'selected' : ''}>${p}</option>`).join('')}
+        </select>
+      </td>
+      <td class="num">${l.obras}</td>
+      <td class="num">${l.contratos}</td>
+      <td class="num">${l.medicoes}</td>
+      <td class="num">${l.lancamentos}</td>
+      <td class="num">${l.fotos}</td>
+      <td>${quandoRelativo(l.ultima_atividade)}</td>
+      <td>${botao(abasBloqueadas ? `${abasBloqueadas} bloqueada(s)` : 'tudo liberado', 'admin-abas', { id: l.usuario_id }, 'btn sutil pequeno')}</td>
+      <td class="acoes" style="opacity:1">
+        ${l.eh_admin ? '' : botao(l.bloqueado ? 'liberar' : 'bloquear', 'admin-bloquear',
+          { id: l.usuario_id, para: l.bloqueado ? '0' : '1' }, l.bloqueado ? 'btn pequeno' : 'btn perigo pequeno')}
+      </td>
+    </tr>`;
+  };
+
+  return `<div class="grade" style="gap:16px">
+    <div class="grade g4">
+      ${kpi('Clientes', linhas.length, `${ativos} no plano ativo`)}
+      ${kpi('Obras na plataforma', totObras, 'somando todas as contas')}
+      ${kpi('Fotos guardadas', linhas.reduce((s, l) => s + Number(l.fotos || 0), 0), 'no diário de obra')}
+      ${kpi('Contas com restrição', restritos, 'bloqueadas ou com aba fechada', restritos ? 'aviso' : 'ok')}
+    </div>
+    ${cartao('Consumo por cliente', `
+      <div class="tab-rolagem"><table class="tab">
+        <thead><tr>
+          <th>Cliente</th><th>Plano</th>
+          <th class="num">Obras</th><th class="num">Contr.</th><th class="num">Medições</th>
+          <th class="num">Lançam.</th><th class="num">Fotos</th>
+          <th>Última atividade</th><th>Acesso por aba</th><th></th>
+        </tr></thead>
+        <tbody>${vis.map(linhaHTML).join('') || `<tr><td colspan="10">${vazio('Nenhum cliente', 'Ainda não há contas cadastradas além da sua.')}</td></tr>`}</tbody>
+      </table></div>`, {
+      semPadding: true,
+      acoes: `<div class="filtros">
+        ${campoBusca('busca', 'Buscar por e-mail ou empresa…')}
+        ${botao('Atualizar', 'admin-recarregar', {}, 'btn sutil pequeno')}
+      </div>`,
+    })}
+  </div>`;
+};
+
+/* ---------------------------------------------------- ações do admin */
+ACOES['admin-recarregar'] = () => { carregarConsumo(true); App.renderConteudo(); };
+
+async function admChamar(fn, msgOk) {
+  try {
+    await fn();
+    carregarConsumo(true);
+    toast(msgOk, 'ok');
+  } catch (e) {
+    toast('Não foi possível salvar: ' + ((e && e.message) || e), 'critico', 6000);
+    App.renderConteudo();
+  }
+}
+
+ACOES['admin-plano'] = (el, d) => {
+  const plano = el.value;
+  const probs = apenasErros(validarPerfilAdmin({ plano }));
+  if (probs.length) return toast(probs[0].mensagem, 'critico');
+  admChamar(() => SUPA.adminSalvarPerfil(d.id, { plano }), 'Plano atualizado.');
+};
+
+ACOES['admin-bloquear'] = (el, d) => {
+  const bloquear = d.para === '1';
+  const alvo = (Admin.linhas || []).find((l) => l.usuario_id === d.id);
+  const nome = (alvo && (alvo.empresa || alvo.email)) || 'este cliente';
+  confirmar(bloquear ? 'Bloquear acesso' : 'Liberar acesso',
+    bloquear
+      ? `${nome} deixa de conseguir entrar no sistema até ser liberado. Confirmar?`
+      : `Liberar o acesso de ${nome}?`,
+    () => admChamar(() => SUPA.adminSalvarPerfil(d.id, { bloqueado: bloquear }),
+      bloquear ? 'Acesso bloqueado.' : 'Acesso liberado.'),
+    bloquear ? 'Bloquear' : 'Liberar');
+};
+
+ACOES['admin-abas'] = (el, d) => {
+  const alvo = (Admin.linhas || []).find((l) => l.usuario_id === d.id);
+  if (!alvo) return;
+  const abas = (alvo.abas && typeof alvo.abas === 'object') ? alvo.abas : {};
+  abrirModal({
+    titulo: 'Acesso por aba',
+    largura: 'estreito',
+    corpo: `<p style="margin:0 0 12px;font-size:12.5px;color:var(--mudo)">
+        ${esc(alvo.empresa || alvo.email || '')} — desmarque o que este cliente <b>não</b> deve ver.
+      </p>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        ${ABAS_CONTROLAVEIS.map((it) => `
+          <label style="display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer">
+            <input type="checkbox" data-aba="${it.v}" ${abas[it.v] === false ? '' : 'checked'} style="width:auto">
+            ${esc(it.t)}
+          </label>`).join('')}
+      </div>`,
+    rodape: `<button class="btn" data-acao="fechar-modal">Cancelar</button>
+             <button class="btn primario" data-acao="admin-salvar-abas" data-id="${d.id}">Salvar acesso</button>`,
+  });
+};
+
+ACOES['admin-salvar-abas'] = (el, d) => {
+  const abas = {};
+  document.querySelectorAll('#modal-camada [data-aba]').forEach((c) => {
+    if (!c.checked) abas[c.dataset.aba] = false;
+  });
+  const probs = apenasErros(validarPerfilAdmin({ abas }));
+  if (probs.length) return toast(probs[0].mensagem, 'critico');
+  fecharModal();
+  admChamar(() => SUPA.adminSalvarPerfil(d.id, { abas }), 'Acesso por aba atualizado.');
 };

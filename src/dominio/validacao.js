@@ -20,7 +20,7 @@
  * Ajustes, então status inválido também é 'alerta', nunca 'erro' — o banco não
  * conhece a lista de cada empresa.
  */
-import { isISO, num, PAPEIS_OBRA } from '../nucleo/base.js';
+import { isISO, num, PAPEIS_OBRA, PLANOS } from '../nucleo/base.js';
 
 const REGISTROS_CONTRATO = ['Contrato', 'Aditivo'];
 
@@ -262,6 +262,19 @@ function validarEstado(estado) {
   return out;
 }
 
+/* --------------------------------------------- PERFIL (administração) */
+/* Espelha o CHECK de perfis.plano na migração 0005. */
+function validarPerfilAdmin(p) {
+  const out = [];
+  if (p.plano !== undefined && !PLANOS.includes(p.plano)) {
+    out.push(problema('plano', `Plano inválido: "${p.plano}".`));
+  }
+  if (p.abas !== undefined && (typeof p.abas !== 'object' || Array.isArray(p.abas) || p.abas === null)) {
+    out.push(problema('abas', 'A configuração de abas precisa ser um objeto.'));
+  }
+  return out;
+}
+
 /* filtra só o que bloqueia gravação */
 const apenasErros = (lista) => (lista || []).filter((x) => x.sev === 'erro');
 const apenasAlertas = (lista) => (lista || []).filter((x) => x.sev === 'alerta');
@@ -278,6 +291,7 @@ export {
   validarCliente,
   validarPrestador,
   validarMembro,
+  validarPerfilAdmin,
   validarObraCompleta,
   validarEstado,
   apenasErros,

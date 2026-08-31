@@ -103,6 +103,12 @@ Todos são escritos para rodar de novo sem quebrar (`if not exists`,
 - **`obra_membros`** também fica fora do `TABELAS_DB`: `SUPA.carregarPapeis()`
   lê os papéis do usuário no login para `SUPA.papeis`, e `SUPA.lerMembros()`
   serve a futura tela de equipe. Não há gravação de membro pela tela ainda.
+- **Administração (`VIEWS.admin`)**: só aparece quando `SUPA.ehAdmin` (lido do
+  `perfis.admin` no login). Lê `admin_consumo()` por um leitor dedicado; grava
+  em `perfis` de outros usuários por `SUPA.adminSalvarPerfil`. O controle de
+  acesso por aba vive em `perfis.abas` e a RLS de `0005` — a tela só reflete
+  o que o banco já garante (`SUPA.abaLiberada`, filtro no menu, guarda no
+  `App.ir`).
 
 ## Pendências conhecidas
 
