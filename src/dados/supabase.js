@@ -484,7 +484,7 @@ function telaAcesso(conteudo) {
   cx.innerHTML = `<div class="acesso-painel">
     <div class="acesso-marca">
       <span class="marca-mark">${LOGO}</span>
-      <div><b>SOUZ</b><span>Controle de obra</span></div>
+      <div><b>SouZ</b><span>Controle de obra</span></div>
     </div>
     ${conteudo}
   </div>`;

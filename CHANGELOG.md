@@ -32,6 +32,9 @@
   favicon, no lugar do "S" provisório.
 - Cor de marca trocada do teal para **cinza chumbo** — visual monocromático,
   com a cor reservada só para o semântico (crítico / atenção / positivo).
+- Fundo preto atrás da logo, para contraste.
+- Tipografia nova: **Space Grotesk** nos títulos e números, **Inter** no texto,
+  JetBrains Mono no monoespaçado. A marca escreve **SouZ**.
 - Impressão força tema claro.
 
 **Equipe da obra**

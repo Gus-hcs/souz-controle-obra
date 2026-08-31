@@ -44,7 +44,7 @@ const svg = (d, tam = 16) =>
    O Vite embute a imagem no arquivo único da publicação. */
 import marcaUrl from '../marca.png';
 
-const LOGO = `<img src="${marcaUrl}" alt="SOUZ" class="marca-img">`;
+const LOGO = `<img src="${marcaUrl}" alt="SouZ" class="marca-img">`;
 
 const MENU = [
   { grupo: 'Carteira', itens: [
@@ -162,7 +162,7 @@ const App = {
     document.getElementById('rail').innerHTML = `
       <div class="rail-marca">
         <span class="marca-mark">${LOGO}</span>
-        <div><b>SOUZ</b><span>Controle de obra</span></div>
+        <div><b>SouZ</b><span>Controle de obra</span></div>
       </div>
       <div class="rail-obra">
         <span class="rotulo">Obra ativa</span>

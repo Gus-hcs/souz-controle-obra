@@ -96,7 +96,7 @@ VIEWS.relatorio = () => {
         <div style="font-size:12px;color:var(--mudo)">${esc([nomeCliente(o.clienteId), o.cidade, o.endereco].filter(Boolean).join(' · '))}</div>
       </div>
       <div style="text-align:right;font-size:12px;color:var(--mudo)">
-        <b style="font-family:'Barlow Condensed';font-size:15px;color:var(--tinta)">${esc(Store.estado.empresa.nome || 'Souz Controle de Obra')}</b><br>
+        <b style="font-family:'Space Grotesk','Inter',sans-serif;font-size:15px;color:var(--tinta)">${esc(Store.estado.empresa.nome || 'Souz Controle de Obra')}</b><br>
         Relatório de status · ${hoje}
       </div>
     </div>

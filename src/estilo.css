@@ -1,6 +1,6 @@
 /* ================================================================
    SOUZ CONTROLE DE OBRA — folha de estilo
-   Console de obra, tema escuro. Barlow Condensed + IBM Plex.
+   Console de obra, tema escuro. Space Grotesk + Inter.
    O tema escuro é o padrão; o claro entra só com data-theme="light".
    ================================================================ */
 
@@ -109,10 +109,10 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--tinta);
-  font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   line-height: 1.5;
-  letter-spacing: -.005em;
+  letter-spacing: -.006em;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -125,9 +125,9 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--mudo); }
 
 h1, h2, h3, h4 {
-  font-family: 'Barlow Condensed', 'IBM Plex Sans', system-ui, sans-serif;
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
   font-weight: 600;
-  letter-spacing: .01em;
+  letter-spacing: -.012em;
   text-wrap: balance;
   margin: 0;
 }
@@ -135,11 +135,11 @@ h1, h2, h3, h4 {
 button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--marca); }
 
-.mono { font-family: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace; }
+.mono { font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace; }
 .num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
 
 .rotulo {
-  font-family: 'Barlow Condensed', sans-serif;
+  font-family: 'Space Grotesk', 'Inter', sans-serif;
   font-size: 12px; font-weight: 600; letter-spacing: .09em;
   text-transform: uppercase; color: var(--mudo);
 }
@@ -175,7 +175,7 @@ a { color: var(--marca); }
   width: 100%; height: 100%; display: block; object-fit: contain;
 }
 .rail-marca b {
-  font-family: 'Barlow Condensed', sans-serif; font-size: 18px;
+  font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 18px;
   font-weight: 600; letter-spacing: .02em; line-height: 1.05; display: block;
 }
 .rail-marca span { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--rail-mudo); }
@@ -190,7 +190,7 @@ a { color: var(--marca); }
 
 .rail-nav { padding: 8px 8px 20px; display: flex; flex-direction: column; gap: 1px; flex: 1; }
 .rail-nav .grupo {
-  font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: .12em;
+  font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 11px; letter-spacing: .12em;
   text-transform: uppercase; color: var(--rail-mudo);
   padding: 14px 8px 5px;
 }
@@ -212,7 +212,7 @@ a { color: var(--marca); }
 .rail-nav button .ic { width: 16px; flex: 0 0 16px; opacity: .7; }
 .rail-nav button[aria-current="page"] .ic { opacity: 1; color: var(--marca-forte); }
 .rail-nav button .cont {
-  margin-left: auto; font-size: 11px; font-family: 'IBM Plex Mono', monospace;
+  margin-left: auto; font-size: 11px; font-family: 'JetBrains Mono', monospace;
   background: var(--rail-linha); color: var(--rail-tinta);
   padding: 1px 5px; border-radius: 999px;
 }
@@ -229,7 +229,7 @@ a { color: var(--marca); }
   position: sticky; top: 0; z-index: 30;
 }
 #topo .titulo { display: flex; flex-direction: column; min-width: 0; }
-#topo .titulo b { font-family: 'Barlow Condensed', sans-serif; font-size: 19px; font-weight: 600; line-height: 1.1;
+#topo .titulo b { font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 19px; font-weight: 600; line-height: 1.1;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #topo .titulo span { font-size: 11.5px; color: var(--mudo); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #topo .dir { margin-left: auto; display: flex; align-items: center; gap: 8px; }
@@ -302,8 +302,8 @@ a { color: var(--marca); }
 .kpi:hover { border-color: var(--linha-forte); }
 .kpi .rotulo { font-size: 10.5px; letter-spacing: .1em; }
 .kpi .valor {
-  font-family: 'Barlow Condensed', sans-serif; font-size: 30px; font-weight: 600;
-  line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.015em;
+  font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 28px; font-weight: 600;
+  line-height: 1.12; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
   margin-top: 1px;
 }
 .kpi .sub { font-size: 11.5px; color: var(--mudo); }
@@ -323,13 +323,13 @@ a { color: var(--marca); }
 .kpi.com-visual .kpi-txt { flex: 1; }
 .kpi.com-visual .kpi-vis { flex: 0 0 auto; display: grid; place-items: center; }
 .kpi.destaque { padding: 18px 20px; }
-.kpi.destaque .valor { font-size: 33px; }
+.kpi.destaque .valor { font-size: 31px; }
 .kpi.destaque .rotulo { font-size: 11px; }
 
 .spark { width: 104px; height: 34px; display: block; flex: 0 0 104px; }
 .anel { width: 46px; height: 46px; display: block; overflow: visible; }
 .anel-t {
-  font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600;
+  font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 12px; font-weight: 600;
   fill: var(--tinta); font-variant-numeric: tabular-nums;
 }
 
@@ -356,7 +356,7 @@ a { color: var(--marca); }
 .tab-rolagem { overflow-x: auto; }
 table.tab { width: 100%; border-collapse: collapse; font-size: 13px; }
 table.tab th {
-  font-family: 'Barlow Condensed', sans-serif; font-size: 11.5px; font-weight: 600;
+  font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 11.5px; font-weight: 600;
   letter-spacing: .08em; text-transform: uppercase; color: var(--mudo);
   text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--linha-forte);
   background: var(--sup2); position: sticky; top: 0; white-space: nowrap; z-index: 2;
@@ -417,7 +417,7 @@ select { cursor: pointer; }
 .campo > label { font-size: 11.5px; font-weight: 500; color: var(--tinta2); }
 .campo .dica { font-size: 11px; color: var(--mudo); }
 .campo .calc {
-  font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+  font-family: 'JetBrains Mono', monospace; font-size: 13px;
   background: var(--sup2); border: 1px dashed var(--linha-forte);
   border-radius: var(--r); padding: 6px 9px; color: var(--tinta2);
 }
@@ -534,7 +534,7 @@ select { cursor: pointer; }
 
 /* gráficos */
 .grafico { width: 100%; display: block; }
-.grafico text { font-family: 'IBM Plex Sans', sans-serif; font-size: 10.5px; fill: var(--mudo); }
+.grafico text { font-family: 'Inter', sans-serif; font-size: 10.5px; fill: var(--mudo); }
 .grafico .eixo { stroke: var(--linha-forte); stroke-width: 1; }
 .grafico .grade-l { stroke: var(--grade); stroke-width: 1; stroke-dasharray: 2 4; }
 .grafico .cursor { stroke: var(--marca); stroke-width: 1; opacity: .6; }
@@ -607,7 +607,7 @@ select { cursor: pointer; }
   table.tab td:last-child { border-bottom: 0; }
   table.tab td[data-rotulo]::before {
     content: attr(data-rotulo); text-align: left; flex: 0 0 42%;
-    font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600;
+    font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 11px; font-weight: 600;
     letter-spacing: .06em; text-transform: uppercase; color: var(--mudo);
   }
   table.tab td.trunc { max-width: none; white-space: normal; }
@@ -617,7 +617,8 @@ select { cursor: pointer; }
 @media (max-width: 520px) {
   #conteudo { padding: 10px; }
   .kpi { padding: 11px 13px; }
-  .kpi .valor { font-size: 21px; }
+  .kpi .valor { font-size: 20px; }
+  .kpi.destaque .valor { font-size: 24px; }
   .status-salvo { font-size: 0; gap: 0; }
   .status-salvo .pt { width: 9px; height: 9px; flex: 0 0 9px; }
 }
@@ -657,7 +658,7 @@ select { cursor: pointer; }
 .acesso-marca { display: flex; gap: 12px; align-items: center; margin-bottom: 22px; }
 .acesso-marca .marca-mark { width: 40px; height: 40px; flex-basis: 40px; }
 .acesso-marca b {
-  font-family: 'Barlow Condensed', sans-serif; font-size: 20px; font-weight: 600;
+  font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 20px; font-weight: 600;
   letter-spacing: .02em; line-height: 1.05; display: block;
 }
 .acesso-marca span { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--mudo); }
