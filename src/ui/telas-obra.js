@@ -1,0 +1,827 @@
+/**
+ * telas-obra.js — Telas da obra: painel, contratos, medições, recebimentos, materiais, cronograma.
+ */
+import { competencia, diasEntre, esc, fmtCompetencia, fmtData, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtNum, fmtPct, hojeISO, isISO, num, round2 } from '../nucleo/base.js';
+import { alertasObra, basesContratuais, contratoValor, curvaS, etapaCalc, fluxoCaixa, kpisCarteira, kpisObra, lancamentoTotal, materialCalc, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
+import { Store } from '../dados/store.js';
+import { App, acoesLinha, barra, botao, campoBusca, campoHTML, cartao, chip, filtraTexto, kpi, nomeCliente, opcoesEtapas, opcoesLista, selectFiltro, tomSituacao, tomStatus, vazio } from './shell.js';
+import { graficoBarras, graficoCurvaS, graficoFluxo, graficoGantt } from '../graficos/index.js';
+
+const VIEWS = {};
+
+/* ==================================================== CARTEIRA (todas) */
+VIEWS.carteira = () => {
+  const e = Store.estado;
+  if (!e.obras.length) {
+    return `<div class="cartao"><div class="corpo">${vazio(
+      'Nenhuma obra cadastrada',
+      'Cadastre a primeira casa para começar a controlar contratos, medições, recebimentos e materiais. Você também pode importar uma planilha do modelo MCMV que já usa.',
+      `${botao('Nova obra', 'nova-obra', {}, 'btn primario', 'mais')}
+       ${botao('Importar planilha MCMV', 'importar-xlsx', {}, 'btn', 'baixar')}
+       ${botao('Carregar dados de exemplo', 'exemplo', {}, 'btn sutil')}`
+    )}</div></div>`;
+  }
+
+  const k = kpisCarteira(e);
+  const criticos = k.alertas.filter((a) => a.sev === 3).slice(0, 6);
+
+  const cartoesObra = e.obras.map((o) => {
+    const ko = kpisObra(o);
+    const al = alertasObra(o);
+    const crit = al.filter((a) => a.sev === 3).length;
+    return `<button class="obra-cartao" data-acao="ir" data-view="painel" data-obra="${o.id}">
+      <div class="topo">
+        <div style="min-width:0">
+          <h4>${esc(o.nome)}</h4>
+          <div class="meta">${esc([nomeCliente(o.clienteId), o.cidade].filter(Boolean).join(' · ') || 'sem cliente vinculado')}</div>
+        </div>
+        <div style="margin-left:auto;display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+          ${chip(o.status, tomStatus(o.status))}
+          ${crit ? `<span class="chip critico"><span class="pt"></span>${crit} crítico${crit > 1 ? 's' : ''}</span>`
+            : al.length ? `<span class="chip aviso"><span class="pt"></span>${al.length} pendência${al.length > 1 ? 's' : ''}</span>` : ''}
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:4px">
+          <span class="rotulo" style="font-size:10.5px">Avanço físico</span>
+          <b class="mono">${fmtPct(ko.progressoFisico, 0)}</b>
+        </div>
+        ${barra(ko.progressoFisico, ko.etapasAtrasadas ? 'aviso' : '')}
+      </div>
+      <div class="linhas">
+        <div><span>Custo/m²</span><br><b>${ko.area ? fmtMoney(ko.custoM2, { dec: 0 }) : '—'}</b></div>
+        <div><span>Saldo em caixa</span><br><b class="${ko.saldoCaixa < 0 ? 'neg' : ''}">${fmtMoneyCurto(ko.saldoCaixa)}</b></div>
+        <div><span>Recebido</span><br><b>${fmtMoneyCurto(ko.recebido)}</b></div>
+        <div><span>Saldo contratual</span><br><b class="${ko.saldoContratual < 0 ? 'neg' : ''}">${fmtMoneyCurto(ko.saldoContratual)}</b></div>
+      </div>
+    </button>`;
+  }).join('');
+
+  const comparativo = graficoBarras(
+    e.obras.filter((o) => kpisObra(o).area > 0).map((o) => {
+      const ko = kpisObra(o);
+      return { rotulo: o.nome, valor: round2(ko.custoPrevistoM2) };
+    }),
+    { formata: (v) => fmtMoney(v, { dec: 0 }) + '/m²' }
+  );
+
+  return `
+  <div class="grade" style="gap:16px">
+    <div class="grade g4">
+      ${kpi('Obras ativas', k.ativas, `${e.obras.length} no total · ${k.concluidas} concluída${k.concluidas === 1 ? '' : 's'}`)}
+      ${kpi('Recebido', fmtMoneyCurto(k.recebido), 'CAIXA, cliente e recursos próprios')}
+      ${kpi('Pago', fmtMoneyCurto(k.pago), 'medições + compras e taxas')}
+      ${kpi('Saldo em caixa', fmtMoneyCurto(k.saldoCaixa), 'somando todas as obras', k.saldoCaixa < 0 ? 'critico' : 'ok')}
+    </div>
+    <div class="grade g4">
+      ${kpi('Custo realizado/m²', k.area ? fmtMoney(k.custoMedioM2, { dec: 0 }) : '—', `${fmtNum(k.area, k.area % 1 ? 1 : 0)} m² em carteira`)}
+      ${kpi('Custo previsto/m²', k.area ? fmtMoney(k.custoPrevistoM2, { dec: 0 }) : '—', 'com contratos e materiais a comprar')}
+      ${kpi('Avanço físico médio', fmtPct(k.progressoMedio, 0), 'ponderado pelo cronograma')}
+      ${kpi('Alertas críticos', k.criticos, `${k.atencao} em atenção`, k.criticos ? 'critico' : 'ok')}
+    </div>
+
+    ${criticos.length ? cartao('Ação necessária hoje',
+      criticos.map((a) => alertaHTML(a, true)).join(''),
+      { semPadding: true, acoes: botao('Ver todos os alertas', 'ir-alertas-carteira', {}, 'btn pequeno') }) : ''}
+
+    ${cartao(`Obras (${e.obras.length})`, `<div class="grade g3">${cartoesObra}</div>`, {
+      acoes: `${botao('Importar planilha', 'importar-xlsx', {}, 'btn pequeno', 'baixar')} ${botao('Nova obra', 'nova-obra', {}, 'btn primario pequeno', 'mais')}`
+    })}
+
+    ${e.obras.length > 1 ? cartao('Custo previsto por m² — comparativo', comparativo) : ''}
+  </div>`;
+};
+
+function alertaHTML(a, mostrarObra = false) {
+  return `<div class="alerta s${a.sev}">
+    <span class="sev"></span>
+    <div class="txt">
+      <b>${esc(a.titulo)}</b>
+      ${mostrarObra ? `<span class="chip" style="margin-left:6px">${esc(a.obraNome)}</span>` : ''}
+      <p>${a.detalhe}</p>
+      <span class="acao">→ ${esc(a.acao)}</span>
+    </div>
+    ${a.ref && a.ref.view ? `<button class="btn sutil pequeno" data-acao="ir" data-view="${a.ref.view}" data-obra="${a.obraId}">abrir</button>` : ''}
+  </div>`;
+}
+
+/* ============================================================= PAINEL */
+VIEWS.painel = () => {
+  const o = App.obra();
+  const k = kpisObra(o);
+  const al = alertasObra(o);
+  const matSaldo = o.materiais.filter((m) => m.status !== 'Cancelado').map((m) => materialCalc(o, m));
+  const vencidos = matSaldo.filter((c) => c.vencido);
+  const medPend = o.medicoes.filter((m) => m.status !== 'Cancelado' && medicaoLiquido(m) - num(m.valorPago) > 0.005);
+  const recPend = o.recebimentos.filter((r) => r.status !== 'Recebido' && r.status !== 'Cancelado');
+  const basesNeg = basesContratuais(o).filter((b) => b.saldo < -0.005);
+
+  const custoPorEtapa = {};
+  o.lancamentos.forEach((l) => {
+    const et = l.etapa || 'Não classificado';
+    custoPorEtapa[et] = (custoPorEtapa[et] || 0) + lancamentoTotal(l);
+  });
+  o.medicoes.filter((m) => m.status !== 'Cancelado').forEach((m) => {
+    const ct = o.contratos.find((c) => c.codigoBase === m.contratoBase);
+    const et = (ct && ct.escopo) || 'Empreitada';
+    custoPorEtapa[et] = (custoPorEtapa[et] || 0) + num(m.valorPago);
+  });
+
+  return `
+  <div class="grade" style="gap:16px">
+    <div class="grade g4">
+      ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }), `a receber: ${fmtMoneyCurto(k.previstoNaoRecebido)}`)}
+      ${kpi('Total pago', fmtMoney(k.totalPago, { dec: 0 }), `${fmtMoneyCurto(k.pagoMedicoes)} medições · ${fmtMoneyCurto(k.pagoLancamentos)} compras`)}
+      ${kpi('Saldo em caixa', fmtMoney(k.saldoCaixa, { dec: 0 }), `saldo inicial ${fmtMoneyCurto(k.saldoInicial)}`, k.saldoCaixa < 0 ? 'critico' : 'ok')}
+      ${kpi('Saldo contratual', fmtMoney(k.saldoContratual, { dec: 0 }), `de ${fmtMoneyCurto(k.contratado)} contratados`, k.saldoContratual < 0 ? 'critico' : '')}
+    </div>
+    <div class="grade g4">
+      ${kpi('Custo realizado/m²', k.area ? fmtMoney(k.custoM2, { dec: 0 }) : '—', `${fmtNum(k.area, 2)} m² construídos`)}
+      ${kpi('Custo previsto/m²', k.area ? fmtMoney(k.custoPrevistoM2, { dec: 0 }) : '—',
+        num(o.fin.custoFisicoMaxM2) > 0 ? `teto ${fmtMoney(o.fin.custoFisicoMaxM2, { dec: 0 })}/m²` : 'defina o teto na configuração',
+        num(o.fin.custoFisicoMaxM2) > 0 && k.custoPrevistoM2 > num(o.fin.custoFisicoMaxM2) ? 'critico' : '')}
+      ${kpi('Avanço físico', fmtPct(k.progressoFisico, 0), `financeiro ${fmtPct(k.progressoFinanceiro, 0)}`,
+        k.desvioFisicoFinanceiro < -0.1 ? 'aviso' : '')}
+      ${kpi('Margem projetada', k.margem === null ? '—' : fmtPct(k.margem),
+        k.margem === null ? 'informe o valor de venda' : `resultado ${fmtMoneyCurto(k.resultado)}`,
+        k.margem !== null && k.margem < num(o.fin.margemDesejada) ? 'aviso' : k.margem !== null ? 'ok' : '')}
+    </div>
+
+    <div class="grade g-2-1">
+      ${cartao('Curva S — avanço físico x financeiro', graficoCurvaS(o, 280),
+        { acoes: botao('Ver detalhes', 'ir', { view: 'curva' }, 'btn pequeno') })}
+      ${cartao('Andamento da obra', `
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+              <span class="rotulo" style="font-size:10.5px">Etapas concluídas</span>
+              <b class="mono">${k.etapasConcluidas}/${k.etapasTotal}</b>
+            </div>
+            ${barra(k.etapasTotal ? k.etapasConcluidas / k.etapasTotal : 0, 'ok')}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px">
+            <div><span class="rotulo" style="font-size:10.5px">Etapas atrasadas</span><br>
+              <b style="font-size:19px" class="${k.etapasAtrasadas ? 'neg' : ''}">${k.etapasAtrasadas}</b></div>
+            <div><span class="rotulo" style="font-size:10.5px">Dias de obra</span><br>
+              <b style="font-size:19px">${k.diasObra || '—'}</b></div>
+            <div><span class="rotulo" style="font-size:10.5px">Previsão de entrega</span><br>
+              <b>${fmtData(o.previsaoConclusao)}</b></div>
+            <div><span class="rotulo" style="font-size:10.5px">Prazo restante</span><br>
+              <b class="${k.diasParaFim !== null && k.diasParaFim < 0 ? 'neg' : ''}">${k.diasParaFim === null ? '—' : k.diasParaFim + ' dias'}</b></div>
+          </div>
+          <div style="border-top:1px solid var(--linha);padding-top:10px">
+            <span class="rotulo" style="font-size:10.5px">Financiamento CAIXA</span>
+            <div style="display:flex;justify-content:space-between;font-size:12.5px;margin:4px 0">
+              <span>${fmtMoney(k.recebido, { dec: 0 })} de ${fmtMoney(k.financiado, { dec: 0 })}</span>
+              <b class="mono">${k.financiado ? fmtPct(k.recebido / k.financiado, 0) : '—'}</b>
+            </div>
+            ${barra(k.financiado ? k.recebido / k.financiado : 0)}
+          </div>
+        </div>`)}
+    </div>
+
+    <div class="grade g-2-1">
+      ${cartao('Pendências para a próxima ação', `
+        <table class="tab">
+          <thead><tr><th>Indicador</th><th class="num">Qtde</th><th class="num">Valor</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>Materiais com saldo a comprar</td><td class="num mono">${matSaldo.filter((c) => c.saldo > 0).length}</td>
+              <td class="num mono">${fmtMoney(matSaldo.reduce((s, c) => s + c.saldoValor, 0))}</td>
+              <td class="acoes" style="opacity:1">${botao('abrir', 'ir', { view: 'materiais' }, 'btn sutil pequeno')}</td></tr>
+            <tr><td>Materiais vencidos sem compra</td><td class="num mono ${vencidos.length ? 'neg' : ''}">${vencidos.length}</td>
+              <td class="num mono">${fmtMoney(vencidos.reduce((s, c) => s + c.saldoValor, 0))}</td>
+              <td class="acoes" style="opacity:1">${botao('abrir', 'ir', { view: 'materiais' }, 'btn sutil pequeno')}</td></tr>
+            <tr><td>Medições ainda não pagas</td><td class="num mono">${medPend.length}</td>
+              <td class="num mono">${fmtMoney(k.medicoesNaoPagas)}</td>
+              <td class="acoes" style="opacity:1">${botao('abrir', 'ir', { view: 'medicoes' }, 'btn sutil pequeno')}</td></tr>
+            <tr><td>Recebimentos previstos pendentes</td><td class="num mono">${recPend.length}</td>
+              <td class="num mono">${fmtMoney(k.previstoNaoRecebido)}</td>
+              <td class="acoes" style="opacity:1">${botao('abrir', 'ir', { view: 'recebimentos' }, 'btn sutil pequeno')}</td></tr>
+            <tr><td>Contratos com saldo negativo</td><td class="num mono ${basesNeg.length ? 'neg' : ''}">${basesNeg.length}</td>
+              <td class="num mono">${fmtMoney(basesNeg.reduce((s, b) => s + b.saldo, 0))}</td>
+              <td class="acoes" style="opacity:1">${botao('abrir', 'ir', { view: 'contratos' }, 'btn sutil pequeno')}</td></tr>
+          </tbody>
+        </table>`, { semPadding: true })}
+      ${cartao('Onde o dinheiro foi', graficoBarras(
+        Object.entries(custoPorEtapa).map(([rotulo, valor]) => ({ rotulo, valor })),
+        { limite: 8 }))}
+    </div>
+
+    ${al.length ? cartao(`Alertas (${al.length})`, al.slice(0, 5).map((a) => alertaHTML(a)).join(''),
+      { semPadding: true, acoes: botao('Ver todos', 'ir', { view: 'alertas' }, 'btn pequeno') })
+      : cartao('Alertas', `<p style="margin:0;color:var(--ok)">Nenhuma pendência. Obra em dia com o que foi lançado.</p>`)}
+
+    ${cartao('Fluxo de caixa mensal', graficoFluxo(o, 260),
+      { acoes: botao('Ver tabela completa', 'ir', { view: 'fluxo' }, 'btn pequeno') })}
+  </div>`;
+};
+
+/* ========================================================== CONTRATOS */
+VIEWS.contratos = () => {
+  const o = App.obra();
+  const bases = basesContratuais(o);
+  const totalAut = bases.reduce((s, b) => s + b.autorizado, 0);
+  const totalPago = bases.reduce((s, b) => s + b.pago, 0);
+
+  if (!o.contratos.length) {
+    return cartao('Contratos e aditivos', vazio(
+      'Nenhum contrato cadastrado',
+      'Cadastre a empreitada principal (normalmente R$/m² sobre a área construída) e depois os aditivos de muro, calçada e fossa, sempre com o mesmo código-base.',
+      botao('Cadastrar contrato principal', 'novo-contrato', {}, 'btn primario', 'mais')));
+  }
+
+  const blocos = bases.map((b) => {
+    const registros = b.registros.map((c) => `
+      <tr>
+        <td class="mono">${esc(c.codigo)}</td>
+        <td>${chip(c.registro, c.registro === 'Contrato' ? 'marca' : '')}</td>
+        <td class="trunc">${esc(c.escopo)}</td>
+        <td>${esc(c.regime)}</td>
+        <td class="num mono">${num(c.quantidade) ? fmtNum(c.quantidade, 2) + ' ' + esc(c.unidade) : '—'}</td>
+        <td class="num mono">${num(c.precoUnitario) ? fmtMoney(c.precoUnitario) : '—'}</td>
+        <td class="num mono"><b>${fmtMoney(contratoValor(c))}</b></td>
+        <td>${chip(c.status, tomStatus(c.status))}</td>
+        <td class="acoes">${acoesLinha('contrato', c.id)}</td>
+      </tr>`).join('');
+
+    const tom = b.saldo < 0 ? 'critico' : b.execFinanceira > 0.9 ? 'aviso' : '';
+    return `<section class="cartao">
+      <header>
+        <h3>${esc(b.base)} · ${esc(b.prestador || 'prestador não informado')}</h3>
+        ${chip(b.status, tomStatus(b.status))}
+        <div class="dir">
+          ${botao('Aditivo', 'novo-aditivo', { base: b.base }, 'btn pequeno', 'mais')}
+          ${botao('Medição', 'nova-medicao', { base: b.base }, 'btn pequeno')}
+        </div>
+      </header>
+      <div class="corpo" style="display:flex;flex-direction:column;gap:12px">
+        <div class="grade g4" style="gap:10px">
+          ${kpi('Contrato principal', fmtMoney(b.valorPrincipal, { dec: 0 }), esc(b.escopo || ''))}
+          ${kpi('Aditivos', fmtMoney(b.valorAditivos, { dec: 0 }), `${b.aditivos.length} registro(s)`)}
+          ${kpi('Pago em medições', fmtMoney(b.pago, { dec: 0 }), `medido ${fmtMoneyCurto(b.medido)}`)}
+          ${kpi('Saldo contratual', fmtMoney(b.saldo, { dec: 0 }), `${fmtPct(b.execFinanceira, 0)} executado`, tom)}
+        </div>
+        ${barra(b.execFinanceira, tom)}
+        <div class="tab-rolagem"><table class="tab">
+          <thead><tr><th>Código</th><th>Registro</th><th>Escopo</th><th>Regime</th>
+            <th class="num">Quantidade</th><th class="num">Preço unit.</th><th class="num">Valor</th><th>Status</th><th></th></tr></thead>
+          <tbody>${registros}</tbody>
+        </table></div>
+      </div>
+    </section>`;
+  }).join('');
+
+  return `<div class="grade" style="gap:16px">
+    <div class="grade g4">
+      ${kpi('Total autorizado', fmtMoney(totalAut, { dec: 0 }), `${bases.length} contrato(s) base`)}
+      ${kpi('Pago em medições', fmtMoney(totalPago, { dec: 0 }), fmtPct(totalAut ? totalPago / totalAut : 0, 0) + ' do autorizado')}
+      ${kpi('Saldo a pagar', fmtMoney(totalAut - totalPago, { dec: 0 }), 'contratos + aditivos vigentes')}
+      ${kpi('Aditivos', fmtMoney(bases.reduce((s, b) => s + b.valorAditivos, 0), { dec: 0 }),
+        fmtPct(totalAut ? bases.reduce((s, b) => s + b.valorAditivos, 0) / totalAut : 0, 0) + ' do total')}
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap" class="nao-imprime">
+      ${botao('Novo contrato', 'novo-contrato', {}, 'btn primario', 'mais')}
+      ${botao('Novo aditivo', 'novo-aditivo', {}, 'btn', 'mais')}
+    </div>
+    ${blocos}
+  </div>`;
+};
+
+/* =========================================================== MEDIÇÕES */
+VIEWS.medicoes = () => {
+  const o = App.obra();
+  const bases = [...new Set(o.contratos.map((c) => c.codigoBase).filter(Boolean))];
+  let lista = o.medicoes.slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  if (App.filtros.base) lista = lista.filter((m) => m.contratoBase === App.filtros.base);
+  if (App.filtros.status) lista = lista.filter((m) => m.status === App.filtros.status);
+  lista = filtraTexto(lista, App.filtros.busca, ['descricao', 'contratoBase', 'documento']);
+
+  const tMedido = lista.reduce((s, m) => s + num(m.valorMedido), 0);
+  const tLiquido = lista.reduce((s, m) => s + medicaoLiquido(m), 0);
+  const tPago = lista.reduce((s, m) => s + num(m.valorPago), 0);
+
+  const linhas = lista.map((m) => {
+    const alerta = medicaoAlerta(o, m);
+    const tomA = alerta === 'OK' ? 'ok' : alerta === 'PAGO ACIMA DA MEDIÇÃO' || alerta === 'CONTRATO ULTRAPASSADO' ? 'critico' : 'aviso';
+    const falta = medicaoLiquido(m) - num(m.valorPago);
+    return `<tr>
+      <td class="mono">${esc(m.numero || '—')}</td>
+      <td class="mono">${esc(m.contratoBase)}</td>
+      <td class="mono">${fmtDataCurta(m.data)}</td>
+      <td class="trunc">${esc(m.descricao)}</td>
+      <td class="num mono">${m.progresso ? fmtPct(m.progresso, 0) : '—'}</td>
+      <td class="num mono">${fmtMoney(m.valorMedido)}</td>
+      <td class="num mono">${num(m.desconto) ? '−' + fmtMoney(m.desconto) : '—'}</td>
+      <td class="num mono"><b>${fmtMoney(medicaoLiquido(m))}</b></td>
+      <td class="num mono">${fmtMoney(m.valorPago)}</td>
+      <td class="num mono ${falta > 0.005 ? 'neg' : ''}">${Math.abs(falta) < 0.005 ? '—' : fmtMoney(falta)}</td>
+      <td>${chip(m.status, tomStatus(m.status))}</td>
+      <td>${alerta && alerta !== 'OK' ? chip(alerta, tomA) : '<span style="color:var(--ok)">OK</span>'}</td>
+      <td class="acoes">${acoesLinha('medicao', m.id)}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="grade" style="gap:16px">
+    ${cartao('Medições de prestadores', `
+      <div class="tab-rolagem"><table class="tab">
+        <thead><tr><th>Nº</th><th>Contrato</th><th>Data</th><th>Descrição</th><th class="num">Progr.</th>
+          <th class="num">Medido</th><th class="num">Desconto</th><th class="num">Líquido</th>
+          <th class="num">Pago</th><th class="num">A pagar</th><th>Status</th><th>Alerta</th><th></th></tr></thead>
+        <tbody>${linhas || `<tr><td colspan="13">${vazio('Nenhuma medição', 'Registre a medição do prestador aqui — nunca em Lançamentos, para não duplicar o pagamento.')}</td></tr>`}</tbody>
+        ${lista.length ? `<tfoot><tr><td colspan="5">${lista.length} medição(ões)</td>
+          <td class="num mono">${fmtMoney(tMedido)}</td><td></td>
+          <td class="num mono">${fmtMoney(tLiquido)}</td>
+          <td class="num mono">${fmtMoney(tPago)}</td>
+          <td class="num mono">${fmtMoney(tLiquido - tPago)}</td><td colspan="3"></td></tr></tfoot>` : ''}
+      </table></div>`, {
+      semPadding: true,
+      acoes: `<div class="filtros">
+        ${campoBusca('busca', 'Buscar descrição, contrato…')}
+        ${selectFiltro('base', bases, 'Todos os contratos')}
+        ${selectFiltro('status', opcoesLista('statusPagamento'), 'Todos os status')}
+        ${botao('Nova medição', 'nova-medicao', {}, 'btn primario pequeno', 'mais')}
+      </div>`
+    })}
+    <div class="cartao"><div class="corpo" style="font-size:12.5px;color:var(--tinta2)">
+      <b>Regra anti-duplicidade:</b> pagamento por medição entra somente nesta tela.
+      Compras, taxas e serviços sem medição entram em Lançamentos. Entradas da CAIXA ou do cliente, em Recebimentos.
+    </div></div>
+  </div>`;
+};
+
+/* ======================================================= RECEBIMENTOS */
+VIEWS.recebimentos = () => {
+  const o = App.obra();
+  let lista = o.recebimentos.slice().sort((a, b) =>
+    String(a.dataPrevista || a.dataRecebimento).localeCompare(String(b.dataPrevista || b.dataRecebimento)));
+  if (App.filtros.status) lista = lista.filter((r) => r.status === App.filtros.status);
+  if (App.filtros.origem) lista = lista.filter((r) => r.origem === App.filtros.origem);
+
+  const tPrev = lista.reduce((s, r) => s + num(r.valorPrevisto), 0);
+  const tRec = lista.reduce((s, r) => s + num(r.valorRecebido), 0);
+  const k = kpisObra(o);
+
+  const linhas = lista.map((r) => {
+    const dif = recebimentoDiferenca(r);
+    const atrasado = r.status !== 'Recebido' && r.status !== 'Cancelado' && isISO(r.dataPrevista) && r.dataPrevista < hojeISO();
+    return `<tr>
+      <td>${chip(r.origem, r.origem === 'CAIXA' ? 'marca' : '')}</td>
+      <td class="mono">${esc(r.numeroMedicao || '—')}</td>
+      <td class="trunc">${esc(r.etapaPci)}</td>
+      <td class="mono ${atrasado ? 'neg' : ''}">${fmtDataCurta(r.dataPrevista)}</td>
+      <td class="num mono">${fmtMoney(r.valorPrevisto)}</td>
+      <td class="mono">${fmtDataCurta(r.dataSolicitacao)}</td>
+      <td class="num mono">${r.percentObra ? fmtPct(r.percentObra, 0) : '—'}</td>
+      <td class="num mono">${fmtMoney(r.valorAprovado)}</td>
+      <td class="num mono">${num(r.descontos) ? '−' + fmtMoney(r.descontos) : '—'}</td>
+      <td class="num mono"><b>${fmtMoney(recebimentoLiquido(r))}</b></td>
+      <td class="mono">${fmtDataCurta(r.dataRecebimento)}</td>
+      <td class="num mono">${fmtMoney(r.valorRecebido)}</td>
+      <td class="num mono ${dif < -0.005 ? 'neg' : dif > 0.005 ? 'pos' : ''}">${fmtMoney(dif)}</td>
+      <td>${chip(r.status, tomStatus(r.status))}</td>
+      <td class="acoes">${acoesLinha('recebimento', r.id)}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="grade" style="gap:16px">
+    <div class="grade g4">
+      ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }), `de ${fmtMoney(k.financiado, { dec: 0 })} financiados`)}
+      ${kpi('A receber (previsto)', fmtMoney(k.previstoNaoRecebido, { dec: 0 }), 'parcelas não creditadas')}
+      ${kpi('Descontos e tarifas', fmtMoney(o.recebimentos.reduce((s, r) => s + num(r.descontos), 0), { dec: 0 }), 'retidos pela CAIXA')}
+      ${kpi('Diferença previsto x recebido', fmtMoney(tRec - tPrev, { dec: 0 }), 'no conjunto das parcelas', tRec - tPrev < 0 ? 'aviso' : 'ok')}
+    </div>
+    ${cartao('Cronograma de recebimentos', `
+      <div class="tab-rolagem"><table class="tab">
+        <thead><tr><th>Origem</th><th>Nº</th><th>Etapa PCI</th><th>Previsto p/</th><th class="num">Valor previsto</th>
+          <th>Solicitado</th><th class="num">% obra</th><th class="num">Aprovado</th><th class="num">Descontos</th>
+          <th class="num">Líquido</th><th>Recebido em</th><th class="num">Recebido</th><th class="num">Diferença</th><th>Status</th><th></th></tr></thead>
+        <tbody>${linhas || `<tr><td colspan="15">${vazio('Nenhum recebimento', 'Cadastre o cronograma do PCI e vá atualizando o que a CAIXA efetivamente creditou.')}</td></tr>`}</tbody>
+        ${lista.length ? `<tfoot><tr><td colspan="4">${lista.length} parcela(s)</td>
+          <td class="num mono">${fmtMoney(tPrev)}</td><td colspan="6"></td>
+          <td class="num mono">${fmtMoney(tRec)}</td>
+          <td class="num mono ${tRec - tPrev < 0 ? 'neg' : ''}">${fmtMoney(tRec - tPrev)}</td><td colspan="2"></td></tr></tfoot>` : ''}
+      </table></div>`, {
+      semPadding: true,
+      acoes: `<div class="filtros">
+        ${selectFiltro('origem', opcoesLista('origensRecebimento'), 'Todas as origens')}
+        ${selectFiltro('status', opcoesLista('statusRecebimento'), 'Todos os status')}
+        ${botao('Nova parcela', 'novo-recebimento', {}, 'btn primario pequeno', 'mais')}
+      </div>`
+    })}
+  </div>`;
+};
+
+/* ======================================================== LANÇAMENTOS */
+VIEWS.lancamentos = () => {
+  const o = App.obra();
+  let lista = o.lancamentos.slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  if (App.filtros.tipo) lista = lista.filter((l) => l.tipo === App.filtros.tipo);
+  if (App.filtros.etapa) lista = lista.filter((l) => l.etapa === App.filtros.etapa);
+  if (App.filtros.mes) lista = lista.filter((l) => competencia(l.data) === App.filtros.mes);
+  lista = filtraTexto(lista, App.filtros.busca, ['descricao', 'fornecedor', 'documento', 'categoria']);
+
+  const total = lista.reduce((s, l) => s + lancamentoTotal(l), 0);
+  const meses = [...new Set(o.lancamentos.map((l) => competencia(l.data)).filter(Boolean))].sort().reverse();
+
+  const porTipo = {};
+  lista.forEach((l) => { porTipo[l.tipo || '—'] = (porTipo[l.tipo || '—'] || 0) + lancamentoTotal(l); });
+
+  const linhas = lista.map((l) => `<tr>
+    <td class="mono">${fmtDataCurta(l.data)}</td>
+    <td>${chip(l.tipo, l.tipo === 'Material' ? 'marca' : '')}</td>
+    <td>${esc(l.etapa || '—')}</td>
+    <td class="trunc">${esc(l.descricao)}${l.materialId ? ' <span class="chip" style="font-size:10px">plano</span>' : ''}</td>
+    <td class="trunc">${esc(l.fornecedor)}</td>
+    <td class="mono">${esc(l.documento || '—')}</td>
+    <td class="num mono">${fmtNum(l.quantidade, 2)} ${esc(l.unidade)}</td>
+    <td class="num mono">${fmtMoney(l.precoUnitario)}</td>
+    <td class="num mono">${num(l.desconto) ? '−' + fmtMoney(l.desconto) : '—'}</td>
+    <td class="num mono">${num(l.frete) ? fmtMoney(l.frete) : '—'}</td>
+    <td class="num mono"><b>${fmtMoney(lancamentoTotal(l))}</b></td>
+    <td>${esc(l.formaPagamento)}</td>
+    <td class="acoes">${acoesLinha('lancamento', l.id)}</td>
+  </tr>`).join('');
+
+  return `<div class="grade" style="gap:16px">
+    <div class="grade g-2-1">
+      ${cartao('Saídas lançadas', `
+        <div class="tab-rolagem"><table class="tab">
+          <thead><tr><th>Data</th><th>Tipo</th><th>Etapa</th><th>Descrição</th><th>Fornecedor</th><th>Documento</th>
+            <th class="num">Qtde</th><th class="num">Preço unit.</th><th class="num">Desconto</th><th class="num">Frete</th>
+            <th class="num">Total</th><th>Pagamento</th><th></th></tr></thead>
+          <tbody>${linhas || `<tr><td colspan="13">${vazio('Nenhum lançamento', 'Registre aqui compras de material, taxas, honorários e serviços sem medição.')}</td></tr>`}</tbody>
+          ${lista.length ? `<tfoot><tr><td colspan="10">${lista.length} lançamento(s)</td>
+            <td class="num mono">${fmtMoney(total)}</td><td colspan="2"></td></tr></tfoot>` : ''}
+        </table></div>`, {
+        semPadding: true,
+        acoes: `<div class="filtros">
+          ${campoBusca('busca', 'Buscar descrição, fornecedor…')}
+          ${selectFiltro('tipo', opcoesLista('tiposSaida'), 'Todos os tipos')}
+          ${selectFiltro('etapa', opcoesEtapas(), 'Todas as etapas')}
+          ${selectFiltro('mes', meses, 'Todos os meses')}
+          ${botao('Novo lançamento', 'novo-lancamento', {}, 'btn primario pequeno', 'mais')}
+        </div>`
+      })}
+      <div class="grade" style="gap:16px;align-content:start">
+        ${cartao('Por tipo de saída', graficoBarras(
+          Object.entries(porTipo).map(([rotulo, valor]) => ({ rotulo, valor }))))}
+        ${cartao('Por etapa', graficoBarras(
+          Object.entries(lista.reduce((a, l) => {
+            const e = l.etapa || 'Não classificado';
+            a[e] = (a[e] || 0) + lancamentoTotal(l); return a;
+          }, {})).map(([rotulo, valor]) => ({ rotulo, valor })), { limite: 10 }))}
+      </div>
+    </div>
+  </div>`;
+};
+
+/* ========================================================== MATERIAIS */
+VIEWS.materiais = () => {
+  const o = App.obra();
+  let lista = o.materiais.slice();
+  if (App.filtros.etapa) lista = lista.filter((m) => m.etapa === App.filtros.etapa);
+  if (App.filtros.situacao === 'pendentes') lista = lista.filter((m) => materialCalc(o, m).saldo > 0 && m.status !== 'Cancelado');
+  if (App.filtros.situacao === 'vencidos') lista = lista.filter((m) => materialCalc(o, m).vencido);
+  lista = filtraTexto(lista, App.filtros.busca, ['material', 'etapa', 'observacoes']);
+  lista.sort((a, b) => {
+    const ca = materialCalc(o, a), cb = materialCalc(o, b);
+    if (ca.vencido !== cb.vencido) return ca.vencido ? -1 : 1;
+    return String(a.dataNecessaria || '9999').localeCompare(String(b.dataNecessaria || '9999'));
+  });
+
+  const todos = o.materiais.map((m) => materialCalc(o, m));
+  const orcTotal = todos.reduce((s, c) => s + c.orcamento, 0);
+  const compradoTotal = todos.reduce((s, c) => s + c.valorComprado, 0);
+  const saldoTotal = todos.reduce((s, c) => s + c.saldoValor, 0);
+
+  const linhas = lista.map((m) => {
+    const c = materialCalc(o, m);
+    const tom = c.vencido ? 'critico' : c.saldo > 0 ? 'aviso' : 'ok';
+    return `<tr>
+      <td>${esc(m.etapa)}</td>
+      <td class="trunc"><b>${esc(m.material)}</b>${m.observacoes ? `<br><span style="font-size:11px;color:var(--mudo)">${esc(m.observacoes)}</span>` : ''}</td>
+      <td class="num mono">${fmtNum(m.quantidadeNecessaria, 2)} ${esc(m.unidade)}</td>
+      <td class="num mono">${fmtNum(c.comprada, 2)}</td>
+      <td class="num mono ${c.saldo > 0 ? 'neg' : ''}"><b>${fmtNum(c.saldo, 2)}</b></td>
+      <td class="mono ${c.vencido ? 'neg' : ''}">${fmtDataCurta(m.dataNecessaria)}</td>
+      <td>${chip(m.prioridade, m.prioridade === 'Alta' ? 'aviso' : '')}</td>
+      <td class="num mono">${fmtMoney(m.precoPrevisto)}</td>
+      <td class="num mono">${fmtMoney(c.orcamento)}</td>
+      <td class="num mono">${fmtMoney(c.valorComprado)}</td>
+      <td class="num mono ${c.desvio > 0.005 ? 'neg' : c.desvio < -0.005 ? 'pos' : ''}">${c.compras ? fmtMoney(c.desvio) : '—'}</td>
+      <td>${chip(c.vencido ? 'Vencido' : m.status, tom)}</td>
+      <td class="acoes">
+        ${!Store.somenteLeitura() && c.saldo > 0 ? `<button class="btn pequeno" data-acao="comprar-material" data-id="${m.id}">comprar</button>` : ''}
+        ${acoesLinha('material', m.id)}
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="grade" style="gap:16px">
+    <div class="grade g4">
+      ${kpi('Orçamento de materiais', fmtMoney(orcTotal, { dec: 0 }), `${o.materiais.length} item(ns) no plano`)}
+      ${kpi('Já comprado', fmtMoney(compradoTotal, { dec: 0 }), fmtPct(orcTotal ? compradoTotal / orcTotal : 0, 0) + ' do orçamento')}
+      ${kpi('Falta comprar', fmtMoney(saldoTotal, { dec: 0 }), `${todos.filter((c) => c.saldo > 0).length} item(ns) com saldo`, saldoTotal > 0 ? 'aviso' : 'ok')}
+      ${kpi('Vencidos sem compra', todos.filter((c) => c.vencido).length,
+        fmtMoney(todos.filter((c) => c.vencido).reduce((s, c) => s + c.saldoValor, 0), { dec: 0 }),
+        todos.some((c) => c.vencido) ? 'critico' : 'ok')}
+    </div>
+    ${cartao('Plano de materiais', `
+      <div class="tab-rolagem"><table class="tab">
+        <thead><tr><th>Etapa</th><th>Material</th><th class="num">Necessário</th><th class="num">Comprado</th>
+          <th class="num">Falta</th><th>Data limite</th><th>Prioridade</th><th class="num">Preço prev.</th>
+          <th class="num">Orçamento</th><th class="num">Gasto real</th><th class="num">Desvio</th><th>Status</th><th></th></tr></thead>
+        <tbody>${linhas || `<tr><td colspan="13">${vazio('Plano vazio', 'Liste o que será necessário por etapa. Ao lançar a compra, o saldo é atualizado sozinho.')}</td></tr>`}</tbody>
+      </table></div>`, {
+      semPadding: true,
+      acoes: `<div class="filtros">
+        ${campoBusca('busca', 'Buscar material…')}
+        ${selectFiltro('etapa', opcoesEtapas(), 'Todas as etapas')}
+        <select data-filtro="situacao">
+          <option value="">Todos</option>
+          <option value="pendentes" ${App.filtros.situacao === 'pendentes' ? 'selected' : ''}>Só pendentes</option>
+          <option value="vencidos" ${App.filtros.situacao === 'vencidos' ? 'selected' : ''}>Só vencidos</option>
+        </select>
+        ${botao('Novo material', 'novo-material', {}, 'btn primario pequeno', 'mais')}
+      </div>`
+    })}
+  </div>`;
+};
+
+/* ========================================================= CRONOGRAMA */
+VIEWS.cronograma = () => {
+  const o = App.obra();
+  if (!o.cronograma.length) {
+    return cartao('Cronograma da obra', vazio(
+      'Cronograma não montado',
+      'Gere as etapas padrão de uma casa MCMV e depois ajuste datas, responsáveis e progresso a cada visita.',
+      `${botao('Gerar etapas padrão', 'gerar-cronograma', {}, 'btn primario')} ${botao('Adicionar etapa', 'nova-etapa', {}, 'btn')}`));
+  }
+  const k = kpisObra(o);
+  const pesos = pesosCronograma(o);
+  const linhas = o.cronograma.map((e) => {
+    const c = etapaCalc(e);
+    return `<tr>
+      <td><b>${esc(e.etapa)}</b>${e.responsavel ? `<br><span style="font-size:11px;color:var(--mudo)">${esc(e.responsavel)}</span>` : ''}</td>
+      <td class="mono">${fmtDataCurta(e.inicioPrevisto)} → ${fmtDataCurta(e.fimPrevisto)}</td>
+      <td class="mono">${fmtDataCurta(e.inicioReal)} → ${fmtDataCurta(e.fimReal)}</td>
+      <td class="num mono">${c.diasPrevistos || '—'}</td>
+      <td class="num mono">${c.diasRealizados || '—'}</td>
+      <td class="num mono ${c.atraso > 0 ? 'neg' : ''}">${c.atraso || '—'}</td>
+      <td style="min-width:130px">${barra(c.progresso, tomSituacao(c.situacao))}
+        <span class="mono" style="font-size:11px">${fmtPct(c.progresso, 0)}</span></td>
+      <td class="num mono">${num(e.quantidadeExecutada) ? fmtNum(e.quantidadeExecutada, 1) + ' ' + esc(e.unidadeProducao) : '—'}</td>
+      <td class="num mono">${c.produtividade ? fmtNum(c.produtividade, 2) : '—'}</td>
+      <td class="num mono">${fmtPct(pesos.get(e.id) || 0, 1)}</td>
+      <td>${chip(c.situacao, tomSituacao(c.situacao))}</td>
+      <td class="acoes">${acoesLinha('etapa', e.id)}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="grade" style="gap:16px">
+    <div class="grade g4">
+      ${kpi('Avanço físico', fmtPct(k.progressoFisico, 0), 'ponderado pelo peso das etapas')}
+      ${kpi('Etapas concluídas', `${k.etapasConcluidas}/${k.etapasTotal}`, 'do cronograma cadastrado')}
+      ${kpi('Etapas atrasadas', k.etapasAtrasadas, 'fim previsto já passou', k.etapasAtrasadas ? 'critico' : 'ok')}
+      ${kpi('Previsão de entrega', fmtData(o.previsaoConclusao),
+        k.diasParaFim === null ? '' : (k.diasParaFim < 0 ? `${-k.diasParaFim} dias em atraso` : `${k.diasParaFim} dias restantes`),
+        k.diasParaFim !== null && k.diasParaFim < 0 ? 'critico' : '')}
+    </div>
+    ${cartao('Linha do tempo', graficoGantt(o))}
+    ${cartao('Etapas', `<div class="tab-rolagem"><table class="tab">
+      <thead><tr><th>Etapa</th><th>Previsto</th><th>Real</th><th class="num">Dias prev.</th><th class="num">Dias reais</th>
+        <th class="num">Atraso</th><th>Progresso</th><th class="num">Executado</th><th class="num">Prod./dia</th>
+        <th class="num">Peso</th><th>Situação</th><th></th></tr></thead>
+      <tbody>${linhas}</tbody></table></div>`, {
+      semPadding: true,
+      acoes: `${botao('Adicionar etapa', 'nova-etapa', {}, 'btn pequeno', 'mais')}`
+    })}
+  </div>`;
+};
+
+/* ============================================================ CURVA S */
+VIEWS.curva = () => {
+  const o = App.obra();
+  const dados = curvaS(o);
+  const k = kpisObra(o);
+  const atual = dados.filter((d) => d.fisicoRealizado !== null).pop();
+  const desvio = atual ? atual.fisicoRealizado - atual.fisicoPrevisto : 0;
+
+  const linhas = dados.map((d) => `<tr>
+    <td class="mono">${fmtCompetencia(d.ym)}${d.futuro ? ' <span class="chip" style="font-size:10px">previsto</span>' : ''}</td>
+    <td class="num mono">${fmtPct(d.fisicoPrevisto, 1)}</td>
+    <td class="num mono">${d.fisicoRealizado === null ? '—' : fmtPct(d.fisicoRealizado, 1)}</td>
+    <td class="num mono ${d.desvio !== null && d.desvio < -0.03 ? 'neg' : d.desvio !== null && d.desvio > 0.03 ? 'pos' : ''}">${d.desvio === null ? '—' : fmtPct(d.desvio, 1)}</td>
+    <td class="num mono">${d.financeiroRealizado === null ? '—' : fmtPct(d.financeiroRealizado, 1)}</td>
+    <td class="num mono">${d.financeiroRealizado === null ? '—' : fmtMoney(d.desembolsoAcumulado, { dec: 0 })}</td>
+  </tr>`).join('');
+
+  return `<div class="grade" style="gap:16px">
+    <div class="grade g4">
+      ${kpi('Avanço físico', fmtPct(k.progressoFisico, 1), 'executado hoje')}
+      ${kpi('Avanço previsto', atual ? fmtPct(atual.fisicoPrevisto, 1) : '—', 'pelo cronograma')}
+      ${kpi('Desvio de prazo', fmtPct(desvio, 1), desvio < 0 ? 'obra atrás do planejado' : 'obra em dia ou adiantada',
+        desvio < -0.05 ? 'critico' : desvio < 0 ? 'aviso' : 'ok')}
+      ${kpi('Avanço financeiro', fmtPct(k.progressoFinanceiro, 1),
+        `${fmtMoney(k.totalPago, { dec: 0 })} de ${fmtMoney(k.custoPrevisto, { dec: 0 })} previstos`,
+        k.progressoFinanceiro - k.progressoFisico > 0.1 ? 'aviso' : '')}
+    </div>
+    ${cartao('Curva S', graficoCurvaS(o, 340))}
+    <div class="cartao"><div class="corpo" style="font-size:12.5px;color:var(--tinta2)">
+      A curva física prevista distribui o peso de cada etapa ao longo das datas planejadas.
+      O peso vem do campo <b>Peso</b> da etapa; se estiver zerado, é proporcional à duração prevista.
+      A curva financeira acumula o desembolso real (medições pagas + lançamentos) sobre o custo total previsto.
+    </div></div>
+    ${cartao('Mês a mês', `<div class="tab-rolagem"><table class="tab">
+      <thead><tr><th>Mês</th><th class="num">Físico previsto</th><th class="num">Físico realizado</th>
+        <th class="num">Desvio</th><th class="num">Financeiro realizado</th><th class="num">Desembolso acumulado</th></tr></thead>
+      <tbody>${linhas}</tbody></table></div>`, { semPadding: true })}
+  </div>`;
+};
+
+/* ==================================================== FLUXO DE CAIXA */
+VIEWS.fluxo = () => {
+  const o = App.obra();
+  const dados = fluxoCaixa(o);
+  const k = kpisObra(o);
+  const linhas = dados.map((d) => `<tr>
+    <td class="mono">${fmtCompetencia(d.ym)}</td>
+    <td class="num mono">${d.entradas ? fmtMoney(d.entradas) : '—'}</td>
+    <td class="num mono">${d.medicoes ? fmtMoney(d.medicoes) : '—'}</td>
+    <td class="num mono">${d.outras ? fmtMoney(d.outras) : '—'}</td>
+    <td class="num mono">${d.saidas ? fmtMoney(d.saidas) : '—'}</td>
+    <td class="num mono ${d.saldoMes < 0 ? 'neg' : d.saldoMes > 0 ? 'pos' : ''}">${fmtMoney(d.saldoMes)}</td>
+    <td class="num mono ${d.acumulado < 0 ? 'neg' : ''}"><b>${fmtMoney(d.acumulado)}</b></td>
+    <td class="num mono">${d.previstasNaoRecebidas ? fmtMoney(d.previstasNaoRecebidas) : '—'}</td>
+    <td class="num mono">${d.medicoesNaoPagas ? fmtMoney(d.medicoesNaoPagas) : '—'}</td>
+  </tr>`).join('');
+
+  const tot = dados.reduce((a, d) => ({
+    e: a.e + d.entradas, m: a.m + d.medicoes, o: a.o + d.outras, s: a.s + d.saidas
+  }), { e: 0, m: 0, o: 0, s: 0 });
+
+  return `<div class="grade" style="gap:16px">
+    <div class="grade g4">
+      ${kpi('Saldo inicial', fmtMoney(k.saldoInicial, { dec: 0 }), 'informado na configuração')}
+      ${kpi('Entradas', fmtMoney(tot.e, { dec: 0 }), 'creditadas no período')}
+      ${kpi('Saídas', fmtMoney(tot.s, { dec: 0 }), `${fmtMoneyCurto(tot.m)} medições · ${fmtMoneyCurto(tot.o)} demais`)}
+      ${kpi('Saldo atual', fmtMoney(k.saldoCaixa, { dec: 0 }), 'saldo inicial + entradas − saídas', k.saldoCaixa < 0 ? 'critico' : 'ok')}
+    </div>
+    ${cartao('Movimento mensal', graficoFluxo(o, 300))}
+    ${cartao('Tabela mensal', `<div class="tab-rolagem"><table class="tab">
+      <thead><tr><th>Mês</th><th class="num">Entradas</th><th class="num">Medições pagas</th>
+        <th class="num">Materiais e outras</th><th class="num">Total de saídas</th><th class="num">Saldo do mês</th>
+        <th class="num">Saldo acumulado</th><th class="num">Entradas previstas não recebidas</th>
+        <th class="num">Medições a pagar</th></tr></thead>
+      <tbody>${linhas}</tbody>
+      <tfoot><tr><td>Total</td><td class="num mono">${fmtMoney(tot.e)}</td><td class="num mono">${fmtMoney(tot.m)}</td>
+        <td class="num mono">${fmtMoney(tot.o)}</td><td class="num mono">${fmtMoney(tot.s)}</td>
+        <td class="num mono">${fmtMoney(tot.e - tot.s)}</td><td colspan="3"></td></tr></tfoot>
+    </table></div>`, { semPadding: true })}
+  </div>`;
+};
+
+/* =========================================================== ALERTAS */
+VIEWS.alertas = () => {
+  const o = App.obra();
+  let al = alertasObra(o);
+  if (App.filtros.sev) al = al.filter((a) => String(a.sev) === App.filtros.sev);
+  if (App.filtros.modulo) al = al.filter((a) => a.modulo === App.filtros.modulo);
+  const modulos = [...new Set(alertasObra(o).map((a) => a.modulo))];
+  const todos = alertasObra(o);
+
+  return `<div class="grade" style="gap:16px">
+    <div class="grade g3">
+      ${kpi('Críticos', todos.filter((a) => a.sev === 3).length, 'exigem ação imediata', todos.some((a) => a.sev === 3) ? 'critico' : 'ok')}
+      ${kpi('Atenção', todos.filter((a) => a.sev === 2).length, 'resolver nos próximos dias', 'aviso')}
+      ${kpi('Informativos', todos.filter((a) => a.sev === 1).length, 'acompanhar')}
+    </div>
+    ${cartao('Pendências', al.length ? al.map((a) => alertaHTML(a)).join('')
+      : `<div class="corpo"><p style="margin:0;color:var(--ok)">Nada pendente com esse filtro.</p></div>`, {
+      semPadding: true,
+      acoes: `<div class="filtros">
+        <select data-filtro="sev">
+          <option value="">Todas as severidades</option>
+          <option value="3" ${App.filtros.sev === '3' ? 'selected' : ''}>Críticos</option>
+          <option value="2" ${App.filtros.sev === '2' ? 'selected' : ''}>Atenção</option>
+          <option value="1" ${App.filtros.sev === '1' ? 'selected' : ''}>Informativos</option>
+        </select>
+        ${selectFiltro('modulo', modulos, 'Todos os módulos')}
+      </div>`
+    })}
+  </div>`;
+};
+
+/* ==================================================== DIÁRIO DE OBRA */
+VIEWS.diario = () => {
+  const o = App.obra();
+  const lista = o.diario.slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  const registros = lista.map((d) => `
+    <article class="cartao" style="box-shadow:none">
+      <header>
+        <h3>${fmtData(d.data)}</h3>
+        ${chip(d.clima, d.clima && d.clima.includes('Chuva') ? 'aviso' : '')}
+        ${d.etapa ? chip(d.etapa, 'marca') : ''}
+        ${num(d.efetivo) ? chip(fmtNum(d.efetivo, 0) + ' na obra') : ''}
+        <div class="dir">${acoesLinha('diario', d.id)}</div>
+      </header>
+      <div class="corpo" style="display:flex;flex-direction:column;gap:10px">
+        ${d.atividades ? `<div><span class="rotulo">Atividades</span><p style="margin:2px 0 0">${esc(d.atividades)}</p></div>` : ''}
+        ${d.ocorrencias ? `<div><span class="rotulo">Ocorrências</span><p style="margin:2px 0 0;color:var(--aviso)">${esc(d.ocorrencias)}</p></div>` : ''}
+        ${d.fotos && d.fotos.length ? `<div class="fotos">${d.fotos.map((f, i) =>
+          `<figure><img src="${f.dados}" alt="${esc(f.nome || 'Foto da obra')}" loading="lazy" data-acao="ver-foto" data-id="${d.id}" data-idx="${i}"></figure>`).join('')}</div>` : ''}
+        ${d.autor ? `<span style="font-size:11.5px;color:var(--mudo)">registrado por ${esc(d.autor)}</span>` : ''}
+      </div>
+    </article>`).join('');
+
+  return `<div class="grade" style="gap:16px">
+    <div class="grade g3">
+      ${kpi('Registros', o.diario.length, 'visitas documentadas')}
+      ${kpi('Fotos', o.diario.reduce((s, d) => s + (d.fotos ? d.fotos.length : 0), 0), 'anexadas ao diário')}
+      ${kpi('Último registro', lista[0] ? fmtData(lista[0].data) : '—',
+        lista[0] && isISO(lista[0].data) ? `há ${diasEntre(lista[0].data, hojeISO())} dia(s)` : 'nenhuma visita registrada')}
+    </div>
+    ${cartao('Diário de obra', lista.length
+      ? `<div class="grade" style="gap:12px">${registros}</div>`
+      : vazio('Sem registros', 'Documente cada visita: clima, efetivo, o que foi executado, ocorrências e fotos. Serve como prova documental e memória da obra.',
+        botao('Novo registro', 'novo-diario', {}, 'btn primario', 'mais')), {
+      acoes: botao('Novo registro', 'novo-diario', {}, 'btn primario pequeno', 'mais')
+    })}
+  </div>`;
+};
+
+/* ================================================== CONFIGURAÇÃO OBRA */
+VIEWS['obra-config'] = () => {
+  const o = App.obra();
+  const clientes = Store.estado.clientes.map((c) => ({ v: c.id, t: c.nome }));
+  const campos = [
+    { secao: 'Identificação' },
+    { k: 'nome', label: 'Nome da obra', tipo: 'texto', col: 6, obrigatorio: true },
+    { k: 'clienteId', label: 'Cliente', tipo: 'select', opcoes: clientes, col: 3, placeholder: 'sem cliente' },
+    { k: 'status', label: 'Situação', tipo: 'select', opcoes: opcoesLista('statusObra'), col: 3, vazio: false },
+    { k: 'cidade', label: 'Cidade/UF', tipo: 'texto', col: 4 },
+    { k: 'endereco', label: 'Endereço', tipo: 'texto', col: 8 },
+    { k: 'areaConstruida', label: 'Área construída (m²)', tipo: 'numero', col: 3 },
+    { k: 'areaMuro', label: 'Área de muro (m²)', tipo: 'numero', col: 3 },
+    { k: 'sistema', label: 'Sistema construtivo', tipo: 'texto', col: 3 },
+    { k: 'padrao', label: 'Padrão de acabamento', tipo: 'texto', col: 3 },
+    { k: 'dataInicio', label: 'Data de início', tipo: 'data', col: 3 },
+    { k: 'previsaoConclusao', label: 'Previsão de conclusão', tipo: 'data', col: 3 },
+    { k: 'responsavel', label: 'Responsável técnico', tipo: 'texto', col: 6 },
+    { secao: 'Financeiro e contrato' },
+    { k: 'fin.saldoInicial', label: 'Saldo inicial da obra', tipo: 'dinheiro', col: 3 },
+    { k: 'fin.valorTerreno', label: 'Valor do terreno', tipo: 'dinheiro', col: 3 },
+    { k: 'fin.valorFinanciado', label: 'Financiado para obra', tipo: 'dinheiro', col: 3 },
+    { k: 'fin.recursosProprios', label: 'Recursos próprios previstos', tipo: 'dinheiro', col: 3 },
+    { k: 'fin.precoEmpreitadaM2', label: 'Preço empreitada/m²', tipo: 'dinheiro', col: 3 },
+    { k: 'fin.custoFisicoMaxM2', label: 'Custo físico máximo/m²', tipo: 'dinheiro', col: 3, dica: 'gera alerta se ultrapassar' },
+    { k: 'fin.valorVenda', label: 'Valor de venda/contrato', tipo: 'dinheiro', col: 3 },
+    { k: 'fin.margemDesejada', label: 'Margem desejada (%)', tipo: 'pct', col: 3 },
+    { k: 'fin.contratoCaixa', label: 'Nº contrato CAIXA', tipo: 'texto', col: 4 },
+    { k: 'fin.dataAssinatura', label: 'Data da assinatura', tipo: 'data', col: 4 },
+    { k: 'observacoes', label: 'Observações', tipo: 'area', col: 12 }
+  ];
+  const valores = {};
+  campos.forEach((c) => {
+    if (!c.k) return;
+    valores[c.k] = c.k.startsWith('fin.') ? o.fin[c.k.slice(4)] : o[c.k];
+  });
+  const html = campos.map((c) => c.secao
+    ? `<div class="secao-form"><span class="rotulo">${esc(c.secao)}</span></div>`
+    : campoHTML(c, valores)).join('');
+
+  const k = kpisObra(o);
+  return `<div class="grade" style="gap:16px">
+    ${cartao('Dados da obra', `<form class="form-grade" data-form="1" onsubmit="return false">${html}</form>`, {
+      acoes: `${botao('Salvar alterações', 'salvar-obra-config', {}, 'btn primario')}`
+    })}
+    ${cartao('Contrato calculado', `
+      <div class="grade g3">
+        ${kpi('Empreitada principal', fmtMoney(num(o.areaConstruida) * num(o.fin.precoEmpreitadaM2), { dec: 0 }),
+          `${fmtNum(o.areaConstruida, 2)} m² × ${fmtMoney(o.fin.precoEmpreitadaM2, { dec: 0 })}/m²`)}
+        ${kpi('Custo previsto total', fmtMoney(k.custoPrevisto, { dec: 0 }), 'contratos + materiais + saídas')}
+        ${kpi('Resultado projetado', k.resultado === null ? '—' : fmtMoney(k.resultado, { dec: 0 }),
+          k.margem === null ? 'informe o valor de venda' : `margem de ${fmtPct(k.margem)}`,
+          k.margem !== null && k.margem < num(o.fin.margemDesejada) ? 'aviso' : 'ok')}
+      </div>`)}
+    ${cartao('Escopo padrão da empreitada MCMV', `
+      <table class="tab">
+        <tbody>
+          <tr><td style="width:190px"><b>Incluído</b></td><td>Parte cinza, hidráulica e sanitário sem fossa, eletrodutos e caixas, assentamento de piso e revestimento</td></tr>
+          <tr><td><b>Separado</b></td><td>Pintura, elétrica final, gesso/forro e demais prestadores específicos</td></tr>
+          <tr><td><b>Aditivos comuns</b></td><td>Fossa, calçada e muro</td></tr>
+          <tr><td><b>Fornecimento + instalação</b></td><td>Calhas, rufos, mármores e portas quando o preço já inclui material e instalação</td></tr>
+          <tr><td><b>Regra</b></td><td>Medições nunca devem ultrapassar contrato + aditivos aprovados</td></tr>
+        </tbody>
+      </table>`, { semPadding: true })}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${botao('Duplicar esta obra', 'duplicar-obra', {}, 'btn')}
+      ${botao('Excluir obra', 'excluir-obra', {}, 'btn perigo', 'lixo')}
+    </div>
+  </div>`;
+};
+
+export {
+  VIEWS,
+  alertaHTML
+};

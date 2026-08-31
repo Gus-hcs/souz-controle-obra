@@ -1,0 +1,72 @@
+name: Verificar e publicar
+
+# Toda alteração na main passa por lint, testes e build antes de ir ao ar.
+# Pull request roda a verificação, mas não publica.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  verificar:
+    name: Lint, testes e build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Análise estática
+        run: npm run lint
+
+      - name: Testes de cálculo
+        run: npm test
+
+      - name: Build de produção
+        run: npm run build
+
+      - name: Navegador — todas as telas abrem
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+
+      - name: Guardar o site construído
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  publicar:
+    name: Publicar no GitHub Pages
+    needs: verificar
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      # Liga o Pages no modo "GitHub Actions" na primeira execução. Fica aqui,
+      # e não na verificação, para o site só trocar de fonte depois que tudo
+      # passou — assim a versão publicada nunca fica fora do ar por um teste
+      # que falhou.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

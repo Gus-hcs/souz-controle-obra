@@ -1,0 +1,5 @@
+dist/
+dist-local/
+coverage/
+node_modules/
+tests/esperado.json

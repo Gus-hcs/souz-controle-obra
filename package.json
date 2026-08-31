@@ -1,0 +1,34 @@
+{
+  "name": "souz-controle-obra",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Sistema web de gestão de obras MCMV: carteira de obras, contratos e aditivos, medições, recebimentos CAIXA, materiais, cronograma, curva S, diário de obra e relatórios.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "cobertura": "vitest run --coverage",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "formatar": "prettier --write \"**/*.{js,css,json,md}\"",
+    "verificar": "npm run lint && npm run test && npm run build && npm run test:e2e",
+    "test:e2e": "vite build --mode teste --outDir dist-local --emptyOutDir && node tests/fumaca.e2e.mjs dist-local"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.8",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "jsdom": "^25.0.1",
+    "prettier": "^3.4.2",
+    "vite": "^6.0.7",
+    "vite-plugin-singlefile": "^2.1.0",
+    "vitest": "^2.1.8",
+    "playwright": "^1.49.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

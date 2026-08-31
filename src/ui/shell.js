@@ -1,0 +1,459 @@
+/**
+ * shell.js — Casca da interface: navegação, componentes reutilizáveis e formulários.
+ */
+import { esc, fmtNum, norm, num } from '../nucleo/base.js';
+import { alertasObra } from '../dominio/calculos.js';
+import { Store } from '../dados/store.js';
+import { SUPA } from '../dados/supabase.js';
+import { VIEWS } from './telas-obra.js';
+import { desenharGraficosPendentes } from '../graficos/index.js';
+
+const ICO = {
+  carteira: '<path d="M2 3h5v5H2zM9 3h5v5H9zM2 10h5v3H2zM9 10h5v3H9z"/>',
+  painel: '<path d="M2 13V7l6-4.5L14 7v6a1 1 0 0 1-1 1h-3V9.5H6V14H3a1 1 0 0 1-1-1z"/>',
+  contrato: '<path d="M3.5 1.5h6L13 5v9.5H3.5zM9 1.8V5h3.2"/><path d="M5.5 8h5M5.5 10.5h5"/>',
+  medicao: '<path d="M1.5 6.5h13v4h-13z"/><path d="M4 6.5v2M6.5 6.5v3M9 6.5v2M11.5 6.5v3"/>',
+  receb: '<path d="M1.5 4h13v8h-13z"/><circle cx="8" cy="8" r="2"/>',
+  lanc: '<path d="M2.5 4.5h11l-1 8h-9zM5.5 4.5a2.5 2.5 0 0 1 5 0"/>',
+  material: '<path d="M8 1.8 14 5v6l-6 3.2L2 11V5z"/><path d="M2 5l6 3 6-3M8 8v6.2"/>',
+  crono: '<path d="M2 3.5h12v11H2z"/><path d="M2 6.5h12M5.5 1.8v3M10.5 1.8v3"/>',
+  curva: '<path d="M2 13.5V2.5M2 13.5h12"/><path d="M3 12c2.5 0 3-7 5.5-7S12 3.5 13.5 3.5"/>',
+  diario: '<path d="M3 2h9.5v12H3z"/><path d="M5.5 5h5M5.5 7.5h5M5.5 10h3"/>',
+  fluxo: '<path d="M2 12.5h12M4 12.5V8M7 12.5V4.5M10 12.5V9.5M13 12.5V6"/>',
+  alerta: '<path d="M8 2 15 13.5H1z"/><path d="M8 6.5v3.2M8 11.4v.1"/>',
+  relatorio: '<path d="M3.5 1.5h6L13 5v9.5H3.5z"/><path d="M6 8.5h4M6 11h4"/>',
+  config: '<circle cx="8" cy="8" r="2.2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/>',
+  cadastro: '<circle cx="8" cy="5.5" r="2.5"/><path d="M2.5 14c0-3 2.5-4.5 5.5-4.5S13.5 11 13.5 14"/>',
+  mais: '<path d="M8 3v10M3 8h10"/>',
+  busca: '<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>',
+  menu: '<path d="M2 4h12M2 8h12M2 12h12"/>',
+  x: '<path d="M4 4l8 8M12 4l-8 8"/>',
+  baixar: '<path d="M8 2v8M4.5 7 8 10.5 11.5 7M2.5 13.5h11"/>',
+  lapis: '<path d="M11 2.5 13.5 5 5.5 13H3v-2.5z"/>',
+  lixo: '<path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 10h6.6L12 4"/>',
+  seta: '<path d="M6 3l5 5-5 5"/>',
+  empresa: '<path d="M2.5 14V4l5.5-2.5V14M8 14V6.5l5.5 2V14"/><path d="M1 14h14"/>'
+};
+
+const svg = (d, tam = 16) =>
+  `<svg class="ic" width="${tam}" height="${tam}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+
+const MENU = [
+  { grupo: 'Carteira', itens: [
+    { v: 'carteira', t: 'Visão geral', i: 'carteira' },
+    { v: 'clientes', t: 'Clientes', i: 'cadastro' },
+    { v: 'prestadores', t: 'Prestadores', i: 'empresa' }
+  ] },
+  { grupo: 'Obra', itens: [
+    { v: 'painel', t: 'Painel', i: 'painel' },
+    { v: 'contratos', t: 'Contratos e aditivos', i: 'contrato' },
+    { v: 'medicoes', t: 'Medições', i: 'medicao' },
+    { v: 'recebimentos', t: 'Recebimentos', i: 'receb' },
+    { v: 'lancamentos', t: 'Lançamentos', i: 'lanc' },
+    { v: 'materiais', t: 'Plano de materiais', i: 'material' },
+    { v: 'cronograma', t: 'Cronograma', i: 'crono' },
+    { v: 'curva', t: 'Curva S', i: 'curva' },
+    { v: 'diario', t: 'Diário de obra', i: 'diario' },
+    { v: 'fluxo', t: 'Fluxo de caixa', i: 'fluxo' },
+    { v: 'alertas', t: 'Alertas', i: 'alerta' },
+    { v: 'relatorio', t: 'Relatórios', i: 'relatorio' },
+    { v: 'obra-config', t: 'Configuração', i: 'config' }
+  ] },
+  { grupo: 'Sistema', itens: [
+    { v: 'ajustes', t: 'Ajustes e dados', i: 'config' }
+  ] }
+];
+
+const TITULOS = {
+  carteira: ['Carteira de obras', 'Visão consolidada de todas as obras'],
+  clientes: ['Clientes', 'Cadastro e obras vinculadas'],
+  prestadores: ['Prestadores', 'Empreiteiros e fornecedores de serviço'],
+  painel: ['Painel da obra', 'Indicadores financeiros e de produção'],
+  contratos: ['Contratos e aditivos', 'Empreitada principal, prestadores e aditivos'],
+  medicoes: ['Medições', 'Medições de prestadores e pagamentos'],
+  recebimentos: ['Recebimentos', 'Cronograma PCI, solicitações e créditos'],
+  lancamentos: ['Lançamentos', 'Compras, taxas e demais saídas'],
+  materiais: ['Plano de materiais', 'O que comprar, quando e quanto falta'],
+  cronograma: ['Cronograma da obra', 'Etapas, prazos e progresso real'],
+  curva: ['Curva S', 'Avanço físico x financeiro'],
+  diario: ['Diário de obra', 'Registro de visitas, ocorrências e fotos'],
+  fluxo: ['Fluxo de caixa', 'Entradas e saídas mês a mês'],
+  alertas: ['Alertas', 'Pendências que exigem ação'],
+  relatorio: ['Relatórios', 'Documentos para cliente, CAIXA e arquivo'],
+  'obra-config': ['Configuração da obra', 'Identificação, financiamento e contrato'],
+  ajustes: ['Ajustes e dados', 'Empresa, listas, backup e importação']
+};
+
+const VIEWS_OBRA = new Set(MENU[1].itens.map((i) => i.v));
+
+/* ========================================================== App shell */
+const App = {
+  rota: { view: 'carteira', obraId: '' },
+  filtros: {},
+  foco: null,
+
+  obra() {
+    return Store.estado.obras.find((o) => o.id === this.rota.obraId) || null;
+  },
+
+  ir(view, obraId) {
+    if (obraId !== undefined) this.rota.obraId = obraId;
+    if (VIEWS_OBRA.has(view) && !this.obra()) {
+      const primeira = Store.estado.obras[0];
+      if (!primeira) { toast('Cadastre uma obra primeiro.', 'aviso'); view = 'carteira'; }
+      else this.rota.obraId = primeira.id;
+    }
+    this.rota.view = view;
+    this.filtros = {};
+    document.body.classList.remove('menu-aberto');
+    try { sessionStorage.setItem('souz_rota', JSON.stringify(this.rota)); } catch (e) {}
+    window.scrollTo(0, 0);
+    this.render();
+  },
+
+  render() {
+    this.renderRail();
+    this.renderTopo();
+    this.renderConteudo();
+  },
+
+  renderRail() {
+    const obras = Store.estado.obras;
+    const obra = this.obra();
+    const alertas = obra ? alertasObra(obra) : [];
+    const criticos = alertas.filter((a) => a.sev === 3).length;
+
+    const opcoes = obras.length
+      ? obras.map((o) => `<option value="${o.id}" ${o.id === this.rota.obraId ? 'selected' : ''}>${esc(o.nome)}</option>`).join('')
+      : '<option value="">Nenhuma obra cadastrada</option>';
+
+    const nav = MENU.map((g) => {
+      if (g.grupo === 'Obra' && !obras.length) return '';
+      const itens = g.itens.map((it) => {
+        const ativo = this.rota.view === it.v ? ' aria-current="page"' : '';
+        let cont = '';
+        if (it.v === 'alertas' && alertas.length) {
+          cont = `<span class="cont ${criticos ? 'crit' : ''}">${alertas.length}</span>`;
+        }
+        if (it.v === 'carteira' && obras.length) cont = `<span class="cont">${obras.length}</span>`;
+        return `<button data-acao="ir" data-view="${it.v}"${ativo}>${svg(ICO[it.i])}<span>${it.t}</span>${cont}</button>`;
+      }).join('');
+      return `<div class="grupo">${g.grupo}${g.grupo === 'Obra' && obra ? '' : ''}</div>${itens}`;
+    }).join('');
+
+    document.getElementById('rail').innerHTML = `
+      <div class="rail-marca">
+        <div class="rail-logo">S</div>
+        <div><b>SOUZ</b><span>Controle de obra</span></div>
+      </div>
+      <div class="rail-obra">
+        <span class="rotulo">Obra ativa</span>
+        <select data-acao="trocar-obra" aria-label="Selecionar obra">${opcoes}</select>
+      </div>
+      <nav class="rail-nav">${nav}</nav>`;
+  },
+
+  renderTopo() {
+    const [t, sub] = TITULOS[this.rota.view] || ['', ''];
+    const obra = this.obra();
+    const st = Store.descricaoStatus();
+    const legenda = VIEWS_OBRA.has(this.rota.view) && obra
+      ? `${esc(obra.nome)}${obra.cidade ? ' · ' + esc(obra.cidade) : ''}`
+      : sub;
+    document.getElementById('topo').innerHTML = `
+      <button class="btn sutil menu-mob" data-acao="menu" aria-label="Abrir menu">${svg(ICO.menu)}</button>
+      <div class="titulo"><b>${t}</b><span>${legenda}</span></div>
+      <div class="dir">
+        <span class="status-salvo ${st.tom}" title="${esc(Store.ultimoErro || '')}"><span class="pt"></span>${st.texto}</span>
+        ${Store.backend === 'supabase' && SUPA.usuario ? `
+          <span class="usuario" title="${esc(SUPA.usuario.email || '')}">${esc((SUPA.usuario.email || '').split('@')[0])}</span>
+          <button class="btn sutil" data-acao="auth-sair" title="Sair do sistema" aria-label="Sair">Sair</button>` : ''}
+        <button class="btn sutil" data-acao="tema" aria-label="Alternar tema claro/escuro" title="Alternar tema">◐</button>
+      </div>`;
+  },
+
+  renderConteudo() {
+    const alvo = document.getElementById('conteudo');
+    const fn = VIEWS[this.rota.view];
+    try {
+      alvo.innerHTML = fn ? fn() : '<div class="vazio">Tela não encontrada.</div>';
+    } catch (e) {
+      console.error(e);
+      alvo.innerHTML = `<div class="cartao"><div class="corpo"><h3>Erro ao montar a tela</h3>
+        <p class="mono" style="color:var(--critico)">${esc(e.message)}</p></div></div>`;
+    }
+    if (this.foco) {
+      const el = document.getElementById(this.foco.id);
+      if (el) {
+        el.focus();
+        if (el.setSelectionRange && this.foco.pos != null) {
+          try { el.setSelectionRange(this.foco.pos, this.foco.pos); } catch (e) {}
+        }
+      }
+      this.foco = null;
+    }
+    desenharGraficosPendentes();
+  }
+};
+
+/* ======================================================== componentes */
+
+function toast(msg, tom = 'ok', ms = 3600) {
+  const cx = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast ' + tom;
+  el.textContent = msg;
+  cx.appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
+
+function kpi(rotulo, valor, sub, tom = '') {
+  return `<div class="kpi ${tom}"><span class="faixa"></span>
+    <span class="rotulo">${rotulo}</span>
+    <span class="valor">${valor}</span>
+    ${sub ? `<span class="sub">${sub}</span>` : ''}</div>`;
+}
+
+function chip(texto, tom = '') {
+  return `<span class="chip ${tom}"><span class="pt"></span>${esc(texto)}</span>`;
+}
+
+function barra(v, tom = '') {
+  const p = Math.max(0, Math.min(1, num(v))) * 100;
+  return `<div class="barra ${tom}"><i style="width:${p.toFixed(1)}%"></i></div>`;
+}
+
+function vazio(titulo, texto, botao) {
+  return `<div class="vazio"><h4>${esc(titulo)}</h4><p>${esc(texto)}</p>${botao || ''}</div>`;
+}
+
+function cartao(titulo, corpo, opcoes = {}) {
+  const { acoes = '', semPadding = false, sub = '' } = opcoes;
+  return `<section class="cartao">
+    ${titulo ? `<header><h3>${titulo}</h3>${sub ? `<span class="sub" style="font-size:12px;color:var(--mudo)">${sub}</span>` : ''}<div class="dir">${acoes}</div></header>` : ''}
+    <div class="${semPadding ? '' : 'corpo'}">${corpo}</div>
+  </section>`;
+}
+
+function botao(texto, acao, dados = {}, classe = 'btn', icone = '') {
+  const attrs = Object.entries(dados).map(([k, v]) => `data-${k}="${esc(v)}"`).join(' ');
+  return `<button class="${classe}" data-acao="${acao}" ${attrs}>${icone ? svg(ICO[icone], 14) : ''}${texto}</button>`;
+}
+
+function acoesLinha(tipo, id) {
+  if (Store.somenteLeitura()) return '';
+  return `<button class="btn sutil pequeno" data-acao="editar-${tipo}" data-id="${id}" title="Editar" aria-label="Editar">${svg(ICO.lapis, 13)}</button>
+          <button class="btn sutil pequeno" data-acao="excluir-${tipo}" data-id="${id}" title="Excluir" aria-label="Excluir">${svg(ICO.lixo, 13)}</button>`;
+}
+
+/* ------------------------------------------------------------- modal */
+let modalAoSalvar = null;
+
+function fecharModal() {
+  document.getElementById('modal-camada').classList.remove('aberto');
+  document.getElementById('modal-camada').innerHTML = '';
+  modalAoSalvar = null;
+}
+
+function abrirModal({ titulo, corpo, rodape, largura = '' }) {
+  const camada = document.getElementById('modal-camada');
+  camada.innerHTML = `<div class="modal ${largura}" role="dialog" aria-modal="true" aria-label="${esc(titulo)}">
+    <header><h3>${esc(titulo)}</h3>
+      <button class="btn sutil fechar" data-acao="fechar-modal" aria-label="Fechar">${svg(ICO.x, 14)}</button>
+    </header>
+    <div class="corpo">${corpo}</div>
+    ${rodape ? `<footer>${rodape}</footer>` : ''}
+  </div>`;
+  camada.classList.add('aberto');
+  const primeiro = camada.querySelector('input, select, textarea');
+  if (primeiro) setTimeout(() => primeiro.focus(), 30);
+}
+
+function confirmar(titulo, texto, aoConfirmar, rotulo = 'Excluir') {
+  abrirModal({
+    titulo, largura: 'estreito',
+    corpo: `<p style="margin:0">${esc(texto)}</p>`,
+    rodape: `<button class="btn" data-acao="fechar-modal">Cancelar</button>
+             <button class="btn perigo" data-acao="confirmar-ok">${esc(rotulo)}</button>`
+  });
+  modalAoSalvar = aoConfirmar;
+}
+
+/* --------------------------------------------------- formulário genérico
+   campos: { k, label, tipo, col, opcoes, dica, secao, ro, placeholder }
+   tipos: texto | numero | dinheiro | pct | data | select | area | check | lista
+*/
+function campoHTML(c, valores) {
+  const v = valores[c.k];
+  const id = 'f_' + c.k;
+  const col = 'c' + (c.col || 6);
+  let campo = '';
+  const req = c.obrigatorio ? 'required' : '';
+  switch (c.tipo) {
+    case 'numero':
+      campo = `<input type="text" inputmode="decimal" id="${id}" data-campo="${c.k}" data-tipo="numero" value="${v || v === 0 ? esc(fmtNum(v, c.dec ?? 2)) : ''}" ${req}>`;
+      break;
+    case 'dinheiro':
+      campo = `<input type="text" inputmode="decimal" id="${id}" data-campo="${c.k}" data-tipo="dinheiro" value="${v || v === 0 ? esc(fmtNum(v, 2)) : ''}" ${req}>`;
+      break;
+    case 'pct':
+      campo = `<input type="text" inputmode="decimal" id="${id}" data-campo="${c.k}" data-tipo="pct" value="${v || v === 0 ? esc(fmtNum(num(v) * 100, c.dec ?? 0)) : ''}" ${req}>`;
+      break;
+    case 'data':
+      campo = `<input type="date" id="${id}" data-campo="${c.k}" data-tipo="data" value="${esc(v || '')}" ${req}>`;
+      break;
+    case 'select':
+      campo = `<select id="${id}" data-campo="${c.k}" data-tipo="texto" ${req}>
+        ${(c.vazio !== false) ? `<option value="">${esc(c.placeholder || '—')}</option>` : ''}
+        ${(c.opcoes || []).map((o) => {
+          const val = typeof o === 'object' ? o.v : o;
+          const txt = typeof o === 'object' ? o.t : o;
+          return `<option value="${esc(val)}" ${String(val) === String(v ?? '') ? 'selected' : ''}>${esc(txt)}</option>`;
+        }).join('')}</select>`;
+      break;
+    case 'area':
+      campo = `<textarea id="${id}" data-campo="${c.k}" data-tipo="texto" rows="${c.linhas || 3}">${esc(v || '')}</textarea>`;
+      break;
+    case 'check':
+      campo = `<select id="${id}" data-campo="${c.k}" data-tipo="texto">
+        <option value="Não" ${v === 'Não' ? 'selected' : ''}>Não</option>
+        <option value="Sim" ${v === 'Sim' ? 'selected' : ''}>Sim</option></select>`;
+      break;
+    case 'lista':
+      campo = `<input type="text" id="${id}" data-campo="${c.k}" data-tipo="texto" list="dl_${c.k}" value="${esc(v || '')}" ${req}>
+        <datalist id="dl_${c.k}">${(c.opcoes || []).map((o) => `<option value="${esc(o)}"></option>`).join('')}</datalist>`;
+      break;
+    case 'calc':
+      campo = `<div class="calc" data-calc="${c.k}">—</div>`;
+      break;
+    default:
+      campo = `<input type="text" id="${id}" data-campo="${c.k}" data-tipo="texto" value="${esc(v ?? '')}" placeholder="${esc(c.placeholder || '')}" ${req}>`;
+  }
+  return `<div class="campo ${col}">
+    <label for="${id}">${esc(c.label)}</label>
+    ${campo}
+    ${c.dica ? `<span class="dica">${esc(c.dica)}</span>` : ''}
+  </div>`;
+}
+
+function abrirForm({ titulo, campos, valores = {}, aoSalvar, largura = '', calcular, rodapeExtra = '' }) {
+  const grupos = [];
+  campos.forEach((c) => {
+    if (c.secao) { grupos.push(`<div class="secao-form"><span class="rotulo">${esc(c.secao)}</span></div>`); }
+    grupos.push(campoHTML(c, valores));
+  });
+  abrirModal({
+    titulo, largura,
+    corpo: `<form class="form-grade" data-form="1" onsubmit="return false">${grupos.join('')}</form>`,
+    rodape: `<span class="esq">${rodapeExtra}</span>
+             <button class="btn" data-acao="fechar-modal">Cancelar</button>
+             <button class="btn primario" data-acao="salvar-form">Salvar</button>`
+  });
+  modalAoSalvar = (dados) => aoSalvar(dados);
+  window.__calcForm = calcular || null;
+  if (calcular) rodarCalcForm();
+}
+
+function lerForm() {
+  const f = document.querySelector('#modal-camada [data-form]') || document.querySelector('[data-form]');
+  const out = {};
+  if (!f) return out;
+  f.querySelectorAll('[data-campo]').forEach((el) => {
+    const k = el.dataset.campo;
+    const t = el.dataset.tipo;
+    if (t === 'numero' || t === 'dinheiro') out[k] = num(el.value);
+    else if (t === 'pct') out[k] = num(el.value) / 100;
+    else out[k] = el.value.trim ? el.value.trim() : el.value;
+  });
+  return out;
+}
+
+function rodarCalcForm() {
+  if (!window.__calcForm) return;
+  const dados = lerForm();
+  const res = window.__calcForm(dados) || {};
+  Object.entries(res).forEach(([k, v]) => {
+    const el = document.querySelector(`[data-calc="${k}"]`);
+    if (el) el.innerHTML = v;
+  });
+}
+
+/* -------------------------------------------------------- utilitários */
+const opcoesEtapas = () => Store.estado.listas.etapas;
+const opcoesLista = (k) => Store.estado.listas[k] || [];
+
+function nomeCliente(id) {
+  const c = Store.estado.clientes.find((x) => x.id === id);
+  return c ? c.nome : '';
+}
+
+function tomStatus(status) {
+  const s = norm(status);
+  if (['pago', 'recebido', 'concluído', 'concluida', 'concluído', 'comprado', 'aprovado'].includes(s)) return 'ok';
+  if (['cancelado', 'suspenso'].includes(s)) return '';
+  if (['em aberto', 'previsto', 'planejar', 'planejado', 'solicitado'].includes(s)) return 'aviso';
+  if (['parcial', 'comprado parcial', 'recebido parcial', 'em andamento', 'comprar'].includes(s)) return 'marca';
+  return '';
+}
+
+function tomSituacao(sit) {
+  if (sit === 'ATRASADO') return 'critico';
+  if (sit === 'CONCLUÍDO') return 'ok';
+  if (sit === 'EM ANDAMENTO') return 'marca';
+  return '';
+}
+
+/* filtro textual genérico */
+function filtraTexto(itens, termo, campos) {
+  const t = norm(termo);
+  if (!t) return itens;
+  return itens.filter((i) => campos.some((c) => norm(i[c]).includes(t)));
+}
+
+function campoBusca(id, placeholder) {
+  const v = App.filtros[id] || '';
+  return `<span class="campo-busca">${svg(ICO.busca, 14)}
+    <input type="text" id="flt_${id}" data-filtro="${id}" value="${esc(v)}" placeholder="${esc(placeholder)}">
+  </span>`;
+}
+
+function selectFiltro(id, opcoes, rotulo) {
+  const v = App.filtros[id] || '';
+  return `<select data-filtro="${id}" aria-label="${esc(rotulo)}">
+    <option value="">${esc(rotulo)}</option>
+    ${opcoes.map((o) => `<option value="${esc(o)}" ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}
+  </select>`;
+}
+
+export {
+  ICO,
+  svg,
+  MENU,
+  TITULOS,
+  VIEWS_OBRA,
+  App,
+  toast,
+  kpi,
+  chip,
+  barra,
+  vazio,
+  cartao,
+  botao,
+  acoesLinha,
+  modalAoSalvar,
+  fecharModal,
+  abrirModal,
+  confirmar,
+  campoHTML,
+  abrirForm,
+  lerForm,
+  rodarCalcForm,
+  opcoesEtapas,
+  opcoesLista,
+  nomeCliente,
+  tomStatus,
+  tomSituacao,
+  filtraTexto,
+  campoBusca,
+  selectFiltro
+};
