@@ -16,6 +16,10 @@ const EXIGE_BANCO = CFG.exigeBanco;
 
 const CHAVE_CFG = 'souz_supabase_cfg';
 
+/* olho aberto / riscado para revelar a senha na tela de acesso */
+const OLHO = '<svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z"/><circle cx="10" cy="10" r="2.5"/></svg>';
+const OLHO_OFF = '<svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M7.3 4.6A8.5 8.5 0 0 1 10 4c5.5 0 8.5 6 8.5 6a15 15 0 0 1-2.6 3.3M4.1 6.7A15 15 0 0 0 1.5 10S4.5 16 10 16a8.4 8.4 0 0 0 3.7-.8"/><path d="M8.2 8.2a2.5 2.5 0 0 0 3.5 3.5M2.5 2.5l15 15"/></svg>';
+
 const ehArtefato = () => {
   try { return typeof claude !== 'undefined' && claude && typeof claude.use === 'function'; }
   catch (e) { return false; }
@@ -586,7 +590,10 @@ function telaLogin(modo = 'entrar', aviso = '') {
       </div>
       ${modo !== 'recuperar' ? `<div class="campo">
         <label for="ac_senha">Senha</label>
-        <input type="password" id="ac_senha" autocomplete="${modo === 'criar' ? 'new-password' : 'current-password'}" placeholder="mínimo de 6 caracteres">
+        <div class="campo-olho">
+          <input type="password" id="ac_senha" autocomplete="${modo === 'criar' ? 'new-password' : 'current-password'}" placeholder="mínimo de 6 caracteres">
+          <button type="button" class="olho" data-acao="auth-ver-senha" aria-label="Mostrar senha" aria-pressed="false">${OLHO}</button>
+        </div>
       </div>` : ''}
       <button class="btn primario" style="justify-content:center" data-acao="${
         modo === 'entrar' ? 'auth-entrar' : modo === 'criar' ? 'auth-cadastrar' : 'auth-recuperar'}">
@@ -594,10 +601,9 @@ function telaLogin(modo = 'entrar', aviso = '') {
       </button>
     </form>
     <div class="acesso-links">
-      ${modo !== 'entrar' ? '<button class="btn sutil pequeno" data-acao="auth-tela" data-modo="entrar">Já tenho conta</button>' : ''}
-      ${modo !== 'criar' ? '<button class="btn sutil pequeno" data-acao="auth-tela" data-modo="criar">Criar conta</button>' : ''}
-      ${modo !== 'recuperar' ? '<button class="btn sutil pequeno" data-acao="auth-tela" data-modo="recuperar">Esqueci a senha</button>' : ''}
-      <button class="btn sutil pequeno" data-acao="auth-config">Conexão do banco</button>
+      ${modo === 'entrar'
+        ? '<button class="btn sutil pequeno" data-acao="auth-tela" data-modo="recuperar">Esqueci a senha</button>'
+        : '<button class="btn sutil pequeno" data-acao="auth-tela" data-modo="entrar">Voltar ao login</button>'}
     </div>`);
 }
 
@@ -629,6 +635,17 @@ function telaConfigBanco(aviso = '') {
 /* ------------------------------------------------------------ ações */
 ACOES['auth-tela'] = (el, d) => telaLogin(d.modo || 'entrar');
 ACOES['auth-config'] = () => telaConfigBanco();
+
+ACOES['auth-ver-senha'] = (el) => {
+  const inp = document.getElementById('ac_senha');
+  if (!inp) return;
+  const revelar = inp.type === 'password';
+  inp.type = revelar ? 'text' : 'password';
+  el.innerHTML = revelar ? OLHO_OFF : OLHO;
+  el.setAttribute('aria-pressed', String(revelar));
+  el.setAttribute('aria-label', revelar ? 'Ocultar senha' : 'Mostrar senha');
+  inp.focus();
+};
 
 ACOES['auth-salvar-config'] = async () => {
   const url = document.getElementById('cfg_url').value.trim();
