@@ -397,6 +397,23 @@ table.tab td.trunc { max-width: 260px; overflow: hidden; text-overflow: ellipsis
 .neg { color: var(--critico); }
 .pos { color: var(--ok); }
 
+/* contratos e aditivos */
+.ct-bloco > header h3 { font-size: 13.5px; color: var(--tinta); font-weight: 600; }
+.ct-stats {
+  display: flex; flex-wrap: wrap; gap: 3px 16px;
+  font-size: 12.5px; color: var(--mudo);
+}
+.ct-stats b { color: var(--tinta); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ct-stats b.neg { color: var(--critico); }
+.ct-stats .ct-exec { margin-left: auto; }
+.ct-tab td { vertical-align: top; }
+.ct-escopo-w { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.ct-detalhe { font-size: 11px; color: var(--mudo); }
+.ct-contagem { margin: -4px 0 0; font-size: 12px; color: var(--mudo); }
+@media (max-width: 720px) {
+  .ct-stats .ct-exec { margin-left: 0; }
+}
+
 /* vazio */
 .vazio { padding: 40px 24px; text-align: center; color: var(--mudo); }
 .vazio h4 { font-size: 17px; color: var(--tinta); margin-bottom: 5px; }
@@ -420,6 +437,8 @@ input:disabled, select:disabled { background: var(--sup3); color: var(--mudo); }
 textarea { resize: vertical; min-height: 62px; }
 select { cursor: pointer; }
 .filtros input, .filtros select { width: auto; min-width: 130px; }
+.filtros .campo-busca { flex: 1 1 220px; max-width: 320px; }
+.filtros .campo-busca input { width: 100%; }
 
 /* formulário */
 .form-grade { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }

@@ -1,7 +1,7 @@
 /**
  * telas-obra.js — Telas da obra: painel, contratos, medições, recebimentos, materiais, cronograma.
  */
-import { competencia, diasEntre, esc, fmtCompetencia, fmtData, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtNum, fmtPct, hojeISO, isISO, num, round2 } from '../nucleo/base.js';
+import { competencia, diasEntre, esc, fmtCompetencia, fmtData, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtNum, fmtPct, hojeISO, isISO, norm, num, round2 } from '../nucleo/base.js';
 import { alertasObra, basesContratuais, contratoValor, curvaS, etapaCalc, fluxoCaixa, fluxoCarteira, kpisCarteira, kpisObra, lancamentoTotal, materialCalc, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca } from '../dominio/calculos.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
@@ -276,9 +276,6 @@ VIEWS.painel = () => {
 /* ========================================================== CONTRATOS */
 VIEWS.contratos = () => {
   const o = App.obra();
-  const bases = basesContratuais(o);
-  const totalAut = bases.reduce((s, b) => s + b.autorizado, 0);
-  const totalPago = bases.reduce((s, b) => s + b.pago, 0);
 
   if (!o.contratos.length) {
     return cartao('Contratos e aditivos', vazio(
@@ -287,41 +284,69 @@ VIEWS.contratos = () => {
       botao('Cadastrar contrato principal', 'novo-contrato', {}, 'btn primario', 'mais')));
   }
 
+  const todas = basesContratuais(o);
+  const totalAut = todas.reduce((s, b) => s + b.autorizado, 0);
+  const totalPago = todas.reduce((s, b) => s + b.pago, 0);
+  const totalAdit = todas.reduce((s, b) => s + b.valorAditivos, 0);
+  const saldoGeral = totalAut - totalPago;
+
+  /* ---------------------------------------------------------- filtros */
+  const f = App.filtros;
+  const busca = norm(f.busca || '');
+  const prestadores = [...new Set(o.contratos.map((c) => c.prestador).filter(Boolean))].sort();
+  const bases = todas.filter((b) => {
+    if (f.prestador && b.prestador !== f.prestador) return false;
+    if (f.status && !b.registros.some((c) => c.status === f.status)) return false;
+    if (f.regime && !b.registros.some((c) => c.regime === f.regime)) return false;
+    if (f.situacao === 'saldo-baixo' && !(b.saldo < 0 || b.execFinanceira > 0.9)) return false;
+    if (f.situacao === 'ultrapassado' && b.saldo >= 0) return false;
+    if (busca) {
+      const alvo = norm(`${b.base} ${b.prestador} ${b.registros.map((c) => c.codigo + ' ' + c.escopo).join(' ')}`);
+      if (!alvo.includes(busca)) return false;
+    }
+    return true;
+  });
+  const filtrando = bases.length !== todas.length;
+
   const blocos = bases.map((b) => {
-    const registros = b.registros.map((c) => `
-      <tr>
+    const tom = b.saldo < 0 ? 'critico' : b.execFinanceira > 0.9 ? 'aviso' : '';
+    const registros = b.registros.map((c) => {
+      const det = [
+        esc(c.regime),
+        num(c.quantidade) ? `${fmtNum(c.quantidade, 2)} ${esc(c.unidade)} × ${fmtMoney(c.precoUnitario)}` : null
+      ].filter(Boolean).join(' · ');
+      return `<tr>
         <td class="mono">${esc(c.codigo)}</td>
         <td>${chip(c.registro, c.registro === 'Contrato' ? 'marca' : '')}</td>
-        <td class="trunc">${esc(c.escopo)}</td>
-        <td>${esc(c.regime)}</td>
-        <td class="num mono">${num(c.quantidade) ? fmtNum(c.quantidade, 2) + ' ' + esc(c.unidade) : '—'}</td>
-        <td class="num mono">${num(c.precoUnitario) ? fmtMoney(c.precoUnitario) : '—'}</td>
+        <td><div class="ct-escopo-w"><span class="ct-escopo">${esc(c.escopo || '—')}</span>${det ? `<span class="ct-detalhe">${det}</span>` : ''}</div></td>
         <td class="num mono"><b>${fmtMoney(contratoValor(c))}</b></td>
         <td>${chip(c.status, tomStatus(c.status))}</td>
         <td class="acoes">${acoesLinha('contrato', c.id)}</td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
 
-    const tom = b.saldo < 0 ? 'critico' : b.execFinanceira > 0.9 ? 'aviso' : '';
-    return `<section class="cartao">
+    const stats = [
+      `Autorizado <b>${fmtMoney(b.autorizado, { dec: 0 })}</b>`,
+      `Pago <b>${fmtMoney(b.pago, { dec: 0 })}</b>`,
+      `Saldo <b class="${b.saldo < 0 ? 'neg' : ''}">${fmtMoney(b.saldo, { dec: 0 })}</b>`,
+      b.valorAditivos ? `Aditivos <b>${fmtMoney(b.valorAditivos, { dec: 0 })}</b>` : null,
+    ].filter(Boolean).map((s) => `<span>${s}</span>`).join('');
+
+    return `<section class="cartao ct-bloco">
       <header>
         <h3>${esc(b.base)} · ${esc(b.prestador || 'prestador não informado')}</h3>
         ${chip(b.status, tomStatus(b.status))}
+        ${b.saldo < 0 ? chip('saldo negativo', 'critico') : ''}
         <div class="dir">
           ${botao('Aditivo', 'novo-aditivo', { base: b.base }, 'btn pequeno', 'mais')}
           ${botao('Medição', 'nova-medicao', { base: b.base }, 'btn pequeno')}
         </div>
       </header>
-      <div class="corpo" style="display:flex;flex-direction:column;gap:12px">
-        <div class="grade g4" style="gap:10px">
-          ${kpi('Contrato principal', fmtMoney(b.valorPrincipal, { dec: 0 }), esc(b.escopo || ''))}
-          ${kpi('Aditivos', fmtMoney(b.valorAditivos, { dec: 0 }), `${b.aditivos.length} registro(s)`)}
-          ${kpi('Pago em medições', fmtMoney(b.pago, { dec: 0 }), `medido ${fmtMoneyCurto(b.medido)}`)}
-          ${kpi('Saldo contratual', fmtMoney(b.saldo, { dec: 0 }), `${fmtPct(b.execFinanceira, 0)} executado`, tom)}
-        </div>
+      <div class="corpo" style="display:flex;flex-direction:column;gap:10px">
+        <div class="ct-stats">${stats}<span class="ct-exec">${fmtPct(b.execFinanceira, 0)} executado</span></div>
         ${barra(b.execFinanceira, tom)}
-        <div class="tab-rolagem"><table class="tab">
-          <thead><tr><th>Código</th><th>Registro</th><th>Escopo</th><th>Regime</th>
-            <th class="num">Quantidade</th><th class="num">Preço unit.</th><th class="num">Valor</th><th>Status</th><th></th></tr></thead>
+        <div class="tab-rolagem"><table class="tab ct-tab">
+          <thead><tr><th>Código</th><th>Registro</th><th>Escopo</th><th class="num">Valor</th><th>Status</th><th></th></tr></thead>
           <tbody>${registros}</tbody>
         </table></div>
       </div>
@@ -329,18 +354,35 @@ VIEWS.contratos = () => {
   }).join('');
 
   return `<div class="grade" style="gap:16px">
-    <div class="grade g4">
-      ${kpi('Total autorizado', fmtMoney(totalAut, { dec: 0 }), `${bases.length} contrato(s) base`)}
-      ${kpi('Pago em medições', fmtMoney(totalPago, { dec: 0 }), fmtPct(totalAut ? totalPago / totalAut : 0, 0) + ' do autorizado')}
-      ${kpi('Saldo a pagar', fmtMoney(totalAut - totalPago, { dec: 0 }), 'contratos + aditivos vigentes')}
-      ${kpi('Aditivos', fmtMoney(bases.reduce((s, b) => s + b.valorAditivos, 0), { dec: 0 }),
-        fmtPct(totalAut ? bases.reduce((s, b) => s + b.valorAditivos, 0) / totalAut : 0, 0) + ' do total')}
+    <div class="hero">
+      ${kpi('Total autorizado', fmtMoney(totalAut, { dec: 0 }),
+        `${todas.length} contrato${todas.length === 1 ? '' : 's'}${totalAdit ? ` · ${fmtMoneyCurto(totalAdit)} em aditivos` : ''}`,
+        { destaque: true })}
+      ${kpi('Pago em medições', fmtMoney(totalPago, { dec: 0 }),
+        `${fmtPct(totalAut ? totalPago / totalAut : 0, 0)} do autorizado`, { destaque: true })}
+      ${kpi('Saldo a pagar', fmtMoney(saldoGeral, { dec: 0 }),
+        saldoGeral < 0 ? 'pagamento acima do contratado' : 'a medir e pagar',
+        { destaque: true, tom: saldoGeral < 0 ? 'critico' : '' })}
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap" class="nao-imprime">
-      ${botao('Novo contrato', 'novo-contrato', {}, 'btn primario', 'mais')}
-      ${botao('Novo aditivo', 'novo-aditivo', {}, 'btn', 'mais')}
+
+    <div class="filtros nao-imprime">
+      ${campoBusca('busca', 'Buscar código, escopo, prestador…')}
+      ${selectFiltro('prestador', prestadores, 'Todos os prestadores')}
+      ${selectFiltro('status', opcoesLista('statusContrato'), 'Todos os status')}
+      ${selectFiltro('regime', opcoesLista('regimes'), 'Todos os regimes')}
+      <select data-filtro="situacao" aria-label="Situação">
+        <option value="">Situação: todas</option>
+        <option value="saldo-baixo" ${f.situacao === 'saldo-baixo' ? 'selected' : ''}>Saldo baixo</option>
+        <option value="ultrapassado" ${f.situacao === 'ultrapassado' ? 'selected' : ''}>Ultrapassado</option>
+      </select>
+      <span style="margin-left:auto;display:flex;gap:8px">
+        ${botao('Novo aditivo', 'novo-aditivo', {}, 'btn pequeno', 'mais')}
+        ${botao('Novo contrato', 'novo-contrato', {}, 'btn primario pequeno', 'mais')}
+      </span>
     </div>
-    ${blocos}
+
+    ${filtrando ? `<p class="ct-contagem nao-imprime">${bases.length} de ${todas.length} contratos</p>` : ''}
+    ${blocos || vazio('Nada com esse filtro', 'Ajuste a busca ou os filtros acima.')}
   </div>`;
 };
 
