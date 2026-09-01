@@ -365,6 +365,41 @@ const SUPA = {
     if (error) throw error;
   },
 
+  /* ---------------------------------------- criar e editar cliente (admin) */
+  /* Cria a conta com signUp num cliente Supabase ISOLADO, para não trocar a
+     sessão do admin. Se a confirmação de e-mail estiver ligada no projeto, o
+     cliente recebe um link e só entra depois de confirmar. Devolve
+     { id, precisaConfirmar }. */
+  async adminCriarUsuario(email, senha) {
+    if (!this.sb || !window.supabase) throw new Error('Sistema sem conexão com o banco.');
+    const isolado = window.supabase.createClient(this.cfg.url, this.cfg.anon, {
+      auth: { persistSession: false, autoRefreshToken: false, storageKey: 'sb-souz-provisorio' }
+    });
+    const { data, error } = await isolado.auth.signUp({ email: String(email).trim(), password: senha });
+    if (error) throw error;
+    return { id: data.user && data.user.id, precisaConfirmar: !data.session };
+  },
+
+  /* Perfil completo de um cliente. Só admin lê todos (política de 0005). */
+  async adminLerPerfil(usuarioId) {
+    const { data, error } = await this.sb.from('perfis').select('*').eq('id', usuarioId).single();
+    if (error) throw error;
+    return data;
+  },
+
+  /* Admin edita os dados cadastrais de um cliente. As colunas são as mesmas
+     que o próprio cliente edita (grant de 0006); a política perfil_admin_alterar
+     deixa o admin mexer na linha de qualquer conta. */
+  async adminEditarInfo(usuarioId, campos) {
+    const linha = {};
+    ['empresa_nome', 'responsavel', 'crea_cau', 'telefone', 'email'].forEach((k) => {
+      if (campos[k] !== undefined) linha[k] = campos[k];
+    });
+    if (!Object.keys(linha).length) return;
+    const { error } = await this.sb.from('perfis').update(linha).eq('id', usuarioId);
+    if (error) throw error;
+  },
+
   /* Quantas obras a conta ainda pode criar (null = sem limite). */
   obrasRestantes(qtdAtual) {
     if (this.limiteObras == null) return null;

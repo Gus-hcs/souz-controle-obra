@@ -13,7 +13,7 @@ import {
 import {
   validarObra, validarContrato, validarMedicao, validarRecebimento,
   validarLancamento, validarMaterial, validarEtapa, validarDiario,
-  validarCliente, validarPrestador, validarMembro, validarPerfilAdmin,
+  validarCliente, validarPrestador, validarMembro, validarPerfilAdmin, validarUsuarioNovo,
   validarObraCompleta, validarEstado,
   apenasErros, apenasAlertas,
 } from '../src/dominio/validacao.js';
@@ -284,6 +284,23 @@ describe('perfil (administração)', () => {
     expect(validarPerfilAdmin({ limiteObras: null })).toEqual([]);
     expect(temErroNoCampo(validarPerfilAdmin({ limiteObras: -5 }), 'limiteObras')).toBe(true);
     expect(temErroNoCampo(validarPerfilAdmin({ limiteObras: 2.5 }), 'limiteObras')).toBe(true);
+  });
+});
+
+describe('conta nova criada pelo admin', () => {
+  it('e-mail válido e senha de 6+ passam', () => {
+    expect(validarUsuarioNovo({ email: 'cliente@empresa.com', senha: 'abc-def' })).toEqual([]);
+  });
+
+  it('recusa e-mail vazio ou malformado', () => {
+    expect(temErroNoCampo(validarUsuarioNovo({ email: '', senha: 'abcdef' }), 'email')).toBe(true);
+    expect(temErroNoCampo(validarUsuarioNovo({ email: 'semarroba', senha: 'abcdef' }), 'email')).toBe(true);
+    expect(temErroNoCampo(validarUsuarioNovo({ email: 'a@b', senha: 'abcdef' }), 'email')).toBe(true);
+  });
+
+  it('recusa senha com menos de 6 caracteres', () => {
+    expect(temErroNoCampo(validarUsuarioNovo({ email: 'c@e.com', senha: 'ab1' }), 'senha')).toBe(true);
+    expect(temErroNoCampo(validarUsuarioNovo({ email: 'c@e.com', senha: '' }), 'senha')).toBe(true);
   });
 });
 

@@ -281,6 +281,19 @@ function validarPerfilAdmin(p) {
   return out;
 }
 
+/* Conta nova criada pelo admin. auth.users é gerido pelo Supabase, então
+   isto não vira CHECK — o próprio Supabase recusa e-mail inválido e senha
+   curta. Aqui é só para não gastar uma chamada à toa. */
+function validarUsuarioNovo(u) {
+  const out = [];
+  const email = String(u.email || '').trim();
+  if (!email) out.push(problema('email', 'Informe o e-mail do cliente.'));
+  else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) out.push(problema('email', 'E-mail inválido.'));
+  const senha = String(u.senha || '');
+  if (senha.length < 6) out.push(problema('senha', 'A senha provisória precisa de pelo menos 6 caracteres.'));
+  return out;
+}
+
 /* filtra só o que bloqueia gravação */
 const apenasErros = (lista) => (lista || []).filter((x) => x.sev === 'erro');
 const apenasAlertas = (lista) => (lista || []).filter((x) => x.sev === 'alerta');
@@ -298,6 +311,7 @@ export {
   validarPrestador,
   validarMembro,
   validarPerfilAdmin,
+  validarUsuarioNovo,
   validarObraCompleta,
   validarEstado,
   apenasErros,

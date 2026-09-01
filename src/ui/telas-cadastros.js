@@ -3,7 +3,7 @@
  */
 import { esc, fmtData, fmtDataCurta, fmtMoney, fmtPct, hojeISO, norm, num, PLANOS } from '../nucleo/base.js';
 import { alertasObra, basesContratuais, contratoValor, etapaCalc, kpisObra } from '../dominio/calculos.js';
-import { apenasErros, validarPerfilAdmin } from '../dominio/validacao.js';
+import { apenasErros, validarPerfilAdmin, validarUsuarioNovo } from '../dominio/validacao.js';
 import { Store, horaCurta } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { App, abrirModal, acoesLinha, botao, campoBusca, campoHTML, cartao, chip, confirmar, fecharModal, filtraTexto, ICO, kpi, MENU, nomeCliente, svg, toast, tomSituacao, vazio } from './shell.js';
@@ -304,7 +304,7 @@ VIEWS.admin = () => {
       <td class="num">${l.lancamentos}</td>
       <td class="num">${l.fotos}</td>
       <td>${quandoRelativo(l.ultima_atividade)}</td>
-      <td>${botao(acessoTxt, 'admin-acesso', { id: l.usuario_id }, 'btn sutil pequeno')}</td>
+      <td>${botao(acessoTxt || 'editar', 'admin-editar', { id: l.usuario_id }, 'btn sutil pequeno', 'lapis')}</td>
       <td class="acoes" style="opacity:1">
         ${l.eh_admin ? '' : botao(l.bloqueado ? 'liberar' : 'bloquear', 'admin-bloquear',
           { id: l.usuario_id, para: l.bloqueado ? '0' : '1' }, l.bloqueado ? 'btn pequeno' : 'btn perigo pequeno')}
@@ -325,7 +325,7 @@ VIEWS.admin = () => {
           <th>Cliente</th><th>Plano</th>
           <th class="num">Obras</th><th class="num">Contr.</th><th class="num">Medições</th>
           <th class="num">Lançam.</th><th class="num">Fotos</th>
-          <th>Última atividade</th><th>Acesso e limites</th><th></th>
+          <th>Última atividade</th><th>Editar</th><th></th>
         </tr></thead>
         <tbody>${vis.map(linhaHTML).join('') || `<tr><td colspan="10">${vazio('Nenhum cliente', 'Ainda não há contas cadastradas além da sua.')}</td></tr>`}</tbody>
       </table></div>`, {
@@ -333,10 +333,19 @@ VIEWS.admin = () => {
       acoes: `<div class="filtros">
         ${campoBusca('busca', 'Buscar por e-mail ou empresa…')}
         ${botao('Atualizar', 'admin-recarregar', {}, 'btn sutil pequeno')}
+        ${botao('Novo cliente', 'admin-novo', {}, 'btn primario pequeno', 'mais')}
       </div>`,
     })}
   </div>`;
 };
+
+/* senha provisória legível: 3 blocos de 3 (letras sem ambíguas + dígitos) */
+function senhaProvisoria() {
+  const abc = 'abcdefghijkmnpqrstuvwxyz23456789';
+  let s = '';
+  for (let i = 0; i < 9; i++) s += abc[Math.floor(Math.random() * abc.length)];
+  return `${s.slice(0, 3)}-${s.slice(3, 6)}-${s.slice(6, 9)}`;
+}
 
 /* ---------------------------------------------------- ações do admin */
 ACOES['admin-recarregar'] = () => { carregarConsumo(true); App.renderConteudo(); };
@@ -372,25 +381,56 @@ ACOES['admin-bloquear'] = (el, d) => {
     bloquear ? 'Bloquear' : 'Liberar');
 };
 
-ACOES['admin-acesso'] = (el, d) => {
+ACOES['admin-editar'] = async (el, d) => {
   const alvo = (Admin.linhas || []).find((l) => l.usuario_id === d.id);
   if (!alvo) return;
+  if (el) { el.disabled = true; }
+  let perfil = {};
+  try {
+    perfil = await SUPA.adminLerPerfil(d.id);
+  } catch (e) {
+    toast('Não foi possível abrir o cadastro: ' + ((e && e.message) || e), 'critico', 6000);
+    return;
+  } finally {
+    if (el) { el.disabled = false; }
+  }
   const abas = (alvo.abas && typeof alvo.abas === 'object') ? alvo.abas : {};
   const lim = alvo.limite_obras == null ? '' : Number(alvo.limite_obras);
+  const v = (x) => esc(perfil[x] || '');
   abrirModal({
-    titulo: 'Acesso e limites',
-    largura: 'estreito',
-    corpo: `<p style="margin:0 0 14px;font-size:12.5px;color:var(--mudo)">
-        ${esc(alvo.empresa || alvo.email || '')}
-      </p>
-      <div class="campo" style="margin-bottom:16px">
-        <label for="adm_lim">Limite de obras</label>
-        <input type="number" id="adm_lim" min="0" value="${lim}" placeholder="sem limite" style="max-width:160px">
-        <span class="dica">Vazio = sem limite. O cliente tem ${alvo.obras} obra(s) hoje.</span>
+    titulo: 'Editar cliente',
+    corpo: `
+      <p style="margin:0 0 14px;font-size:12px;color:var(--mudo)">${esc(alvo.email || '')}</p>
+
+      <div class="secao-form"><span class="rotulo">Dados da empresa</span></div>
+      <div class="form-grade">
+        <div class="campo c8"><label for="adm_emp">Empresa</label>
+          <input type="text" id="adm_emp" value="${v('empresa_nome')}"></div>
+        <div class="campo c4"><label for="adm_crea">CREA / CAU</label>
+          <input type="text" id="adm_crea" value="${v('crea_cau')}"></div>
+        <div class="campo c6"><label for="adm_resp">Responsável</label>
+          <input type="text" id="adm_resp" value="${v('responsavel')}"></div>
+        <div class="campo c6"><label for="adm_tel">Telefone</label>
+          <input type="text" id="adm_tel" value="${v('telefone')}"></div>
+        <div class="campo c12"><label for="adm_email">E-mail de contato</label>
+          <input type="text" id="adm_email" value="${v('email')}">
+          <span class="dica">Só o dado do cadastro. O e-mail de login não muda por aqui.</span></div>
       </div>
+
+      <div class="secao-form"><span class="rotulo">Plano e limites</span></div>
+      <div class="form-grade">
+        <div class="campo c6"><label for="adm_plano">Plano</label>
+          <select id="adm_plano">
+            ${PLANOS.map((p) => `<option value="${p}" ${p === alvo.plano ? 'selected' : ''}>${p}</option>`).join('')}
+          </select></div>
+        <div class="campo c6"><label for="adm_lim">Limite de obras</label>
+          <input type="number" id="adm_lim" min="0" value="${lim}" placeholder="sem limite">
+          <span class="dica">Vazio = sem limite. Tem ${alvo.obras} obra(s) hoje.</span></div>
+      </div>
+
       <div class="secao-form"><span class="rotulo">Abas liberadas</span></div>
       <p style="margin:4px 0 10px;font-size:12px;color:var(--mudo)">Desmarque o que este cliente <b>não</b> deve ver.</p>
-      <div style="display:flex;flex-direction:column;gap:7px">
+      <div style="display:flex;flex-wrap:wrap;gap:7px 18px">
         ${ABAS_CONTROLAVEIS.map((it) => `
           <label style="display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer">
             <input type="checkbox" data-aba="${it.v}" ${abas[it.v] === false ? '' : 'checked'} style="width:auto">
@@ -398,20 +438,86 @@ ACOES['admin-acesso'] = (el, d) => {
           </label>`).join('')}
       </div>`,
     rodape: `<button class="btn" data-acao="fechar-modal">Cancelar</button>
-             <button class="btn primario" data-acao="admin-salvar-acesso" data-id="${d.id}">Salvar</button>`,
+             <button class="btn primario" data-acao="admin-salvar-editar" data-id="${d.id}">Salvar</button>`,
   });
 };
 
-ACOES['admin-salvar-acesso'] = (el, d) => {
+ACOES['admin-salvar-editar'] = (el, d) => {
+  const val = (id) => (document.getElementById(id)?.value || '').trim();
+  const info = {
+    empresa_nome: val('adm_emp'),
+    crea_cau: val('adm_crea'),
+    responsavel: val('adm_resp'),
+    telefone: val('adm_tel'),
+    email: val('adm_email'),
+  };
   const abas = {};
   document.querySelectorAll('#modal-camada [data-aba]').forEach((c) => {
     if (!c.checked) abas[c.dataset.aba] = false;
   });
-  const campoLim = document.getElementById('adm_lim');
-  const bruto = campoLim ? campoLim.value.trim() : '';
+  const plano = val('adm_plano');
+  const bruto = val('adm_lim');
   const limiteObras = bruto === '' ? -1 : Number(bruto);
-  const probs = apenasErros(validarPerfilAdmin({ abas, limiteObras }));
+  const probs = apenasErros(validarPerfilAdmin({ plano, abas, limiteObras }));
   if (probs.length) return toast(probs[0].mensagem, 'critico');
   fecharModal();
-  admChamar(() => SUPA.adminSalvarPerfil(d.id, { abas, limiteObras }), 'Acesso e limites atualizados.');
+  admChamar(async () => {
+    await SUPA.adminEditarInfo(d.id, info);
+    await SUPA.adminSalvarPerfil(d.id, { plano, abas, limiteObras });
+  }, 'Cadastro atualizado.');
+};
+
+ACOES['admin-novo'] = () => {
+  abrirModal({
+    titulo: 'Novo cliente',
+    largura: 'estreito',
+    corpo: `
+      <p style="margin:0 0 14px;font-size:12.5px;color:var(--mudo)">
+        Cria a conta de acesso. O cliente entra com este e-mail e a senha provisória,
+        e troca a senha depois em <b>Ajustes</b>. Se a confirmação de e-mail estiver
+        ligada no Supabase, ele recebe um link antes do primeiro acesso.
+      </p>
+      <div class="form-grade">
+        <div class="campo c12"><label for="adm_novo_email">E-mail de acesso</label>
+          <input type="email" id="adm_novo_email" autocomplete="off" placeholder="cliente@empresa.com"></div>
+        <div class="campo c12"><label for="adm_novo_senha">Senha provisória</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="adm_novo_senha" autocomplete="off" value="${senhaProvisoria()}">
+            ${botao('Gerar', 'admin-gerar-senha', {}, 'btn pequeno')}
+          </div>
+          <span class="dica">Anote e passe ao cliente. Mínimo 6 caracteres.</span></div>
+        <div class="campo c12"><label for="adm_novo_emp">Empresa (opcional)</label>
+          <input type="text" id="adm_novo_emp" placeholder="nome que aparece nos relatórios"></div>
+      </div>`,
+    rodape: `<button class="btn" data-acao="fechar-modal">Cancelar</button>
+             <button class="btn primario" data-acao="admin-criar">Criar conta</button>`,
+  });
+};
+
+ACOES['admin-gerar-senha'] = () => {
+  const inp = document.getElementById('adm_novo_senha');
+  if (inp) inp.value = senhaProvisoria();
+};
+
+ACOES['admin-criar'] = async (el) => {
+  const email = (document.getElementById('adm_novo_email')?.value || '').trim();
+  const senha = document.getElementById('adm_novo_senha')?.value || '';
+  const empresa = (document.getElementById('adm_novo_emp')?.value || '').trim();
+  const probs = apenasErros(validarUsuarioNovo({ email, senha }));
+  if (probs.length) return toast(probs[0].mensagem, 'critico');
+  if (el) el.disabled = true;
+  try {
+    const r = await SUPA.adminCriarUsuario(email, senha);
+    if (empresa && r.id) {
+      try { await SUPA.adminEditarInfo(r.id, { empresa_nome: empresa }); } catch (e) { /* perfil propagando */ }
+    }
+    fecharModal();
+    toast(r.precisaConfirmar
+      ? `Conta criada. ${email} precisa confirmar o e-mail antes de entrar. Senha provisória: ${senha}`
+      : `Conta criada. ${email} já entra com a senha provisória: ${senha}`, 'ok', 14000);
+    carregarConsumo(true);
+  } catch (e) {
+    if (el) el.disabled = false;
+    toast('Não foi possível criar a conta: ' + ((e && e.message) || e), 'critico', 7000);
+  }
 };
