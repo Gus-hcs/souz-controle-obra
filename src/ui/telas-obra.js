@@ -657,55 +657,98 @@ VIEWS.recebimentos = () => {
 /* ======================================================== LANÇAMENTOS */
 VIEWS.lancamentos = () => {
   const o = App.obra();
-  let lista = o.lancamentos.slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
-  if (App.filtros.tipo) lista = lista.filter((l) => l.tipo === App.filtros.tipo);
-  if (App.filtros.etapa) lista = lista.filter((l) => l.etapa === App.filtros.etapa);
-  if (App.filtros.mes) lista = lista.filter((l) => competencia(l.data) === App.filtros.mes);
-  lista = filtraTexto(lista, App.filtros.busca, ['descricao', 'fornecedor', 'documento', 'categoria']);
+  const f = App.filtros;
 
+  const todos = o.lancamentos;
+  const totGeral = todos.reduce((s, l) => s + lancamentoTotal(l), 0);
+  const totMat = todos.filter((l) => l.tipo === 'Material').reduce((s, l) => s + lancamentoTotal(l), 0);
+  const semEtapa = todos.filter((l) => !l.etapa);
+  const fornecedores = [...new Set(todos.map((l) => l.fornecedor).filter(Boolean))].sort();
+  const meses = [...new Set(todos.map((l) => competencia(l.data)).filter(Boolean))].sort().reverse();
+
+  /* ---------------------------------------------------------- filtros */
+  const busca = norm(f.busca || '');
+  let lista = todos.slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  if (f.tipo) lista = lista.filter((l) => l.tipo === f.tipo);
+  if (f.etapa) lista = lista.filter((l) => l.etapa === f.etapa);
+  if (f.fornecedor) lista = lista.filter((l) => l.fornecedor === f.fornecedor);
+  if (f.mes) lista = lista.filter((l) => competencia(l.data) === f.mes);
+  if (f.situacao === 'plano') lista = lista.filter((l) => l.materialId);
+  if (f.situacao === 'avulso') lista = lista.filter((l) => !l.materialId);
+  if (f.situacao === 'sem-etapa') lista = lista.filter((l) => !l.etapa);
+  if (busca) lista = filtraTexto(lista, f.busca, ['descricao', 'fornecedor', 'documento', 'categoria']);
+
+  const filtrando = lista.length !== todos.length;
   const total = lista.reduce((s, l) => s + lancamentoTotal(l), 0);
-  const meses = [...new Set(o.lancamentos.map((l) => competencia(l.data)).filter(Boolean))].sort().reverse();
 
   const porTipo = {};
   lista.forEach((l) => { porTipo[l.tipo || '—'] = (porTipo[l.tipo || '—'] || 0) + lancamentoTotal(l); });
 
-  const linhas = lista.map((l) => `<tr>
-    <td class="mono">${fmtDataCurta(l.data)}</td>
-    <td>${chip(l.tipo, l.tipo === 'Material' ? 'marca' : '')}</td>
-    <td>${esc(l.etapa || '—')}</td>
-    <td class="trunc">${esc(l.descricao)}${l.materialId ? ' <span class="chip" style="font-size:10px">plano</span>' : ''}</td>
-    <td class="trunc">${esc(l.fornecedor || '—')}</td>
-    <td class="num mono">${fmtNum(l.quantidade, 2)} ${esc(l.unidade)}</td>
-    <td class="num mono"><b>${fmtMoney(lancamentoTotal(l))}</b></td>
-    <td class="acoes">${acoesLinha('lancamento', l.id)}</td>
-  </tr>`).join('');
+  const linhas = lista.map((l) => {
+    const sub = [
+      l.fornecedor ? esc(l.fornecedor) : null,
+      l.etapa ? esc(l.etapa) : null,
+      num(l.quantidade) && num(l.quantidade) !== 1 ? `${fmtNum(l.quantidade, 2)} ${esc(l.unidade)} × ${fmtMoney(l.precoUnitario)}` : null,
+      l.documento ? esc(l.documento) : null,
+    ].filter(Boolean).join(' · ');
+    return `<tr>
+      <td class="mono" style="white-space:nowrap">${fmtDataCurta(l.data)}</td>
+      <td>${chip(l.tipo, l.tipo === 'Material' ? 'marca' : '')}</td>
+      <td><div class="ct-escopo-w"><span>${esc(l.descricao || '—')}${l.materialId ? ' <span class="chip" style="font-size:10px">plano</span>' : ''}</span>${sub ? `<span class="ct-detalhe">${sub}</span>` : ''}</div></td>
+      <td class="num mono"><b>${fmtMoney(lancamentoTotal(l))}</b></td>
+      <td class="acoes">${acoesLinha('lancamento', l.id)}</td>
+    </tr>`;
+  }).join('');
 
   return `<div class="grade" style="gap:16px">
+    <div class="hero">
+      ${kpi('Total lançado', fmtMoney(totGeral, { dec: 0 }),
+        `${todos.length} lançamento${todos.length === 1 ? '' : 's'}`, { destaque: true })}
+      ${kpi('Compras de material', fmtMoney(totMat, { dec: 0 }),
+        totGeral ? `${fmtPct(totMat / totGeral, 0)} do total` : 'taxas, honorários e serviços à parte', { destaque: true })}
+      ${kpi('Sem etapa classificada', semEtapa.length,
+        semEtapa.length ? `${fmtMoney(semEtapa.reduce((s, l) => s + lancamentoTotal(l), 0), { dec: 0 })} sem rateio` : 'tudo classificado',
+        { destaque: true, tom: semEtapa.length ? 'aviso' : 'ok' })}
+    </div>
+
     ${cartao('Saídas lançadas', `
       <div class="tab-rolagem"><table class="tab">
-        <thead><tr><th>Data</th><th>Tipo</th><th>Etapa</th><th>Descrição</th><th>Fornecedor</th>
-          <th class="num">Qtde</th><th class="num">Total</th><th></th></tr></thead>
-        <tbody>${linhas || `<tr><td colspan="8">${vazio('Nenhum lançamento', 'Registre aqui compras de material, taxas, honorários e serviços sem medição.', botao('Novo lançamento', 'novo-lancamento', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
-        ${lista.length ? `<tfoot><tr><td colspan="5">${lista.length} lançamento(s)</td>
-          <td></td><td class="num mono">${fmtMoney(total)}</td><td></td></tr></tfoot>` : ''}
+        <thead><tr><th>Data</th><th>Tipo</th><th>Descrição</th><th class="num">Total</th><th></th></tr></thead>
+        <tbody>${linhas || `<tr><td colspan="5">${vazio(
+          filtrando ? 'Nada com esse filtro' : 'Nenhum lançamento',
+          filtrando ? 'Ajuste a busca ou os filtros acima.' : 'Registre aqui compras de material, taxas, honorários e serviços sem medição.',
+          filtrando ? '' : botao('Novo lançamento', 'novo-lancamento', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
+        ${lista.length ? `<tfoot><tr><td colspan="3">${lista.length} lançamento(s)${filtrando ? ` de ${todos.length}` : ''}</td>
+          <td class="num mono">${fmtMoney(total)}</td><td></td></tr></tfoot>` : ''}
       </table></div>`, {
       semPadding: true,
       acoes: `<div class="filtros">
-        ${campoBusca('busca', 'Buscar descrição, fornecedor…')}
+        ${campoBusca('busca', 'Buscar descrição, fornecedor, doc…')}
         ${selectFiltro('tipo', opcoesLista('tiposSaida'), 'Todos os tipos')}
         ${selectFiltro('etapa', opcoesEtapas(), 'Todas as etapas')}
-        ${selectFiltro('mes', meses, 'Todos os meses')}
-        ${botao('Novo lançamento', 'novo-lancamento', {}, 'btn primario pequeno', 'mais')}
+        ${fornecedores.length > 1 ? selectFiltro('fornecedor', fornecedores, 'Todos os fornecedores') : ''}
+        <select data-filtro="situacao" aria-label="Situação">
+          <option value="">Situação: todas</option>
+          <option value="plano" ${f.situacao === 'plano' ? 'selected' : ''}>Do plano de materiais</option>
+          <option value="avulso" ${f.situacao === 'avulso' ? 'selected' : ''}>Avulsos</option>
+          <option value="sem-etapa" ${f.situacao === 'sem-etapa' ? 'selected' : ''}>Sem etapa</option>
+        </select>
+        ${meses.length > 1 ? `<select data-filtro="mes" aria-label="Mês">
+          <option value="">Todos os meses</option>
+          ${meses.map((ym) => `<option value="${ym}" ${f.mes === ym ? 'selected' : ''}>${fmtCompetencia(ym)}</option>`).join('')}
+        </select>` : ''}
+        <span style="margin-left:auto">${botao('Novo lançamento', 'novo-lancamento', {}, 'btn primario pequeno', 'mais')}</span>
       </div>`
     })}
+
     ${lista.length ? `<div class="grade g2">
       ${cartao('Por tipo de saída', graficoBarras(
-        Object.entries(porTipo).map(([rotulo, valor]) => ({ rotulo, valor }))))}
+        Object.entries(porTipo).map(([rotulo, valor]) => ({ rotulo, valor })), { formata: (v) => fmtMoneyCurto(v) }))}
       ${cartao('Por etapa', graficoBarras(
         Object.entries(lista.reduce((a, l) => {
-          const e = l.etapa || 'Não classificado';
+          const e = l.etapa || 'Sem etapa';
           a[e] = (a[e] || 0) + lancamentoTotal(l); return a;
-        }, {})).map(([rotulo, valor]) => ({ rotulo, valor })), { limite: 10 }))}
+        }, {})).map(([rotulo, valor]) => ({ rotulo, valor })), { limite: 10, formata: (v) => fmtMoneyCurto(v) }))}
     </div>` : ''}
   </div>`;
 };
