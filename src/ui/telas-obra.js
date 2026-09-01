@@ -538,22 +538,50 @@ VIEWS.medicoes = () => {
 /* ======================================================= RECEBIMENTOS */
 VIEWS.recebimentos = () => {
   const o = App.obra();
+  const f = App.filtros;
+  const k = kpisObra(o);
+  const hoje = hojeISO();
+
+  const naoRecebido = (r) => r.status !== 'Recebido' && r.status !== 'Cancelado';
+  const atrasada = (r) => naoRecebido(r) && isISO(r.dataPrevista) && r.dataPrevista < hoje;
+
+  const meses = [...new Set(o.recebimentos.map((r) => competencia(r.dataPrevista)).filter(Boolean))].sort();
+  const tDescontos = o.recebimentos.reduce((s, r) => s + num(r.descontos), 0);
+  const difGeral = o.recebimentos.reduce((s, r) => s + recebimentoDiferenca(r), 0);
+  const atrasadas = o.recebimentos.filter(atrasada);
+  const totAtrasado = atrasadas.reduce((s, r) => s + num(r.valorPrevisto), 0);
+  const pendentes = o.recebimentos.filter(naoRecebido);
+
+  /* ---------------------------------------------------------- filtros */
+  const busca = norm(f.busca || '');
   let lista = o.recebimentos.slice().sort((a, b) =>
     String(a.dataPrevista || a.dataRecebimento).localeCompare(String(b.dataPrevista || b.dataRecebimento)));
-  if (App.filtros.status) lista = lista.filter((r) => r.status === App.filtros.status);
-  if (App.filtros.origem) lista = lista.filter((r) => r.origem === App.filtros.origem);
+  if (f.origem) lista = lista.filter((r) => r.origem === f.origem);
+  if (f.status) lista = lista.filter((r) => r.status === f.status);
+  if (f.mes) lista = lista.filter((r) => competencia(r.dataPrevista) === f.mes);
+  if (f.situacao === 'receber') lista = lista.filter(naoRecebido);
+  if (f.situacao === 'recebidas') lista = lista.filter((r) => r.status === 'Recebido' || r.status === 'Recebido parcial');
+  if (f.situacao === 'atrasadas') lista = lista.filter(atrasada);
+  if (busca) lista = lista.filter((r) => norm(`${r.origem} ${r.etapaPci} ${r.numeroMedicao} ${r.observacoes}`).includes(busca));
 
+  const filtrando = lista.length !== o.recebimentos.length;
   const tPrev = lista.reduce((s, r) => s + num(r.valorPrevisto), 0);
   const tRec = lista.reduce((s, r) => s + num(r.valorRecebido), 0);
-  const k = kpisObra(o);
 
   const linhas = lista.map((r) => {
     const dif = recebimentoDiferenca(r);
-    const atrasado = r.status !== 'Recebido' && r.status !== 'Cancelado' && isISO(r.dataPrevista) && r.dataPrevista < hojeISO();
+    const atr = atrasada(r);
+    const dias = atr ? diasEntre(r.dataPrevista, hoje) : 0;
+    const sub1 = [
+      r.numeroMedicao ? `nº ${esc(r.numeroMedicao)}` : null,
+      isISO(r.dataSolicitacao) ? `solic. ${fmtDataCurta(r.dataSolicitacao)}` : null,
+    ].filter(Boolean).join(' · ');
+    const dataSub = r.status === 'Recebido' && isISO(r.dataRecebimento) ? `recebido ${fmtDataCurta(r.dataRecebimento)}`
+      : atr ? `${dias} dia${dias === 1 ? '' : 's'} de atraso` : 'aguardando';
     return `<tr>
       <td>${chip(r.origem, r.origem === 'CAIXA' ? 'marca' : '')}</td>
-      <td class="trunc">${esc(r.numeroMedicao ? 'nº ' + r.numeroMedicao + ' · ' : '')}${esc(r.etapaPci || '—')}</td>
-      <td class="mono ${atrasado ? 'neg' : ''}">${fmtDataCurta(r.dataPrevista)}</td>
+      <td><div class="ct-escopo-w"><span>${esc(r.etapaPci || '—')}</span>${sub1 ? `<span class="ct-detalhe">${sub1}</span>` : ''}</div></td>
+      <td class="mono" style="white-space:nowrap"><div class="ct-escopo-w"><span class="${atr ? 'neg' : ''}">${fmtDataCurta(r.dataPrevista)}</span><span class="ct-detalhe ${atr ? 'neg' : ''}">${dataSub}</span></div></td>
       <td class="num mono">${fmtMoney(r.valorPrevisto)}</td>
       <td class="num mono"><b>${fmtMoney(r.valorRecebido)}</b></td>
       <td class="num mono ${dif < -0.005 ? 'neg' : dif > 0.005 ? 'pos' : ''}">${Math.abs(dif) < 0.005 ? '—' : fmtMoney(dif)}</td>
@@ -562,30 +590,67 @@ VIEWS.recebimentos = () => {
     </tr>`;
   }).join('');
 
+  const porMes = meses.map((ym) => ({
+    rotulo: fmtCompetencia(ym),
+    valor: round2(o.recebimentos
+      .filter((r) => naoRecebido(r) && competencia(r.dataPrevista) === ym)
+      .reduce((s, r) => s + num(r.valorPrevisto), 0)),
+  })).filter((x) => x.valor > 0.005);
+
+  const contexto = [
+    tDescontos > 0.005 ? `descontos e tarifas retidos <b>${fmtMoney(tDescontos, { dec: 0 })}</b>` : null,
+    Math.abs(difGeral) > 0.005 ? `diferença acumulada previsto × recebido <b>${fmtMoney(difGeral, { dec: 0 })}</b>` : null,
+  ].filter(Boolean).join(' · ');
+
   return `<div class="grade" style="gap:16px">
-    <div class="grade g4">
-      ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }), `de ${fmtMoney(k.financiado, { dec: 0 })} financiados`)}
-      ${kpi('A receber (previsto)', fmtMoney(k.previstoNaoRecebido, { dec: 0 }), 'parcelas não creditadas')}
-      ${kpi('Descontos e tarifas', fmtMoney(o.recebimentos.reduce((s, r) => s + num(r.descontos), 0), { dec: 0 }), 'retidos na liberação')}
-      ${kpi('Diferença previsto x recebido', fmtMoney(tRec - tPrev, { dec: 0 }), 'no conjunto das parcelas', tRec - tPrev < 0 ? 'aviso' : 'ok')}
+    <div class="hero">
+      ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }),
+        k.financiado ? `${fmtPct(k.recebido / k.financiado, 0)} de ${fmtMoney(k.financiado, { dec: 0 })} financiados` : 'financiamento, cliente e próprios',
+        { destaque: true })}
+      ${kpi('A receber', fmtMoney(k.previstoNaoRecebido, { dec: 0 }),
+        `${pendentes.length} parcela${pendentes.length === 1 ? '' : 's'} pendente${pendentes.length === 1 ? '' : 's'}`,
+        { destaque: true, tom: atrasadas.length ? 'aviso' : '' })}
+      ${kpi('Atrasadas', atrasadas.length,
+        atrasadas.length ? `${fmtMoney(totAtrasado, { dec: 0 })} previstos sem crédito` : 'nenhuma parcela vencida',
+        { destaque: true, tom: atrasadas.length ? 'critico' : 'ok' })}
     </div>
+    ${contexto ? `<p class="ct-contagem">${contexto}</p>` : ''}
+
     ${cartao('Cronograma de recebimentos', `
       <div class="tab-rolagem"><table class="tab">
         <thead><tr><th>Origem</th><th>Etapa / medição</th><th>Previsto p/</th>
           <th class="num">Previsto</th><th class="num">Recebido</th><th class="num">Diferença</th><th>Status</th><th></th></tr></thead>
-        <tbody>${linhas || `<tr><td colspan="8">${vazio('Nenhum recebimento', 'Cadastre as parcelas previstas de financiamento ou do cliente e atualize o que foi efetivamente creditado.', botao('Nova parcela', 'novo-recebimento', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
-        ${lista.length ? `<tfoot><tr><td colspan="3">${lista.length} parcela(s)</td>
+        <tbody>${linhas || `<tr><td colspan="8">${vazio(
+          filtrando ? 'Nada com esse filtro' : 'Nenhum recebimento',
+          filtrando ? 'Ajuste a busca ou os filtros acima.' : 'Cadastre as parcelas previstas de financiamento ou do cliente e atualize o que foi efetivamente creditado.',
+          filtrando ? '' : botao('Nova parcela', 'novo-recebimento', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
+        ${lista.length ? `<tfoot><tr><td colspan="3">${lista.length} parcela(s)${filtrando ? ` de ${o.recebimentos.length}` : ''}</td>
           <td class="num mono">${fmtMoney(tPrev)}</td>
           <td class="num mono">${fmtMoney(tRec)}</td>
           <td class="num mono ${tRec - tPrev < 0 ? 'neg' : ''}">${fmtMoney(tRec - tPrev)}</td><td colspan="2"></td></tr></tfoot>` : ''}
       </table></div>`, {
       semPadding: true,
       acoes: `<div class="filtros">
+        ${campoBusca('busca', 'Buscar etapa, nº, observação…')}
         ${selectFiltro('origem', opcoesLista('origensRecebimento'), 'Todas as origens')}
         ${selectFiltro('status', opcoesLista('statusRecebimento'), 'Todos os status')}
-        ${botao('Nova parcela', 'novo-recebimento', {}, 'btn primario pequeno', 'mais')}
+        <select data-filtro="situacao" aria-label="Situação">
+          <option value="">Situação: todas</option>
+          <option value="receber" ${f.situacao === 'receber' ? 'selected' : ''}>A receber</option>
+          <option value="recebidas" ${f.situacao === 'recebidas' ? 'selected' : ''}>Recebidas</option>
+          <option value="atrasadas" ${f.situacao === 'atrasadas' ? 'selected' : ''}>Atrasadas</option>
+        </select>
+        ${meses.length > 1 ? `<select data-filtro="mes" aria-label="Mês previsto">
+          <option value="">Todos os meses</option>
+          ${meses.map((ym) => `<option value="${ym}" ${f.mes === ym ? 'selected' : ''}>${fmtCompetencia(ym)}</option>`).join('')}
+        </select>` : ''}
+        <span style="margin-left:auto">${botao('Nova parcela', 'novo-recebimento', {}, 'btn primario pequeno', 'mais')}</span>
       </div>`
     })}
+
+    ${porMes.length > 1
+      ? cartao('A receber por mês previsto', graficoBarras(porMes, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--s1)' }))
+      : ''}
   </div>`;
 };
 
