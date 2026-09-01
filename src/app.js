@@ -57,6 +57,13 @@ document.addEventListener('keydown', (ev) => {
     ev.preventDefault();
     ACOES['salvar-form']();
   }
+  /* elementos com role="button" respondem a Enter/Espaço como um botão */
+  if ((ev.key === 'Enter' || ev.key === ' ') &&
+      ev.target.getAttribute && ev.target.getAttribute('role') === 'button' &&
+      ev.target.dataset.acao) {
+    ev.preventDefault();
+    ev.target.click();
+  }
 });
 
 document.getElementById('modal-camada').addEventListener('mousedown', (ev) => {

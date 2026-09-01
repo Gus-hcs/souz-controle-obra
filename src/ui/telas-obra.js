@@ -5,10 +5,23 @@ import { competencia, diasEntre, esc, fmtCompetencia, fmtData, fmtDataCurta, fmt
 import { alertasObra, basesContratuais, contratoValor, curvaS, etapaCalc, fluxoCaixa, fluxoCarteira, kpisCarteira, kpisObra, lancamentoTotal, materialCalc, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca } from '../dominio/calculos.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
-import { anel, App, acoesLinha, barra, botao, campoBusca, campoHTML, cartao, chip, filtraTexto, kpi, nomeCliente, opcoesEtapas, opcoesLista, selectFiltro, sparkline, tomSituacao, tomStatus, vazio } from './shell.js';
+import { anel, App, acoesLinha, barra, botao, campoBusca, campoHTML, cartao, chip, filtraTexto, ICO, kpi, nomeCliente, opcoesEtapas, opcoesLista, selectFiltro, sparkline, svg, tomSituacao, tomStatus, vazio } from './shell.js';
 import { graficoBarras, graficoCurvaS, graficoFluxo, graficoFluxoCarteira, graficoGantt } from '../graficos/index.js';
 
 const VIEWS = {};
+
+/* contratos-base expandidos na tela de contratos (persiste entre re-renders).
+   As ações ct-toggle / ct-todos ficam em acoes.js. */
+const contratosAbertos = new Set();
+
+/* prazo previsto de um registro de contrato, com aviso de atraso */
+function prazoRegistro(c) {
+  if (!c || (!isISO(c.inicioPrevisto) && !isISO(c.fimPrevisto))) return { texto: '', atrasado: false };
+  const ini = isISO(c.inicioPrevisto) ? fmtDataCurta(c.inicioPrevisto) : '?';
+  const fim = isISO(c.fimPrevisto) ? fmtDataCurta(c.fimPrevisto) : '?';
+  const atrasado = isISO(c.fimPrevisto) && c.fimPrevisto < hojeISO() && c.status !== 'Concluído' && c.status !== 'Cancelado';
+  return { texto: `${ini} → ${fim}`, atrasado };
+}
 
 /* ==================================================== CARTEIRA (todas) */
 VIEWS.carteira = () => {
@@ -307,18 +320,24 @@ VIEWS.contratos = () => {
     return true;
   });
   const filtrando = bases.length !== todas.length;
+  const soUm = bases.length === 1;
 
   const blocos = bases.map((b) => {
+    const aberto = soUm || contratosAbertos.has(b.base);
     const tom = b.saldo < 0 ? 'critico' : b.execFinanceira > 0.9 ? 'aviso' : '';
+    const prazo = prazoRegistro(b.principal);
+
     const registros = b.registros.map((c) => {
       const det = [
         esc(c.regime),
         num(c.quantidade) ? `${fmtNum(c.quantidade, 2)} ${esc(c.unidade)} × ${fmtMoney(c.precoUnitario)}` : null
       ].filter(Boolean).join(' · ');
+      const pr = prazoRegistro(c);
       return `<tr>
         <td class="mono">${esc(c.codigo)}</td>
         <td>${chip(c.registro, c.registro === 'Contrato' ? 'marca' : '')}</td>
         <td><div class="ct-escopo-w"><span class="ct-escopo">${esc(c.escopo || '—')}</span>${det ? `<span class="ct-detalhe">${det}</span>` : ''}</div></td>
+        <td class="mono ${pr.atrasado ? 'neg' : ''}" style="white-space:nowrap">${pr.texto || '—'}</td>
         <td class="num mono"><b>${fmtMoney(contratoValor(c))}</b></td>
         <td>${chip(c.status, tomStatus(c.status))}</td>
         <td class="acoes">${acoesLinha('contrato', c.id)}</td>
@@ -332,24 +351,27 @@ VIEWS.contratos = () => {
       b.valorAditivos ? `Aditivos <b>${fmtMoney(b.valorAditivos, { dec: 0 })}</b>` : null,
     ].filter(Boolean).map((s) => `<span>${s}</span>`).join('');
 
-    return `<section class="cartao ct-bloco">
-      <header>
+    return `<section class="cartao ct-bloco ${aberto ? 'aberto' : ''}">
+      <div class="ct-cab" ${soUm ? '' : `data-acao="ct-toggle" data-base="${esc(b.base)}" role="button" tabindex="0" aria-expanded="${aberto}"`}>
+        <span class="ct-chev" aria-hidden="true">${soUm ? '' : svg(ICO.seta, 13)}</span>
         <h3>${esc(b.base)} · ${esc(b.prestador || 'prestador não informado')}</h3>
         ${chip(b.status, tomStatus(b.status))}
         ${b.saldo < 0 ? chip('saldo negativo', 'critico') : ''}
-        <div class="dir">
+        ${prazo.texto ? `<span class="ct-cab-prazo ${prazo.atrasado ? 'atrasado' : ''}">${prazo.texto}</span>` : ''}
+        <span class="ct-cab-num">${fmtPct(b.execFinanceira, 0)} · saldo <b class="${b.saldo < 0 ? 'neg' : ''}">${fmtMoneyCurto(b.saldo)}</b></span>
+        <span class="ct-cab-acoes">
           ${botao('Aditivo', 'novo-aditivo', { base: b.base }, 'btn pequeno', 'mais')}
           ${botao('Medição', 'nova-medicao', { base: b.base }, 'btn pequeno')}
-        </div>
-      </header>
-      <div class="corpo" style="display:flex;flex-direction:column;gap:10px">
+        </span>
+      </div>
+      ${aberto ? `<div class="corpo" style="display:flex;flex-direction:column;gap:10px">
         <div class="ct-stats">${stats}<span class="ct-exec">${fmtPct(b.execFinanceira, 0)} executado</span></div>
         ${barra(b.execFinanceira, tom)}
         <div class="tab-rolagem"><table class="tab ct-tab">
-          <thead><tr><th>Código</th><th>Registro</th><th>Escopo</th><th class="num">Valor</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Código</th><th>Registro</th><th>Escopo</th><th>Prazo</th><th class="num">Valor</th><th>Status</th><th></th></tr></thead>
           <tbody>${registros}</tbody>
         </table></div>
-      </div>
+      </div>` : ''}
     </section>`;
   }).join('');
 
@@ -375,6 +397,11 @@ VIEWS.contratos = () => {
         <option value="saldo-baixo" ${f.situacao === 'saldo-baixo' ? 'selected' : ''}>Saldo baixo</option>
         <option value="ultrapassado" ${f.situacao === 'ultrapassado' ? 'selected' : ''}>Ultrapassado</option>
       </select>
+      ${bases.length > 1 ? botao(
+        bases.every((b) => contratosAbertos.has(b.base)) ? 'Recolher todos' : 'Expandir todos',
+        'ct-todos',
+        { abrir: bases.every((b) => contratosAbertos.has(b.base)) ? '0' : '1' },
+        'btn sutil pequeno') : ''}
       <span style="margin-left:auto;display:flex;gap:8px">
         ${botao('Novo aditivo', 'novo-aditivo', {}, 'btn pequeno', 'mais')}
         ${botao('Novo contrato', 'novo-contrato', {}, 'btn primario pequeno', 'mais')}
@@ -1041,5 +1068,6 @@ VIEWS['obra-config'] = () => {
 export {
   VIEWS,
   alertaHTML,
-  carregarAuditoria
+  carregarAuditoria,
+  contratosAbertos
 };

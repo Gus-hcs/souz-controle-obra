@@ -398,7 +398,25 @@ table.tab td.trunc { max-width: 260px; overflow: hidden; text-overflow: ellipsis
 .pos { color: var(--ok); }
 
 /* contratos e aditivos */
-.ct-bloco > header h3 { font-size: 13.5px; color: var(--tinta); font-weight: 600; }
+.ct-cab {
+  display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap;
+  padding: 11px 16px; border-bottom: 1px solid transparent;
+}
+.ct-bloco.aberto > .ct-cab { border-bottom-color: var(--linha); }
+.ct-cab[role="button"] { cursor: pointer; }
+.ct-cab[role="button"]:hover { background: color-mix(in srgb, var(--marca) 5%, transparent); }
+.ct-cab[role="button"]:focus-visible { outline: 2px solid var(--marca); outline-offset: -2px; }
+.ct-cab h3 { font-size: 13.5px; color: var(--tinta); font-weight: 600; }
+.ct-chev { display: inline-flex; color: var(--mudo); transition: transform .15s ease; flex: 0 0 auto; }
+.ct-bloco.aberto .ct-chev { transform: rotate(90deg); }
+.ct-cab-prazo { font-size: 11.5px; color: var(--mudo); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ct-cab-prazo.atrasado { color: var(--critico); }
+.ct-cab-num { font-size: 12px; color: var(--mudo); white-space: nowrap; margin-left: auto; }
+.ct-cab-num b { color: var(--tinta); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ct-cab-num b.neg { color: var(--critico); }
+.ct-cab-acoes { display: flex; gap: 6px; }
+.ct-bloco.aberto .ct-cab-num { display: none; }
+
 .ct-stats {
   display: flex; flex-wrap: wrap; gap: 3px 16px;
   font-size: 12.5px; color: var(--mudo);
@@ -412,6 +430,8 @@ table.tab td.trunc { max-width: 260px; overflow: hidden; text-overflow: ellipsis
 .ct-contagem { margin: -4px 0 0; font-size: 12px; color: var(--mudo); }
 @media (max-width: 720px) {
   .ct-stats .ct-exec { margin-left: 0; }
+  .ct-cab-num { margin-left: 0; }
+  .ct-cab-acoes { width: 100%; }
 }
 
 /* vazio */
