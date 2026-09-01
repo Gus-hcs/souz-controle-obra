@@ -6,7 +6,7 @@ import { alertasObra, basesContratuais, contratoValor, etapaCalc, kpisObra } fro
 import { apenasErros, validarPerfilAdmin } from '../dominio/validacao.js';
 import { Store, horaCurta } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
-import { App, abrirModal, acoesLinha, botao, campoBusca, campoHTML, cartao, chip, confirmar, fecharModal, filtraTexto, kpi, MENU, nomeCliente, toast, tomSituacao, vazio } from './shell.js';
+import { App, abrirModal, acoesLinha, botao, campoBusca, campoHTML, cartao, chip, confirmar, fecharModal, filtraTexto, ICO, kpi, MENU, nomeCliente, svg, toast, tomSituacao, vazio } from './shell.js';
 import { VIEWS } from './telas-obra.js';
 import { ACOES } from './acoes.js';
 
@@ -100,7 +100,7 @@ VIEWS.relatorio = () => {
         Relatório de status · ${hoje}
       </div>
     </div>
-    <div class="grade g4" style="gap:10px;margin-bottom:14px">
+    <div class="grade g-kpi" style="gap:10px;margin-bottom:14px">
       ${kpi('Avanço físico', fmtPct(k.progressoFisico, 0), `${k.etapasConcluidas} de ${k.etapasTotal} etapas`)}
       ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }), `de ${fmtMoney(k.financiado, { dec: 0 })}`)}
       ${kpi('Pago', fmtMoney(k.totalPago, { dec: 0 }), `custo/m² ${k.area ? fmtMoney(k.custoM2, { dec: 0 }) : '—'}`)}
@@ -122,31 +122,32 @@ VIEWS.relatorio = () => {
       <ul style="margin:0;padding-left:18px;font-size:13px">${al.slice(0, 10).map((a) => `<li><b>${esc(a.titulo)}</b> — ${a.detalhe}</li>`).join('')}</ul>` : ''}
   </div>`;
 
+  const docCard = (acao, titulo, texto) => `
+    <button class="obra-cartao doc-cartao" data-acao="${acao}">
+      <div class="doc-cartao-topo">
+        <h4>${titulo}</h4>
+        <span class="chip marca">PDF</span>
+      </div>
+      <p>${texto}</p>
+      <span class="doc-cartao-baixar">${svg(ICO.baixar, 13)} Gerar PDF</span>
+    </button>`;
+
   return `<div class="grade" style="gap:16px">
     ${cartao('Gerar documento', `
-      <div class="grade g3">
-        <button class="obra-cartao" data-acao="pdf-status">
-          <h4>Relatório de status da obra</h4>
-          <p style="font-size:12.5px;color:var(--mudo);margin:0">PDF com avanço físico, financeiro, contratos, cronograma e pendências. Para enviar ao cliente ou arquivar.</p>
-          <span class="chip marca" style="align-self:flex-start">PDF</span>
-        </button>
-        <button class="obra-cartao" data-acao="pdf-prestacao">
-          <h4>Prestação de contas</h4>
-          <p style="font-size:12.5px;color:var(--mudo);margin:0">PDF com todas as entradas e saídas lançadas, medição a medição e nota a nota, com saldo final.</p>
-          <span class="chip marca" style="align-self:flex-start">PDF</span>
-        </button>
-        <button class="obra-cartao" data-acao="pdf-medicao">
-          <h4>Memória de medição</h4>
-          <p style="font-size:12.5px;color:var(--mudo);margin:0">PDF com o percentual por etapa e o valor a solicitar na próxima medição — no formato que o financiador (CAIXA e outros) espera.</p>
-          <span class="chip marca" style="align-self:flex-start">PDF</span>
-        </button>
+      <div class="grade g-cartoes">
+        ${docCard('pdf-status', 'Relatório de status da obra',
+          'Avanço físico, financeiro, contratos, cronograma e pendências. Para enviar ao cliente ou arquivar.')}
+        ${docCard('pdf-prestacao', 'Prestação de contas',
+          'Todas as entradas e saídas lançadas, medição a medição e nota a nota, com saldo final.')}
+        ${docCard('pdf-medicao', 'Memória de medição',
+          'Percentual por etapa e o valor a solicitar na próxima medição — no formato que o financiador (CAIXA e outros) espera.')}
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;border-top:1px solid var(--linha);padding-top:14px">
         ${botao('Exportar lançamentos (CSV)', 'csv-lancamentos', {}, 'btn', 'baixar')}
         ${botao('Exportar medições (CSV)', 'csv-medicoes', {}, 'btn', 'baixar')}
         ${botao('Exportar recebimentos (CSV)', 'csv-recebimentos', {}, 'btn', 'baixar')}
         ${botao('Imprimir esta página', 'imprimir', {}, 'btn sutil')}
-      </div>`)}
+      </div>`, { classe: 'nao-imprime' })}
     ${cartao('Prévia — relatório de status', previa, { semPadding: false })}
   </div>`;
 };

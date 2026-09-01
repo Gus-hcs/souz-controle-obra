@@ -39,21 +39,50 @@ const carregarXLSX = () => carregarScript([
 ], () => !!window.XLSX);
 
 /* --------------------------------------------------------- download */
+const TIPO_MIME = {
+  pdf: 'application/pdf',
+  csv: 'text/csv;charset=utf-8',
+  json: 'application/json;charset=utf-8'
+};
+
+function baixarNoNavegador(nomeArquivo, dados) {
+  const ext = (nomeArquivo.split('.').pop() || '').toLowerCase();
+  const tipo = TIPO_MIME[ext] || (typeof dados === 'string' ? 'text/plain;charset=utf-8' : 'application/octet-stream');
+  const blob = dados instanceof Blob ? dados : new Blob([dados], { type: tipo });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nomeArquivo;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
 async function baixar(nomeArquivo, dados) {
-  let dl = null;
-  try { dl = typeof claude === 'undefined' ? null : await claude.use('downloads'); } catch (e) { dl = null; }
-  if (!dl) {
-    toast('Este acesso não permite baixar arquivos. Abra o sistema pelo link do artefato.', 'aviso', 5000);
-    return false;
-  }
+  /* 1) runtime do artefato Claude, quando o sistema roda embarcado */
   try {
-    await dl.save({ filename: nomeArquivo, data: dados });
+    const dl = typeof claude === 'undefined' ? null : await claude.use('downloads');
+    if (dl) {
+      try {
+        await dl.save({ filename: nomeArquivo, data: dados });
+        toast('Arquivo gerado: ' + nomeArquivo, 'ok');
+        return true;
+      } catch (err) {
+        if (err && err.code === 'declined') return false;
+        /* qualquer outra falha: tenta o método do navegador */
+      }
+    }
+  } catch (e) { /* sem runtime: segue para o navegador */ }
+
+  /* 2) navegador comum: Blob + link temporário */
+  try {
+    baixarNoNavegador(nomeArquivo, dados);
     toast('Arquivo gerado: ' + nomeArquivo, 'ok');
     return true;
   } catch (err) {
-    const c = err && err.code;
-    if (c === 'declined') return false;
-    toast('Não foi possível salvar o arquivo' + (c ? ' (' + c + ')' : '') + '.', 'critico');
+    toast('Não foi possível salvar o arquivo.', 'critico');
     return false;
   }
 }

@@ -542,6 +542,17 @@ select { cursor: pointer; }
 .obra-cartao .linhas span { color: var(--mudo); }
 .obra-cartao .linhas b { font-weight: 600; font-variant-numeric: tabular-nums; }
 
+/* cartões de "Gerar documento" (tela de relatórios) */
+.doc-cartao { gap: 8px; }
+.doc-cartao-topo { display: flex; align-items: center; gap: 10px; }
+.doc-cartao-topo h4 { flex: 1; font-size: 15px; }
+.doc-cartao p { margin: 0; flex: 1; font-size: 12.5px; line-height: 1.45; color: var(--mudo); }
+.doc-cartao-baixar {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 2px;
+  font-size: 12.5px; font-weight: 500; color: var(--marca);
+}
+.doc-cartao:hover .doc-cartao-baixar { color: var(--marca-forte); }
+
 /* gráficos */
 .grafico { width: 100%; display: block; }
 .grafico text { font-family: 'Inter', sans-serif; font-size: 10.5px; fill: var(--mudo); }
@@ -643,9 +654,14 @@ select { cursor: pointer; }
     --marca: #0B6F66; --grade: #ddd;
     --sombra: none; --realce: none;
   }
-  #rail, #topo, .nao-imprime { display: none !important; }
-  #conteudo { padding: 0; }
+  #rail, #topo, .nao-imprime, #toasts, #modal-camada { display: none !important; }
+  #conteudo { padding: 0; max-width: none; }
   .cartao, .kpi { break-inside: avoid; box-shadow: none; border-color: #ccc; }
+  /* na impressão, a prévia é o documento — sem moldura de cartão */
+  .cartao:has(#previa-relatorio) { border: 0; }
+  .cartao:has(#previa-relatorio) > header { display: none; }
+  .cartao:has(#previa-relatorio) > .corpo { padding: 0; }
+  table.tab th { position: static; }
 }
 
 

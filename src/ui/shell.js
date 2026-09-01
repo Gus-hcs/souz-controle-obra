@@ -349,8 +349,8 @@ function vazio(titulo, texto, botao) {
 }
 
 function cartao(titulo, corpo, opcoes = {}) {
-  const { acoes = '', semPadding = false, sub = '' } = opcoes;
-  return `<section class="cartao">
+  const { acoes = '', semPadding = false, sub = '', classe = '' } = opcoes;
+  return `<section class="cartao${classe ? ' ' + classe : ''}">
     ${titulo ? `<header><h3>${titulo}</h3>${sub ? `<span class="sub" style="font-size:12px;color:var(--mudo)">${sub}</span>` : ''}<div class="dir">${acoes}</div></header>` : ''}
     <div class="${semPadding ? '' : 'corpo'}">${corpo}</div>
   </section>`;
