@@ -865,44 +865,85 @@ VIEWS.cronograma = () => {
       'Gere as etapas padrão de uma casa e depois ajuste datas, responsáveis e progresso a cada visita.',
       `${botao('Gerar etapas padrão', 'gerar-cronograma', {}, 'btn primario')} ${botao('Adicionar etapa', 'nova-etapa', {}, 'btn')}`));
   }
+  const f = App.filtros;
   const k = kpisObra(o);
   const pesos = pesosCronograma(o);
-  const linhas = o.cronograma.map((e) => {
+  const responsaveis = [...new Set(o.cronograma.map((e) => e.responsavel).filter(Boolean))].sort();
+
+  /* ---------------------------------------------------------- filtros */
+  const busca = norm(f.busca || '');
+  let etapas = o.cronograma.slice();
+  if (f.responsavel) etapas = etapas.filter((e) => e.responsavel === f.responsavel);
+  if (f.situacao) {
+    etapas = etapas.filter((e) => {
+      const s = etapaCalc(e).situacao;
+      if (f.situacao === 'atrasadas') return s === 'ATRASADO';
+      if (f.situacao === 'andamento') return s === 'EM ANDAMENTO';
+      if (f.situacao === 'nao-iniciadas') return s === 'NÃO INICIADO' || s === 'NÃO PLANEJADO';
+      if (f.situacao === 'concluidas') return s === 'CONCLUÍDO';
+      return true;
+    });
+  }
+  if (busca) etapas = filtraTexto(etapas, f.busca, ['etapa', 'responsavel']);
+  const filtrando = etapas.length !== o.cronograma.length;
+
+  const linhas = etapas.map((e) => {
     const c = etapaCalc(e);
+    const etSub = [e.responsavel ? esc(e.responsavel) : null, `peso ${fmtPct(pesos.get(e.id) || 0, 1)}`].filter(Boolean).join(' · ');
+    const prevTxt = (isISO(e.inicioPrevisto) && isISO(e.fimPrevisto))
+      ? `${fmtDataCurta(e.inicioPrevisto)} → ${fmtDataCurta(e.fimPrevisto)}` : 'sem datas';
+    const realTxt = isISO(e.inicioReal)
+      ? `${fmtDataCurta(e.inicioReal)} → ${isISO(e.fimReal) ? fmtDataCurta(e.fimReal) : 'em curso'}` : '—';
+    const realSub = c.atraso > 0 ? `${c.atraso} dia${c.atraso === 1 ? '' : 's'} de atraso`
+      : num(e.quantidadeExecutada) ? `${fmtNum(e.quantidadeExecutada, 1)} ${esc(e.unidadeProducao)}${c.produtividade ? ` · ${fmtNum(c.produtividade, 1)}/dia` : ''}`
+        : '';
     return `<tr>
-      <td><b>${esc(e.etapa)}</b>${e.responsavel ? `<br><span style="font-size:11px;color:var(--mudo)">${esc(e.responsavel)}</span>` : ''}</td>
-      <td class="mono">${fmtDataCurta(e.inicioPrevisto)} → ${fmtDataCurta(e.fimPrevisto)}</td>
-      <td class="mono">${fmtDataCurta(e.inicioReal)} → ${fmtDataCurta(e.fimReal)}</td>
-      <td class="num mono">${c.diasPrevistos || '—'}</td>
-      <td class="num mono">${c.diasRealizados || '—'}</td>
-      <td class="num mono ${c.atraso > 0 ? 'neg' : ''}">${c.atraso || '—'}</td>
+      <td><div class="ct-escopo-w"><span><b>${esc(e.etapa || '—')}</b></span>${etSub ? `<span class="ct-detalhe">${etSub}</span>` : ''}</div></td>
+      <td class="mono" style="white-space:nowrap"><div class="ct-escopo-w"><span>${prevTxt}</span>${c.diasPrevistos ? `<span class="ct-detalhe">${c.diasPrevistos} dias</span>` : ''}</div></td>
+      <td class="mono" style="white-space:nowrap"><div class="ct-escopo-w"><span class="${c.atraso > 0 ? 'neg' : ''}">${realTxt}</span>${realSub ? `<span class="ct-detalhe ${c.atraso > 0 ? 'neg' : ''}">${realSub}</span>` : ''}</div></td>
       <td style="min-width:130px">${barra(c.progresso, tomSituacao(c.situacao))}
         <span class="mono" style="font-size:11px">${fmtPct(c.progresso, 0)}</span></td>
-      <td class="num mono">${num(e.quantidadeExecutada) ? fmtNum(e.quantidadeExecutada, 1) + ' ' + esc(e.unidadeProducao) : '—'}</td>
-      <td class="num mono">${c.produtividade ? fmtNum(c.produtividade, 2) : '—'}</td>
-      <td class="num mono">${fmtPct(pesos.get(e.id) || 0, 1)}</td>
       <td>${chip(c.situacao, tomSituacao(c.situacao))}</td>
       <td class="acoes">${acoesLinha('etapa', e.id)}</td>
     </tr>`;
   }).join('');
 
   return `<div class="grade" style="gap:16px">
-    <div class="grade g4">
-      ${kpi('Avanço físico', fmtPct(k.progressoFisico, 0), 'ponderado pelo peso das etapas')}
-      ${kpi('Etapas concluídas', `${k.etapasConcluidas}/${k.etapasTotal}`, 'do cronograma cadastrado')}
-      ${kpi('Etapas atrasadas', k.etapasAtrasadas, 'fim previsto já passou', k.etapasAtrasadas ? 'critico' : 'ok')}
+    <div class="hero">
+      ${kpi('Avanço físico', fmtPct(k.progressoFisico, 0),
+        `${k.etapasConcluidas} de ${k.etapasTotal} etapas concluídas`, { destaque: true })}
+      ${kpi('Etapas atrasadas', k.etapasAtrasadas,
+        k.etapasAtrasadas ? 'fim previsto já passou' : 'tudo no prazo',
+        { destaque: true, tom: k.etapasAtrasadas ? 'critico' : 'ok' })}
       ${kpi('Previsão de entrega', fmtData(o.previsaoConclusao),
-        k.diasParaFim === null ? '' : (k.diasParaFim < 0 ? `${-k.diasParaFim} dias em atraso` : `${k.diasParaFim} dias restantes`),
-        k.diasParaFim !== null && k.diasParaFim < 0 ? 'critico' : '')}
+        k.diasParaFim === null ? 'sem data definida'
+          : (k.diasParaFim < 0 ? `${-k.diasParaFim} dias em atraso` : `${k.diasParaFim} dias restantes`),
+        { destaque: true, tom: k.diasParaFim !== null && k.diasParaFim < 0 ? 'critico' : '' })}
     </div>
+
     ${cartao('Linha do tempo', graficoGantt(o))}
+
     ${cartao('Etapas', `<div class="tab-rolagem"><table class="tab">
-      <thead><tr><th>Etapa</th><th>Previsto</th><th>Real</th><th class="num">Dias prev.</th><th class="num">Dias reais</th>
-        <th class="num">Atraso</th><th>Progresso</th><th class="num">Executado</th><th class="num">Prod./dia</th>
-        <th class="num">Peso</th><th>Situação</th><th></th></tr></thead>
-      <tbody>${linhas}</tbody></table></div>`, {
+      <thead><tr><th>Etapa</th><th>Previsto</th><th>Real</th><th>Progresso</th><th>Situação</th><th></th></tr></thead>
+      <tbody>${linhas || `<tr><td colspan="6">${vazio(
+        filtrando ? 'Nada com esse filtro' : 'Sem etapas',
+        filtrando ? 'Ajuste a busca ou os filtros acima.' : 'Adicione as etapas da obra.',
+        filtrando ? '' : botao('Adicionar etapa', 'nova-etapa', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
+      ${etapas.length && filtrando ? `<tfoot><tr><td colspan="6">${etapas.length} de ${o.cronograma.length} etapas</td></tr></tfoot>` : ''}
+    </table></div>`, {
       semPadding: true,
-      acoes: `${botao('Adicionar etapa', 'nova-etapa', {}, 'btn pequeno', 'mais')}`
+      acoes: `<div class="filtros">
+        ${campoBusca('busca', 'Buscar etapa, responsável…')}
+        ${responsaveis.length > 1 ? selectFiltro('responsavel', responsaveis, 'Todos os responsáveis') : ''}
+        <select data-filtro="situacao" aria-label="Situação">
+          <option value="">Situação: todas</option>
+          <option value="atrasadas" ${f.situacao === 'atrasadas' ? 'selected' : ''}>Atrasadas</option>
+          <option value="andamento" ${f.situacao === 'andamento' ? 'selected' : ''}>Em andamento</option>
+          <option value="nao-iniciadas" ${f.situacao === 'nao-iniciadas' ? 'selected' : ''}>Não iniciadas</option>
+          <option value="concluidas" ${f.situacao === 'concluidas' ? 'selected' : ''}>Concluídas</option>
+        </select>
+        <span style="margin-left:auto">${botao('Adicionar etapa', 'nova-etapa', {}, 'btn primario pequeno', 'mais')}</span>
+      </div>`
     })}
   </div>`;
 };
