@@ -756,33 +756,47 @@ VIEWS.lancamentos = () => {
 /* ========================================================== MATERIAIS */
 VIEWS.materiais = () => {
   const o = App.obra();
+  const f = App.filtros;
+  const hoje = hojeISO();
+
+  const todos = o.materiais.map((m) => ({ m, c: materialCalc(o, m) }));
+  const orcTotal = todos.reduce((s, x) => s + x.c.orcamento, 0);
+  const compradoTotal = todos.reduce((s, x) => s + x.c.valorComprado, 0);
+  const saldoTotal = todos.reduce((s, x) => s + x.c.saldoValor, 0);
+  const comSaldo = todos.filter((x) => x.c.saldo > 0);
+  const vencidos = todos.filter((x) => x.c.vencido);
+
+  /* ---------------------------------------------------------- filtros */
+  const busca = norm(f.busca || '');
   let lista = o.materiais.slice();
-  if (App.filtros.etapa) lista = lista.filter((m) => m.etapa === App.filtros.etapa);
-  if (App.filtros.situacao === 'pendentes') lista = lista.filter((m) => materialCalc(o, m).saldo > 0 && m.status !== 'Cancelado');
-  if (App.filtros.situacao === 'vencidos') lista = lista.filter((m) => materialCalc(o, m).vencido);
-  lista = filtraTexto(lista, App.filtros.busca, ['material', 'etapa', 'observacoes']);
+  if (f.etapa) lista = lista.filter((m) => m.etapa === f.etapa);
+  if (f.prioridade) lista = lista.filter((m) => m.prioridade === f.prioridade);
+  if (f.status) lista = lista.filter((m) => m.status === f.status);
+  if (f.situacao === 'comprar') lista = lista.filter((m) => materialCalc(o, m).saldo > 0 && m.status !== 'Cancelado');
+  if (f.situacao === 'vencidos') lista = lista.filter((m) => materialCalc(o, m).vencido);
+  if (f.situacao === 'comprados') lista = lista.filter((m) => materialCalc(o, m).saldo <= 0 && m.status !== 'Cancelado');
+  if (busca) lista = filtraTexto(lista, f.busca, ['material', 'etapa', 'observacoes']);
   lista.sort((a, b) => {
     const ca = materialCalc(o, a), cb = materialCalc(o, b);
     if (ca.vencido !== cb.vencido) return ca.vencido ? -1 : 1;
     return String(a.dataNecessaria || '9999').localeCompare(String(b.dataNecessaria || '9999'));
   });
-
-  const todos = o.materiais.map((m) => materialCalc(o, m));
-  const orcTotal = todos.reduce((s, c) => s + c.orcamento, 0);
-  const compradoTotal = todos.reduce((s, c) => s + c.valorComprado, 0);
-  const saldoTotal = todos.reduce((s, c) => s + c.saldoValor, 0);
+  const filtrando = lista.length !== o.materiais.length;
 
   const linhas = lista.map((m) => {
     const c = materialCalc(o, m);
     const tom = c.vencido ? 'critico' : c.saldo > 0 ? 'aviso' : 'ok';
+    const sub = [esc(m.etapa || 'sem etapa'), m.prioridade && m.prioridade !== 'Média' ? esc(m.prioridade) : null]
+      .filter(Boolean).join(' · ');
+    const prazo = !isISO(m.dataNecessaria) ? { t: 'sem data', neg: false }
+      : c.vencido ? { t: `vencido há ${diasEntre(m.dataNecessaria, hoje)}d`, neg: true }
+        : (() => { const d = diasEntre(hoje, m.dataNecessaria); return { t: d <= 0 ? 'hoje' : `em ${d}d`, neg: d <= 3 }; })();
     return `<tr>
-      <td>${esc(m.etapa)}</td>
-      <td class="trunc"><b>${esc(m.material)}</b></td>
-      <td class="num mono">${fmtNum(m.quantidadeNecessaria, 2)} ${esc(m.unidade)}</td>
-      <td class="num mono">${fmtNum(c.comprada, 2)}</td>
+      <td><div class="ct-escopo-w"><span><b>${esc(m.material || '—')}</b></span>${sub ? `<span class="ct-detalhe">${sub}</span>` : ''}</div></td>
+      <td class="num mono"><div class="ct-escopo-w"><span>${fmtNum(m.quantidadeNecessaria, 2)} ${esc(m.unidade)}</span><span class="ct-detalhe">comprado ${fmtNum(c.comprada, 2)}</span></div></td>
       <td class="num mono ${c.saldo > 0 ? 'neg' : ''}"><b>${fmtNum(c.saldo, 2)}</b></td>
-      <td class="num mono">${fmtMoney(c.saldoValor)}</td>
-      <td class="mono ${c.vencido ? 'neg' : ''}">${fmtDataCurta(m.dataNecessaria)}</td>
+      <td class="num mono">${c.saldoValor > 0.005 ? fmtMoney(c.saldoValor) : '—'}</td>
+      <td class="mono" style="white-space:nowrap"><div class="ct-escopo-w"><span class="${prazo.neg ? 'neg' : ''}">${fmtDataCurta(m.dataNecessaria)}</span><span class="ct-detalhe ${prazo.neg ? 'neg' : ''}">${prazo.t}</span></div></td>
       <td>${chip(c.vencido ? 'Vencido' : m.status, tom)}</td>
       <td class="acoes">
         ${!Store.somenteLeitura() && c.saldo > 0 ? `<button class="btn pequeno" data-acao="comprar-material" data-id="${m.id}">comprar</button>` : ''}
@@ -791,33 +805,54 @@ VIEWS.materiais = () => {
     </tr>`;
   }).join('');
 
+  const faltaPorEtapa = Object.entries(comSaldo.reduce((a, x) => {
+    const e = x.m.etapa || 'Sem etapa';
+    a[e] = (a[e] || 0) + x.c.saldoValor; return a;
+  }, {})).map(([rotulo, valor]) => ({ rotulo, valor: round2(valor) }));
+
   return `<div class="grade" style="gap:16px">
-    <div class="grade g4">
-      ${kpi('Orçamento de materiais', fmtMoney(orcTotal, { dec: 0 }), `${o.materiais.length} item(ns) no plano`)}
-      ${kpi('Já comprado', fmtMoney(compradoTotal, { dec: 0 }), fmtPct(orcTotal ? compradoTotal / orcTotal : 0, 0) + ' do orçamento')}
-      ${kpi('Falta comprar', fmtMoney(saldoTotal, { dec: 0 }), `${todos.filter((c) => c.saldo > 0).length} item(ns) com saldo`, saldoTotal > 0 ? 'aviso' : 'ok')}
-      ${kpi('Vencidos sem compra', todos.filter((c) => c.vencido).length,
-        fmtMoney(todos.filter((c) => c.vencido).reduce((s, c) => s + c.saldoValor, 0), { dec: 0 }),
-        todos.some((c) => c.vencido) ? 'critico' : 'ok')}
+    <div class="hero">
+      ${kpi('Falta comprar', fmtMoney(saldoTotal, { dec: 0 }),
+        `${comSaldo.length} item${comSaldo.length === 1 ? '' : 's'} com saldo`,
+        { destaque: true, tom: saldoTotal > 0.005 ? 'aviso' : 'ok' })}
+      ${kpi('Vencidos sem compra', vencidos.length,
+        vencidos.length ? `${fmtMoney(vencidos.reduce((s, x) => s + x.c.saldoValor, 0), { dec: 0 })} — comprar já` : 'nada em atraso',
+        { destaque: true, tom: vencidos.length ? 'critico' : 'ok' })}
+      ${kpi('Já comprado', fmtMoney(compradoTotal, { dec: 0 }),
+        orcTotal ? `${fmtPct(compradoTotal / orcTotal, 0)} de ${fmtMoney(orcTotal, { dec: 0 })} orçados` : `${o.materiais.length} item(ns) no plano`,
+        { destaque: true })}
     </div>
+
     ${cartao('Plano de materiais', `
       <div class="tab-rolagem"><table class="tab">
-        <thead><tr><th>Etapa</th><th>Material</th><th class="num">Necessário</th><th class="num">Comprado</th>
-          <th class="num">Falta</th><th class="num">Falta (R$)</th><th>Data limite</th><th>Status</th><th></th></tr></thead>
-        <tbody>${linhas || `<tr><td colspan="9">${vazio('Plano vazio', 'Liste o que será necessário por etapa. Ao lançar a compra, o saldo é atualizado sozinho.', botao('Novo material', 'novo-material', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
+        <thead><tr><th>Material</th><th class="num">Necessário</th><th class="num">Falta</th>
+          <th class="num">Falta (R$)</th><th>Comprar até</th><th>Status</th><th></th></tr></thead>
+        <tbody>${linhas || `<tr><td colspan="7">${vazio(
+          filtrando ? 'Nada com esse filtro' : 'Plano vazio',
+          filtrando ? 'Ajuste a busca ou os filtros acima.' : 'Liste o que será necessário por etapa. Ao lançar a compra, o saldo é atualizado sozinho.',
+          filtrando ? '' : botao('Novo material', 'novo-material', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
+        ${lista.length ? `<tfoot><tr><td colspan="3">${lista.length} item(ns)${filtrando ? ` de ${o.materiais.length}` : ''}</td>
+          <td class="num mono">${fmtMoney(lista.reduce((s, m) => s + materialCalc(o, m).saldoValor, 0))}</td><td colspan="3"></td></tr></tfoot>` : ''}
       </table></div>`, {
       semPadding: true,
       acoes: `<div class="filtros">
-        ${campoBusca('busca', 'Buscar material…')}
+        ${campoBusca('busca', 'Buscar material, etapa…')}
         ${selectFiltro('etapa', opcoesEtapas(), 'Todas as etapas')}
-        <select data-filtro="situacao">
-          <option value="">Todos</option>
-          <option value="pendentes" ${App.filtros.situacao === 'pendentes' ? 'selected' : ''}>Só pendentes</option>
-          <option value="vencidos" ${App.filtros.situacao === 'vencidos' ? 'selected' : ''}>Só vencidos</option>
+        ${selectFiltro('prioridade', opcoesLista('prioridades'), 'Toda prioridade')}
+        ${selectFiltro('status', opcoesLista('statusMaterial'), 'Todos os status')}
+        <select data-filtro="situacao" aria-label="Situação">
+          <option value="">Situação: todas</option>
+          <option value="comprar" ${f.situacao === 'comprar' ? 'selected' : ''}>A comprar</option>
+          <option value="vencidos" ${f.situacao === 'vencidos' ? 'selected' : ''}>Vencidos</option>
+          <option value="comprados" ${f.situacao === 'comprados' ? 'selected' : ''}>Comprados</option>
         </select>
-        ${botao('Novo material', 'novo-material', {}, 'btn primario pequeno', 'mais')}
+        <span style="margin-left:auto">${botao('Novo material', 'novo-material', {}, 'btn primario pequeno', 'mais')}</span>
       </div>`
     })}
+
+    ${faltaPorEtapa.length > 1
+      ? cartao('Falta comprar por etapa', graficoBarras(faltaPorEtapa, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--aviso)' }))
+      : ''}
   </div>`;
 };
 
