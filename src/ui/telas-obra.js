@@ -416,50 +416,118 @@ VIEWS.contratos = () => {
 /* =========================================================== MEDIÇÕES */
 VIEWS.medicoes = () => {
   const o = App.obra();
-  const bases = [...new Set(o.contratos.map((c) => c.codigoBase).filter(Boolean))];
-  let lista = o.medicoes.slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
-  if (App.filtros.base) lista = lista.filter((m) => m.contratoBase === App.filtros.base);
-  if (App.filtros.status) lista = lista.filter((m) => m.status === App.filtros.status);
-  lista = filtraTexto(lista, App.filtros.busca, ['descricao', 'contratoBase', 'documento']);
+  const f = App.filtros;
 
+  const prestadorDe = (base) => {
+    const c = o.contratos.find((x) => x.codigoBase === base && x.registro === 'Contrato')
+      || o.contratos.find((x) => x.codigoBase === base);
+    return (c && c.prestador) || '';
+  };
+  const bases = [...new Set(o.contratos.map((c) => c.codigoBase).filter(Boolean))];
+  const prestadores = [...new Set(o.contratos.map((c) => c.prestador).filter(Boolean))].sort();
+  const meses = [...new Set(o.medicoes.map((m) => competencia(m.data)).filter(Boolean))].sort().reverse();
+
+  const ativas = o.medicoes.filter((m) => m.status !== 'Cancelado');
+  const totMed = ativas.reduce((s, m) => s + medicaoLiquido(m), 0);
+  const totPago = ativas.reduce((s, m) => s + num(m.valorPago), 0);
+  const emAberto = ativas.filter((m) => medicaoLiquido(m) - num(m.valorPago) > 0.005);
+
+  /* ---------------------------------------------------------- filtros */
+  const busca = norm(f.busca || '');
+  let lista = o.medicoes.slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  if (f.base) lista = lista.filter((m) => m.contratoBase === f.base);
+  if (f.prestador) lista = lista.filter((m) => prestadorDe(m.contratoBase) === f.prestador);
+  if (f.status) lista = lista.filter((m) => m.status === f.status);
+  if (f.mes) lista = lista.filter((m) => competencia(m.data) === f.mes);
+  if (f.situacao === 'aberto') lista = lista.filter((m) => m.status !== 'Cancelado' && medicaoLiquido(m) - num(m.valorPago) > 0.005);
+  if (f.situacao === 'pagas') lista = lista.filter((m) => m.status !== 'Cancelado' && medicaoLiquido(m) - num(m.valorPago) <= 0.005);
+  if (f.situacao === 'alerta') lista = lista.filter((m) => { const a = medicaoAlerta(o, m); return a && a !== 'OK'; });
+  if (busca) lista = lista.filter((m) => norm(`${m.contratoBase} ${m.descricao} ${m.documento} ${m.numero} ${prestadorDe(m.contratoBase)}`).includes(busca));
+
+  const filtrando = lista.length !== o.medicoes.length;
   const tLiquido = lista.reduce((s, m) => s + medicaoLiquido(m), 0);
   const tPago = lista.reduce((s, m) => s + num(m.valorPago), 0);
 
   const linhas = lista.map((m) => {
+    const liq = medicaoLiquido(m);
+    const pago = num(m.valorPago);
+    const falta = liq - pago;
     const alerta = medicaoAlerta(o, m);
-    const tomA = alerta === 'PAGO ACIMA DA MEDIÇÃO' || alerta === 'CONTRATO ULTRAPASSADO' ? 'critico' : 'aviso';
-    const falta = medicaoLiquido(m) - num(m.valorPago);
+    const tomA = (alerta === 'PAGO ACIMA DA MEDIÇÃO' || alerta === 'CONTRATO ULTRAPASSADO') ? 'critico' : 'aviso';
+    const pr = prestadorDe(m.contratoBase);
+    const sub = [
+      m.numero ? `nº ${esc(m.numero)}` : null,
+      num(m.progresso) ? fmtPct(m.progresso, 0) : null,
+      m.documento ? esc(m.documento) : null,
+    ].filter(Boolean).join(' · ');
+    const pgSub = falta > 0.005 ? 'em aberto' : (isISO(m.dataPagamento) ? `pago ${fmtDataCurta(m.dataPagamento)}` : 'quitada');
     return `<tr>
-      <td class="mono">${esc(m.contratoBase)}</td>
-      <td class="mono">${fmtDataCurta(m.data)}</td>
-      <td class="trunc">${esc(m.descricao || '—')}</td>
-      <td class="num mono"><b>${fmtMoney(medicaoLiquido(m))}</b></td>
-      <td class="num mono">${fmtMoney(m.valorPago)}</td>
+      <td><div class="ct-escopo-w"><span class="mono">${esc(m.contratoBase || '—')}</span>${pr ? `<span class="ct-detalhe">${esc(pr)}</span>` : ''}</div></td>
+      <td><div class="ct-escopo-w"><span>${esc(m.descricao || '—')}</span>${sub ? `<span class="ct-detalhe">${sub}</span>` : ''}</div></td>
+      <td class="mono" style="white-space:nowrap">${fmtDataCurta(m.data)}</td>
+      <td class="num mono"><b>${fmtMoney(liq)}</b></td>
+      <td class="num mono"><div class="ct-escopo-w"><span>${fmtMoney(pago)}</span><span class="ct-detalhe">${pgSub}</span></div></td>
       <td class="num mono ${falta > 0.005 ? 'neg' : ''}">${Math.abs(falta) < 0.005 ? '—' : fmtMoney(falta)}</td>
       <td>${chip(m.status, tomStatus(m.status))}${alerta && alerta !== 'OK' ? ' ' + chip(alerta, tomA) : ''}</td>
       <td class="acoes">${acoesLinha('medicao', m.id)}</td>
     </tr>`;
   }).join('');
 
+  const porContrato = bases.map((base) => {
+    const ms = ativas.filter((m) => m.contratoBase === base);
+    return {
+      rotulo: `${base} · ${prestadorDe(base) || '—'}`,
+      valor: round2(ms.reduce((s, m) => s + medicaoLiquido(m) - num(m.valorPago), 0)),
+    };
+  }).filter((x) => x.valor > 0.005);
+
   return `<div class="grade" style="gap:16px">
+    <div class="hero">
+      ${kpi('Medido (líquido)', fmtMoney(totMed, { dec: 0 }),
+        `${ativas.length} mediç${ativas.length === 1 ? 'ão' : 'ões'}`, { destaque: true })}
+      ${kpi('Pago aos prestadores', fmtMoney(totPago, { dec: 0 }),
+        `${fmtPct(totMed ? totPago / totMed : 0, 0)} do medido`, { destaque: true })}
+      ${kpi('A pagar', fmtMoney(totMed - totPago, { dec: 0 }),
+        `${emAberto.length} em aberto`, { destaque: true, tom: emAberto.length ? 'aviso' : 'ok' })}
+    </div>
+
     ${cartao('Medições de prestadores', `
       <div class="tab-rolagem"><table class="tab">
-        <thead><tr><th>Contrato</th><th>Data</th><th>Descrição</th>
+        <thead><tr><th>Contrato</th><th>Descrição</th><th>Medida em</th>
           <th class="num">Líquido</th><th class="num">Pago</th><th class="num">A pagar</th><th>Status</th><th></th></tr></thead>
-        <tbody>${linhas || `<tr><td colspan="8">${vazio('Nenhuma medição', 'Registre a medição do prestador aqui — nunca em Lançamentos, para não duplicar o pagamento.', botao('Nova medição', 'nova-medicao', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
-        ${lista.length ? `<tfoot><tr><td colspan="3">${lista.length} medição(ões)</td>
+        <tbody>${linhas || `<tr><td colspan="8">${vazio(
+          filtrando ? 'Nada com esse filtro' : 'Nenhuma medição',
+          filtrando ? 'Ajuste a busca ou os filtros acima.' : 'Registre a medição do prestador aqui — nunca em Lançamentos, para não duplicar o pagamento.',
+          filtrando ? '' : botao('Nova medição', 'nova-medicao', {}, 'btn primario', 'mais'))}</td></tr>`}</tbody>
+        ${lista.length ? `<tfoot><tr><td colspan="3">${lista.length} medição(ões)${filtrando ? ` de ${o.medicoes.length}` : ''}</td>
           <td class="num mono">${fmtMoney(tLiquido)}</td>
           <td class="num mono">${fmtMoney(tPago)}</td>
-          <td class="num mono">${fmtMoney(tLiquido - tPago)}</td><td colspan="2"></td></tr></tfoot>` : ''}
+          <td class="num mono ${tLiquido - tPago > 0.005 ? 'neg' : ''}">${fmtMoney(tLiquido - tPago)}</td><td colspan="2"></td></tr></tfoot>` : ''}
       </table></div>`, {
       semPadding: true,
       acoes: `<div class="filtros">
-        ${campoBusca('busca', 'Buscar descrição, contrato…')}
+        ${campoBusca('busca', 'Buscar descrição, contrato, nº…')}
         ${selectFiltro('base', bases, 'Todos os contratos')}
+        ${prestadores.length > 1 ? selectFiltro('prestador', prestadores, 'Todos os prestadores') : ''}
         ${selectFiltro('status', opcoesLista('statusPagamento'), 'Todos os status')}
-        ${botao('Nova medição', 'nova-medicao', {}, 'btn primario pequeno', 'mais')}
+        <select data-filtro="situacao" aria-label="Situação">
+          <option value="">Situação: todas</option>
+          <option value="aberto" ${f.situacao === 'aberto' ? 'selected' : ''}>Em aberto</option>
+          <option value="pagas" ${f.situacao === 'pagas' ? 'selected' : ''}>Quitadas</option>
+          <option value="alerta" ${f.situacao === 'alerta' ? 'selected' : ''}>Com alerta</option>
+        </select>
+        ${meses.length > 1 ? `<select data-filtro="mes" aria-label="Mês da medição">
+          <option value="">Todos os meses</option>
+          ${meses.map((ym) => `<option value="${ym}" ${f.mes === ym ? 'selected' : ''}>${fmtCompetencia(ym)}</option>`).join('')}
+        </select>` : ''}
+        <span style="margin-left:auto">${botao('Nova medição', 'nova-medicao', {}, 'btn primario pequeno', 'mais')}</span>
       </div>`
     })}
+
+    ${porContrato.length > 1
+      ? cartao('A pagar por contrato', graficoBarras(porContrato, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--aviso)' }))
+      : ''}
+
     <div class="cartao"><div class="corpo" style="font-size:12.5px;color:var(--tinta2)">
       <b>Regra anti-duplicidade:</b> pagamento por medição entra somente nesta tela.
       Compras, taxas e serviços sem medição entram em Lançamentos. Entradas de financiamento ou do cliente, em Recebimentos.
