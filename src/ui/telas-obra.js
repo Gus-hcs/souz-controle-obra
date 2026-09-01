@@ -951,13 +951,34 @@ VIEWS.cronograma = () => {
 /* ============================================================ CURVA S */
 VIEWS.curva = () => {
   const o = App.obra();
+  const f = App.filtros;
   const dados = curvaS(o);
   const k = kpisObra(o);
   const atual = dados.filter((d) => d.fisicoRealizado !== null).pop();
+  const previstoHoje = atual ? atual.fisicoPrevisto : 0;
   const desvio = atual ? atual.fisicoRealizado - atual.fisicoPrevisto : 0;
+  const desvioFinFis = k.progressoFinanceiro - k.progressoFisico;
 
-  const linhas = dados.map((d) => `<tr>
-    <td class="mono">${fmtCompetencia(d.ym)}${d.futuro ? ' <span class="chip" style="font-size:10px">previsto</span>' : ''}</td>
+  if (!dados.length) {
+    return cartao('Curva S', vazio('Sem curva S ainda',
+      'Cadastre o cronograma com datas previstas para gerar a curva.',
+      botao('Ir para o cronograma', 'ir', { view: 'cronograma' }, 'btn primario')));
+  }
+
+  /* leitura rápida — interpreta o gráfico numa frase */
+  const fraseFisica = Math.abs(desvio) < 0.01 ? 'A obra está <b>no ritmo do cronograma</b>.'
+    : desvio < 0 ? `A obra está <b>${fmtPct(-desvio, 1)} atrás</b> do cronograma físico.`
+      : `A obra está <b>${fmtPct(desvio, 1)} à frente</b> do cronograma físico.`;
+  const fraseFin = Math.abs(desvioFinFis) < 0.04 ? 'O desembolso acompanha o avanço.'
+    : desvioFinFis > 0 ? `O desembolso está <b>${fmtPct(desvioFinFis, 1)} à frente</b> do avanço físico — atenção ao caixa.`
+      : `O desembolso está <b>${fmtPct(-desvioFinFis, 1)} atrás</b> do avanço físico.`;
+
+  let linhasD = dados.slice();
+  if (f.situacao === 'realizado') linhasD = linhasD.filter((d) => !d.futuro);
+  if (f.situacao === 'projecao') linhasD = linhasD.filter((d) => d.futuro);
+
+  const linhas = linhasD.map((d) => `<tr>
+    <td class="mono">${fmtCompetencia(d.ym)}${d.futuro ? ' <span class="chip" style="font-size:10px">projeção</span>' : ''}</td>
     <td class="num mono">${fmtPct(d.fisicoPrevisto, 1)}</td>
     <td class="num mono">${d.fisicoRealizado === null ? '—' : fmtPct(d.fisicoRealizado, 1)}</td>
     <td class="num mono ${d.desvio !== null && d.desvio < -0.03 ? 'neg' : d.desvio !== null && d.desvio > 0.03 ? 'pos' : ''}">${d.desvio === null ? '—' : fmtPct(d.desvio, 1)}</td>
@@ -965,26 +986,40 @@ VIEWS.curva = () => {
     <td class="num mono">${d.financeiroRealizado === null ? '—' : fmtMoney(d.desembolsoAcumulado, { dec: 0 })}</td>
   </tr>`).join('');
 
+  const tomDesvio = desvio < -0.05 ? 'critico' : desvio < -0.01 ? 'aviso' : 'ok';
   return `<div class="grade" style="gap:16px">
-    <div class="grade g4">
-      ${kpi('Avanço físico', fmtPct(k.progressoFisico, 1), 'executado hoje')}
-      ${kpi('Avanço previsto', atual ? fmtPct(atual.fisicoPrevisto, 1) : '—', 'pelo cronograma')}
-      ${kpi('Desvio de prazo', fmtPct(desvio, 1), desvio < 0 ? 'obra atrás do planejado' : 'obra em dia ou adiantada',
-        desvio < -0.05 ? 'critico' : desvio < 0 ? 'aviso' : 'ok')}
+    <div class="hero">
+      ${kpi('Avanço físico', fmtPct(k.progressoFisico, 1),
+        `previsto ${fmtPct(previstoHoje, 1)} para hoje`, { destaque: true })}
+      ${kpi('Desvio de prazo', (desvio >= 0 ? '+' : '') + fmtPct(desvio, 1),
+        desvio < -0.01 ? 'obra atrás do planejado' : desvio > 0.01 ? 'obra adiantada' : 'no cronograma',
+        { destaque: true, tom: tomDesvio })}
       ${kpi('Avanço financeiro', fmtPct(k.progressoFinanceiro, 1),
         `${fmtMoney(k.totalPago, { dec: 0 })} de ${fmtMoney(k.custoPrevisto, { dec: 0 })} previstos`,
-        k.progressoFinanceiro - k.progressoFisico > 0.1 ? 'aviso' : '')}
+        { destaque: true, tom: desvioFinFis > 0.1 ? 'aviso' : '' })}
     </div>
-    ${cartao('Curva S', graficoCurvaS(o, 340))}
+
+    ${cartao('Curva S', `
+      <p class="curva-leitura">${fraseFisica} ${fraseFin}</p>
+      ${graficoCurvaS(o, 320)}`)}
+
+    ${cartao('Mês a mês', `<div class="tab-rolagem"><table class="tab">
+      <thead><tr><th>Mês</th><th class="num">Físico previsto</th><th class="num">Físico realizado</th>
+        <th class="num">Desvio</th><th class="num">Financeiro realizado</th><th class="num">Desembolso acumulado</th></tr></thead>
+      <tbody>${linhas}</tbody></table></div>`, {
+      semPadding: true,
+      acoes: `<select data-filtro="situacao" aria-label="Recorte">
+        <option value="">Tudo</option>
+        <option value="realizado" ${f.situacao === 'realizado' ? 'selected' : ''}>Só realizado</option>
+        <option value="projecao" ${f.situacao === 'projecao' ? 'selected' : ''}>Só projeção</option>
+      </select>`
+    })}
+
     <div class="cartao"><div class="corpo" style="font-size:12.5px;color:var(--tinta2)">
       A curva física prevista distribui o peso de cada etapa ao longo das datas planejadas.
       O peso vem do campo <b>Peso</b> da etapa; se estiver zerado, é proporcional à duração prevista.
       A curva financeira acumula o desembolso real (medições pagas + lançamentos) sobre o custo total previsto.
     </div></div>
-    ${cartao('Mês a mês', `<div class="tab-rolagem"><table class="tab">
-      <thead><tr><th>Mês</th><th class="num">Físico previsto</th><th class="num">Físico realizado</th>
-        <th class="num">Desvio</th><th class="num">Financeiro realizado</th><th class="num">Desembolso acumulado</th></tr></thead>
-      <tbody>${linhas}</tbody></table></div>`, { semPadding: true })}
   </div>`;
 };
 

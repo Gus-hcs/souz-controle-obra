@@ -397,6 +397,13 @@ table.tab td.trunc { max-width: 260px; overflow: hidden; text-overflow: ellipsis
 .neg { color: var(--critico); }
 .pos { color: var(--ok); }
 
+/* curva S — leitura rápida acima do gráfico */
+.curva-leitura {
+  margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: var(--tinta2);
+  border-left: 2px solid var(--marca); padding-left: 10px;
+}
+.curva-leitura b { color: var(--tinta); font-weight: 600; }
+
 /* contratos e aditivos */
 .ct-cab {
   display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap;
