@@ -1448,33 +1448,43 @@ VIEWS['obra-config'] = () => {
     : campoHTML(c, valores)).join('');
 
   const k = kpisObra(o);
+  const mcmv = /MCMV/i.test(o.padrao || '') || o.fin.contratoCaixa || num(o.fin.valorFinanciado) > 0;
+  const alvo = num(o.fin.margemDesejada);
+
   return `<div class="grade" style="gap:16px">
+    <div class="hero">
+      ${kpi('Empreitada principal', fmtMoney(num(o.areaConstruida) * num(o.fin.precoEmpreitadaM2), { dec: 0 }),
+        num(o.areaConstruida) ? `${fmtNum(o.areaConstruida, 2)} m² × ${fmtMoney(o.fin.precoEmpreitadaM2, { dec: 0 })}/m²` : 'informe a área construída',
+        { destaque: true })}
+      ${kpi('Custo previsto total', fmtMoney(k.custoPrevisto, { dec: 0 }), 'contratos + materiais + saídas', { destaque: true })}
+      ${kpi('Resultado projetado', k.resultado === null ? '—' : fmtMoney(k.resultado, { dec: 0 }),
+        k.margem === null ? 'informe o valor de venda' : `margem de ${fmtPct(k.margem)}${alvo ? ` · alvo ${fmtPct(alvo)}` : ''}`,
+        { destaque: true, tom: k.margem === null ? '' : k.margem < alvo ? 'aviso' : 'ok' })}
+    </div>
+
     ${cartao('Dados da obra', `<form class="form-grade" data-form="1" onsubmit="return false">${html}</form>`, {
-      acoes: `${botao('Salvar alterações', 'salvar-obra-config', {}, 'btn primario')}`
+      acoes: botao('Salvar alterações', 'salvar-obra-config', {}, 'btn primario pequeno'),
     })}
-    ${cartao('Contrato calculado', `
-      <div class="grade g3">
-        ${kpi('Empreitada principal', fmtMoney(num(o.areaConstruida) * num(o.fin.precoEmpreitadaM2), { dec: 0 }),
-          `${fmtNum(o.areaConstruida, 2)} m² × ${fmtMoney(o.fin.precoEmpreitadaM2, { dec: 0 })}/m²`)}
-        ${kpi('Custo previsto total', fmtMoney(k.custoPrevisto, { dec: 0 }), 'contratos + materiais + saídas')}
-        ${kpi('Resultado projetado', k.resultado === null ? '—' : fmtMoney(k.resultado, { dec: 0 }),
-          k.margem === null ? 'informe o valor de venda' : `margem de ${fmtPct(k.margem)}`,
-          k.margem !== null && k.margem < num(o.fin.margemDesejada) ? 'aviso' : 'ok')}
-      </div>`)}
-    ${/MCMV/i.test(o.padrao || '') || o.fin.contratoCaixa || num(o.fin.valorFinanciado) > 0 ? cartao('Escopo típico da empreitada financiada (MCMV)', `
-      <table class="tab">
-        <tbody>
+
+    ${mcmv ? cartao('Escopo típico da empreitada financiada (MCMV)', `
+      <details>
+        <summary style="cursor:pointer;font-size:13px;color:var(--tinta2)">Ver a regra de escopo</summary>
+        <table class="tab" style="margin-top:10px"><tbody>
           <tr><td style="width:190px"><b>Incluído</b></td><td>Parte cinza, hidráulica e sanitário sem fossa, eletrodutos e caixas, assentamento de piso e revestimento</td></tr>
           <tr><td><b>Separado</b></td><td>Pintura, elétrica final, gesso/forro e demais prestadores específicos</td></tr>
           <tr><td><b>Aditivos comuns</b></td><td>Fossa, calçada e muro</td></tr>
           <tr><td><b>Fornecimento + instalação</b></td><td>Calhas, rufos, mármores e portas quando o preço já inclui material e instalação</td></tr>
           <tr><td><b>Regra</b></td><td>Medições nunca devem ultrapassar contrato + aditivos aprovados</td></tr>
-        </tbody>
-      </table>`, { semPadding: true }) : ''}
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      ${botao('Duplicar esta obra', 'duplicar-obra', {}, 'btn')}
-      ${botao('Excluir obra', 'excluir-obra', {}, 'btn perigo', 'lixo')}
-    </div>
+        </tbody></table>
+      </details>`) : ''}
+
+    ${cartao('Ações da obra', `
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${botao('Duplicar esta obra', 'duplicar-obra', {}, 'btn')}
+        ${botao('Excluir obra', 'excluir-obra', {}, 'btn perigo', 'lixo')}
+      </div>
+      <p style="margin:10px 0 0;font-size:12px;color:var(--mudo)">Excluir apaga a obra e tudo que está ligado a ela —
+      contratos, medições, recebimentos, lançamentos, materiais, cronograma e diário. Não dá para desfazer.</p>`)}
   </div>`;
 };
 
