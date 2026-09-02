@@ -1026,42 +1026,68 @@ VIEWS.curva = () => {
 /* ==================================================== FLUXO DE CAIXA */
 VIEWS.fluxo = () => {
   const o = App.obra();
+  const f = App.filtros;
   const dados = fluxoCaixa(o);
   const k = kpisObra(o);
-  const linhas = dados.map((d) => `<tr>
-    <td class="mono">${fmtCompetencia(d.ym)}</td>
-    <td class="num mono">${d.entradas ? fmtMoney(d.entradas) : '—'}</td>
-    <td class="num mono">${d.medicoes ? fmtMoney(d.medicoes) : '—'}</td>
-    <td class="num mono">${d.outras ? fmtMoney(d.outras) : '—'}</td>
-    <td class="num mono">${d.saidas ? fmtMoney(d.saidas) : '—'}</td>
-    <td class="num mono ${d.saldoMes < 0 ? 'neg' : d.saldoMes > 0 ? 'pos' : ''}">${fmtMoney(d.saldoMes)}</td>
-    <td class="num mono ${d.acumulado < 0 ? 'neg' : ''}"><b>${fmtMoney(d.acumulado)}</b></td>
-    <td class="num mono">${d.previstasNaoRecebidas ? fmtMoney(d.previstasNaoRecebidas) : '—'}</td>
-    <td class="num mono">${d.medicoesNaoPagas ? fmtMoney(d.medicoesNaoPagas) : '—'}</td>
-  </tr>`).join('');
+  const hojeM = competencia(hojeISO());
 
   const tot = dados.reduce((a, d) => ({
-    e: a.e + d.entradas, m: a.m + d.medicoes, o: a.o + d.outras, s: a.s + d.saidas
-  }), { e: 0, m: 0, o: 0, s: 0 });
+    e: a.e + d.entradas, m: a.m + d.medicoes, ou: a.ou + d.outras, s: a.s + d.saidas
+  }), { e: 0, m: 0, ou: 0, s: 0 });
+
+  let linhasD = dados.slice();
+  if (f.situacao === 'movimento') linhasD = linhasD.filter((d) => d.entradas || d.saidas);
+  if (f.situacao === 'futuros') linhasD = linhasD.filter((d) => d.ym > hojeM);
+
+  const linhas = linhasD.map((d) => {
+    const saidaSub = [
+      d.medicoes ? `medições ${fmtMoneyCurto(d.medicoes)}` : null,
+      d.outras ? `outras ${fmtMoneyCurto(d.outras)}` : null,
+    ].filter(Boolean).join(' · ');
+    const aLiquidar = (d.previstasNaoRecebidas || d.medicoesNaoPagas)
+      ? `<div class="ct-escopo-w">${d.previstasNaoRecebidas ? `<span class="pos">+${fmtMoneyCurto(d.previstasNaoRecebidas)}</span>` : ''}${d.medicoesNaoPagas ? `<span class="neg">−${fmtMoneyCurto(d.medicoesNaoPagas)}</span>` : ''}</div>`
+      : '—';
+    return `<tr>
+      <td class="mono">${fmtCompetencia(d.ym)}${d.ym > hojeM ? ' <span class="chip" style="font-size:10px">futuro</span>' : ''}</td>
+      <td class="num mono">${d.entradas ? fmtMoney(d.entradas) : '—'}</td>
+      <td class="num mono"><div class="ct-escopo-w"><span>${d.saidas ? fmtMoney(d.saidas) : '—'}</span>${saidaSub ? `<span class="ct-detalhe">${saidaSub}</span>` : ''}</div></td>
+      <td class="num mono ${d.saldoMes < 0 ? 'neg' : d.saldoMes > 0 ? 'pos' : ''}">${d.saldoMes ? fmtMoney(d.saldoMes) : '—'}</td>
+      <td class="num mono ${d.acumulado < 0 ? 'neg' : ''}"><b>${fmtMoney(d.acumulado)}</b></td>
+      <td class="num mono">${aLiquidar}</td>
+    </tr>`;
+  }).join('');
+
+  const posicao = k.saldoCaixa + k.previstoNaoRecebido - k.medicoesNaoPagas;
 
   return `<div class="grade" style="gap:16px">
-    <div class="grade g4">
-      ${kpi('Saldo inicial', fmtMoney(k.saldoInicial, { dec: 0 }), 'informado na configuração')}
-      ${kpi('Entradas', fmtMoney(tot.e, { dec: 0 }), 'creditadas no período')}
-      ${kpi('Saídas', fmtMoney(tot.s, { dec: 0 }), `${fmtMoneyCurto(tot.m)} medições · ${fmtMoneyCurto(tot.o)} demais`)}
-      ${kpi('Saldo atual', fmtMoney(k.saldoCaixa, { dec: 0 }), 'saldo inicial + entradas − saídas', k.saldoCaixa < 0 ? 'critico' : 'ok')}
+    <div class="hero">
+      ${kpi('Saldo em caixa', fmtMoney(k.saldoCaixa, { dec: 0 }),
+        `inicial ${fmtMoneyCurto(k.saldoInicial)} + ${fmtMoneyCurto(tot.e)} − ${fmtMoneyCurto(tot.s)}`,
+        { destaque: true, tom: k.saldoCaixa < 0 ? 'critico' : 'ok' })}
+      ${kpi('A receber', fmtMoney(k.previstoNaoRecebido, { dec: 0 }),
+        'parcelas previstas não creditadas', { destaque: true })}
+      ${kpi('A pagar', fmtMoney(k.medicoesNaoPagas, { dec: 0 }),
+        'medições em aberto', { destaque: true, tom: k.medicoesNaoPagas > 0.005 ? 'aviso' : 'ok' })}
     </div>
-    ${cartao('Movimento mensal', graficoFluxo(o, 300))}
+    <p class="ct-contagem">Posição projetada (saldo + a receber − a pagar):
+      <b class="${posicao < 0 ? 'neg' : ''}">${fmtMoney(posicao, { dec: 0 })}</b></p>
+
+    ${cartao('Movimento mensal', graficoFluxo(o, 280))}
+
     ${cartao('Tabela mensal', `<div class="tab-rolagem"><table class="tab">
-      <thead><tr><th>Mês</th><th class="num">Entradas</th><th class="num">Medições pagas</th>
-        <th class="num">Materiais e outras</th><th class="num">Total de saídas</th><th class="num">Saldo do mês</th>
-        <th class="num">Saldo acumulado</th><th class="num">Entradas previstas não recebidas</th>
-        <th class="num">Medições a pagar</th></tr></thead>
+      <thead><tr><th>Mês</th><th class="num">Entradas</th><th class="num">Saídas</th>
+        <th class="num">Saldo do mês</th><th class="num">Saldo acumulado</th><th class="num">A liquidar</th></tr></thead>
       <tbody>${linhas}</tbody>
-      <tfoot><tr><td>Total</td><td class="num mono">${fmtMoney(tot.e)}</td><td class="num mono">${fmtMoney(tot.m)}</td>
-        <td class="num mono">${fmtMoney(tot.o)}</td><td class="num mono">${fmtMoney(tot.s)}</td>
-        <td class="num mono">${fmtMoney(tot.e - tot.s)}</td><td colspan="3"></td></tr></tfoot>
-    </table></div>`, { semPadding: true })}
+      <tfoot><tr><td>Total</td><td class="num mono">${fmtMoney(tot.e)}</td><td class="num mono">${fmtMoney(tot.s)}</td>
+        <td class="num mono ${tot.e - tot.s < 0 ? 'neg' : ''}">${fmtMoney(tot.e - tot.s)}</td><td colspan="2"></td></tr></tfoot>
+    </table></div>`, {
+      semPadding: true,
+      acoes: `<select data-filtro="situacao" aria-label="Recorte">
+        <option value="">Todos os meses</option>
+        <option value="movimento" ${f.situacao === 'movimento' ? 'selected' : ''}>Só com movimento</option>
+        <option value="futuros" ${f.situacao === 'futuros' ? 'selected' : ''}>Só meses futuros</option>
+      </select>`
+    })}
   </div>`;
 };
 
