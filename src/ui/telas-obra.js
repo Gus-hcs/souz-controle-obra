@@ -1293,37 +1293,37 @@ function audDataHora(iso) {
 
 VIEWS.auditoria = () => {
   const o = App.obra();
-  if (!o) return vazio('Selecione uma obra', 'A trilha de auditoria é registrada por obra.');
+  const painel = (titulo, texto, btn) => cartao('Trilha de auditoria', vazio(titulo, texto, btn || ''));
+
+  if (!o) return painel('Selecione uma obra', 'A trilha de auditoria é registrada por obra.');
 
   if (Store.backend !== 'supabase') {
-    return cartao('Trilha de auditoria', vazio(
-      'Disponível com login',
-      'A trilha registra quem alterou cada valor financeiro — contrato, medição, recebimento e lançamento — e quando. Ela vive no banco de dados e aparece quando você acessa o sistema com a sua conta.'));
+    return painel('Disponível com login',
+      'A trilha registra quem alterou cada valor financeiro — contrato, medição, recebimento e lançamento — e de quanto para quanto. Ela vive no banco de dados e aparece quando você entra com a sua conta.');
   }
 
   carregarAuditoria(o.id);
 
   if (Auditoria.carregando && !Auditoria.linhas) {
-    return cartao('Trilha de auditoria', vazio('Carregando…', 'Buscando o histórico de alterações desta obra.'));
+    return painel('Carregando…', 'Buscando o histórico de alterações desta obra.');
   }
 
   if (Auditoria.erro) {
     const faltaTabela = /relation .*auditoria.* does not exist|Could not find the table|schema cache/i.test(Auditoria.erro);
-    return cartao('Trilha de auditoria', `
-      ${vazio(faltaTabela ? 'Trilha ainda não instalada' : 'Não foi possível carregar',
-        faltaTabela
-          ? 'Aplique a migração db/migracoes/0003_auditoria.sql no SQL Editor do Supabase e recarregue.'
-          : Auditoria.erro)}
-      <div style="text-align:center;margin-top:8px">${botao('Tentar de novo', 'recarregar-auditoria', {}, 'btn')}</div>`);
+    return painel(
+      faltaTabela ? 'Trilha ainda não ativada' : 'Não foi possível carregar',
+      faltaTabela
+        ? 'O sistema funciona sem ela, mas a trilha só guarda o histórico depois que a migração 0003 é aplicada no banco. Quem aplica é o responsável pelo projeto, no SQL Editor do Supabase.'
+        : Auditoria.erro,
+      botao('Tentar de novo', 'recarregar-auditoria', {}, 'btn'));
   }
 
   const linhas = Auditoria.linhas || [];
   if (!linhas.length) {
-    return cartao('Trilha de auditoria', vazio(
+    return painel(
       'Nenhuma alteração ainda',
-      'Assim que um valor financeiro for criado ou alterado, o registro aparece aqui: quem mudou, de quanto para quanto e quando.'), {
-      acoes: botao('Atualizar', 'recarregar-auditoria', {}, 'btn sutil pequeno'),
-    });
+      'Assim que um valor financeiro for criado ou alterado, o registro aparece aqui: quem mudou, de quanto para quanto e quando.',
+      botao('Atualizar', 'recarregar-auditoria', {}, 'btn sutil pequeno'));
   }
 
   const f = App.filtros;
