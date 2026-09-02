@@ -32,9 +32,9 @@
   :root {
     color-scheme: dark;
 
-    --preto: #05100e;
-    --grafite: #0e1a17;
-    --elevado: #0e2824;
+    --preto: #040706; /* fundo — quase preto, só um fio de verde */
+    --grafite: #0a0e0d;
+    --elevado: #121917;
     --ciano: #0b7d72;
     --ciano-claro: #2fd4c4;
     --nevoa: #e8e8e8;
@@ -44,15 +44,15 @@
     --ground: var(--preto);
     --surface: var(--grafite);
     --surface-2: var(--elevado);
-    --line: #1c2e2a;
-    --line-strong: #2a423d;
+    --line: #191f1d;
+    --line-strong: #2a3431;
     --ink: var(--nevoa);
     --ink-2: var(--cinza);
     --ink-3: #7c8a86;
     --accent: var(--ciano-claro); /* texto, link, número em destaque (só no escuro) */
     --accent-solid: var(--ciano); /* preenchimento: botão, barra de gráfico */
     --on-accent: #fbfcfb;
-    --grid: rgba(47, 212, 196, 0.09);
+    --grid: rgba(47, 212, 196, 0.055);
     --warn: #e0a44a;
     --neg: #e2705f;
 
@@ -1232,19 +1232,10 @@
     line-height: 1.6;
   }
 
-  /* ---------------------------------------------------------- símbolo */
-  .cube g {
-    stroke: var(--face-stroke);
-  }
-  .cube .ft {
-    fill: var(--face-top);
-  }
-  .cube .fl {
-    fill: var(--face-left);
-  }
-  .cube .fr {
-    fill: var(--face-right);
-  }
+  /* ---------------------------------------------------------- símbolo
+     As faces e o contorno vão como atributo dentro do <symbol> — CSS de
+     fora não alcança o conteúdo clonado pelo <use>. O cubo é sempre
+     cinza, nos dois temas (Manual da Marca 01.4). */
 
   /* ---------------------------------------------------------- movimento */
   @media (prefers-reduced-motion: no-preference) {
@@ -1315,16 +1306,16 @@
 <svg width="0" height="0" style="position: absolute" aria-hidden="true">
   <defs>
     <symbol id="cubo" viewBox="0 0 340 342">
-      <g stroke-width="6" stroke-linejoin="round">
+      <g stroke="#686868" stroke-width="6" stroke-linejoin="round">
         <g transform="translate(90,103)">
-          <polygon class="ft" points="0,-100 86.6,-50 0,0 -86.6,-50" />
-          <polygon class="fl" points="-86.6,-50 0,0 0,100 -86.6,50" />
-          <polygon class="fr" points="86.6,-50 86.6,50 0,100 0,0" />
+          <polygon points="0,-100 86.6,-50 0,0 -86.6,-50" fill="#d6d6d6" />
+          <polygon points="-86.6,-50 0,0 0,100 -86.6,50" fill="#adadad" />
+          <polygon points="86.6,-50 86.6,50 0,100 0,0" fill="#e8e8e8" />
         </g>
         <g transform="translate(250,239)">
-          <polygon class="ft" points="0,-100 86.6,-50 0,0 -86.6,-50" />
-          <polygon class="fl" points="-86.6,-50 0,0 0,100 -86.6,50" />
-          <polygon class="fr" points="86.6,-50 86.6,50 0,100 0,0" />
+          <polygon points="0,-100 86.6,-50 0,0 -86.6,-50" fill="#d6d6d6" />
+          <polygon points="-86.6,-50 0,0 0,100 -86.6,50" fill="#adadad" />
+          <polygon points="86.6,-50 86.6,50 0,100 0,0" fill="#e8e8e8" />
         </g>
       </g>
     </symbol>
