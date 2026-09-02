@@ -1,50 +1,54 @@
 /* ================================================================
    SOUZ CONTROLE DE OBRA — folha de estilo
    Console de obra, tema escuro. Space Grotesk + Inter.
-   O tema escuro é o padrão; o claro entra só com data-theme="light".
+   Mesma paleta do site souztech.com (Manual da Marca): quase preto,
+   ciano só em ação e resultado. O escuro é o padrão; o claro entra
+   só com data-theme="light".
    ================================================================ */
 
 :root {
   color-scheme: dark;
 
-  /* superfícies — do preto ao mais alto (viés teal sutil) */
-  --bg: #000000;
-  --sup: #0A0D0C;
-  --sup2: #101413;
-  --sup3: #1A201E;
-  --linha: #1B211F;
-  --linha-forte: #2C3431;
+  /* superfícies — quase preto, com um fio de verde; degraus curtos */
+  --bg: #020403;
+  --sup: #080B0A;
+  --sup2: #0D1211;
+  --sup3: #141A18;
+  --linha: #171E1B;
+  --linha-forte: #29322E;
 
-  /* texto */
-  --tinta: #E8EDEB;
-  --tinta2: #A4AEAB;
-  --mudo: #6B7874;
+  /* texto — cinzas do símbolo do manual */
+  --tinta: #E8E8E8;
+  --tinta2: #ADADAD;
+  --mudo: #7C8A86;
 
-  /* marca — verde ciano sobre preto */
-  --marca: #2FD4C1;
+  /* marca — ciano. Claro para texto/link/número; sólido só como preenchimento. */
+  --marca: #2FD4C4;
   --marca-forte: #5CE3D3;
   --marca-fraca: #082521;
   --marca-tinta: #03231F;
+  --marca-solida: #0B7D72;
+  --on-marca: #FBFCFB;
 
   /* semânticos — separados da marca */
   --ok: #5FE0A3;
   --ok-fraco: #08261C;
-  --aviso: #E4A73E;
+  --aviso: #E0A44A;
   --aviso-fraco: #2C2411;
-  --critico: #F06A5E;
+  --critico: #E2705F;
   --critico-fraco: #33191A;
 
   /* séries de gráfico (contraste e daltonismo) */
-  --s1: #2FD4C1; --s2: #F59E5B; --s3: #8B93F8;
+  --s1: #2FD4C4; --s2: #F59E5B; --s3: #8B93F8;
   --s4: #86BE3C; --s5: #C879C4; --s6: #C79A45;
-  --grade: #141A18;
+  --grade: #101614;
 
   /* rail — âncora preta da identidade */
   --rail: #000000;
-  --rail2: #0C110F;
-  --rail-linha: #1A211E;
-  --rail-tinta: #E6EBE9;
-  --rail-mudo: #6B7874;
+  --rail2: #0A0F0D;
+  --rail-linha: #161D1A;
+  --rail-tinta: #E8E8E8;
+  --rail-mudo: #7C8A86;
 
   /* raio */
   --r: 7px;
@@ -68,19 +72,21 @@
 
   --bg: #EDEFEE;
   --sup: #FBFCFB;
-  --sup2: #F1F4F3;
-  --sup3: #E5E9E8;
-  --linha: #DFE4E2;
-  --linha-forte: #C4CBC8;
+  --sup2: #E9EDEB;
+  --sup3: #E3E7E5;
+  --linha: #D3DAD7;
+  --linha-forte: #B7C2BE;
 
-  --tinta: #10201D;
-  --tinta2: #45514E;
-  --mudo: #6E7A76;
+  --tinta: #05100E;
+  --tinta2: #3E4B48;
+  --mudo: #686868;
 
   --marca: #0B7D72;
   --marca-forte: #096A61;
   --marca-fraca: #DCEFEC;
   --marca-tinta: #FFFFFF;
+  --marca-solida: #0B7D72;
+  --on-marca: #FBFCFB;
 
   --ok: #17794C;
   --ok-fraco: #DEF0E6;
@@ -252,10 +258,10 @@ body[data-view="painel"] #conteudo { max-width: 1780px; }
 .btn:hover { background: var(--sup3); border-color: var(--mudo); }
 .btn:active { transform: translateY(.5px); }
 .btn.primario {
-  background: var(--marca); border-color: var(--marca); color: var(--marca-tinta);
-  box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 6px 16px -6px var(--marca);
+  background: var(--marca-solida); border-color: var(--marca-solida); color: var(--on-marca);
+  box-shadow: 0 6px 16px -8px var(--marca-solida);
 }
-.btn.primario:hover { background: var(--marca-forte); border-color: var(--marca-forte); }
+.btn.primario:hover { background: var(--marca); border-color: var(--marca); color: var(--marca-tinta); }
 .btn.sutil { background: none; border-color: transparent; color: var(--tinta2); font-weight: 400; }
 .btn.sutil:hover { background: var(--sup3); color: var(--tinta); }
 .btn.perigo { color: var(--critico); border-color: color-mix(in srgb, var(--critico) 45%, transparent); background: none; }
