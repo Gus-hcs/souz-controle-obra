@@ -318,13 +318,35 @@
 
   /* ---------------------------------------------------------- nav */
   .nav {
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
+    right: 0;
     z-index: 90;
-    background: color-mix(in srgb, var(--ground) 82%, transparent);
+    background: transparent;
+    border-bottom: 1px solid transparent;
+    transition:
+      background-color 0.3s ease,
+      border-color 0.3s ease;
+  }
+  .nav--solid {
+    background: color-mix(in srgb, var(--ground) 88%, transparent);
     -webkit-backdrop-filter: saturate(150%) blur(14px);
     backdrop-filter: saturate(150%) blur(14px);
-    border-bottom: 1px solid var(--line);
+    border-bottom-color: var(--line);
+  }
+  /* transparente = está sobre o herói escuro, texto sempre claro */
+  .nav:not(.nav--solid) .brand {
+    color: #fbfcfb;
+  }
+  .nav:not(.nav--solid) .brand .desc {
+    color: rgba(255, 255, 255, 0.6);
+  }
+  .nav:not(.nav--solid) .navlink {
+    color: rgba(255, 255, 255, 0.72);
+  }
+  .nav:not(.nav--solid) .navlink:hover {
+    color: #fff;
   }
   .nav__inner {
     display: flex;
@@ -435,43 +457,107 @@
   /* ---------------------------------------------------------- hero */
   .hero {
     position: relative;
-    padding: 88px 0 0;
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     text-align: center;
     overflow: hidden;
+    padding: 120px 0 96px;
+    isolation: isolate;
   }
-  .hero .iso-layer rect {
-    opacity: 0.6;
+
+  /* mídia: fotos de obra em cross-fade + véu + malha isométrica */
+  .hero__media {
+    position: absolute;
+    inset: -12% 0 -16%;
+    z-index: 0;
+    background:
+      radial-gradient(70% 60% at 50% 30%, #0a1512, transparent 70%),
+      linear-gradient(180deg, #05100e, #030605);
+    will-change: transform;
   }
+  .hero__media .slide {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 1.6s ease;
+  }
+  .hero__media .slide.is-active {
+    opacity: 1;
+  }
+  .hero__media .slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: grayscale(0.25) contrast(1.02) brightness(0.72);
+  }
+  .hero__media .slide.is-active img {
+    animation: kenburns 9s ease-out both;
+  }
+  @keyframes kenburns {
+    from {
+      transform: scale(1.12);
+    }
+    to {
+      transform: scale(1);
+    }
+  }
+  .hero__veil {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgba(4, 7, 6, 0.72) 0%, rgba(4, 7, 6, 0.5) 38%, rgba(4, 7, 6, 0.82) 100%),
+      radial-gradient(60% 50% at 50% 46%, transparent, rgba(4, 7, 6, 0.55));
+  }
+  .hero__grid {
+    position: absolute;
+    inset: 0;
+    opacity: 0.5;
+    will-change: transform;
+  }
+  .hero__grid rect {
+    fill: url(#iso);
+  }
+
   .hero__inner {
     position: relative;
-    z-index: 1;
+    z-index: 2;
+    will-change: transform, opacity;
   }
   .hero .cube-lg {
-    width: 60px;
-    height: 60px;
-    margin: 0 auto 24px;
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 26px;
+    filter: drop-shadow(0 6px 20px rgba(0, 0, 0, 0.5));
   }
   .hero .eyebrow {
     display: block;
     margin-bottom: 18px;
+    color: var(--ciano-claro);
   }
   .hero h1 {
     margin: 0 auto;
-    max-width: 15ch;
+    max-width: 16ch;
+    color: #fbfcfb;
+  }
+  .hero h1 .soft {
+    color: #b9c4c1;
   }
   .hero__lede {
     margin: 22px auto 0;
     max-width: 46ch;
+    color: #cdd6d3;
   }
   .hero__cta {
     display: flex;
     gap: 12px;
     justify-content: center;
     flex-wrap: wrap;
-    margin-top: 32px;
+    margin-top: 34px;
   }
   .hero__facts {
-    margin-top: 28px;
+    margin-top: 30px;
     display: flex;
     justify-content: center;
     flex-wrap: wrap;
@@ -480,7 +566,7 @@
     font-size: 11px;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--ink-3);
+    color: #9fabA7;
   }
   .hero__facts span {
     display: inline-flex;
@@ -491,20 +577,77 @@
     content: '';
     width: 3px;
     height: 3px;
-    background: var(--line-strong);
+    background: rgba(255, 255, 255, 0.28);
   }
   .dot-live {
     width: 6px;
     height: 6px;
     background: var(--ciano-claro);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ciano-claro) 22%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ciano-claro) 24%, transparent);
+  }
+  .hero__scroll {
+    position: absolute;
+    left: 50%;
+    bottom: 26px;
+    transform: translateX(-50%);
+    z-index: 1;
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+  }
+  .hero__scroll .ch {
+    width: 9px;
+    height: 9px;
+    border-right: 1.5px solid var(--ciano-claro);
+    border-bottom: 1.5px solid var(--ciano-claro);
+    transform: rotate(45deg);
+    animation: bob 1.8s ease-in-out infinite;
+  }
+  @keyframes bob {
+    0%, 100% {
+      transform: rotate(45deg) translate(0, 0);
+      opacity: 0.5;
+    }
+    50% {
+      transform: rotate(45deg) translate(3px, 3px);
+      opacity: 1;
+    }
+  }
+  @media (max-width: 560px) {
+    .hero {
+      padding: 104px 0 84px;
+    }
+    .hero__scroll {
+      display: none;
+    }
   }
 
-  .hero__stage {
+  /* ---------------------------------------------------------- stage do mockup */
+  .stage {
     position: relative;
-    z-index: 1;
-    margin-top: 64px;
-    padding-bottom: 112px;
+    padding: 96px 0 112px;
+    overflow: hidden;
+  }
+  .stage__glow {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: min(900px, 120%);
+    height: 60%;
+    transform: translateX(-50%);
+    background: radial-gradient(50% 60% at 50% 30%, color-mix(in srgb, var(--ciano) 22%, transparent), transparent 70%);
+    filter: blur(10px);
+    pointer-events: none;
+  }
+  @media (max-width: 700px) {
+    .stage {
+      padding: 64px 0 72px;
+    }
   }
 
   /* ---------------------------------------------------------- mockup */
@@ -1237,18 +1380,109 @@
      fora não alcança o conteúdo clonado pelo <use>. O cubo é sempre
      cinza, nos dois temas (Manual da Marca 01.4). */
 
+  /* ---------------------------------------------------------- seção que "gruda" */
+  .spot--sticky {
+    align-items: start;
+  }
+  .spot--sticky .spot__lead {
+    position: sticky;
+    top: 22vh;
+  }
+  .spot__rail {
+    margin-top: 26px;
+    height: 3px;
+    background: var(--line);
+    position: relative;
+    overflow: hidden;
+  }
+  .spot__rail i {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--fill, 0%);
+    background: var(--accent);
+    transition: width 0.5s ease;
+  }
+  .spot__steps {
+    display: grid;
+    gap: 16px;
+  }
+  .stepcard {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 30px 28px;
+    min-height: 46vh;
+    display: grid;
+    align-content: center;
+  }
+  .section--raise .stepcard {
+    background: var(--ground);
+  }
+  .stepcard .sc-k {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .stepcard h4 {
+    font-size: 21px;
+    letter-spacing: -0.02em;
+    margin-top: 12px;
+  }
+  .stepcard p {
+    margin-top: 12px;
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink-2);
+  }
+  @media (max-width: 880px) {
+    .spot--sticky .spot__lead {
+      position: static;
+    }
+    .stepcard {
+      min-height: 0;
+    }
+  }
+
   /* ---------------------------------------------------------- movimento */
+  [data-par] {
+    will-change: transform;
+  }
+  .count {
+    font-variant-numeric: tabular-nums;
+  }
   @media (prefers-reduced-motion: no-preference) {
     .reveal {
       opacity: 0;
-      transform: translateY(16px);
+      transform: translateY(22px);
       transition:
-        opacity 0.6s cubic-bezier(0.28, 0.11, 0.32, 1),
-        transform 0.6s cubic-bezier(0.28, 0.11, 0.32, 1);
+        opacity 0.7s cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform 0.7s cubic-bezier(0.22, 0.61, 0.36, 1);
     }
     .reveal.in {
       opacity: 1;
       transform: none;
+    }
+    [data-stagger] > * {
+      opacity: 0;
+      transform: translateY(20px);
+      transition:
+        opacity 0.6s cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform 0.6s cubic-bezier(0.22, 0.61, 0.36, 1);
+    }
+    [data-stagger].in > * {
+      opacity: 1;
+      transform: none;
+    }
+    [data-stagger].in > *:nth-child(2) {
+      transition-delay: 0.08s;
+    }
+    [data-stagger].in > *:nth-child(3) {
+      transition-delay: 0.16s;
+    }
+    [data-stagger].in > *:nth-child(4) {
+      transition-delay: 0.24s;
     }
     .rise {
       opacity: 0;
@@ -1350,8 +1584,16 @@
 
 <!-- ======================= HERO ======================= -->
 <header class="hero" id="topo">
-  <svg class="iso-layer" aria-hidden="true"><rect width="100%" height="100%" /></svg>
-  <div class="wrap hero__inner">
+  <div class="hero__media" data-par="-0.18" aria-hidden="true">
+    <div class="slide"><img src="hero/1.jpg" alt="" /></div>
+    <div class="slide"><img src="hero/2.jpg" alt="" /></div>
+    <div class="slide"><img src="hero/3.jpg" alt="" /></div>
+    <div class="slide"><img src="hero/4.jpg" alt="" /></div>
+    <div class="hero__veil"></div>
+    <svg class="hero__grid" data-par="0.06" aria-hidden="true"><rect width="100%" height="120%" /></svg>
+  </div>
+
+  <div class="wrap hero__inner" data-hero-fade>
     <svg class="cube cube-lg rise d1" viewBox="0 0 340 342" aria-hidden="true"><use href="#cubo" /></svg>
     <span class="eyebrow rise d2">Gestão de obra · construtoras e engenharia</span>
     <h1 class="display rise d3">Da obra no papel <span class="soft">ao resultado no caixa.</span></h1>
@@ -1377,9 +1619,18 @@
     </div>
   </div>
 
-  <div class="wrap hero__stage">
+  <a class="hero__scroll" href="#recursos" aria-label="Rolar para ver mais">
+    <span>Rolar</span><span class="ch" aria-hidden="true"></span>
+  </a>
+</header>
+
+<!-- ======================= STAGE (mockup) ======================= -->
+<section class="stage">
+  <div class="stage__glow" aria-hidden="true"></div>
+  <div class="wrap">
     <div
-      class="app rise d6"
+      class="app reveal"
+      data-par="0.05"
       role="img"
       aria-label="Tela do SouZ: saldo em caixa, margem projetada, avanço físico, curva S de físico previsto contra realizado e lista de movimentações da obra."
     >
@@ -1455,7 +1706,7 @@
       </div>
     </div>
   </div>
-</header>
+</section>
 
 <!-- ======================= PROBLEMA ======================= -->
 <section class="section section--raise">
@@ -1485,8 +1736,8 @@
       </p>
     </div>
 
-    <div class="bento">
-      <div class="tile reveal">
+    <div class="bento" data-stagger>
+      <div class="tile">
         <div class="tnum">01</div>
         <h3>Financeiro da obra</h3>
         <p class="tsub">O que entra e o que sai, no mesmo lugar.</p>
@@ -1498,7 +1749,7 @@
           <li>Fluxo de caixa mês a mês, com o acumulado projetado</li>
         </ul>
       </div>
-      <div class="tile reveal">
+      <div class="tile">
         <div class="tnum">02</div>
         <h3>Produção e prazo</h3>
         <p class="tsub">O que o canteiro entregou, contra o combinado.</p>
@@ -1509,7 +1760,7 @@
           <li>Alertas de etapa atrasada, contrato ultrapassado e caixa negativo</li>
         </ul>
       </div>
-      <div class="tile reveal">
+      <div class="tile">
         <div class="tnum">03</div>
         <h3>Materiais</h3>
         <p class="tsub">Comprar na hora certa, sem comprar duas vezes.</p>
@@ -1519,7 +1770,7 @@
           <li>Aviso de material vencido sem compra registrada</li>
         </ul>
       </div>
-      <div class="tile reveal">
+      <div class="tile">
         <div class="tnum">04</div>
         <h3>Visão e prestação de contas</h3>
         <p class="tsub">O que você mostra para o cliente, o banco e o sócio.</p>
@@ -1534,11 +1785,11 @@
   </div>
 </section>
 
-<!-- ======================= SPOTLIGHT: DUPLICIDADE ======================= -->
+<!-- ======================= SPOTLIGHT: DUPLICIDADE (seção que gruda) ======================= -->
 <section class="section section--raise">
   <div class="wrap">
-    <div class="spot">
-      <div class="reveal">
+    <div class="spot spot--sticky">
+      <div class="spot__lead reveal">
         <p class="eyebrow">O que a planilha não tem</p>
         <h3>Cada real entra uma vez, e num lugar certo.</h3>
         <p>
@@ -1546,13 +1797,28 @@
           É a diferença entre saber a margem hoje e descobrir no fechamento que a obra pagou o piso
           duas vezes.
         </p>
-        <a class="arrow" href="#contato">Ver isso numa obra sua</a>
+        <div class="spot__rail" aria-hidden="true"><i></i></div>
+        <a class="arrow" href="#contato" style="margin-top: 20px; display: inline-flex"
+          >Ver isso numa obra sua</a
+        >
       </div>
-      <ul class="panel-card reveal">
-        <li><b>Medição.</b>&nbsp;Serviço do prestador, medido e pago. Nunca ultrapassa contrato + aditivos aprovados.</li>
-        <li><b>Lançamento.</b>&nbsp;Compra, taxa ou serviço sem medição. Entra aqui — e em nenhum outro lugar.</li>
-        <li><b>Recebimento.</b>&nbsp;Parcela do cliente ou do financiamento: previsto, aprovado e o que foi de fato creditado.</li>
-      </ul>
+      <div class="spot__steps">
+        <article class="stepcard reveal" data-step>
+          <span class="sc-k">01 · Medição</span>
+          <h4>Serviço do prestador, medido e pago.</h4>
+          <p>Nunca ultrapassa o contrato mais os aditivos aprovados. Se o pago passa do medido, o sistema avisa na hora.</p>
+        </article>
+        <article class="stepcard reveal" data-step>
+          <span class="sc-k">02 · Lançamento</span>
+          <h4>Compra, taxa ou serviço sem medição.</h4>
+          <p>Entra aqui — e em nenhum outro lugar. É o que impede o material de ser pago como medição e como compra.</p>
+        </article>
+        <article class="stepcard reveal" data-step>
+          <span class="sc-k">03 · Recebimento</span>
+          <h4>Parcela do cliente ou do financiamento.</h4>
+          <p>Previsto, aprovado e o que foi de fato creditado — separados, para o caixa não mostrar dinheiro que ainda não entrou.</p>
+        </article>
+      </div>
     </div>
   </div>
 </section>
@@ -1571,19 +1837,19 @@
       </p>
     </div>
 
-    <div class="figures reveal">
+    <div class="figures reveal" data-stagger>
       <div class="figure">
-        <div class="n pos">R$ 17.870</div>
+        <div class="n pos count" data-count="17870" data-prefix="R$ ">R$ 17.870</div>
         <div class="k">Saldo em caixa</div>
         <div class="d">recebido − pago, com a tendência do mês</div>
       </div>
       <div class="figure">
-        <div class="n">14,8%</div>
+        <div class="n count" data-count="14,8" data-suffix="%">14,8%</div>
         <div class="k">Margem projetada</div>
         <div class="d">contra o alvo definido para a obra</div>
       </div>
       <div class="figure">
-        <div class="n">R$ 2.094</div>
+        <div class="n count" data-count="2094" data-prefix="R$ ">R$ 2.094</div>
         <div class="k">Custo previsto por m²</div>
         <div class="d">contra o teto físico do financiamento</div>
       </div>
@@ -1623,7 +1889,7 @@
       <p class="eyebrow">Como começa</p>
       <h2 class="title">Da planilha para o sistema numa conversa.</h2>
     </div>
-    <div class="steps reveal">
+    <div class="steps" data-stagger>
       <div class="step">
         <div class="snum">Passo 1</div>
         <h3>Agende uma demonstração</h3>
@@ -1657,7 +1923,7 @@
         acompanhamento.
       </p>
     </div>
-    <div class="plans reveal">
+    <div class="plans" data-stagger>
       <div class="plan">
         <span class="prange">1 a 3 obras</span>
         <span class="pname">Começando</span>
@@ -1748,7 +2014,7 @@
 
 <!-- ======================= CONTATO ======================= -->
 <section class="section cta" id="contato">
-  <svg class="iso-layer" aria-hidden="true"><rect width="100%" height="100%" /></svg>
+  <svg class="iso-layer" data-par="0.08" aria-hidden="true"><rect width="100%" height="130%" /></svg>
   <div class="wrap cta__grid">
     <div class="reveal">
       <p class="eyebrow">Contato</p>
@@ -1840,29 +2106,196 @@
 </footer>
 
 <script>
-  // revelação no scroll — um elemento por vez
   (function () {
-    var alvos = document.querySelectorAll('.reveal');
-    if (!('IntersectionObserver' in window)) {
-      alvos.forEach(function (el) {
-        el.classList.add('in');
+    var reduz =
+      window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ---------- herói: carrossel de fotos em cross-fade ----------
+    (function () {
+      var media = document.querySelector('.hero__media');
+      if (!media) return;
+      var slides = [].slice.call(media.querySelectorAll('.slide'));
+      var ok = [];
+      var pendentes = slides.length;
+
+      function decidir() {
+        if (!ok.length) {
+          // nenhuma foto entrou: fica só o gradiente do fundo
+          return;
+        }
+        ok[0].classList.add('is-active');
+        if (ok.length < 2 || reduz) return;
+        var i = 0;
+        setInterval(function () {
+          ok[i].classList.remove('is-active');
+          i = (i + 1) % ok.length;
+          ok[i].classList.add('is-active');
+        }, 6000);
+      }
+
+      slides.forEach(function (s) {
+        var img = s.querySelector('img');
+        function feito(bom) {
+          if (bom) ok.push(s);
+          else s.parentNode && s.parentNode.removeChild(s);
+          if (--pendentes === 0) decidir();
+        }
+        if (!img) {
+          feito(false);
+          return;
+        }
+        if (img.complete) {
+          feito(img.naturalWidth > 0);
+        } else {
+          img.addEventListener('load', function () {
+            feito(true);
+          });
+          img.addEventListener('error', function () {
+            feito(false);
+          });
+        }
       });
-      return;
-    }
-    var io = new IntersectionObserver(
-      function (entradas) {
-        entradas.forEach(function (e) {
-          if (e.isIntersecting) {
-            e.target.classList.add('in');
-            io.unobserve(e.target);
-          }
+    })();
+
+    // ---------- revelar blocos ao entrar na tela ----------
+    (function () {
+      var alvos = [].slice.call(document.querySelectorAll('.reveal, [data-stagger], [data-step]'));
+      if (!('IntersectionObserver' in window)) {
+        alvos.forEach(function (el) {
+          el.classList.add('in');
         });
-      },
-      { threshold: 0.14, rootMargin: '0px 0px -40px 0px' },
-    );
-    alvos.forEach(function (el) {
-      io.observe(el);
-    });
+        return;
+      }
+      var io = new IntersectionObserver(
+        function (ents) {
+          ents.forEach(function (e) {
+            if (e.isIntersecting) {
+              e.target.classList.add('in');
+              io.unobserve(e.target);
+            }
+          });
+        },
+        { threshold: 0.12, rootMargin: '0px 0px -8% 0px' },
+      );
+      alvos.forEach(function (el) {
+        io.observe(el);
+      });
+    })();
+
+    // ---------- números que sobem contando ----------
+    (function () {
+      var alvos = [].slice.call(document.querySelectorAll('[data-count]'));
+      if (!alvos.length) return;
+      function anima(el) {
+        var bruto = el.getAttribute('data-count');
+        var dec = bruto.indexOf(',') > -1;
+        var alvo = parseFloat(bruto.replace(',', '.'));
+        var pre = el.getAttribute('data-prefix') || '';
+        var suf = el.getAttribute('data-suffix') || '';
+        if (reduz) {
+          el.textContent = pre + bruto + suf;
+          return;
+        }
+        var t0 = performance.now();
+        var dur = 1300;
+        function passo(t) {
+          var p = Math.min(1, (t - t0) / dur);
+          var e = 1 - Math.pow(1 - p, 3);
+          var v = alvo * e;
+          var txt = dec
+            ? v.toFixed(1).replace('.', ',')
+            : Math.round(v).toLocaleString('pt-BR');
+          el.textContent = pre + txt + suf;
+          if (p < 1) requestAnimationFrame(passo);
+        }
+        requestAnimationFrame(passo);
+      }
+      if (!('IntersectionObserver' in window)) {
+        alvos.forEach(anima);
+        return;
+      }
+      var io = new IntersectionObserver(
+        function (ents) {
+          ents.forEach(function (e) {
+            if (e.isIntersecting) {
+              anima(e.target);
+              io.unobserve(e.target);
+            }
+          });
+        },
+        { threshold: 0.6 },
+      );
+      alvos.forEach(function (el) {
+        io.observe(el);
+      });
+    })();
+
+    // ---------- parallax + fade do herói ligados ao scroll ----------
+    (function () {
+      if (reduz) return;
+      var pars = [].slice.call(document.querySelectorAll('[data-par]')).map(function (el) {
+        return { el: el, k: parseFloat(el.getAttribute('data-par')) || 0 };
+      });
+      var heroFade = document.querySelector('[data-hero-fade]');
+      var hero = document.querySelector('.hero');
+      var rail = document.querySelector('.spot__rail');
+      var steps = [].slice.call(document.querySelectorAll('.spot__steps [data-step]'));
+      var tick = false;
+
+      function frame() {
+        tick = false;
+        var y = window.pageYOffset || document.documentElement.scrollTop;
+        var vh = window.innerHeight;
+
+        pars.forEach(function (p) {
+          var r = p.el.getBoundingClientRect();
+          var meio = r.top + r.height / 2 - vh / 2;
+          p.el.style.transform = 'translate3d(0,' + (-meio * p.k).toFixed(1) + 'px,0)';
+        });
+
+        if (heroFade && hero) {
+          var h = hero.offsetHeight || vh;
+          var prog = Math.min(1, Math.max(0, y / (h * 0.75)));
+          heroFade.style.opacity = String(1 - prog);
+          heroFade.style.transform = 'translate3d(0,' + (prog * 40).toFixed(1) + 'px,0)';
+        }
+
+        if (rail && steps.length) {
+          var vistos = steps.filter(function (s) {
+            var r = s.getBoundingClientRect();
+            return r.top < vh * 0.6;
+          }).length;
+          rail.style.setProperty('--fill', (vistos / steps.length) * 100 + '%');
+        }
+      }
+      function onScroll() {
+        if (!tick) {
+          tick = true;
+          requestAnimationFrame(frame);
+        }
+      }
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onScroll);
+      frame();
+    })();
+
+    // ---------- nav ganha fundo sólido depois de rolar ----------
+    (function () {
+      var nav = document.querySelector('.nav');
+      if (!nav) return;
+      var on = false;
+      window.addEventListener(
+        'scroll',
+        function () {
+          var passou = (window.pageYOffset || 0) > 40;
+          if (passou !== on) {
+            on = passou;
+            nav.classList.toggle('nav--solid', on);
+          }
+        },
+        { passive: true },
+      );
+    })();
   })();
 
   // formulário -> e-mail pronto (sem backend)
