@@ -5,14 +5,17 @@
 #
 #   supabase login
 #   supabase link --project-ref vushcazzyabvamylbtat
-#   supabase functions deploy admin-criar-usuario
+#   supabase functions deploy admin-usuario
+#
+# Depois de publicar a admin-usuario, apague a antiga admin-criar-usuario
+# no painel (Edge Functions), se ainda existir.
 #
 # A service_role NÃO entra aqui nem em nenhum .env versionado: o runtime das
 # Edge Functions injeta SUPABASE_SERVICE_ROLE_KEY automaticamente.
 
 project_id = "vushcazzyabvamylbtat"
 
-[functions.admin-criar-usuario]
+[functions.admin-usuario]
 # O gateway recusa a chamada sem um JWT válido; a função ainda confere
 # perfis.admin por dentro.
 verify_jwt = true

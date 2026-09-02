@@ -3,7 +3,7 @@
  */
 import { esc, fmtData, fmtDataCurta, fmtMoney, fmtPct, fonteImagem, hojeISO, norm, num, PLANOS } from '../nucleo/base.js';
 import { alertasObra, basesContratuais, contratoValor, etapaCalc, kpisObra } from '../dominio/calculos.js';
-import { apenasErros, validarPerfilAdmin, validarUsuarioNovo } from '../dominio/validacao.js';
+import { apenasErros, validarPerfilAdmin, validarSenhaForte, validarUsuarioNovo } from '../dominio/validacao.js';
 import { Store, horaCurta } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { App, abrirModal, acoesLinha, botao, campoBusca, campoHTML, cartao, chip, confirmar, fecharModal, filtraTexto, ICO, kpi, MENU, nomeCliente, svg, toast, tomSituacao, vazio } from './shell.js';
@@ -474,7 +474,32 @@ ACOES['admin-editar'] = async (el, d) => {
             <input type="checkbox" data-aba="${it.v}" ${abas[it.v] === false ? '' : 'checked'} style="width:auto">
             ${esc(it.t)}
           </label>`).join('')}
-      </div>`,
+      </div>
+
+      <div class="secao-form"><span class="rotulo">Acesso</span></div>
+      <p style="margin:4px 0 10px;font-size:12px;color:var(--mudo)">Aplicam na hora, sem passar pelo Salvar.</p>
+      <div class="form-grade">
+        <div class="campo c8"><label for="adm_login">E-mail de login</label>
+          <input type="text" id="adm_login" value="${esc(alvo.email || '')}"></div>
+        <div class="campo c4" style="display:flex;align-items:flex-end">
+          ${botao('Trocar e-mail', 'admin-trocar-email', { id: d.id }, 'btn pequeno')}</div>
+        <div class="campo c8"><label for="adm_senha_nova">Nova senha</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="adm_senha_nova" value="${senhaProvisoria()}">
+            ${botao('Gerar', 'admin-gerar-senha-edit', {}, 'btn pequeno')}
+          </div></div>
+        <div class="campo c4" style="display:flex;align-items:flex-end">
+          ${botao('Redefinir senha', 'admin-redefinir-senha', { id: d.id }, 'btn pequeno')}</div>
+      </div>
+
+      ${alvo.eh_admin ? '' : `
+      <div class="secao-form"><span class="rotulo" style="color:var(--critico)">Zona de perigo</span></div>
+      <div style="border:1px solid color-mix(in srgb, var(--critico) 40%, transparent);border-radius:var(--r);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
+        <span style="font-size:12.5px;color:var(--tinta2)">
+          Apaga a conta e, em cascata, <b>${alvo.obras} obra(s)</b>, contratos, medições, lançamentos e fotos. Não dá para desfazer.
+        </span>
+        ${botao('Excluir conta', 'admin-excluir', { id: d.id }, 'btn perigo pequeno')}
+      </div>`}`,
     rodape: `<button class="btn" data-acao="fechar-modal">Cancelar</button>
              <button class="btn primario" data-acao="admin-salvar-editar" data-id="${d.id}">Salvar</button>`,
   });
@@ -503,6 +528,68 @@ ACOES['admin-salvar-editar'] = (el, d) => {
     await SUPA.adminEditarInfo(d.id, info);
     await SUPA.adminSalvarPerfil(d.id, { plano, abas, limiteObras });
   }, 'Cadastro atualizado.');
+};
+
+/* ------------------------------------------ acesso: e-mail, senha, exclusão */
+ACOES['admin-gerar-senha-edit'] = () => {
+  const inp = document.getElementById('adm_senha_nova');
+  if (inp) inp.value = senhaProvisoria();
+};
+
+ACOES['admin-trocar-email'] = (el, d) => {
+  const email = (document.getElementById('adm_login')?.value || '').trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return toast('E-mail inválido.', 'critico');
+  const alvo = (Admin.linhas || []).find((l) => l.usuario_id === d.id);
+  confirmar('Trocar e-mail de login',
+    `O login de ${esc((alvo && alvo.email) || 'esta conta')} passa a ser ${esc(email)}. O cliente entra com o novo e-mail e a mesma senha.`,
+    () => { fecharModal(); admChamar(() => SUPA.adminTrocarEmail(d.id, email), 'E-mail de login trocado.'); },
+    'Trocar');
+};
+
+ACOES['admin-redefinir-senha'] = (el, d) => {
+  const senha = (document.getElementById('adm_senha_nova')?.value || '').trim();
+  const probs = apenasErros(validarSenhaForte(senha));
+  if (probs.length) return toast(probs[0].mensagem, 'critico');
+  confirmar('Redefinir senha',
+    'A senha atual deixa de valer na hora. Anote a nova antes de confirmar.',
+    () => {
+      fecharModal();
+      admChamar(() => SUPA.adminRedefinirSenha(d.id, senha), `Senha redefinida. Nova senha: ${senha}`);
+    },
+    'Redefinir');
+};
+
+ACOES['admin-excluir'] = (el, d) => {
+  const alvo = (Admin.linhas || []).find((l) => l.usuario_id === d.id);
+  if (!alvo) return;
+  const email = alvo.email || '';
+  fecharModal();
+  abrirModal({
+    titulo: 'Excluir conta',
+    largura: 'estreito',
+    corpo: `
+      <p style="margin:0 0 12px;font-size:13px;line-height:1.5">
+        Isto apaga <b>${esc(alvo.empresa || email)}</b> e, em cascata,
+        <b>${alvo.obras} obra(s)</b>, ${alvo.contratos} contrato(s), ${alvo.medicoes} medição(ões),
+        ${alvo.lancamentos} lançamento(s) e ${alvo.fotos} foto(s). Não dá para desfazer.
+      </p>
+      <div class="campo c12">
+        <label for="adm_del_confirma">Digite <b>${esc(email)}</b> para confirmar</label>
+        <input type="text" id="adm_del_confirma" autocomplete="off" placeholder="${esc(email)}">
+      </div>`,
+    rodape: `<button class="btn" data-acao="fechar-modal">Cancelar</button>
+             <button class="btn perigo" data-acao="admin-excluir-ok" data-id="${d.id}">Excluir para sempre</button>`,
+  });
+};
+
+ACOES['admin-excluir-ok'] = (el, d) => {
+  const alvo = (Admin.linhas || []).find((l) => l.usuario_id === d.id);
+  const digitado = (document.getElementById('adm_del_confirma')?.value || '').trim().toLowerCase();
+  if (!alvo || digitado !== String(alvo.email || '').toLowerCase()) {
+    return toast('O e-mail digitado não confere.', 'critico');
+  }
+  fecharModal();
+  admChamar(() => SUPA.adminExcluirUsuario(d.id), 'Conta excluída.');
 };
 
 ACOES['admin-novo'] = () => {

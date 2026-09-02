@@ -36,11 +36,12 @@ os clientes e só responde para quem é admin. Alterar plano/bloqueio/abas de um
 cliente vai por `admin_definir_perfil()` (`security definer`, checa `pode_admin`).
 Promover alguém a `admin` **só pelo SQL Editor** — não há caminho pela API.
 
-Criar a conta de um cliente vai pela Edge Function `admin-criar-usuario`: o
-gateway exige JWT, a função confere `perfis.admin`, e só então usa a
-`service_role` (injetada pelo runtime, fora do repo) para `auth.admin.createUser`
-com o e-mail já confirmado. O navegador nunca vê a `service_role` e o cadastro
-público pode ficar desligado.
+Toda operação de conta que precisa da `service_role` — criar, excluir, trocar o
+e-mail de login, redefinir a senha — vai pela Edge Function `admin-usuario`: o
+gateway exige JWT, a função confere `perfis.admin` de quem chama e recusa a
+própria conta do admin e qualquer outra conta de admin. O navegador nunca vê a
+`service_role`; o cadastro público pode ficar desligado. O flag `perfis.admin`
+continua fora da API — só pelo SQL Editor.
 
 ### Funções `security definer`
 
@@ -128,8 +129,8 @@ forçando as colunas de controle a valores seguros no insert de quem não é adm
 
 1. **Fechar o cadastro aberto.** *Sign In / Providers* → desligar *Allow new
    users to sign up*. A criação de conta pelo admin já passa pela Edge Function
-   `admin-criar-usuario` (não depende do cadastro aberto) — publique-a antes:
-   `supabase functions deploy admin-criar-usuario`.
+   `admin-usuario` (não depende do cadastro aberto) — publique-a antes:
+   `supabase functions deploy admin-usuario`.
 2. **Confirmação de e-mail.** *Sign In / Providers → Email* → ligar *Confirm
    email*.
 3. **Senha forte.** *Policies* → mínimo **12** caracteres + *Prevent use of

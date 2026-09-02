@@ -58,14 +58,19 @@ neste repositório.
 
 ## Edge Functions
 
-`supabase/functions/admin-criar-usuario/` cria a conta de um cliente a pedido do
-admin. Confere `perfis.admin` e usa a `service_role` (injetada pelo runtime, não
-versionada) para `auth.admin.createUser`. Publicação:
+`supabase/functions/admin-usuario/` concentra toda operação de conta que precisa
+da `service_role` (injetada pelo runtime, nunca versionada): `criar`, `excluir`,
+`trocar-email`, `redefinir-senha`. Confere `perfis.admin` de quem chama e recusa
+a própria conta do admin e outra conta de admin. Substitui a antiga
+`admin-criar-usuario` — apague-a no painel depois de publicar a nova.
 
 ```
 supabase link --project-ref vushcazzyabvamylbtat
-supabase functions deploy admin-criar-usuario
+supabase functions deploy admin-usuario
 ```
+
+O deploy anterior foi feito pelo editor do painel, então **o painel é a fonte da
+verdade** do que está rodando: toda mudança no `index.ts` exige republicar.
 
 ## Migrações
 

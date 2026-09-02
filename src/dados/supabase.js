@@ -379,30 +379,53 @@ const SUPA = {
     if (error) throw error;
   },
 
-  /* ---------------------------------------- criar e editar cliente (admin) */
-  /* Cria a conta pela Edge Function admin-criar-usuario: a service_role fica no
-     servidor, a sessão do admin não é trocada e não depende do cadastro público
-     estar aberto. A conta nasce com o e-mail confirmado. Devolve
-     { id, precisaConfirmar }. */
-  async adminCriarUsuario(email, senha, empresa) {
+  /* ---------------------------------------- gestão de conta (admin) */
+  /* Todas as ações que precisam da service_role passam pela Edge Function
+     admin-usuario: a chave fica no servidor, a sessão do admin não é trocada
+     e a função confere perfis.admin de quem chama. */
+  async adminChamarFuncao(acao, corpo = {}) {
     if (!this.sb) throw new Error('Sistema sem conexão com o banco.');
-    const { data, error } = await this.sb.functions.invoke('admin-criar-usuario', {
-      body: { email: String(email).trim(), senha, empresa: empresa || '' }
+    const { data, error } = await this.sb.functions.invoke('admin-usuario', {
+      body: { acao, ...corpo }
     });
     if (error) {
-      let msg = error.message || 'Não foi possível criar a conta.';
+      let msg = error.message || 'Não foi possível concluir a operação.';
       try {
-        const corpo = await error.context.json();
-        if (corpo && corpo.erro) msg = corpo.erro;
+        const c = await error.context.json();
+        if (c && c.erro) msg = c.erro;
       } catch (e) {
         if (/not found|Failed to (send|fetch)/i.test(msg)) {
-          msg = 'A função admin-criar-usuario ainda não foi publicada (supabase functions deploy).';
+          msg = 'A função admin-usuario ainda não foi publicada (supabase functions deploy).';
         }
       }
       throw new Error(msg);
     }
     if (data && data.erro) throw new Error(data.erro);
-    return { id: data && data.id, precisaConfirmar: !!(data && data.precisaConfirmar) };
+    return data || {};
+  },
+
+  /* Cria a conta com o e-mail já confirmado. Devolve { id, precisaConfirmar }. */
+  async adminCriarUsuario(email, senha, empresa) {
+    const d = await this.adminChamarFuncao('criar', {
+      email: String(email).trim(), senha, empresa: empresa || ''
+    });
+    return { id: d.id, precisaConfirmar: !!d.precisaConfirmar };
+  },
+
+  /* Apaga a conta e, em cascata, todas as obras e dados dela. Irreversível.
+     A função recusa a própria conta do admin e outra conta de admin. */
+  adminExcluirUsuario(id) {
+    return this.adminChamarFuncao('excluir', { id });
+  },
+
+  /* Troca o e-mail de login (auth) e sincroniza perfis.email. */
+  adminTrocarEmail(id, email) {
+    return this.adminChamarFuncao('trocar-email', { id, email: String(email).trim() });
+  },
+
+  /* Define uma nova senha para a conta (o cliente troca depois em Ajustes). */
+  adminRedefinirSenha(id, senha) {
+    return this.adminChamarFuncao('redefinir-senha', { id, senha });
   },
 
   /* Perfil completo de um cliente. Só admin lê todos (política de 0005). */

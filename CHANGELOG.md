@@ -7,8 +7,16 @@
   `0006` deixou aberto — dava para apagar a própria linha e recriá-la como
   admin, ou escapar de um bloqueio. Também trava `search_path` nas funções que
   faltavam.
-- Criação de conta pelo admin migra para a Edge Function `admin-criar-usuario`:
-  a `service_role` sai do navegador e o cadastro público pode ser desligado.
+- Edge Function `admin-usuario` concentra criar / excluir / trocar e-mail de
+  login / redefinir senha — a `service_role` sai do navegador, o cadastro
+  público pode ser desligado, e a função recusa a conta do próprio admin e
+  outras contas de admin. (Substitui `admin-criar-usuario`.)
+- Tela de Administração vira gerencial: o editor de cliente ganha troca de
+  e-mail de login, redefinição de senha e exclusão de conta (com confirmação
+  por digitação). Só para `perfis.admin`.
+- Política de senha alinhada ao Supabase (12+ com minúscula, maiúscula, número
+  e símbolo) na Edge Function, na validação do front e na senha provisória.
+- Migração `0010_revoga_truncate.sql`: `revoke truncate` de anon/authenticated.
 - Cliente Supabase em PKCE; reset de senha volta para a URL limpa.
 - `fonteImagem()` filtra todo `src` de imagem vindo do banco (fotos, logos).
 - CSP por `<meta>` no build, `Referrer-Policy: no-referrer`, anti-frame.
