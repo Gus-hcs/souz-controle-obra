@@ -1,7 +1,7 @@
 /**
  * telas-cadastros.js — Telas de cadastro: clientes, prestadores, relatórios e ajustes.
  */
-import { esc, fmtData, fmtDataCurta, fmtMoney, fmtPct, hojeISO, norm, num, PLANOS } from '../nucleo/base.js';
+import { esc, fmtData, fmtDataCurta, fmtMoney, fmtPct, fonteImagem, hojeISO, norm, num, PLANOS } from '../nucleo/base.js';
 import { alertasObra, basesContratuais, contratoValor, etapaCalc, kpisObra } from '../dominio/calculos.js';
 import { apenasErros, validarPerfilAdmin, validarUsuarioNovo } from '../dominio/validacao.js';
 import { Store, horaCurta } from '../dados/store.js';
@@ -92,8 +92,8 @@ VIEWS.relatorio = () => {
   const etapasVis = o.cronograma.slice(0, MAX_ETAPAS);
   const cliente = Store.estado.clientes.find((c) => c.id === o.clienteId);
   const logos = [
-    Store.estado.empresa.logo ? `<img src="${Store.estado.empresa.logo}" alt="Logo da empresa">` : '',
-    cliente && cliente.logo ? `<img src="${cliente.logo}" alt="Logo do cliente">` : '',
+    Store.estado.empresa.logo ? `<img src="${fonteImagem(Store.estado.empresa.logo)}" alt="Logo da empresa">` : '',
+    cliente && cliente.logo ? `<img src="${fonteImagem(cliente.logo)}" alt="Logo do cliente">` : '',
   ].filter(Boolean).join('');
   const previa = `
   <div class="relatorio" id="previa-relatorio">
@@ -191,7 +191,7 @@ VIEWS.ajustes = () => {
         <label>Logo da empresa</label>
         <input type="hidden" data-campo="logo" id="emp_logo_val" value="${esc(emp.logo || '')}">
         <div class="logo-campo" id="logo-cx-empresa">${emp.logo
-          ? `<img src="${emp.logo}" alt="Logo" class="logo-preview"><button type="button" class="btn sutil pequeno" data-acao="logo-remover" data-alvo="empresa">Remover</button>`
+          ? `<img src="${fonteImagem(emp.logo)}" alt="Logo" class="logo-preview"><button type="button" class="btn sutil pequeno" data-acao="logo-remover" data-alvo="empresa">Remover</button>`
           : `<label class="btn pequeno" style="cursor:pointer">Escolher imagem<input type="file" accept="image/png,image/jpeg,image/webp" data-logo="1" data-alvo="empresa" hidden></label>`}</div>
         <span class="dica">PNG ou JPG. Aparece no cabeçalho do relatório em PDF, ao lado do nome.</span>
       </div>

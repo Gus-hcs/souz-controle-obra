@@ -47,6 +47,12 @@ O `usuario_id` das linhas passou a significar **quem criou/alterou**, não "dono
 Toda obra existente ganhou um membro `dono` na migração, então nada muda para
 quem usa o sistema sozinho.
 
+`perfis` é lido e alterado só pelo próprio dono; as colunas de conta (`admin`,
+`plano`, `bloqueado`, `abas`, `limite_obras`) só por admin. Desde a `0009` a API
+não tem mais INSERT nem DELETE em `perfis` — não dá para apagar a própria linha
+e recriá-la como admin, nem escapar de um `bloqueado = true` removendo o perfil.
+A criação da linha fica só com o gatilho `criar_perfil()` no cadastro.
+
 A chave que vai para o navegador é a **publicável**; a `service_role` nunca entra
 neste repositório.
 
@@ -66,6 +72,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0006_seguranca.sql` | corrige a falha de auto-promoção a admin; endurece funções e schema |
 | `0007_limite_obras.sql` | teto de obras por conta (`perfis.limite_obras`), com gatilho no banco |
 | `0008_logos.sql` | `perfis.logo` e `clientes.logo` para o cabeçalho do relatório em PDF |
+| `0009_seguranca_perfis.sql` | fecha o INSERT/DELETE de `perfis` (escalada a admin / fuga de bloqueio); trava `search_path` no resto das funções |
 
 Ao criar uma migração nova, numere em sequência e descreva a mudança aqui.
 

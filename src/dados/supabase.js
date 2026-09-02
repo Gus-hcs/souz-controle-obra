@@ -250,7 +250,14 @@ const SUPA = {
     if (!ok) return { estado: 'sem-biblioteca' };
     try {
       this.sb = window.supabase.createClient(this.cfg.url, this.cfg.anon, {
-        auth: { persistSession: true, autoRefreshToken: true }
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          /* PKCE: o token não trafega no fragmento da URL — fica fora do
+             histórico do navegador e do cabeçalho Referer. */
+          flowType: 'pkce'
+        }
       });
     } catch (e) {
       return { estado: 'erro', mensagem: e.message };
@@ -277,7 +284,10 @@ const SUPA = {
   },
 
   async recuperar(email) {
-    const { error } = await this.sb.auth.resetPasswordForEmail(email, { redirectTo: location.href });
+    /* Volta para a URL limpa da aplicação — sem query nem hash que carreguem
+       token ou rota. Precisa estar em Redirect URLs do projeto, sem curinga. */
+    const destino = location.origin + location.pathname;
+    const { error } = await this.sb.auth.resetPasswordForEmail(email, { redirectTo: destino });
     if (error) throw error;
   },
 
@@ -534,15 +544,16 @@ const SUPA = {
     const perfilAtual = JSON.stringify([atual.empresa, atual.listas]);
     const perfilAntes = JSON.stringify([anterior.empresa, anterior.listas]);
     if (perfilAtual !== perfilAntes) {
-      const { error } = await this.sb.from('perfis').upsert({
-        id: this.usuario.id,
+      /* UPDATE, nunca upsert: a linha do perfil já existe (gatilho criar_perfil
+         no cadastro) e a API não tem mais INSERT em perfis (migração 0009). */
+      const { error } = await this.sb.from('perfis').update({
         empresa_nome: atual.empresa.nome || null,
         responsavel: atual.empresa.responsavel || null,
         crea_cau: atual.empresa.creaCau || null,
         telefone: atual.empresa.telefone || null,
         email: atual.empresa.email || this.usuario.email || null,
         listas: atual.listas
-      });
+      }).eq('id', this.usuario.id);
       if (error) throw new Error('perfis: ' + error.message);
     }
     return { enviadas, removidas };

@@ -6,7 +6,7 @@
  * então ficam cobertos aqui.
  */
 import { describe, it, expect } from 'vitest';
-import { num, competencia, diasEntre, addDias, isISO, slug, migrar, estadoInicial, novaObra } from '../src/nucleo/base.js';
+import { num, competencia, diasEntre, addDias, isISO, slug, migrar, estadoInicial, novaObra, fonteImagem } from '../src/nucleo/base.js';
 
 describe('num(): lê número em qualquer formato que apareça na planilha', () => {
   const casos = [
@@ -62,6 +62,36 @@ describe('datas', () => {
 describe('slug', () => {
   it('tira acento e espaço', () => {
     expect(slug('Fundação e baldrame')).toBe('fundacao-e-baldrame');
+  });
+});
+
+describe('fonteImagem(): só passa imagem que o sistema mesmo gera', () => {
+  it('aceita data URI de imagem rasterizada', () => {
+    const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAA';
+    expect(fonteImagem(png)).toBe(png);
+    expect(fonteImagem('data:image/jpeg;base64,/9j/4AAQSkZJRg==')).toBe('data:image/jpeg;base64,/9j/4AAQSkZJRg==');
+  });
+
+  it('aceita caminho relativo e HTTPS', () => {
+    expect(fonteImagem('./marca.png')).toBe('./marca.png');
+    expect(fonteImagem('https://exemplo.com/logo.png')).toBe('https://exemplo.com/logo.png');
+  });
+
+  it('barra tentativa de quebrar o atributo src', () => {
+    expect(fonteImagem('x" onerror="alert(1)')).toBe('');
+    expect(fonteImagem('data:image/png;base64,AAAA"><script>alert(1)</script>')).toBe('');
+  });
+
+  it('barra esquema perigoso e SVG com script', () => {
+    expect(fonteImagem('java' + 'script:alert(1)')).toBe('');
+    expect(fonteImagem('data:text/html,<script>alert(1)</script>')).toBe('');
+    expect(fonteImagem('data:image/svg+xml;base64,PHN2Zz48c2NyaXB0Pg==')).toBe('');
+  });
+
+  it('trata nulo e vazio', () => {
+    expect(fonteImagem(null)).toBe('');
+    expect(fonteImagem('')).toBe('');
+    expect(fonteImagem(undefined)).toBe('');
   });
 });
 

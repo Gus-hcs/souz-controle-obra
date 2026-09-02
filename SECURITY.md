@@ -20,7 +20,10 @@ funções `security definer` (`pode_ler_obra`, `pode_escrever_obra`,
 `eh_dono_obra`), que consultam `obra_membros` por fora da RLS para não entrar em
 recursão. `clientes` e `prestadores` ficam isolados pelo `usuario_id` do dono.
 `perfis` só é lido/editado pelo próprio usuário — e as colunas de controle de
-conta (`admin`, `plano`, `bloqueado`, `abas`) só por admin (migração `0006`).
+conta (`admin`, `plano`, `bloqueado`, `abas`, `limite_obras`) só por admin
+(migrações `0006`/`0007`). A `0009` tira ainda o **INSERT** e o **DELETE** de
+`perfis` da API: ninguém apaga a própria linha para escapar de um bloqueio nem a
+recria como admin. A criação fica só com o gatilho `criar_perfil()` no cadastro.
 
 Verificado com duas contas: uma não lê, renomeia nem apaga a obra da outra, e
 inserir linha em nome de terceiro é recusado.
@@ -35,15 +38,35 @@ Promover alguém a `admin` **só pelo SQL Editor** — não há caminho pela API
 
 ### Funções `security definer`
 
-Todas com `set search_path = ''` e nomes totalmente qualificados (`0006`), e
+Todas com `set search_path = ''` e nomes totalmente qualificados — as de
+autorização na `0006`, o resto (`criar_perfil`, `marcar_atualizacao`,
+`obra_dono_membro`, `obra_protege_dono`, `registrar_auditoria`) na `0009`.
 `CREATE` no schema `public` bloqueado para `anon`/`authenticated` — para o
 cliente não conseguir sequestrar uma função por confusão de search_path.
+
+### Autenticação
+
+O cliente Supabase usa **PKCE** (`flowType: 'pkce'`): o token de sessão não
+trafega no fragmento da URL. O link de redefinição de senha volta para a URL
+limpa da aplicação (`location.origin + pathname`), que precisa estar em
+*Redirect URLs* do projeto, sem curinga.
 
 ### Front-end
 
 Toda saída para HTML passa por `esc()`. Detalhe de alerta também é escapado
-(`0006` no código) — importante agora que engenheiro e cliente veem dados do
-dono.
+(`0006` no código). Todo `src` de imagem que possa ter vindo do banco (fotos do
+diário, logo do cliente e da empresa) passa por `fonteImagem()`
+(`src/nucleo/base.js`): só data URI de imagem rasterizada ou caminho
+relativo/HTTPS — corta `javascript:`, `data:text/html`, SVG com script e
+tentativa de quebrar o atributo.
+
+O `index.html` traz `Referrer-Policy: no-referrer` e um anti-frame por script (o
+Pages não define `X-Frame-Options`). O build injeta um **CSP** por `<meta>`
+(`vite.config.js`): `default-src 'self'`, `object-src 'none'`, conexão só para o
+Supabase e os dois CDNs de bibliotecas, `upgrade-insecure-requests`. O
+`script-src` mantém `'unsafe-inline'` porque o build é arquivo único — o CSP
+trava a origem de script e o destino de conexão, não a injeção inline (essa é
+com o `esc()`).
 
 ### Chaves
 
@@ -53,7 +76,7 @@ no repo são só documentação.
 
 ### Transporte e publicação
 
-HTTPS obrigatório (Pages e API Supabase). Nada vai ao ar sem lint, 111 testes e
+HTTPS obrigatório (Pages e API Supabase). Nada vai ao ar sem lint, 130 testes e
 teste de navegador.
 
 ---
@@ -70,6 +93,26 @@ política era `for all` — então **qualquer usuário logado podia rodar
 
 A `0006` fecha isso: `REVOKE UPDATE` das colunas de controle + gatilho que
 reverte a mudança de quem não é admin + RPC dedicada para o admin.
+
+---
+
+## Falha crítica corrigida (migração 0009)
+
+A `0006` fechou o `UPDATE`, mas **INSERT e DELETE de `perfis` continuaram
+abertos** para o usuário logado — política `for all` da `0001` + grant padrão do
+Supabase. O gatilho da `0006` é `BEFORE UPDATE`, não pega `INSERT`. Então:
+
+```sql
+delete from public.perfis where id = auth.uid();
+insert into public.perfis (id, admin) values (auth.uid(), true);
+```
+
+...virava admin. Ou, sem escalar: apagar a própria linha já **anulava o
+`bloqueado = true`** de uma conta suspensa.
+
+A `0009` fecha: `REVOKE INSERT, DELETE` de `perfis`; política trocada por
+`SELECT` + `UPDATE` do próprio dono; o gatilho passa a `BEFORE INSERT OR UPDATE`,
+forçando as colunas de controle a valores seguros no insert de quem não é admin.
 
 ---
 
@@ -98,12 +141,17 @@ reverte a mudança de quem não é admin + RPC dedicada para o admin.
    política `prestadores_da_obra` casa por nome — um membro de obra consegue ler
    o contato de um prestador homônimo de outra conta. Yield baixo (precisa
    adivinhar o nome exato), mas o certo é referenciar por id.
-10. **SRI nos scripts de CDN.** `supabase-js`, `xlsx` e `jspdf` vêm de CDN sem
-    verificação de integridade. Como o carregador tenta várias URLs, fixar hash
-    é chato — avaliar empacotar o `supabase-js` no build.
+10. **SRI nos scripts de CDN.** `supabase-js`, `xlsx` e `jspdf` vêm de CDN. O
+    CSP já restringe a origem a `cdnjs`/`jsdelivr`; falta fixar o hash (ou
+    empacotar o `supabase-js` no build).
 11. **Dependabot + `npm audit` na CI.**
-12. **Cabeçalhos (`CSP`, `X-Frame-Options`, `Referrer-Policy`).** O Pages não
-    deixa definir cabeçalho; só num servidor próprio.
+12. **`frame-ancestors` e HSTS de verdade.** Só com header HTTP — num servidor
+    próprio (`souztech.com` via proxy/CDN), não no Pages. O `<meta>` cobre o
+    resto do CSP; o anti-frame por script cobre o clickjacking.
+
+**Feito nesta rodada:** CSP por `<meta>` no build, `Referrer-Policy: no-referrer`,
+anti-frame por script, `fonteImagem()` em todo `src` de imagem, PKCE na
+autenticação, `redirectTo` limpo no reset de senha, e a migração `0009`.
 
 ---
 
@@ -116,7 +164,9 @@ reverte a mudança de quem não é admin + RPC dedicada para o admin.
 | `0003` | trilha de auditoria dos valores financeiros |
 | `0004` | acesso por obra e por papel; funções de autorização |
 | `0005` | painel de admin (introduziu a falha do `perfis`) |
-| `0006` | **corrige a falha do `perfis`**; endurece funções e schema |
+| `0006` | **corrige o `UPDATE` do `perfis`**; endurece funções e schema |
+| `0007` | teto de obras por conta (gatilho no banco) |
+| `0009` | **fecha o INSERT/DELETE do `perfis`**; `search_path` no resto das funções |
 
 ---
 

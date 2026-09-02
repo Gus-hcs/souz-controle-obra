@@ -132,6 +132,18 @@ const norm = (s) => String(s ?? '').trim().toLowerCase()
 
 const slug = (s) => norm(s).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
+/* Filtra o que vai para o atributo src de uma <img>. Só passa o que o próprio
+   sistema gera: data URI de imagem rasterizada ou caminho relativo/HTTPS sem
+   aspas. Barra 'javascript:', 'data:text/html', SVG com script e qualquer
+   tentativa de quebrar o atributo. Use quando o valor puder ter vindo do banco
+   — fotos do diário, logos sincronizadas. */
+const fonteImagem = (v) => {
+  const s = String(v ?? '').trim();
+  if (/^data:image\/(png|jpe?g|webp|gif|avif);base64,[A-Za-z0-9+/=\s]+$/i.test(s)) return s;
+  if (/^(https:\/\/|\.?\/)[^"'<>\s]+$/i.test(s)) return s;
+  return '';
+};
+
 /* -------------------------------------------------------------- listas */
 
 const LISTAS_PADRAO = {
@@ -324,6 +336,7 @@ export {
   esc,
   norm,
   slug,
+  fonteImagem,
   LISTAS_PADRAO,
   PAPEIS_OBRA,
   PLANOS,

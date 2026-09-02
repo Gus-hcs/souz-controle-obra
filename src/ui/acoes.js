@@ -1,7 +1,7 @@
 /**
  * acoes.js — Ações: tudo que um clique dispara — abrir formulário, salvar, excluir.
  */
-import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, hojeISO, isISO, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, uid } from '../nucleo/base.js';
+import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, uid } from '../nucleo/base.js';
 import { alertasObra, basesContratuais, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, materialCalc, medicaoAlerta } from '../dominio/calculos.js';
 import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
@@ -659,7 +659,7 @@ function renderLogoBox(alvo) {
   if (!cx) return;
   const atual = (LOGO_ALVOS[alvo] || {}).get ? LOGO_ALVOS[alvo].get() : '';
   cx.innerHTML = atual
-    ? `<img src="${atual}" alt="Logo" class="logo-preview">
+    ? `<img src="${fonteImagem(atual)}" alt="Logo" class="logo-preview">
        <button type="button" class="btn sutil pequeno" data-acao="logo-remover" data-alvo="${alvo}">Remover</button>`
     : `<label class="btn pequeno" style="cursor:pointer">Escolher imagem
         <input type="file" accept="image/png,image/jpeg,image/webp" data-logo="1" data-alvo="${alvo}" hidden></label>`;
@@ -723,7 +723,7 @@ function formDiario(reg, novo, aoSalvar) {
     const cx = document.getElementById('fotos-cx');
     if (!cx) return;
     cx.innerHTML = window.__fotos.map((f, i) =>
-      `<figure><img src="${f.dados}" alt="${esc(f.nome || '')}">
+      `<figure><img src="${fonteImagem(f.dados)}" alt="${esc(f.nome || '')}">
         <button type="button" class="rm" data-acao="rm-foto" data-idx="${i}" aria-label="Remover foto">×</button></figure>`).join('')
       || '<span style="font-size:12px;color:var(--mudo)">Nenhuma foto anexada.</span>';
   };
@@ -774,7 +774,7 @@ ACOES['rm-foto'] = (el, d) => {
   window.__fotos.splice(Number(d.idx), 1);
   const cx = document.getElementById('fotos-cx');
   cx.innerHTML = window.__fotos.map((f, i) =>
-    `<figure><img src="${f.dados}" alt="${esc(f.nome || '')}">
+    `<figure><img src="${fonteImagem(f.dados)}" alt="${esc(f.nome || '')}">
       <button type="button" class="rm" data-acao="rm-foto" data-idx="${i}" aria-label="Remover foto">×</button></figure>`).join('')
     || '<span style="font-size:12px;color:var(--mudo)">Nenhuma foto anexada.</span>';
 };
@@ -805,7 +805,7 @@ ACOES['ver-foto'] = (el, d) => {
   abrirModal({
     titulo: `${fmtData(r.data)} — ${f.nome || 'foto da obra'}`,
     largura: 'largo',
-    corpo: `<img src="${f.dados}" alt="${esc(f.nome || '')}" style="width:100%;border-radius:4px">`
+    corpo: `<img src="${fonteImagem(f.dados)}" alt="${esc(f.nome || '')}" style="width:100%;border-radius:4px">`
   });
 };
 
