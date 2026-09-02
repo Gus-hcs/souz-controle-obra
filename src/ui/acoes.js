@@ -7,7 +7,7 @@ import { apenasErros, validarCliente, validarContrato, validarDiario, validarEta
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, toast } from './shell.js';
-import { carregarAuditoria, contratosAbertos } from './telas-obra.js';
+import { carregarAuditoria, contratosAbertos, implExpandida } from './telas-obra.js';
 
 const ACOES = {};
 
@@ -25,6 +25,15 @@ ACOES['ct-todos'] = (el, d) => {
   if (d.abrir === '1') basesContratuais(App.obra()).forEach((b) => contratosAbertos.add(b.base));
   App.renderConteudo();
 };
+/* ---------------------------------- cartão de implantação (Painel) */
+ACOES['impl-toggle'] = (el, d) => {
+  const id = d.obra || (App.obra() && App.obra().id);
+  if (!id) return;
+  if (implExpandida.has(id)) implExpandida.delete(id);
+  else implExpandida.add(id);
+  App.renderConteudo();
+};
+
 ACOES['ir-alertas-carteira'] = () => {
   const o = Store.estado.obras.find((x) => alertasObra(x).some((a) => a.sev === 3)) || Store.estado.obras[0];
   App.ir('alertas', o && o.id);

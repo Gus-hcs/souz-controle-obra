@@ -2,7 +2,7 @@
  * telas-obra.js — Telas da obra: painel, contratos, medições, recebimentos, materiais, cronograma.
  */
 import { competencia, diasEntre, esc, fmtCompetencia, fmtData, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtNum, fmtPct, hojeISO, isISO, norm, num, round2 } from '../nucleo/base.js';
-import { alertasObra, basesContratuais, contratoValor, curvaS, etapaCalc, fluxoCaixa, fluxoCarteira, kpisCarteira, kpisObra, lancamentoTotal, materialCalc, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca } from '../dominio/calculos.js';
+import { alertasObra, basesContratuais, contratoValor, curvaS, etapaCalc, fluxoCaixa, fluxoCarteira, implantacaoObra, kpisCarteira, kpisObra, lancamentoTotal, materialCalc, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca } from '../dominio/calculos.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { anel, App, acoesLinha, barra, botao, campoBusca, campoHTML, cartao, chip, filtraTexto, ICO, kpi, nomeCliente, opcoesEtapas, opcoesLista, selectFiltro, sparkline, svg, tomSituacao, tomStatus, vazio } from './shell.js';
@@ -13,6 +13,53 @@ const VIEWS = {};
 /* contratos-base expandidos na tela de contratos (persiste entre re-renders).
    As ações ct-toggle / ct-todos ficam em acoes.js. */
 const contratosAbertos = new Set();
+/* obraIds onde o usuário abriu o cartão de implantação já montada */
+const implExpandida = new Set();
+
+/* Cartão "Implantação da obra": a sequência a preencher, com progresso.
+   Some para uma linha fina quando a obra já está montada. */
+function cartaoImplantacao(o) {
+  const impl = implantacaoObra(o);
+  const total = impl.passos.length;
+  const aberto = !impl.montada || implExpandida.has(o.id);
+
+  if (!aberto) {
+    return `<div class="implantacao montada" data-acao="impl-toggle" data-obra="${o.id}" role="button" tabindex="0">
+      <span class="impl-check feito">✓</span>
+      <b>Obra implantada</b>
+      <span class="impl-mini">${impl.feitos} de ${total} passos</span>
+      <span class="impl-abrir">ver a sequência</span>
+    </div>`;
+  }
+
+  const fase = (nome, rot) => {
+    const ps = impl.passos.filter((p) => p.fase === nome);
+    return `<div class="impl-fase"><span class="impl-fase-t">${rot}</span>
+      ${ps.map((p) => `<button class="impl-passo${p.feito ? ' feito' : ''}" data-acao="ir" data-view="${p.v}">
+        <span class="impl-check${p.feito ? ' feito' : ''}">${p.feito ? '✓' : ''}</span>
+        <span class="impl-passo-txt"><b>${esc(p.rotulo)}</b><span>${esc(p.dica)}${p.opcional ? ' · opcional' : ''}</span></span>
+      </button>`).join('')}
+    </div>`;
+  };
+
+  const acao = impl.montada
+    ? botao('Recolher', 'impl-toggle', { obra: o.id }, 'btn sutil pequeno')
+    : '';
+
+  return cartao('Implantação da obra', `
+    <div class="impl-topo">
+      <div class="impl-prog">
+        ${barra(impl.pct, impl.montada ? 'ok' : '')}
+        <span class="impl-prog-n mono">${impl.feitosObrig}/${impl.totalObrig} essenciais${impl.feitos > impl.feitosObrig ? ` · +${impl.feitos - impl.feitosObrig}` : ''}</span>
+      </div>
+      <p class="impl-lead">${impl.montada
+        ? 'O básico está montado. Agora é tocar a obra — medições, recebimentos e compras.'
+        : 'Preencha nesta ordem. Cada passo abre a tela certa.'}</p>
+    </div>
+    ${fase('planejar', '1 · Planejar')}
+    ${fase('executar', '2 · Executar')}
+  `, { classe: 'cartao-implantacao', acoes: acao });
+}
 
 /* prazo previsto de um registro de contrato, com aviso de atraso */
 function prazoRegistro(c) {
@@ -231,6 +278,7 @@ VIEWS.painel = () => {
   return `
   <div class="grade" style="gap:16px">
     ${contexto}
+    ${cartaoImplantacao(o)}
     ${hero}
     ${blocoAcao}
 
@@ -1492,5 +1540,6 @@ export {
   VIEWS,
   alertaHTML,
   carregarAuditoria,
-  contratosAbertos
+  contratosAbertos,
+  implExpandida
 };

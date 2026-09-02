@@ -220,6 +220,30 @@ a { color: var(--marca); }
 }
 .rail-nav button .cont.crit { background: var(--critico); color: #fff; }
 
+/* fases da rail — a sequência a preencher */
+.rail-nav .grupo-fase {
+  display: flex; align-items: center; gap: 7px;
+  padding-top: 16px;
+}
+.rail-nav .grupo-n {
+  flex: none; width: 15px; height: 15px; border-radius: 999px;
+  border: 1px solid var(--rail-linha); color: var(--rail-mudo);
+  font-size: 9px; font-weight: 600; letter-spacing: 0;
+  display: grid; place-items: center; font-family: 'JetBrains Mono', monospace;
+}
+.rail-nav .grupo-nota {
+  text-transform: none; letter-spacing: 0; font-weight: 400;
+  font-size: 10px; color: var(--rail-mudo); opacity: .8; margin-left: 2px;
+}
+.rail-nav button .rail-ponto {
+  margin-left: auto; flex: none; width: 6px; height: 6px; border-radius: 999px;
+  border: 1px solid var(--rail-mudo); box-sizing: border-box;
+}
+.rail-nav button .rail-ponto.feito {
+  border-color: var(--marca); background: var(--marca);
+}
+.rail-nav button[aria-current="page"] .rail-ponto:not(.feito) { border-color: var(--rail-tinta); }
+
 #main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
 #topo {
@@ -577,6 +601,50 @@ select { cursor: pointer; }
 /* linha de contexto da obra (painel) */
 .contexto-obra { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .contexto-obra .chip { font-size: 12px; padding: 4px 11px; }
+
+/* cartão de implantação da obra (painel) — a sequência a preencher */
+.cartao-implantacao { border-color: color-mix(in srgb, var(--marca) 24%, var(--linha)); }
+.impl-topo { display: grid; gap: 8px; margin-bottom: 4px; }
+.impl-prog { display: flex; align-items: center; gap: 10px; }
+.impl-prog .barra { flex: 1; }
+.impl-prog-n { font-size: 11px; color: var(--tinta2); white-space: nowrap; }
+.impl-lead { margin: 0; font-size: 12.5px; color: var(--tinta2); }
+.impl-fase { margin-top: 14px; }
+.impl-fase-t {
+  font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--mudo); font-family: 'JetBrains Mono', monospace;
+}
+.impl-passo {
+  display: flex; align-items: flex-start; gap: 11px; width: 100%; text-align: left;
+  background: var(--sup); border: 1px solid var(--linha); border-radius: var(--r);
+  padding: 10px 12px; margin-top: 6px; cursor: pointer; color: var(--tinta);
+  transition: border-color .15s ease, background .15s ease;
+}
+.impl-passo:hover { border-color: var(--marca); background: var(--sup2); }
+.impl-passo.feito { opacity: .62; }
+.impl-passo.feito:hover { opacity: 1; }
+.impl-check {
+  flex: none; width: 17px; height: 17px; border-radius: 999px; margin-top: 1px;
+  border: 1.5px solid var(--linha-forte); box-sizing: border-box;
+  display: grid; place-items: center; font-size: 10px; color: transparent;
+}
+.impl-check.feito { border-color: var(--marca); background: var(--marca); color: var(--marca-tinta); }
+.impl-passo-txt { display: grid; gap: 2px; min-width: 0; }
+.impl-passo-txt b { font-size: 13px; font-weight: 500; }
+.impl-passo-txt span { font-size: 11.5px; color: var(--mudo); line-height: 1.4; }
+
+.implantacao.montada {
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+  background: var(--sup); border: 1px solid var(--linha); border-radius: var(--r2);
+  padding: 11px 16px; font-size: 13px;
+}
+.implantacao.montada:hover { border-color: var(--marca); }
+.implantacao.montada .impl-check {
+  width: 16px; height: 16px; border-color: var(--marca); background: var(--marca);
+  color: var(--marca-tinta); font-size: 10px;
+}
+.implantacao.montada .impl-mini { color: var(--mudo); }
+.implantacao.montada .impl-abrir { margin-left: auto; color: var(--marca); font-size: 12px; }
 
 /* obra na carteira */
 .obra-cartao {

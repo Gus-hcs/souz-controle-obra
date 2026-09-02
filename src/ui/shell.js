@@ -2,7 +2,7 @@
  * shell.js — Casca da interface: navegação, componentes reutilizáveis e formulários.
  */
 import { esc, fmtNum, norm, num } from '../nucleo/base.js';
-import { alertasObra } from '../dominio/calculos.js';
+import { alertasObra, implantacaoObra } from '../dominio/calculos.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { VIEWS } from './telas-obra.js';
@@ -45,27 +45,34 @@ const svg = (d, tam = 16) =>
    Usada no rail e na tela de acesso. */
 const LOGO = `<img class="marca-img" src="${marcaUrl}" alt="SouZ" draggable="false">`;
 
+/* A rail conta a história da obra: planejar → executar → acompanhar.
+   Os grupos com `obra: true` só aparecem quando há obra; os de `passo`
+   1 e 2 ganham a bolinha de preenchido/vazio (implantacaoObra). */
 const MENU = [
   { grupo: 'Carteira', itens: [
     { v: 'carteira', t: 'Visão geral', i: 'carteira' },
     { v: 'clientes', t: 'Clientes', i: 'cadastro' },
     { v: 'prestadores', t: 'Prestadores', i: 'empresa' }
   ] },
-  { grupo: 'Obra', itens: [
-    { v: 'painel', t: 'Painel', i: 'painel' },
+  { grupo: 'Planejar', obra: true, passo: 1, nota: 'uma vez, no começo', itens: [
+    { v: 'obra-config', t: 'Configuração', i: 'config' },
     { v: 'contratos', t: 'Contratos e aditivos', i: 'contrato' },
+    { v: 'cronograma', t: 'Cronograma', i: 'crono' },
+    { v: 'materiais', t: 'Plano de materiais', i: 'material' }
+  ] },
+  { grupo: 'Executar', obra: true, passo: 2, nota: 'a cada medição', itens: [
     { v: 'medicoes', t: 'Medições', i: 'medicao' },
     { v: 'recebimentos', t: 'Recebimentos', i: 'receb' },
     { v: 'lancamentos', t: 'Lançamentos', i: 'lanc' },
-    { v: 'materiais', t: 'Plano de materiais', i: 'material' },
-    { v: 'cronograma', t: 'Cronograma', i: 'crono' },
+    { v: 'diario', t: 'Diário de obra', i: 'diario' }
+  ] },
+  { grupo: 'Acompanhar', obra: true, passo: 3, nota: 'sempre à vista', itens: [
+    { v: 'painel', t: 'Painel', i: 'painel' },
     { v: 'curva', t: 'Controle Financeiro', i: 'curva' },
-    { v: 'diario', t: 'Diário de obra', i: 'diario' },
     { v: 'fluxo', t: 'Fluxo de caixa', i: 'fluxo' },
     { v: 'alertas', t: 'Alertas', i: 'alerta' },
     { v: 'relatorio', t: 'Relatórios', i: 'relatorio' },
-    { v: 'auditoria', t: 'Trilha de auditoria', i: 'auditoria' },
-    { v: 'obra-config', t: 'Configuração', i: 'config' }
+    { v: 'auditoria', t: 'Trilha de auditoria', i: 'auditoria' }
   ] },
   { grupo: 'Sistema', itens: [
     { v: 'ajustes', t: 'Ajustes e dados', i: 'config' }
@@ -97,7 +104,7 @@ const TITULOS = {
   admin: ['Administração', 'Consumo por cliente e liberação de acesso por aba']
 };
 
-const VIEWS_OBRA = new Set(MENU[1].itens.map((i) => i.v));
+const VIEWS_OBRA = new Set(MENU.filter((g) => g.obra).flatMap((g) => g.itens.map((i) => i.v)));
 
 /* ========================================================== App shell */
 const App = {
@@ -137,14 +144,18 @@ const App = {
     const obra = this.obra();
     const alertas = obra ? alertasObra(obra) : [];
     const criticos = alertas.filter((a) => a.sev === 3).length;
+    const impl = obra ? implantacaoObra(obra) : null;
+    const feitoView = {};
+    if (impl) impl.passos.forEach((p) => { feitoView[p.v] = p.feito; });
 
     const opcoes = obras.length
       ? obras.map((o) => `<option value="${o.id}" ${o.id === this.rota.obraId ? 'selected' : ''}>${esc(o.nome)}</option>`).join('')
       : '<option value="">Nenhuma obra cadastrada</option>';
 
     const nav = MENU.map((g) => {
-      if (g.grupo === 'Obra' && !obras.length) return '';
+      if (g.obra && !obras.length) return '';
       if (g.soAdmin && !SUPA.ehAdmin) return '';
+      const marcaPasso = g.obra && g.passo < 3;
       const itens = g.itens.filter((it) => SUPA.abaLiberada(it.v)).map((it) => {
         const ativo = this.rota.view === it.v ? ' aria-current="page"' : '';
         let cont = '';
@@ -152,10 +163,16 @@ const App = {
           cont = `<span class="cont ${criticos ? 'crit' : ''}">${alertas.length}</span>`;
         }
         if (it.v === 'carteira' && obras.length) cont = `<span class="cont">${obras.length}</span>`;
-        return `<button data-acao="ir" data-view="${it.v}"${ativo}>${svg(ICO[it.i])}<span>${it.t}</span>${cont}</button>`;
+        const ponto = marcaPasso && impl
+          ? `<span class="rail-ponto${feitoView[it.v] ? ' feito' : ''}" aria-hidden="true"></span>`
+          : '';
+        return `<button data-acao="ir" data-view="${it.v}"${ativo}>${svg(ICO[it.i])}<span>${it.t}</span>${ponto}${cont}</button>`;
       }).join('');
       if (!itens) return '';
-      return `<div class="grupo">${g.grupo}</div>${itens}`;
+      const cab = g.passo
+        ? `<div class="grupo grupo-fase"><span class="grupo-n">${g.passo}</span><span>${g.grupo}</span><span class="grupo-nota">${g.nota}</span></div>`
+        : `<div class="grupo">${g.grupo}</div>`;
+      return cab + itens;
     }).join('');
 
     document.getElementById('rail').innerHTML = `

@@ -509,6 +509,76 @@ function fluxoCarteira(estado) {
   });
 }
 
+/* Onde a obra está na implantação: cada passo tem dado ou não.
+   Alimenta a bolinha da rail e o cartão "Implantação da obra" no Painel.
+   A ordem é a história do sistema: planejar → executar → acompanhar. */
+function implantacaoObra(obra) {
+  const o = obra || {};
+  const fin = o.fin || {};
+  /* preço de empreitada nasce com um padrão; área, financiado e venda nascem
+     zerados — então são o sinal real de "a configuração foi preenchida". */
+  const temConfig =
+    num(o.areaConstruida) > 0 || num(fin.valorFinanciado) > 0 || num(fin.valorVenda) > 0;
+  const passos = [
+    {
+      v: 'obra-config', fase: 'planejar', rotulo: 'Configurar a obra',
+      dica: 'Área, preço de empreitada por m², financiamento e margem alvo.',
+      feito: temConfig,
+    },
+    {
+      v: 'contratos', fase: 'planejar', rotulo: 'Cadastrar o contrato principal',
+      dica: 'A empreitada e os subcontratos, com aditivos.',
+      feito: (o.contratos || []).length > 0,
+    },
+    {
+      v: 'cronograma', fase: 'planejar', rotulo: 'Montar o cronograma',
+      dica: 'Etapas com peso e prazo — é o que mede o avanço físico.',
+      feito: (o.cronograma || []).length > 0,
+    },
+    {
+      v: 'materiais', fase: 'planejar', rotulo: 'Planejar os materiais',
+      dica: 'O que comprar por etapa e quando. Opcional em obra pequena.',
+      feito: (o.materiais || []).length > 0, opcional: true,
+    },
+    {
+      v: 'medicoes', fase: 'executar', rotulo: 'Lançar a primeira medição',
+      dica: 'Medir e pagar o prestador conforme o contrato.',
+      feito: (o.medicoes || []).length > 0,
+    },
+    {
+      v: 'recebimentos', fase: 'executar', rotulo: 'Registrar um recebimento',
+      dica: 'Parcela da CAIXA, do cliente ou de recursos próprios.',
+      feito: (o.recebimentos || []).length > 0,
+    },
+    {
+      v: 'lancamentos', fase: 'executar', rotulo: 'Lançar uma compra',
+      dica: 'Material, taxa, honorário — tudo que sai sem medição.',
+      feito: (o.lancamentos || []).length > 0,
+    },
+    {
+      v: 'diario', fase: 'executar', rotulo: 'Abrir o diário de obra',
+      dica: 'Visita, clima, efetivo e fotos do andamento.',
+      feito: (o.diario || []).length > 0, opcional: true,
+    },
+  ];
+  const obrig = passos.filter((p) => !p.opcional);
+  const feitosObrig = obrig.filter((p) => p.feito).length;
+  const feitos = passos.filter((p) => p.feito).length;
+  const montada = passos
+    .filter((p) => p.fase === 'planejar' && !p.opcional)
+    .every((p) => p.feito);
+  return {
+    passos,
+    feitos,
+    total: passos.length,
+    feitosObrig,
+    totalObrig: obrig.length,
+    pct: obrig.length ? feitosObrig / obrig.length : 1,
+    montada,
+    completa: feitos === passos.length,
+  };
+}
+
 function kpisCarteira(estado) {
   const obras = estado.obras;
   const ativas = obras.filter((o) => o.status !== 'Concluída');
@@ -562,6 +632,7 @@ export {
   fracaoRealizada,
   curvaS,
   alertasObra,
+  implantacaoObra,
   fluxoCarteira,
   kpisCarteira
 };
