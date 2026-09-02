@@ -1094,29 +1094,48 @@ VIEWS.fluxo = () => {
 /* =========================================================== ALERTAS */
 VIEWS.alertas = () => {
   const o = App.obra();
-  let al = alertasObra(o);
-  if (App.filtros.sev) al = al.filter((a) => String(a.sev) === App.filtros.sev);
-  if (App.filtros.modulo) al = al.filter((a) => a.modulo === App.filtros.modulo);
-  const modulos = [...new Set(alertasObra(o).map((a) => a.modulo))];
+  const f = App.filtros;
   const todos = alertasObra(o);
+  const modulos = [...new Set(todos.map((a) => a.modulo).filter(Boolean))].sort();
+  const nCrit = todos.filter((a) => a.sev === 3).length;
+  const nAten = todos.filter((a) => a.sev === 2).length;
+  const nInfo = todos.filter((a) => a.sev === 1).length;
+
+  /* ---------------------------------------------------------- filtros */
+  const busca = norm(f.busca || '');
+  let al = todos.slice().sort((a, b) => b.sev - a.sev);
+  if (f.sev) al = al.filter((a) => String(a.sev) === f.sev);
+  if (f.modulo) al = al.filter((a) => a.modulo === f.modulo);
+  if (busca) al = filtraTexto(al, f.busca, ['titulo', 'detalhe', 'acao']);
+  const filtrando = al.length !== todos.length;
+
+  if (!todos.length) {
+    return `<div class="grade" style="gap:16px">
+      ${cartao('Alertas', vazio('Tudo em ordem', 'Nenhum alerta para esta obra agora. Os alertas são recalculados a cada mudança nos dados.'))}
+    </div>`;
+  }
 
   return `<div class="grade" style="gap:16px">
-    <div class="grade g3">
-      ${kpi('Críticos', todos.filter((a) => a.sev === 3).length, 'exigem ação imediata', todos.some((a) => a.sev === 3) ? 'critico' : 'ok')}
-      ${kpi('Atenção', todos.filter((a) => a.sev === 2).length, 'resolver nos próximos dias', 'aviso')}
-      ${kpi('Informativos', todos.filter((a) => a.sev === 1).length, 'acompanhar')}
+    <div class="hero">
+      ${kpi('Críticos', nCrit, nCrit ? 'exigem ação imediata' : 'nada crítico', { destaque: true, tom: nCrit ? 'critico' : 'ok' })}
+      ${kpi('Atenção', nAten, nAten ? 'resolver nos próximos dias' : 'nada pendente', { destaque: true, tom: nAten ? 'aviso' : 'ok' })}
+      ${kpi('Informativos', nInfo, 'acompanhar', { destaque: true })}
     </div>
-    ${cartao('Pendências', al.length ? al.map((a) => alertaHTML(a)).join('')
+
+    ${cartao('Pendências', al.length
+      ? al.map((a) => alertaHTML(a)).join('')
       : `<div class="corpo"><p style="margin:0;color:var(--ok)">Nada pendente com esse filtro.</p></div>`, {
       semPadding: true,
       acoes: `<div class="filtros">
-        <select data-filtro="sev">
-          <option value="">Todas as severidades</option>
-          <option value="3" ${App.filtros.sev === '3' ? 'selected' : ''}>Críticos</option>
-          <option value="2" ${App.filtros.sev === '2' ? 'selected' : ''}>Atenção</option>
-          <option value="1" ${App.filtros.sev === '1' ? 'selected' : ''}>Informativos</option>
+        ${campoBusca('busca', 'Buscar alerta…')}
+        <select data-filtro="sev" aria-label="Severidade">
+          <option value="">Toda severidade</option>
+          <option value="3" ${f.sev === '3' ? 'selected' : ''}>Críticos</option>
+          <option value="2" ${f.sev === '2' ? 'selected' : ''}>Atenção</option>
+          <option value="1" ${f.sev === '1' ? 'selected' : ''}>Informativos</option>
         </select>
-        ${selectFiltro('modulo', modulos, 'Todos os módulos')}
+        ${modulos.length > 1 ? selectFiltro('modulo', modulos, 'Todos os módulos') : ''}
+        ${filtrando ? `<span class="ct-contagem" style="margin:0">${al.length} de ${todos.length}</span>` : ''}
       </div>`
     })}
   </div>`;
