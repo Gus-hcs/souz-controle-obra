@@ -87,7 +87,9 @@ VIEWS.relatorio = () => {
   const al = alertasObra(o);
   const bases = basesContratuais(o);
   const hoje = fmtData(hojeISO());
+  const MAX_ETAPAS = 6;
 
+  const etapasVis = o.cronograma.slice(0, MAX_ETAPAS);
   const previa = `
   <div class="relatorio" id="previa-relatorio">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--linha-forte);padding-bottom:10px;margin-bottom:14px">
@@ -100,26 +102,21 @@ VIEWS.relatorio = () => {
         Relatório de status · ${hoje}
       </div>
     </div>
-    <div class="grade g-kpi" style="gap:10px;margin-bottom:14px">
-      ${kpi('Avanço físico', fmtPct(k.progressoFisico, 0), `${k.etapasConcluidas} de ${k.etapasTotal} etapas`)}
-      ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }), `de ${fmtMoney(k.financiado, { dec: 0 })}`)}
-      ${kpi('Pago', fmtMoney(k.totalPago, { dec: 0 }), `custo/m² ${k.area ? fmtMoney(k.custoM2, { dec: 0 }) : '—'}`)}
-      ${kpi('Saldo em caixa', fmtMoney(k.saldoCaixa, { dec: 0 }), '', k.saldoCaixa < 0 ? 'critico' : 'ok')}
-    </div>
-    <h3 style="margin:14px 0 6px">Situação das etapas</h3>
+    <h3 style="margin:4px 0 6px">Situação das etapas</h3>
     <table class="tab"><thead><tr><th>Etapa</th><th>Previsto</th><th class="num">Progresso</th><th>Situação</th></tr></thead>
-      <tbody>${o.cronograma.map((e) => {
+      <tbody>${etapasVis.map((e) => {
         const c = etapaCalc(e);
         return `<tr><td>${esc(e.etapa)}</td><td class="mono">${fmtDataCurta(e.inicioPrevisto)} → ${fmtDataCurta(e.fimPrevisto)}</td>
           <td class="num mono">${fmtPct(c.progresso, 0)}</td><td>${chip(c.situacao, tomSituacao(c.situacao))}</td></tr>`;
       }).join('') || '<tr><td colspan="4">Cronograma não cadastrado.</td></tr>'}</tbody></table>
+    ${o.cronograma.length > MAX_ETAPAS ? `<p style="margin:6px 0 0;font-size:12px;color:var(--mudo)">+ ${o.cronograma.length - MAX_ETAPAS} etapa(s) no documento completo</p>` : ''}
     <h3 style="margin:16px 0 6px">Contratos</h3>
     <table class="tab"><thead><tr><th>Contrato</th><th>Prestador</th><th class="num">Autorizado</th><th class="num">Pago</th><th class="num">Saldo</th></tr></thead>
       <tbody>${bases.map((b) => `<tr><td class="mono">${esc(b.base)}</td><td>${esc(b.prestador)}</td>
         <td class="num mono">${fmtMoney(b.autorizado)}</td><td class="num mono">${fmtMoney(b.pago)}</td>
         <td class="num mono ${b.saldo < 0 ? 'neg' : ''}">${fmtMoney(b.saldo)}</td></tr>`).join('') || '<tr><td colspan="5">Sem contratos.</td></tr>'}</tbody></table>
     ${al.length ? `<h3 style="margin:16px 0 6px">Pendências</h3>
-      <ul style="margin:0;padding-left:18px;font-size:13px">${al.slice(0, 10).map((a) => `<li><b>${esc(a.titulo)}</b> — ${a.detalhe}</li>`).join('')}</ul>` : ''}
+      <ul style="margin:0;padding-left:18px;font-size:13px">${al.slice(0, 8).map((a) => `<li><b>${esc(a.titulo)}</b> — ${a.detalhe}</li>`).join('')}</ul>` : ''}
   </div>`;
 
   const docCard = (acao, titulo, texto) => `
@@ -133,6 +130,16 @@ VIEWS.relatorio = () => {
     </button>`;
 
   return `<div class="grade" style="gap:16px">
+    <div class="hero nao-imprime">
+      ${kpi('Avanço físico', fmtPct(k.progressoFisico, 0),
+        `${k.etapasConcluidas} de ${k.etapasTotal} etapas concluídas`, { destaque: true })}
+      ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }),
+        k.financiado ? `${fmtPct(k.recebido / k.financiado, 0)} de ${fmtMoney(k.financiado, { dec: 0 })} financiados` : `pago ${fmtMoney(k.totalPago, { dec: 0 })}`,
+        { destaque: true })}
+      ${kpi('Saldo em caixa', fmtMoney(k.saldoCaixa, { dec: 0 }),
+        'recebido − pago', { destaque: true, tom: k.saldoCaixa < 0 ? 'critico' : 'ok' })}
+    </div>
+
     ${cartao('Gerar documento', `
       <div class="grade g-cartoes">
         ${docCard('pdf-status', 'Relatório de status da obra',
@@ -146,9 +153,13 @@ VIEWS.relatorio = () => {
         ${botao('Exportar lançamentos (CSV)', 'csv-lancamentos', {}, 'btn', 'baixar')}
         ${botao('Exportar medições (CSV)', 'csv-medicoes', {}, 'btn', 'baixar')}
         ${botao('Exportar recebimentos (CSV)', 'csv-recebimentos', {}, 'btn', 'baixar')}
-        ${botao('Imprimir esta página', 'imprimir', {}, 'btn sutil')}
+        ${botao('Imprimir a prévia', 'imprimir', {}, 'btn sutil')}
       </div>`, { classe: 'nao-imprime' })}
-    ${cartao('Prévia — relatório de status', previa, { semPadding: false })}
+
+    ${cartao('Prévia — amostra do relatório de status', previa, {
+      semPadding: false,
+      sub: 'o PDF traz a obra completa; abaixo é só uma amostra',
+    })}
   </div>`;
 };
 
