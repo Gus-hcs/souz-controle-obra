@@ -90,8 +90,14 @@ VIEWS.relatorio = () => {
   const MAX_ETAPAS = 6;
 
   const etapasVis = o.cronograma.slice(0, MAX_ETAPAS);
+  const cliente = Store.estado.clientes.find((c) => c.id === o.clienteId);
+  const logos = [
+    Store.estado.empresa.logo ? `<img src="${Store.estado.empresa.logo}" alt="Logo da empresa">` : '',
+    cliente && cliente.logo ? `<img src="${cliente.logo}" alt="Logo do cliente">` : '',
+  ].filter(Boolean).join('');
   const previa = `
   <div class="relatorio" id="previa-relatorio">
+    ${logos ? `<div class="relatorio-logos" style="margin-bottom:12px">${logos}</div>` : ''}
     <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--linha-forte);padding-bottom:10px;margin-bottom:14px">
       <div>
         <h2 style="font-size:21px;margin:0">${esc(o.nome)}</h2>
@@ -181,6 +187,14 @@ VIEWS.ajustes = () => {
       ${campoHTML({ k: 'creaCau', label: 'CREA/CAU', tipo: 'texto', col: 4 }, emp)}
       ${campoHTML({ k: 'telefone', label: 'Telefone', tipo: 'texto', col: 4 }, emp)}
       ${campoHTML({ k: 'email', label: 'E-mail', tipo: 'texto', col: 4 }, emp)}
+      <div class="campo c12">
+        <label>Logo da empresa</label>
+        <input type="hidden" data-campo="logo" id="emp_logo_val" value="${esc(emp.logo || '')}">
+        <div class="logo-campo" id="logo-cx-empresa">${emp.logo
+          ? `<img src="${emp.logo}" alt="Logo" class="logo-preview"><button type="button" class="btn sutil pequeno" data-acao="logo-remover" data-alvo="empresa">Remover</button>`
+          : `<label class="btn pequeno" style="cursor:pointer">Escolher imagem<input type="file" accept="image/png,image/jpeg,image/webp" data-logo="1" data-alvo="empresa" hidden></label>`}</div>
+        <span class="dica">PNG ou JPG. Aparece no cabeçalho do relatório em PDF, ao lado do nome.</span>
+      </div>
     </form>`, { acoes: botao('Salvar', 'salvar-empresa', {}, 'btn primario pequeno') })}
 
     ${cartao('Dados e backup', `

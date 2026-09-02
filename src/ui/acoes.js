@@ -3,7 +3,7 @@
  */
 import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, hojeISO, isISO, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, uid } from '../nucleo/base.js';
 import { alertasObra, basesContratuais, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, materialCalc, medicaoAlerta } from '../dominio/calculos.js';
-import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapa, validarLancamento, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
+import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, toast } from './shell.js';
@@ -621,6 +621,80 @@ ACOES['gerar-cronograma'] = () => {
   toast(`${etapas.length} etapas geradas entre ${fmtData(ini)} e ${fmtData(fim)}. Ajuste as datas conforme o planejamento.`, 'ok', 5200);
 };
 
+/* =============================================================== LOGO */
+/* Reduz a imagem para caber num cabeçalho de relatório. PNG preserva o
+   fundo transparente, comum em logo. */
+async function comprimirLogo(file) {
+  const dataUrl = await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = rej;
+    fr.readAsDataURL(file);
+  });
+  const img = await new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = rej;
+    i.src = dataUrl;
+  });
+  const escala = Math.min(1, 360 / Math.max(img.width, img.height));
+  const cv = document.createElement('canvas');
+  cv.width = Math.max(1, Math.round(img.width * escala));
+  cv.height = Math.max(1, Math.round(img.height * escala));
+  cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+  return cv.toDataURL('image/png');
+}
+
+/* Alvos possíveis do seletor de logo. Cada um sabe ler e gravar o valor. */
+const LOGO_ALVOS = {
+  cliente: { get: () => window.__logo || '', set: (v) => { window.__logo = v; } },
+  empresa: {
+    get: () => (document.getElementById('emp_logo_val') || {}).value || '',
+    set: (v) => { const h = document.getElementById('emp_logo_val'); if (h) h.value = v; },
+  },
+};
+
+function renderLogoBox(alvo) {
+  const cx = document.getElementById('logo-cx-' + alvo);
+  if (!cx) return;
+  const atual = (LOGO_ALVOS[alvo] || {}).get ? LOGO_ALVOS[alvo].get() : '';
+  cx.innerHTML = atual
+    ? `<img src="${atual}" alt="Logo" class="logo-preview">
+       <button type="button" class="btn sutil pequeno" data-acao="logo-remover" data-alvo="${alvo}">Remover</button>`
+    : `<label class="btn pequeno" style="cursor:pointer">Escolher imagem
+        <input type="file" accept="image/png,image/jpeg,image/webp" data-logo="1" data-alvo="${alvo}" hidden></label>`;
+}
+
+ACOES['logo-selecionada'] = async (el, d) => {
+  const f = el.files && el.files[0];
+  if (!f) return;
+  let dados;
+  try { dados = await comprimirLogo(f); } catch (e) { return toast('Não foi possível ler a imagem.', 'critico'); }
+  el.value = '';
+  if (dados.length > 500000) return toast('A logo ficou pesada demais. Use uma imagem menor.', 'aviso');
+  (LOGO_ALVOS[d.alvo] || LOGO_ALVOS.cliente).set(dados);
+  renderLogoBox(d.alvo);
+};
+
+ACOES['logo-remover'] = (el, d) => {
+  (LOGO_ALVOS[d.alvo] || LOGO_ALVOS.cliente).set('');
+  renderLogoBox(d.alvo);
+};
+
+/* Anexa um seletor de logo ao formulário aberto (modal). */
+function anexarCampoLogo(valorInicial, label) {
+  window.__logo = valorInicial || '';
+  const form = document.querySelector('#modal-camada [data-form]');
+  if (!form) return;
+  const bloco = document.createElement('div');
+  bloco.className = 'campo c12';
+  bloco.innerHTML = `<label>${esc(label)}</label>
+    <div class="logo-campo" id="logo-cx-cliente"></div>
+    <span class="dica">PNG ou JPG. Aparece no cabeçalho do relatório em PDF.</span>`;
+  form.appendChild(bloco);
+  renderLogoBox('cliente');
+}
+
 /* ============================================================ DIÁRIO */
 async function comprimirImagem(file, maxLado = 1280, qualidade = 0.66) {
   const dataUrl = await new Promise((res, rej) => {
@@ -755,15 +829,16 @@ function abrirFormCliente(c, novo) {
       { k: 'observacoes', label: 'Observações', tipo: 'area', col: 12 }
     ],
     valores: c,
-    validar: (d) => validarCliente(d),
+    validar: (d) => validarCliente({ ...d, logo: window.__logo }),
     aoSalvar: (d) => {
       if (!d.nome) return toast('Informe o nome.', 'aviso');
-      Object.assign(c, d);
+      Object.assign(c, d, { logo: window.__logo || '' });
       mutar((e) => { if (novo) e.clientes.push(c); });
       fecharModal();
       toast('Cliente salvo.', 'ok');
     }
   });
+  anexarCampoLogo(c.logo, 'Logo do cliente');
 }
 ACOES['excluir-cliente'] = (el, d) => {
   const c = Store.estado.clientes.find((x) => x.id === d.id);
@@ -814,6 +889,8 @@ ACOES['excluir-prestador'] = (el, d) => {
 /* =========================================================== AJUSTES */
 ACOES['salvar-empresa'] = () => {
   const d = lerForm();
+  const probs = apenasErros(validarLogo(d.logo, 'logo'));
+  if (probs.length) return toast(probs[0].mensagem, 'critico');
   mutar((e) => { Object.assign(e.empresa, d); });
   toast('Dados da empresa salvos.', 'ok');
 };

@@ -378,23 +378,48 @@ function planilhaParaObra(wb, nomeArquivo) {
 /* ================================================== RELATÓRIOS EM PDF */
 const CINZA = [90, 96, 98];
 
+function fmtLogo(dataUri) {
+  const m = /^data:image\/(png|jpe?g|webp)/i.exec(dataUri || '');
+  return m ? (m[1].toLowerCase() === 'jpg' ? 'JPEG' : m[1].toUpperCase()) : '';
+}
+
 async function novoPDF(obra, subtitulo) {
   const ok = await carregarPDF();
   if (!ok) { toast('Não foi possível carregar o gerador de PDF.', 'critico'); return null; }
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const emp = Store.estado.empresa;
+  const cliente = Store.estado.clientes.find((c) => c.id === obra.clienteId);
+
+  /* faixa de logo (empresa + cliente), quando cadastradas */
+  const desenhaLogo = (uri, x) => {
+    const fmt = fmtLogo(uri);
+    if (!fmt) return x;
+    try {
+      const p = doc.getImageProperties(uri);
+      const h = 13;
+      const w = Math.min(48, (p.width / p.height) * h);
+      doc.addImage(uri, fmt, x, 8, w, h);
+      return x + w + 7;
+    } catch (e) { return x; }
+  };
+  let lx = 14;
+  lx = desenhaLogo(emp.logo, lx);
+  lx = desenhaLogo(cliente && cliente.logo, lx);
+  const topo = lx > 14 ? 30 : 18;
+
   doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
-  doc.text(obra.nome || 'Obra', 14, 18);
+  doc.text(obra.nome || 'Obra', 14, topo);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...CINZA);
   const linha1 = [nomeCliente(obra.clienteId), obra.cidade, obra.endereco].filter(Boolean).join(' · ');
-  doc.text(linha1.slice(0, 95), 14, 23.5);
+  doc.text(linha1.slice(0, 95), 14, topo + 5.5);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(20, 24, 26);
-  doc.text(emp.nome || 'Souz Controle de Obra', 196, 18, { align: 'right' });
+  doc.text(emp.nome || 'Souz Controle de Obra', 196, topo, { align: 'right' });
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...CINZA);
-  doc.text(subtitulo + ' · ' + fmtData(hojeISO()), 196, 23.5, { align: 'right' });
-  doc.setDrawColor(180, 180, 175); doc.line(14, 27, 196, 27);
+  doc.text(subtitulo + ' · ' + fmtData(hojeISO()), 196, topo + 5.5, { align: 'right' });
+  doc.setDrawColor(180, 180, 175); doc.line(14, topo + 9, 196, topo + 9);
   doc.setTextColor(20, 24, 26);
+  doc.__startY = topo + 16;
   return doc;
 }
 
@@ -456,7 +481,7 @@ ACOES['pdf-status'] = async () => {
   const doc = await novoPDF(o, 'Relatório de status');
   if (!doc) return;
   const k = kpisObra(o);
-  let y = 34;
+  let y = doc.__startY;
   y = pdfKPIs(doc, y, [
     ['Avanço físico', fmtPct(k.progressoFisico, 0), `${k.etapasConcluidas}/${k.etapasTotal} etapas`],
     ['Recebido', fmtMoney(k.recebido, { dec: 0 }), `de ${fmtMoney(k.financiado, { dec: 0 })}`],
@@ -505,7 +530,7 @@ ACOES['pdf-prestacao'] = async () => {
   const doc = await novoPDF(o, 'Prestação de contas');
   if (!doc) return;
   const k = kpisObra(o);
-  let y = 34;
+  let y = doc.__startY;
   y = pdfKPIs(doc, y, [
     ['Saldo inicial', fmtMoney(k.saldoInicial, { dec: 0 }), ''],
     ['Entradas', fmtMoney(k.recebido, { dec: 0 }), 'CAIXA, cliente e aportes'],
@@ -556,7 +581,7 @@ ACOES['pdf-medicao'] = async () => {
   const k = kpisObra(o);
   const pesos = pesosCronograma(o);
   const aSolicitar = Math.max(0, k.progressoFisico * k.financiado - k.recebido);
-  let y = 34;
+  let y = doc.__startY;
   y = pdfKPIs(doc, y, [
     ['Avanço físico', fmtPct(k.progressoFisico, 1), 'ponderado pelas etapas'],
     ['Contrato CAIXA', o.fin.contratoCaixa || '—', fmtMoney(k.financiado, { dec: 0 })],

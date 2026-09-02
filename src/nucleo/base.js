@@ -243,7 +243,7 @@ const novoDiario = () => ({
 
 const novoCliente = () => ({
   id: uid('cli'), nome: '', contato: '', telefone: '', email: '', documento: '',
-  origem: '', situacao: 'Cliente', observacoes: ''
+  origem: '', situacao: 'Cliente', observacoes: '', logo: ''
 });
 
 const novoPrestador = () => ({
@@ -260,7 +260,7 @@ const novoMembro = (papel = 'engenheiro') => ({
 
 const estadoInicial = () => ({
   meta: { schema: APP.schema, versao: APP.versao, savedAt: new Date().toISOString(), autor: '' },
-  empresa: { nome: 'Souz Engenharia', responsavel: '', creaCau: '', telefone: '', email: '' },
+  empresa: { nome: 'Souz Engenharia', responsavel: '', creaCau: '', telefone: '', email: '', logo: '' },
   listas: JSON.parse(JSON.stringify(LISTAS_PADRAO)),
   clientes: [],
   prestadores: [],
@@ -280,7 +280,7 @@ function migrar(s) {
       out.listas[k] = LISTAS_PADRAO[k].slice();
     }
   }
-  out.clientes = Array.isArray(s.clientes) ? s.clientes : [];
+  out.clientes = (Array.isArray(s.clientes) ? s.clientes : []).map((c) => Object.assign(novoCliente(), c));
   out.prestadores = Array.isArray(s.prestadores) ? s.prestadores : [];
   out.obras = (Array.isArray(s.obras) ? s.obras : []).map((o) => {
     const nova = novaObra();

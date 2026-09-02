@@ -13,7 +13,7 @@ import {
 import {
   validarObra, validarContrato, validarMedicao, validarRecebimento,
   validarLancamento, validarMaterial, validarEtapa, validarDiario,
-  validarCliente, validarPrestador, validarMembro, validarPerfilAdmin, validarUsuarioNovo,
+  validarCliente, validarPrestador, validarMembro, validarPerfilAdmin, validarUsuarioNovo, validarLogo,
   validarObraCompleta, validarEstado,
   apenasErros, apenasAlertas,
 } from '../src/dominio/validacao.js';
@@ -284,6 +284,30 @@ describe('perfil (administração)', () => {
     expect(validarPerfilAdmin({ limiteObras: null })).toEqual([]);
     expect(temErroNoCampo(validarPerfilAdmin({ limiteObras: -5 }), 'limiteObras')).toBe(true);
     expect(temErroNoCampo(validarPerfilAdmin({ limiteObras: 2.5 }), 'limiteObras')).toBe(true);
+  });
+});
+
+describe('logo (cliente e empresa)', () => {
+  it('vazio passa', () => {
+    expect(validarLogo('')).toEqual([]);
+    expect(validarLogo(null)).toEqual([]);
+    expect(validarCliente({ nome: 'X', logo: '' })).toEqual([]);
+  });
+
+  it('data URI de imagem passa', () => {
+    expect(validarLogo('data:image/png;base64,iVBORw0KGgo=')).toEqual([]);
+    expect(validarLogo('data:image/jpeg;base64,/9j/4AAQ')).toEqual([]);
+  });
+
+  it('recusa o que não é imagem', () => {
+    expect(temErroNoCampo(validarLogo('https://exemplo.com/logo.png'), 'logo')).toBe(true);
+    expect(temErroNoCampo(validarLogo('data:text/html;base64,PHN2Zz4='), 'logo')).toBe(true);
+    expect(temErroNoCampo(validarCliente({ nome: 'X', logo: 'nada' }), 'logo')).toBe(true);
+  });
+
+  it('recusa imagem grande demais', () => {
+    const gigante = 'data:image/png;base64,' + 'A'.repeat(500001);
+    expect(temErroNoCampo(validarLogo(gigante), 'logo')).toBe(true);
   });
 });
 

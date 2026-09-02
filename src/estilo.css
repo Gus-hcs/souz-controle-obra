@@ -623,8 +623,17 @@ select { cursor: pointer; }
   font-size: 13px;
 }
 
+/* seletor de logo (cadastro de cliente e empresa) */
+.logo-campo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.logo-preview {
+  max-height: 56px; max-width: 200px; object-fit: contain;
+  border: 1px solid var(--linha); border-radius: var(--r); padding: 4px; background: var(--sup2);
+}
+
 /* impressão / relatório */
 .relatorio { background: var(--sup); padding: 22px; border-radius: var(--r2); border: 1px solid var(--linha); }
+.relatorio-logos { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.relatorio-logos img { max-height: 44px; max-width: 150px; object-fit: contain; }
 
 /* ------------------------------------------------------- responsivo */
 @media (max-width: 1180px) {

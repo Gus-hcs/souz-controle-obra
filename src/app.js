@@ -25,6 +25,10 @@ document.addEventListener('click', (ev) => {
 
 document.addEventListener('change', (ev) => {
   const el = ev.target;
+  if (el.tagName === 'INPUT' && el.type === 'file' && el.dataset.logo && ACOES['logo-selecionada']) {
+    ACOES['logo-selecionada'](el, { ...el.dataset });
+    return;
+  }
   if (el.tagName === 'SELECT' && el.dataset.acao && ACOES[el.dataset.acao]) {
     ACOES[el.dataset.acao](el, { ...el.dataset });
     return;

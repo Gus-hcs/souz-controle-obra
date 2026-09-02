@@ -204,9 +204,19 @@ function validarDiario(d) {
 }
 
 /* --------------------------------------------- CLIENTE / PRESTADOR */
+/* Logo: data URI de imagem, opcional. Espelha o CHECK de 0008. */
+function validarLogo(v, campo = 'logo') {
+  const out = [];
+  const s = String(v || '');
+  if (s && !/^data:image\//.test(s)) out.push(problema(campo, 'A logo precisa ser um arquivo de imagem.'));
+  else if (s.length > 500000) out.push(problema(campo, 'A logo está muito pesada — use uma imagem menor.'));
+  return out;
+}
+
 function validarCliente(c) {
   const out = [];
   if (!String(c.nome || '').trim()) out.push(problema('nome', 'O cliente precisa de um nome.'));
+  out.push(...validarLogo(c.logo, 'logo'));
   return out;
 }
 
@@ -312,6 +322,7 @@ export {
   validarMembro,
   validarPerfilAdmin,
   validarUsuarioNovo,
+  validarLogo,
   validarObraCompleta,
   validarEstado,
   apenasErros,
