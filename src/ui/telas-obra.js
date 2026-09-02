@@ -1099,37 +1099,82 @@ VIEWS.alertas = () => {
 /* ==================================================== DIÁRIO DE OBRA */
 VIEWS.diario = () => {
   const o = App.obra();
-  const lista = o.diario.slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  const f = App.filtros;
+  const todos = o.diario;
+  const ordenados = todos.slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
+  const ultimo = ordenados[0];
+  const semRegistro = ultimo && isISO(ultimo.data) ? diasEntre(ultimo.data, hojeISO()) : null;
+  const totFotos = todos.reduce((s, d) => s + (d.fotos ? d.fotos.length : 0), 0);
+  const chuvosos = todos.filter((d) => d.clima && d.clima.includes('Chuva'));
+  const noMes = todos.filter((d) => competencia(d.data) === competencia(hojeISO())).length;
+  const etapasUsadas = [...new Set(todos.map((d) => d.etapa).filter(Boolean))].sort();
+  const meses = [...new Set(todos.map((d) => competencia(d.data)).filter(Boolean))].sort().reverse();
+
+  /* ---------------------------------------------------------- filtros */
+  const busca = norm(f.busca || '');
+  let lista = ordenados;
+  if (f.etapa) lista = lista.filter((d) => d.etapa === f.etapa);
+  if (f.mes) lista = lista.filter((d) => competencia(d.data) === f.mes);
+  if (f.situacao === 'ocorrencia') lista = lista.filter((d) => d.ocorrencias && d.ocorrencias.trim());
+  if (f.situacao === 'foto') lista = lista.filter((d) => d.fotos && d.fotos.length);
+  if (f.situacao === 'chuva') lista = lista.filter((d) => d.clima && d.clima.includes('Chuva'));
+  if (busca) lista = filtraTexto(lista, f.busca, ['atividades', 'ocorrencias', 'autor', 'etapa']);
+  const filtrando = lista.length !== todos.length;
+
   const registros = lista.map((d) => `
-    <article class="cartao" style="box-shadow:none">
+    <article class="cartao diario-item" style="box-shadow:none">
       <header>
         <h3>${fmtData(d.data)}</h3>
         ${chip(d.clima, d.clima && d.clima.includes('Chuva') ? 'aviso' : '')}
         ${d.etapa ? chip(d.etapa, 'marca') : ''}
         ${num(d.efetivo) ? chip(fmtNum(d.efetivo, 0) + ' na obra') : ''}
+        ${d.ocorrencias && d.ocorrencias.trim() ? chip('ocorrência', 'critico') : ''}
         <div class="dir">${acoesLinha('diario', d.id)}</div>
       </header>
       <div class="corpo" style="display:flex;flex-direction:column;gap:10px">
         ${d.atividades ? `<div><span class="rotulo">Atividades</span><p style="margin:2px 0 0">${esc(d.atividades)}</p></div>` : ''}
         ${d.ocorrencias ? `<div><span class="rotulo">Ocorrências</span><p style="margin:2px 0 0;color:var(--aviso)">${esc(d.ocorrencias)}</p></div>` : ''}
-        ${d.fotos && d.fotos.length ? `<div class="fotos">${d.fotos.map((f, i) =>
-          `<figure><img src="${f.dados}" alt="${esc(f.nome || 'Foto da obra')}" loading="lazy" data-acao="ver-foto" data-id="${d.id}" data-idx="${i}"></figure>`).join('')}</div>` : ''}
+        ${d.fotos && d.fotos.length ? `<div class="fotos">${d.fotos.map((foto, i) =>
+          `<figure><img src="${foto.dados}" alt="${esc(foto.nome || 'Foto da obra')}" loading="lazy" data-acao="ver-foto" data-id="${d.id}" data-idx="${i}"></figure>`).join('')}</div>` : ''}
         ${d.autor ? `<span style="font-size:11.5px;color:var(--mudo)">registrado por ${esc(d.autor)}</span>` : ''}
       </div>
     </article>`).join('');
 
+  const filtros = `<div class="filtros">
+    ${campoBusca('busca', 'Buscar atividade, ocorrência, autor…')}
+    ${etapasUsadas.length > 1 ? selectFiltro('etapa', etapasUsadas, 'Todas as etapas') : ''}
+    <select data-filtro="situacao" aria-label="Recorte">
+      <option value="">Todos os registros</option>
+      <option value="ocorrencia" ${f.situacao === 'ocorrencia' ? 'selected' : ''}>Com ocorrência</option>
+      <option value="foto" ${f.situacao === 'foto' ? 'selected' : ''}>Com foto</option>
+      <option value="chuva" ${f.situacao === 'chuva' ? 'selected' : ''}>Dia de chuva</option>
+    </select>
+    ${meses.length > 1 ? `<select data-filtro="mes" aria-label="Mês">
+      <option value="">Todos os meses</option>
+      ${meses.map((ym) => `<option value="${ym}" ${f.mes === ym ? 'selected' : ''}>${fmtCompetencia(ym)}</option>`).join('')}
+    </select>` : ''}
+    ${filtrando ? `<span class="ct-contagem" style="margin:0">${lista.length} de ${todos.length}</span>` : ''}
+    <span style="margin-left:auto">${botao('Novo registro', 'novo-diario', {}, 'btn primario pequeno', 'mais')}</span>
+  </div>`;
+
   return `<div class="grade" style="gap:16px">
-    <div class="grade g3">
-      ${kpi('Registros', o.diario.length, 'visitas documentadas')}
-      ${kpi('Fotos', o.diario.reduce((s, d) => s + (d.fotos ? d.fotos.length : 0), 0), 'anexadas ao diário')}
-      ${kpi('Último registro', lista[0] ? fmtData(lista[0].data) : '—',
-        lista[0] && isISO(lista[0].data) ? `há ${diasEntre(lista[0].data, hojeISO())} dia(s)` : 'nenhuma visita registrada')}
+    <div class="hero">
+      ${kpi('Registros', todos.length, `${noMes} neste mês`, { destaque: true })}
+      ${kpi('Sem registro há', semRegistro === null ? '—' : `${semRegistro} dia${semRegistro === 1 ? '' : 's'}`,
+        semRegistro === null ? 'nenhuma visita registrada' : `último em ${fmtDataCurta(ultimo.data)}`,
+        { destaque: true, tom: semRegistro !== null && semRegistro > 7 ? 'aviso' : 'ok' })}
+      ${kpi('Fotos no diário', totFotos,
+        chuvosos.length ? `${chuvosos.length} dia${chuvosos.length === 1 ? '' : 's'} de chuva registrado${chuvosos.length === 1 ? '' : 's'}` : 'nenhum dia de chuva',
+        { destaque: true })}
     </div>
+
     ${cartao('Diário de obra', lista.length
       ? `<div class="grade" style="gap:12px">${registros}</div>`
-      : vazio('Sem registros', 'Documente cada visita: clima, efetivo, o que foi executado, ocorrências e fotos. Serve como prova documental e memória da obra.',
-        botao('Novo registro', 'novo-diario', {}, 'btn primario', 'mais')), {
-      acoes: botao('Novo registro', 'novo-diario', {}, 'btn primario pequeno', 'mais')
+      : vazio(
+        filtrando ? 'Nada com esse filtro' : 'Sem registros',
+        filtrando ? 'Ajuste a busca ou os filtros acima.' : 'Documente cada visita: clima, efetivo, o que foi executado, ocorrências e fotos. Serve como prova documental e memória da obra.',
+        filtrando ? '' : botao('Novo registro', 'novo-diario', {}, 'btn primario', 'mais')), {
+      acoes: todos.length ? filtros : botao('Novo registro', 'novo-diario', {}, 'btn primario pequeno', 'mais')
     })}
   </div>`;
 };
