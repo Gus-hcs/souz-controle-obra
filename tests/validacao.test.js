@@ -13,7 +13,7 @@ import {
 import {
   validarObra, validarContrato, validarMedicao, validarRecebimento,
   validarLancamento, validarMaterial, validarEtapa, validarDiario,
-  validarCliente, validarPrestador, validarMembro, validarPerfilAdmin, validarUsuarioNovo, validarLogo,
+  validarCliente, validarPrestador, validarMembro, validarPerfilAdmin, validarUsuarioNovo, validarSenhaForte, validarLogo,
   validarObraCompleta, validarEstado,
   apenasErros, apenasAlertas,
 } from '../src/dominio/validacao.js';
@@ -312,19 +312,27 @@ describe('logo (cliente e empresa)', () => {
 });
 
 describe('conta nova criada pelo admin', () => {
-  it('e-mail válido e senha de 6+ passam', () => {
-    expect(validarUsuarioNovo({ email: 'cliente@empresa.com', senha: 'abc-def' })).toEqual([]);
+  const senhaOk = 'Ab3-cdef-ghjk';
+
+  it('e-mail válido e senha forte passam', () => {
+    expect(validarUsuarioNovo({ email: 'cliente@empresa.com', senha: senhaOk })).toEqual([]);
   });
 
   it('recusa e-mail vazio ou malformado', () => {
-    expect(temErroNoCampo(validarUsuarioNovo({ email: '', senha: 'abcdef' }), 'email')).toBe(true);
-    expect(temErroNoCampo(validarUsuarioNovo({ email: 'semarroba', senha: 'abcdef' }), 'email')).toBe(true);
-    expect(temErroNoCampo(validarUsuarioNovo({ email: 'a@b', senha: 'abcdef' }), 'email')).toBe(true);
+    expect(temErroNoCampo(validarUsuarioNovo({ email: '', senha: senhaOk }), 'email')).toBe(true);
+    expect(temErroNoCampo(validarUsuarioNovo({ email: 'semarroba', senha: senhaOk }), 'email')).toBe(true);
+    expect(temErroNoCampo(validarUsuarioNovo({ email: 'a@b', senha: senhaOk }), 'email')).toBe(true);
   });
 
-  it('recusa senha com menos de 6 caracteres', () => {
-    expect(temErroNoCampo(validarUsuarioNovo({ email: 'c@e.com', senha: 'ab1' }), 'senha')).toBe(true);
-    expect(temErroNoCampo(validarUsuarioNovo({ email: 'c@e.com', senha: '' }), 'senha')).toBe(true);
+  it('exige a política de senha: 12+ com minúscula, maiúscula, número e símbolo', () => {
+    const e = 'c@e.com';
+    expect(temErroNoCampo(validarUsuarioNovo({ email: e, senha: '' }), 'senha')).toBe(true);
+    expect(temErroNoCampo(validarUsuarioNovo({ email: e, senha: 'Ab3-cd' }), 'senha')).toBe(true); // curta
+    expect(temErroNoCampo(validarUsuarioNovo({ email: e, senha: 'abcdefghijkl' }), 'senha')).toBe(true); // só minúscula
+    expect(temErroNoCampo(validarUsuarioNovo({ email: e, senha: 'ABCDEFGHIJKL3' }), 'senha')).toBe(true); // sem minúscula/símbolo
+    expect(temErroNoCampo(validarUsuarioNovo({ email: e, senha: 'Abcdefghijkl3' }), 'senha')).toBe(true); // sem símbolo
+    expect(temErroNoCampo(validarUsuarioNovo({ email: e, senha: 'Abcdefghijkl-' }), 'senha')).toBe(true); // sem número
+    expect(validarSenhaForte('Abcdefghijk3-')).toEqual([]);
   });
 });
 

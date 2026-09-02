@@ -364,13 +364,25 @@ VIEWS.admin = () => {
   </div>`;
 };
 
-/* senha provisória legível: 4 blocos de 3 (letras sem ambíguas + dígitos).
-   12 caracteres úteis — passa em qualquer política de senha do Supabase. */
+/* senha provisória em 3 blocos de 4, com minúscula, maiúscula, número e
+   símbolo garantidos — passa na política de senha do Supabase (12+ com
+   os quatro tipos). */
 function senhaProvisoria() {
-  const abc = 'abcdefghijkmnpqrstuvwxyz23456789';
-  let s = '';
-  for (let i = 0; i < 12; i++) s += abc[Math.floor(Math.random() * abc.length)];
-  return `${s.slice(0, 3)}-${s.slice(3, 6)}-${s.slice(6, 9)}-${s.slice(9, 12)}`;
+  const minus = 'abcdefghijkmnpqrstuvwxyz';
+  const maius = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const nums = '23456789';
+  const simb = '!@#$%&*-+=';
+  const pega = (s) => s[Math.floor(Math.random() * s.length)];
+  /* garante minúscula, maiúscula, número e símbolo; completa 12 e embaralha */
+  const base = [pega(minus), pega(maius), pega(nums), pega(simb)];
+  const pool = minus + maius + nums;
+  while (base.length < 12) base.push(pega(pool));
+  for (let i = base.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [base[i], base[j]] = [base[j], base[i]];
+  }
+  const s = base.join('');
+  return `${s.slice(0, 4)}-${s.slice(4, 8)}-${s.slice(8, 12)}`;
 }
 
 /* ---------------------------------------------------- ações do admin */
@@ -510,7 +522,7 @@ ACOES['admin-novo'] = () => {
             <input type="text" id="adm_novo_senha" autocomplete="off" value="${senhaProvisoria()}">
             ${botao('Gerar', 'admin-gerar-senha', {}, 'btn pequeno')}
           </div>
-          <span class="dica">Anote e passe ao cliente. Mínimo 6 caracteres.</span></div>
+          <span class="dica">Anote e passe ao cliente. 12+ caracteres, com maiúscula, número e símbolo.</span></div>
         <div class="campo c12"><label for="adm_novo_emp">Empresa (opcional)</label>
           <input type="text" id="adm_novo_emp" placeholder="nome que aparece nos relatórios"></div>
       </div>`,

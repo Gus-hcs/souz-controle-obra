@@ -294,13 +294,25 @@ function validarPerfilAdmin(p) {
 /* Conta nova criada pelo admin. auth.users é gerido pelo Supabase, então
    isto não vira CHECK — o próprio Supabase recusa e-mail inválido e senha
    curta. Aqui é só para não gastar uma chamada à toa. */
+/* Espelha a política de senha do projeto no Supabase:
+   mínimo 12 caracteres, com minúscula, maiúscula, número e símbolo.
+   Devolve no máximo um problema por vez — a mensagem que falta corrigir. */
+function validarSenhaForte(v, campo = 'senha') {
+  const s = String(v || '');
+  if (s.length < 12) return [problema(campo, 'A senha precisa de pelo menos 12 caracteres.')];
+  if (!/[a-z]/.test(s)) return [problema(campo, 'Inclua uma letra minúscula na senha.')];
+  if (!/[A-Z]/.test(s)) return [problema(campo, 'Inclua uma letra maiúscula na senha.')];
+  if (!/[0-9]/.test(s)) return [problema(campo, 'Inclua um número na senha.')];
+  if (!/[^A-Za-z0-9]/.test(s)) return [problema(campo, 'Inclua um símbolo na senha (! @ # - …).')];
+  return [];
+}
+
 function validarUsuarioNovo(u) {
   const out = [];
   const email = String(u.email || '').trim();
   if (!email) out.push(problema('email', 'Informe o e-mail do cliente.'));
   else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) out.push(problema('email', 'E-mail inválido.'));
-  const senha = String(u.senha || '');
-  if (senha.length < 6) out.push(problema('senha', 'A senha provisória precisa de pelo menos 6 caracteres.'));
+  out.push(...validarSenhaForte(u.senha, 'senha'));
   return out;
 }
 
@@ -322,6 +334,7 @@ export {
   validarMembro,
   validarPerfilAdmin,
   validarUsuarioNovo,
+  validarSenhaForte,
   validarLogo,
   validarObraCompleta,
   validarEstado,

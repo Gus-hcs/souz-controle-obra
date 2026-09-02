@@ -32,6 +32,18 @@ const json = (corpo: unknown, status = 200) =>
 
 const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/* Espelha a política de senha do projeto no Supabase: 12+ caracteres,
+   com minúscula, maiúscula, número e símbolo. Devolve a mensagem do
+   primeiro requisito que falta, em português. */
+function problemaSenha(s: string): string | null {
+  if (s.length < 12) return 'A senha precisa de pelo menos 12 caracteres.';
+  if (!/[a-z]/.test(s)) return 'Inclua uma letra minúscula na senha.';
+  if (!/[A-Z]/.test(s)) return 'Inclua uma letra maiúscula na senha.';
+  if (!/[0-9]/.test(s)) return 'Inclua um número na senha.';
+  if (!/[^A-Za-z0-9]/.test(s)) return 'Inclua um símbolo na senha (! @ # - …).';
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return json({ erro: 'Método não suportado.' }, 405);
@@ -71,7 +83,8 @@ Deno.serve(async (req) => {
   const empresa = String(corpo.empresa || '').trim();
 
   if (!EMAIL_RX.test(email)) return json({ erro: 'E-mail inválido.' }, 400);
-  if (senha.length < 6) return json({ erro: 'A senha precisa de pelo menos 6 caracteres.' }, 400);
+  const senhaRuim = problemaSenha(senha);
+  if (senhaRuim) return json({ erro: senhaRuim }, 400);
 
   // Cria com o e-mail já confirmado.
   const { data: novo, error: erroCria } = await admin.auth.admin.createUser({
