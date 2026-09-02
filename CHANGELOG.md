@@ -3,6 +3,15 @@
 ## Não publicado
 
 **Segurança**
+- Migração `0009_seguranca_perfis.sql`: fecha o INSERT/DELETE de `perfis` que a
+  `0006` deixou aberto — dava para apagar a própria linha e recriá-la como
+  admin, ou escapar de um bloqueio. Também trava `search_path` nas funções que
+  faltavam.
+- Criação de conta pelo admin migra para a Edge Function `admin-criar-usuario`:
+  a `service_role` sai do navegador e o cadastro público pode ser desligado.
+- Cliente Supabase em PKCE; reset de senha volta para a URL limpa.
+- `fonteImagem()` filtra todo `src` de imagem vindo do banco (fotos, logos).
+- CSP por `<meta>` no build, `Referrer-Policy: no-referrer`, anti-frame.
 - Migração `0006_seguranca.sql`: corrige falha crítica da `0005` — o usuário
   conseguia `update perfis set admin = true` na própria linha e virar admin.
   Agora as colunas de controle (`admin`, `plano`, `bloqueado`, `abas`) só

@@ -364,12 +364,13 @@ VIEWS.admin = () => {
   </div>`;
 };
 
-/* senha provisória legível: 3 blocos de 3 (letras sem ambíguas + dígitos) */
+/* senha provisória legível: 4 blocos de 3 (letras sem ambíguas + dígitos).
+   12 caracteres úteis — passa em qualquer política de senha do Supabase. */
 function senhaProvisoria() {
   const abc = 'abcdefghijkmnpqrstuvwxyz23456789';
   let s = '';
-  for (let i = 0; i < 9; i++) s += abc[Math.floor(Math.random() * abc.length)];
-  return `${s.slice(0, 3)}-${s.slice(3, 6)}-${s.slice(6, 9)}`;
+  for (let i = 0; i < 12; i++) s += abc[Math.floor(Math.random() * abc.length)];
+  return `${s.slice(0, 3)}-${s.slice(3, 6)}-${s.slice(6, 9)}-${s.slice(9, 12)}`;
 }
 
 /* ---------------------------------------------------- ações do admin */
@@ -498,9 +499,8 @@ ACOES['admin-novo'] = () => {
     largura: 'estreito',
     corpo: `
       <p style="margin:0 0 14px;font-size:12.5px;color:var(--mudo)">
-        Cria a conta de acesso. O cliente entra com este e-mail e a senha provisória,
-        e troca a senha depois em <b>Ajustes</b>. Se a confirmação de e-mail estiver
-        ligada no Supabase, ele recebe um link antes do primeiro acesso.
+        Cria a conta de acesso já liberada. O cliente entra com este e-mail e a
+        senha provisória, e troca a senha depois em <b>Ajustes</b>.
       </p>
       <div class="form-grade">
         <div class="campo c12"><label for="adm_novo_email">E-mail de acesso</label>
@@ -532,14 +532,9 @@ ACOES['admin-criar'] = async (el) => {
   if (probs.length) return toast(probs[0].mensagem, 'critico');
   if (el) el.disabled = true;
   try {
-    const r = await SUPA.adminCriarUsuario(email, senha);
-    if (empresa && r.id) {
-      try { await SUPA.adminEditarInfo(r.id, { empresa_nome: empresa }); } catch (e) { /* perfil propagando */ }
-    }
+    await SUPA.adminCriarUsuario(email, senha, empresa);
     fecharModal();
-    toast(r.precisaConfirmar
-      ? `Conta criada. ${email} precisa confirmar o e-mail antes de entrar. Senha provisória: ${senha}`
-      : `Conta criada. ${email} já entra com a senha provisória: ${senha}`, 'ok', 14000);
+    toast(`Conta criada. ${email} já entra com a senha provisória: ${senha}`, 'ok', 14000);
     carregarConsumo(true);
   } catch (e) {
     if (el) el.disabled = false;

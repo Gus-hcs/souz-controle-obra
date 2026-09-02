@@ -380,18 +380,29 @@ const SUPA = {
   },
 
   /* ---------------------------------------- criar e editar cliente (admin) */
-  /* Cria a conta com signUp num cliente Supabase ISOLADO, para não trocar a
-     sessão do admin. Se a confirmação de e-mail estiver ligada no projeto, o
-     cliente recebe um link e só entra depois de confirmar. Devolve
+  /* Cria a conta pela Edge Function admin-criar-usuario: a service_role fica no
+     servidor, a sessão do admin não é trocada e não depende do cadastro público
+     estar aberto. A conta nasce com o e-mail confirmado. Devolve
      { id, precisaConfirmar }. */
-  async adminCriarUsuario(email, senha) {
-    if (!this.sb || !window.supabase) throw new Error('Sistema sem conexão com o banco.');
-    const isolado = window.supabase.createClient(this.cfg.url, this.cfg.anon, {
-      auth: { persistSession: false, autoRefreshToken: false, storageKey: 'sb-souz-provisorio' }
+  async adminCriarUsuario(email, senha, empresa) {
+    if (!this.sb) throw new Error('Sistema sem conexão com o banco.');
+    const { data, error } = await this.sb.functions.invoke('admin-criar-usuario', {
+      body: { email: String(email).trim(), senha, empresa: empresa || '' }
     });
-    const { data, error } = await isolado.auth.signUp({ email: String(email).trim(), password: senha });
-    if (error) throw error;
-    return { id: data.user && data.user.id, precisaConfirmar: !data.session };
+    if (error) {
+      let msg = error.message || 'Não foi possível criar a conta.';
+      try {
+        const corpo = await error.context.json();
+        if (corpo && corpo.erro) msg = corpo.erro;
+      } catch (e) {
+        if (/not found|Failed to (send|fetch)/i.test(msg)) {
+          msg = 'A função admin-criar-usuario ainda não foi publicada (supabase functions deploy).';
+        }
+      }
+      throw new Error(msg);
+    }
+    if (data && data.erro) throw new Error(data.erro);
+    return { id: data && data.id, precisaConfirmar: !!(data && data.precisaConfirmar) };
   },
 
   /* Perfil completo de um cliente. Só admin lê todos (política de 0005). */

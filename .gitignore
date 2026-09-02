@@ -12,3 +12,8 @@ playwright-report/
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# Supabase CLI (usado só para publicar Edge Functions)
+supabase/.branches/
+supabase/.temp/
+supabase/.env

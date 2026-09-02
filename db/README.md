@@ -56,6 +56,17 @@ A criação da linha fica só com o gatilho `criar_perfil()` no cadastro.
 A chave que vai para o navegador é a **publicável**; a `service_role` nunca entra
 neste repositório.
 
+## Edge Functions
+
+`supabase/functions/admin-criar-usuario/` cria a conta de um cliente a pedido do
+admin. Confere `perfis.admin` e usa a `service_role` (injetada pelo runtime, não
+versionada) para `auth.admin.createUser`. Publicação:
+
+```
+supabase link --project-ref vushcazzyabvamylbtat
+supabase functions deploy admin-criar-usuario
+```
+
 ## Migrações
 
 Cada arquivo em `migracoes/` roda uma vez, em ordem, no SQL Editor do Supabase.

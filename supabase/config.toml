@@ -1,0 +1,18 @@
+# Configuração do Supabase CLI.
+#
+# As migrações do banco continuam sendo aplicadas à mão no SQL Editor
+# (ver db/README.md). Este arquivo existe para as Edge Functions.
+#
+#   supabase login
+#   supabase link --project-ref vushcazzyabvamylbtat
+#   supabase functions deploy admin-criar-usuario
+#
+# A service_role NÃO entra aqui nem em nenhum .env versionado: o runtime das
+# Edge Functions injeta SUPABASE_SERVICE_ROLE_KEY automaticamente.
+
+project_id = "vushcazzyabvamylbtat"
+
+[functions.admin-criar-usuario]
+# O gateway recusa a chamada sem um JWT válido; a função ainda confere
+# perfis.admin por dentro.
+verify_jwt = true
