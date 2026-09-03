@@ -330,9 +330,12 @@ VIEWS.admin = () => {
       <td class="num">${l.fotos}</td>
       <td>${quandoRelativo(l.ultima_atividade)}</td>
       <td>${botao(acessoTxt || 'editar', 'admin-editar', { id: l.usuario_id }, 'btn sutil pequeno', 'lapis')}</td>
-      <td class="acoes" style="opacity:1">
-        ${l.eh_admin ? '' : botao(l.bloqueado ? 'liberar' : 'bloquear', 'admin-bloquear',
-          { id: l.usuario_id, para: l.bloqueado ? '0' : '1' }, l.bloqueado ? 'btn pequeno' : 'btn perigo pequeno')}
+      <td class="acoes" style="opacity:1;white-space:nowrap">
+        ${l.eh_admin ? '' : `
+          ${botao(l.bloqueado ? 'liberar' : 'bloquear', 'admin-bloquear',
+            { id: l.usuario_id, para: l.bloqueado ? '0' : '1' }, l.bloqueado ? 'btn pequeno' : 'btn perigo pequeno')}
+          <button class="btn sutil pequeno" data-acao="admin-excluir" data-id="${l.usuario_id}"
+            title="Excluir conta" aria-label="Excluir conta">${svg(ICO.lixo, 14)}</button>`}
       </td>
     </tr>`;
   };
