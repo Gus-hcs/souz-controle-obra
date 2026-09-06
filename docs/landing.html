@@ -457,14 +457,22 @@
   /* ---------------------------------------------------------- hero */
   .hero {
     position: relative;
-    min-height: 100svh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    text-align: center;
     overflow: hidden;
-    padding: 120px 0 96px;
     isolation: isolate;
+    text-align: center;
+    padding: 104px 0 0;
+    max-height: min(100svh, 900px); /* o rodapé do mock sai da dobra */
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 104px;
+    z-index: 3;
+    pointer-events: none;
+    background: linear-gradient(to bottom, transparent, var(--ground) 88%);
   }
 
   /* mídia: fotos de obra em cross-fade + véu + malha isométrica */
@@ -525,28 +533,24 @@
     z-index: 2;
     will-change: transform, opacity;
   }
-  .hero .cube-lg {
-    width: 56px;
-    height: 56px;
-    margin: 0 auto 26px;
-    filter: drop-shadow(0 6px 20px rgba(0, 0, 0, 0.5));
-  }
   .hero .eyebrow {
     display: block;
-    margin-bottom: 18px;
+    margin-bottom: 14px;
     color: var(--ciano-claro);
   }
   .hero h1 {
     margin: 0 auto;
-    max-width: 16ch;
+    max-width: 15ch;
+    font-size: clamp(34px, 5.6vw, 54px);
     color: #fbfcfb;
   }
   .hero h1 .soft {
     color: #b9c4c1;
   }
   .hero__lede {
-    margin: 22px auto 0;
-    max-width: 46ch;
+    margin: 16px auto 0;
+    max-width: 52ch;
+    font-size: clamp(15px, 1.7vw, 18px);
     color: #cdd6d3;
   }
   .hero__cta {
@@ -554,10 +558,10 @@
     gap: 12px;
     justify-content: center;
     flex-wrap: wrap;
-    margin-top: 34px;
+    margin-top: 26px;
   }
   .hero__facts {
-    margin-top: 30px;
+    margin-top: 22px;
     display: flex;
     justify-content: center;
     flex-wrap: wrap;
@@ -585,68 +589,34 @@
     background: var(--ciano-claro);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--ciano-claro) 24%, transparent);
   }
-  .hero__scroll {
-    position: absolute;
-    left: 50%;
-    bottom: 26px;
-    transform: translateX(-50%);
-    z-index: 1;
-    display: grid;
-    justify-items: center;
-    gap: 8px;
-    font-family: var(--mono);
-    font-size: 9.5px;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.5);
-  }
-  .hero__scroll .ch {
-    width: 9px;
-    height: 9px;
-    border-right: 1.5px solid var(--ciano-claro);
-    border-bottom: 1.5px solid var(--ciano-claro);
-    transform: rotate(45deg);
-    animation: bob 1.8s ease-in-out infinite;
-  }
-  @keyframes bob {
-    0%, 100% {
-      transform: rotate(45deg) translate(0, 0);
-      opacity: 0.5;
-    }
-    50% {
-      transform: rotate(45deg) translate(3px, 3px);
-      opacity: 1;
-    }
-  }
   @media (max-width: 560px) {
     .hero {
-      padding: 104px 0 84px;
-    }
-    .hero__scroll {
-      display: none;
+      padding: 100px 0 0;
+      max-height: none; /* no celular o mock aparece inteiro, sem corte */
     }
   }
 
-  /* ---------------------------------------------------------- stage do mockup */
-  .stage {
+  /* --------------------------------------------------- deck do mockup no hero */
+  .hero__deck {
     position: relative;
-    padding: 96px 0 112px;
-    overflow: hidden;
+    z-index: 2;
+    max-width: 1040px;
+    margin: 34px auto 0;
+    padding: 0 24px;
+    perspective: 1600px;
   }
-  .stage__glow {
-    position: absolute;
-    left: 50%;
-    top: 0;
-    width: min(900px, 120%);
-    height: 60%;
-    transform: translateX(-50%);
-    background: radial-gradient(50% 60% at 50% 30%, color-mix(in srgb, var(--ciano) 22%, transparent), transparent 70%);
-    filter: blur(10px);
-    pointer-events: none;
+  .hero__deck .app {
+    max-width: none;
+    margin: 0;
+    transform: perspective(1600px) rotateX(4deg);
+    transform-origin: 50% 0;
   }
   @media (max-width: 700px) {
-    .stage {
-      padding: 64px 0 72px;
+    .hero__deck {
+      margin-top: 26px;
+    }
+    .hero__deck .app {
+      transform: none;
     }
   }
 
@@ -661,7 +631,7 @@
     border-radius: var(--r);
     overflow: hidden;
     text-align: left;
-    box-shadow: 0 40px 90px -50px rgba(0, 0, 0, 0.6);
+    box-shadow: 0 44px 100px -46px rgba(0, 0, 0, 0.7);
   }
   .app__bar {
     display: flex;
@@ -759,6 +729,7 @@
     font-size: 21px;
     font-weight: 500;
     letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
   }
   .stat .v.up {
@@ -1515,7 +1486,9 @@
     .chart .real {
       stroke-dasharray: 700;
       stroke-dashoffset: 700;
-      animation: draw 1.8s 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    }
+    .chart.drawn .real {
+      animation: draw 1.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
     }
     @keyframes draw {
       to {
@@ -1524,7 +1497,9 @@
     }
     .chart .fill {
       opacity: 0;
-      animation: fade 0.8s 1.4s ease forwards;
+    }
+    .chart.drawn .fill {
+      animation: fade 0.7s 0.9s ease forwards;
     }
     @keyframes fade {
       to {
@@ -1594,12 +1569,11 @@
   </div>
 
   <div class="wrap hero__inner" data-hero-fade>
-    <svg class="cube cube-lg rise d1" viewBox="0 0 340 342" aria-hidden="true"><use href="#cubo" /></svg>
     <span class="eyebrow rise d2">Gestão de obra · construtoras e engenharia</span>
     <h1 class="display rise d3">Da obra no papel <span class="soft">ao resultado no caixa.</span></h1>
     <p class="subtitle hero__lede rise d4">
-      Contrato, medição, compra, recebimento e prazo numa tela só — com a margem de cada obra
-      calculada em tempo real, antes de o prejuízo aparecer no fechamento.
+      Contrato, medição, compra, recebimento e prazo numa tela só — a margem de cada obra
+      em tempo real, antes de o prejuízo aparecer no fechamento.
     </p>
     <div class="hero__cta rise d5">
       <a class="btn btn--primary" href="#contato">Agendar uma demonstração</a>
@@ -1619,18 +1593,9 @@
     </div>
   </div>
 
-  <a class="hero__scroll" href="#recursos" aria-label="Rolar para ver mais">
-    <span>Rolar</span><span class="ch" aria-hidden="true"></span>
-  </a>
-</header>
-
-<!-- ======================= STAGE (mockup) ======================= -->
-<section class="stage">
-  <div class="stage__glow" aria-hidden="true"></div>
-  <div class="wrap">
+  <div class="hero__deck">
     <div
-      class="app reveal"
-      data-par="0.05"
+      class="app"
       role="img"
       aria-label="Tela do SouZ: saldo em caixa, margem projetada, avanço físico, curva S de físico previsto contra realizado e lista de movimentações da obra."
     >
@@ -1645,17 +1610,17 @@
         <div class="app__side">
           <div class="stat">
             <div class="k">Saldo em caixa</div>
-            <div class="v up">R$ 17.870</div>
+            <div class="v up count" data-count="17870" data-prefix="R$ " data-dur="900">R$ 17.870</div>
             <div class="d">recebido − pago</div>
           </div>
           <div class="stat">
             <div class="k">Margem projetada</div>
-            <div class="v">14,8%</div>
+            <div class="v count" data-count="14,8" data-suffix="%" data-dur="900">14,8%</div>
             <div class="d">alvo da obra: 12,0%</div>
           </div>
           <div class="stat">
             <div class="k">Avanço físico</div>
-            <div class="v">62,4%</div>
+            <div class="v count" data-count="62,4" data-suffix="%" data-dur="900">62,4%</div>
             <div class="d">previsto: 65,0%</div>
           </div>
         </div>
@@ -1706,7 +1671,7 @@
       </div>
     </div>
   </div>
-</section>
+</header>
 
 <!-- ======================= PROBLEMA ======================= -->
 <section class="section section--raise">
@@ -2197,7 +2162,7 @@
           return;
         }
         var t0 = performance.now();
-        var dur = 1300;
+        var dur = parseInt(el.getAttribute('data-dur'), 10) || 1200;
         function passo(t) {
           var p = Math.min(1, (t - t0) / dur);
           var e = 1 - Math.pow(1 - p, 3);
@@ -2223,11 +2188,33 @@
             }
           });
         },
-        { threshold: 0.6 },
+        { threshold: 0.35 },
       );
       alvos.forEach(function (el) {
         io.observe(el);
       });
+    })();
+
+    // ---------- curva S: desenha o traço "realizado" ao entrar na tela ----------
+    (function () {
+      var chart = document.querySelector('.chart');
+      if (!chart) return;
+      if (reduz || !('IntersectionObserver' in window)) {
+        chart.classList.add('drawn');
+        return;
+      }
+      var io = new IntersectionObserver(
+        function (ents) {
+          ents.forEach(function (e) {
+            if (e.isIntersecting) {
+              chart.classList.add('drawn');
+              io.disconnect();
+            }
+          });
+        },
+        { threshold: 0.3 },
+      );
+      io.observe(chart);
     })();
 
     // ---------- parallax + fade do herói ligados ao scroll ----------
