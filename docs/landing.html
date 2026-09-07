@@ -8,7 +8,59 @@
   name="description"
   content="Software de gestão de obra para construtoras e engenharia: contrato, medição, compra, recebimento e prazo numa tela só, com a margem de cada obra sempre à vista."
 />
+<link rel="canonical" href="https://souztech.com/" />
 <meta name="referrer" content="no-referrer" />
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="SouZ Controle de Obra" />
+<meta property="og:title" content="Da obra no papel ao resultado no caixa." />
+<meta
+  property="og:description"
+  content="Contrato, medição, compra, recebimento e prazo numa tela só — com a margem de cada obra em tempo real, antes de o prejuízo aparecer no fechamento."
+/>
+<meta property="og:url" content="https://souztech.com/" />
+<meta property="og:image" content="https://souztech.com/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:locale" content="pt_BR" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="SouZ — Da obra no papel ao resultado no caixa." />
+<meta
+  name="twitter:description"
+  content="Software de gestão de obra para construtoras. A margem de cada obra em tempo real."
+/>
+<meta name="twitter:image" content="https://souztech.com/og.png" />
+
+<script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "SouZ Controle de Obra",
+    "applicationCategory": "BusinessApplication",
+    "operatingSystem": "Web",
+    "url": "https://souztech.com/",
+    "inLanguage": "pt-BR",
+    "description": "Software de gestão de obra para construtoras e empresas de engenharia, com foco em obras MCMV financiadas pela CAIXA: contrato, medição, compra, recebimento, cronograma e curva S numa tela só.",
+    "featureList": [
+      "Financeiro da obra: contratos, medições, recebimentos, lançamentos e fluxo de caixa",
+      "Cronograma com avanço físico ponderado e curva S",
+      "Plano de materiais por etapa",
+      "Módulo CAIXA / MCMV",
+      "Relatório em PDF, exportação CSV e acesso ao Power BI",
+      "Trilha de auditoria"
+    ],
+    "offers": {
+      "@type": "Offer",
+      "priceCurrency": "BRL",
+      "description": "Assinatura mensal por faixa de obras ativas"
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Souz Tech",
+      "url": "https://souztech.com/"
+    }
+  }
+</script>
 <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'; upgrade-insecure-requests" />
 <meta name="theme-color" content="#05100E" />
 <link
@@ -55,6 +107,10 @@
     --grid: rgba(47, 212, 196, 0.055);
     --warn: #e0a44a;
     --neg: #e2705f;
+
+    /* seção clara — tom de concreto, para quebrar o preto (Fase 4) */
+    --claro: #e9e9e6;
+    --tinta-clara: #0d1512;
 
     /* o símbolo é sempre cinza, nos dois temas */
     --face-top: #d6d6d6;
@@ -111,6 +167,9 @@
   /* ---------------------------------------------------------- base */
   * {
     box-sizing: border-box;
+  }
+  [hidden] {
+    display: none !important;
   }
   html {
     scroll-behavior: smooth;
@@ -381,7 +440,7 @@
   .nav__links a.navlink {
     font-family: var(--mono);
     font-size: 12px;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.08em;
     color: var(--ink-2);
     transition: color 0.16s ease;
   }
@@ -412,26 +471,25 @@
     border-top: 1px solid var(--line);
     border-bottom: 1px solid var(--line);
   }
-  .section--paper {
-    background: #edefee;
-    color: #05100e;
-    border-top: 1px solid #b7c2be;
-    border-bottom: 1px solid #b7c2be;
-  }
-  .section--paper h2,
-  .section--paper h3,
-  .section--paper b {
-    color: #05100e;
-  }
-  .section--paper .subtitle,
-  .section--paper p {
-    color: #3e4b48;
-  }
-  .section--paper .eyebrow {
-    color: #0b7d72;
-  }
-  .section--paper .kicker {
-    color: #686868;
+  /* inverte os tokens localmente — sem duplicar regra por elemento */
+  .secao-clara {
+    --ground: var(--claro);
+    --surface: #f4f4f1;
+    --surface-2: #dededa;
+    --line: #d0d0c8;
+    --line-strong: #b6b6ac;
+    --ink: var(--tinta-clara);
+    --ink-2: #3e443f;
+    --ink-3: #575d56;
+    --accent: var(--ciano);
+    --accent-solid: var(--ciano);
+    --neg: #b5382a;
+    --warn: #96601a;
+    --grid: rgba(11, 125, 114, 0.1);
+    background: var(--ground);
+    color: var(--ink);
+    border-top: 1px solid var(--line-strong);
+    border-bottom: 1px solid var(--line-strong);
   }
   section[id] {
     scroll-margin-top: 72px;
@@ -666,23 +724,186 @@
     background: var(--ground);
     border: 1px solid var(--line);
     border-radius: var(--r);
+    flex: none;
   }
-  .app__seg span {
+  .app__seg button {
+    font: inherit;
     font-family: var(--mono);
     font-size: 10.5px;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
     color: var(--ink-3);
-    padding: 4px 8px;
+    background: none;
+    border: 0;
+    padding: 4px 9px;
     border-radius: 5px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.12s ease, background-color 0.12s ease;
   }
-  .app__seg span.on {
+  .app__seg button:hover {
+    color: var(--ink-2);
+  }
+  .app__seg button[aria-selected='true'] {
     background: var(--surface);
     color: var(--ink);
   }
-  @media (max-width: 640px) {
-    .app__seg {
-      display: none;
+  .app__seg button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  @media (max-width: 560px) {
+    .app__bar {
+      flex-wrap: wrap;
     }
+    .app__seg {
+      margin: 6px 0 0;
+      width: 100%;
+      justify-content: space-between;
+      overflow-x: auto;
+    }
+  }
+
+  /* painéis do mock (Fase 2) */
+  .app__panel {
+    display: none;
+  }
+  .app__panel.is-on {
+    display: block;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .app__panel.is-on {
+      animation: painelIn 0.15s ease;
+    }
+    @keyframes painelIn {
+      from {
+        opacity: 0;
+      }
+    }
+  }
+  .app__pad {
+    padding: 20px 22px 22px;
+  }
+  .mini-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .mini-head h4 {
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .mini-head span {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--ink-3);
+  }
+  .mini-wrap {
+    overflow-x: auto;
+  }
+  .mini {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11.5px;
+  }
+  .mini th {
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    text-align: left;
+    padding: 0 10px 7px 0;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  .mini td {
+    padding: 8px 10px 8px 0;
+    border-bottom: 1px solid var(--line);
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .mini tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .mini .n {
+    text-align: right;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .mini tr.alerta td {
+    background: color-mix(in srgb, var(--warn) 8%, transparent);
+  }
+  .mini .warn-tx {
+    color: var(--warn);
+  }
+  .pill {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    border: 1px solid var(--line-strong);
+    color: var(--ink-2);
+    white-space: nowrap;
+  }
+  .pill.ok {
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    color: var(--accent);
+  }
+  .pill.warn {
+    border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+    color: var(--warn);
+  }
+  .pill.mudo {
+    color: var(--ink-3);
+  }
+  .diario-mock {
+    display: grid;
+    gap: 12px;
+  }
+  .diario-mock article {
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 12px 14px;
+  }
+  .di-cab {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .di-cab b {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--ink);
+  }
+  .di-cab span {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--ink-3);
+  }
+  .diario-mock p {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: var(--ink-2);
+    line-height: 1.45;
+    max-width: none;
+  }
+  .di-fotos {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .di-fotos span {
+    width: 52px;
+    height: 38px;
+    border: 1px solid var(--line);
+    background:
+      repeating-linear-gradient(135deg, var(--line) 0 1px, transparent 1px 8px),
+      var(--ground);
   }
   .app__body {
     display: grid;
@@ -875,54 +1096,41 @@
   }
 
   /* ---------------------------------------------------------- bento */
-  .bento {
+  /* ------------------- recursos: texto rola, visual gruda (Fase 4) */
+  .rec {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
-  @media (max-width: 760px) {
-    .bento {
-      grid-template-columns: 1fr;
-    }
-  }
-  .tile {
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: var(--r);
-    padding: 28px 26px;
-  }
-  .section--raise .tile {
-    background: var(--ground);
-  }
-  .tile .tnum {
+  .rec-t .tnum {
     font-family: var(--mono);
     font-size: 11px;
     letter-spacing: 0.14em;
     color: var(--ink-3);
   }
-  .tile h3 {
+  .rec-t h3 {
     font-size: 19px;
     letter-spacing: -0.02em;
     margin-top: 10px;
   }
-  .tile .tsub {
+  .rec-t .tsub {
     margin-top: 6px;
     font-size: 13.5px;
     color: var(--ink-3);
   }
-  .tile ul {
-    margin-top: 20px;
+  .rec-t ul {
+    margin-top: 18px;
     display: grid;
-    gap: 11px;
+    gap: 10px;
   }
-  .tile li {
+  .rec-t li {
     position: relative;
     padding-left: 20px;
     font-size: 14px;
     line-height: 1.45;
     color: var(--ink-2);
   }
-  .tile li::before {
+  .rec-t li::before {
     content: '';
     position: absolute;
     left: 0;
@@ -930,6 +1138,151 @@
     width: 6px;
     height: 6px;
     background: var(--accent);
+  }
+  .rec-t {
+    padding: 26px 0;
+    border-top: 1px solid var(--line);
+  }
+  .rec-t:first-child {
+    border-top: 0;
+    padding-top: 4px;
+  }
+  .rec-sticky {
+    display: none;
+  }
+
+  @media (min-width: 1024px) {
+    .rec {
+      grid-template-columns: 1fr 1fr;
+      gap: 60px;
+      align-items: start;
+    }
+    .rec-t {
+      min-height: 54vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      border-top: 0;
+      padding: 36px 0;
+    }
+    .rec-sticky {
+      display: block;
+      position: sticky;
+      top: 50%;
+      transform: translateY(-50%);
+      min-height: 272px;
+    }
+    .rec-v {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .rec-v.is-on {
+      opacity: 1;
+    }
+  }
+
+  .rec-v {
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r);
+    padding: 22px;
+  }
+  .rec-v-k {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    display: block;
+    margin-bottom: 14px;
+  }
+  .rec-v .rows {
+    font-size: 12px;
+  }
+  .rec-v-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    font-size: 12px;
+    color: var(--ink-3);
+  }
+  .rec-v-foot b {
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .rec-bar {
+    display: grid;
+    grid-template-columns: 88px 1fr 44px;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  .rec-bar-k {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .rec-bar i {
+    height: 6px;
+    background: var(--line);
+    position: relative;
+  }
+  .rec-bar i::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--p);
+    background: var(--accent);
+  }
+  .rec-bar i.prev::after {
+    background: var(--line-strong);
+  }
+  .rec-bar b {
+    text-align: right;
+    color: var(--ink-2);
+  }
+  .rec-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+  }
+  .rec-grid > div {
+    background: var(--surface);
+    padding: 12px 14px;
+    display: grid;
+    gap: 3px;
+  }
+  .rec-grid .k {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .rec-grid b {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  /* problema: o mundo da planilha é âmbar; ciano fica só para resultado */
+  .section--problema .eyebrow {
+    color: var(--warn);
+  }
+  .mau {
+    color: var(--warn);
+    font-weight: 600;
   }
 
   /* ---------------------------------------------------------- spotlight */
@@ -1038,11 +1391,11 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     margin-top: 48px;
-    border: 1px solid #b7c2be;
+    border: 1px solid var(--line-strong);
   }
   .figure {
     padding: 30px 28px;
-    border-left: 1px solid #b7c2be;
+    border-left: 1px solid var(--line-strong);
   }
   .figure:first-child {
     border-left: 0;
@@ -1053,21 +1406,21 @@
     font-weight: 500;
     letter-spacing: -0.02em;
     line-height: 1;
-    color: #05100e;
+    color: var(--ink);
   }
   .figure .n.pos {
-    color: #0b7d72;
+    color: var(--accent);
   }
   .figure .k {
     margin-top: 14px;
     font-size: 14px;
     font-weight: 600;
-    color: #05100e;
+    color: var(--ink);
   }
   .figure .d {
     margin-top: 4px;
     font-size: 13px;
-    color: #686868;
+    color: var(--ink-3);
     line-height: 1.45;
   }
   @media (max-width: 760px) {
@@ -1076,7 +1429,7 @@
     }
     .figure {
       border-left: 0;
-      border-top: 1px solid #b7c2be;
+      border-top: 1px solid var(--line-strong);
     }
     .figure:first-child {
       border-top: 0;
@@ -1161,17 +1514,37 @@
     color: var(--ink-2);
     line-height: 1.5;
   }
-  .plan .ptag {
+  .plan .pprice {
     margin-top: 18px;
     font-family: var(--mono);
     font-size: 12px;
+    letter-spacing: 0.02em;
+    color: var(--ink-2);
+  }
+  .plan-garantias {
+    margin: 24px 0 0;
+    padding: 18px 0 0;
+    border-top: 1px solid var(--line);
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
     color: var(--ink-3);
   }
-  .plans-note {
-    margin-top: 22px;
-    font-size: 14px;
-    color: var(--ink-3);
-    max-width: 64ch;
+  .plan-garantias li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .plan-garantias li::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    background: var(--accent);
   }
 
   /* ---------------------------------------------------------- faq */
@@ -1261,12 +1634,47 @@
     display: grid;
     gap: 6px;
   }
-  .field label {
+  .field label,
+  .field-lbl {
     font-family: var(--mono);
-    font-size: 10.5px;
-    letter-spacing: 0.1em;
+    font-size: 11px;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--ink-3);
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 2px;
+  }
+  .chips .chip {
+    font: inherit;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.02em;
+    color: var(--ink-2);
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    padding: 7px 13px;
+    cursor: pointer;
+    transition: color 0.14s ease, border-color 0.14s ease, background-color 0.14s ease;
+  }
+  .chips .chip:hover {
+    border-color: var(--ink-3);
+  }
+  .chips .chip[aria-pressed='true'] {
+    color: var(--on-accent);
+    background: var(--accent-solid);
+    border-color: var(--accent-solid);
+  }
+  .chips .chip:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .field-outro {
+    margin-top: 8px;
   }
   .field input,
   .field select,
@@ -1313,6 +1721,91 @@
     display: block;
   }
 
+  /* ---------------------------------------------------- WhatsApp + CTA mobile */
+  .wz {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 80;
+    width: 46px;
+    height: 46px;
+    display: grid;
+    place-items: center;
+    color: var(--ciano-claro);
+    background: var(--elevado);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r);
+    box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+    transition: border-color 0.15s ease, transform 0.15s ease;
+  }
+  .wz:hover {
+    border-color: var(--ciano-claro);
+    transform: translateY(-2px);
+  }
+  .wz:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .cta-mob {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 79;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--ground) 92%, transparent);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid var(--line);
+    transform: translateY(120%);
+    transition: transform 0.28s cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+  .cta-mob.is-on {
+    transform: none;
+  }
+  .cta-mob .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  @media (min-width: 721px) {
+    .cta-mob {
+      display: none;
+    }
+  }
+  @media (max-width: 720px) {
+    .wz {
+      bottom: 72px;
+    }
+  }
+
+  /* ------------------------------------------------------- selo de confiança */
+  .selo {
+    background: var(--ground);
+    border-top: 1px solid var(--line);
+  }
+  .selo .wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 8px;
+    justify-content: center;
+    padding-top: 20px;
+    padding-bottom: 20px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .selo span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .selo span + span::before {
+    content: '·';
+    color: var(--line-strong);
+  }
+
   /* ---------------------------------------------------------- rodapé */
   .foot {
     background: var(--ground);
@@ -1351,69 +1844,140 @@
      fora não alcança o conteúdo clonado pelo <use>. O cubo é sempre
      cinza, nos dois temas (Manual da Marca 01.4). */
 
-  /* ---------------------------------------------------------- seção que "gruda" */
-  .spot--sticky {
-    align-items: start;
+  /* ------------------------------------------- simulador de duplicidade */
+  .spot--sim {
+    grid-template-columns: 1fr;
+    gap: 30px;
+    max-width: 720px;
+    margin-inline: auto;
   }
-  .spot--sticky .spot__lead {
-    position: sticky;
-    top: 22vh;
-  }
-  .spot__rail {
-    margin-top: 26px;
-    height: 3px;
-    background: var(--line);
-    position: relative;
-    overflow: hidden;
-  }
-  .spot__rail i {
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: var(--fill, 0%);
-    background: var(--accent);
-    transition: width 0.5s ease;
-  }
-  .spot__steps {
+  .dup {
     display: grid;
     gap: 16px;
   }
-  .stepcard {
+  .dup-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  @media (max-width: 620px) {
+    .dup-cards {
+      grid-template-columns: 1fr;
+    }
+  }
+  .dup-card {
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--r);
-    padding: 30px 28px;
-    min-height: 46vh;
+    padding: 16px 16px 18px;
     display: grid;
-    align-content: center;
+    gap: 10px;
   }
-  .section--raise .stepcard {
+  .section--raise .dup-card {
     background: var(--ground);
   }
-  .stepcard .sc-k {
+  .dup-k {
     font-family: var(--mono);
     font-size: 11px;
-    letter-spacing: 0.16em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--accent);
   }
-  .stepcard h4 {
-    font-size: 21px;
-    letter-spacing: -0.02em;
-    margin-top: 12px;
+  .dup-card label {
+    display: grid;
+    gap: 4px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-3);
   }
-  .stepcard p {
-    margin-top: 12px;
-    font-size: 15px;
-    line-height: 1.55;
+  .dup-card input {
+    font: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    background: var(--ground);
+    border: 1px solid var(--line-strong);
+    border-radius: 6px;
+    padding: 9px 10px;
+    letter-spacing: -0.006em;
+    text-transform: none;
+  }
+  .section--raise .dup-card input {
+    background: var(--surface);
+  }
+  .dup-card input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .dup-acao {
+    display: flex;
+    justify-content: center;
+  }
+  .dup-res {
+    display: grid;
+    gap: 16px;
+    justify-items: start;
+    border-top: 1px solid var(--line);
+    padding-top: 18px;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .dup-res:not([hidden]) {
+      animation: painelIn 0.2s ease;
+    }
+  }
+  .dup-alerta {
+    display: flex;
+    gap: 12px;
+    color: var(--neg);
+    border: 1px solid color-mix(in srgb, var(--neg) 42%, transparent);
+    background: color-mix(in srgb, var(--neg) 8%, transparent);
+    border-radius: var(--r);
+    padding: 14px 16px;
+  }
+  .dup-alerta svg {
+    flex: none;
+    margin-top: 1px;
+  }
+  .dup-alerta b {
+    color: var(--neg);
+    font-size: 14px;
+  }
+  .dup-alerta p {
+    margin: 3px 0 0;
+    font-size: 13.5px;
+    line-height: 1.5;
     color: var(--ink-2);
+    max-width: none;
   }
-  @media (max-width: 880px) {
-    .spot--sticky .spot__lead {
-      position: static;
-    }
-    .stepcard {
-      min-height: 0;
-    }
+  .dup-alerta p b {
+    color: var(--ink);
+  }
+  .dup-margem {
+    display: grid;
+    gap: 6px;
+  }
+  .dup-margem-k {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  .dup-margem-v {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    font-size: 26px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .dup-seta {
+    color: var(--ink-3);
+    font-size: 18px;
+  }
+  .dup-alvo {
+    color: var(--neg);
   }
 
   /* ---------------------------------------------------------- movimento */
@@ -1426,10 +1990,10 @@
   @media (prefers-reduced-motion: no-preference) {
     .reveal {
       opacity: 0;
-      transform: translateY(22px);
+      transform: translateY(12px);
       transition:
-        opacity 0.7s cubic-bezier(0.22, 0.61, 0.36, 1),
-        transform 0.7s cubic-bezier(0.22, 0.61, 0.36, 1);
+        opacity 0.4s cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform 0.4s cubic-bezier(0.22, 0.61, 0.36, 1);
     }
     .reveal.in {
       opacity: 1;
@@ -1437,10 +2001,10 @@
     }
     [data-stagger] > * {
       opacity: 0;
-      transform: translateY(20px);
+      transform: translateY(12px);
       transition:
-        opacity 0.6s cubic-bezier(0.22, 0.61, 0.36, 1),
-        transform 0.6s cubic-bezier(0.22, 0.61, 0.36, 1);
+        opacity 0.4s cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform 0.4s cubic-bezier(0.22, 0.61, 0.36, 1);
     }
     [data-stagger].in > * {
       opacity: 1;
@@ -1594,18 +2158,19 @@
   </div>
 
   <div class="hero__deck">
-    <div
-      class="app"
-      role="img"
-      aria-label="Tela do SouZ: saldo em caixa, margem projetada, avanço físico, curva S de físico previsto contra realizado e lista de movimentações da obra."
-    >
+    <div class="app" role="group" aria-label="Demonstração da tela do SouZ">
       <div class="app__bar">
         <div class="app__dots" aria-hidden="true"><i></i><i></i><i></i></div>
         <div class="app__name">SouZ · <b>Residencial Vila Nova — Casa 14</b></div>
-        <div class="app__seg" aria-hidden="true">
-          <span class="on">Visão geral</span><span>Medições</span><span>Compras</span><span>Diário</span>
+        <div class="app__seg" role="tablist" aria-label="Áreas da obra">
+          <button role="tab" id="tab-visao" aria-controls="pnl-visao" aria-selected="true">Visão geral</button>
+          <button role="tab" id="tab-medicoes" aria-controls="pnl-medicoes" aria-selected="false" tabindex="-1">Medições</button>
+          <button role="tab" id="tab-compras" aria-controls="pnl-compras" aria-selected="false" tabindex="-1">Compras</button>
+          <button role="tab" id="tab-diario" aria-controls="pnl-diario" aria-selected="false" tabindex="-1">Diário</button>
         </div>
       </div>
+
+      <div class="app__panel is-on" id="pnl-visao" role="tabpanel" aria-labelledby="tab-visao">
       <div class="app__body">
         <div class="app__side">
           <div class="stat">
@@ -1669,12 +2234,67 @@
           </div>
         </div>
       </div>
+      </div>
+
+      <div class="app__panel" id="pnl-medicoes" role="tabpanel" aria-labelledby="tab-medicoes" hidden>
+        <div class="app__pad">
+          <div class="mini-head"><h4>Medições de prestadores</h4><span>5 contratos · R$ 47.400 medido</span></div>
+          <div class="mini-wrap"><table class="mini">
+            <thead><tr><th>Prestador</th><th>Etapa</th><th class="n">Medido</th><th class="n">Valor</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Construtora Lima</td><td>Alvenaria</td><td class="n">100%</td><td class="n">R$ 12.400</td><td><span class="pill ok">Pago</span></td></tr>
+              <tr><td>Elétrica Sul</td><td>Instalações elétricas</td><td class="n">60%</td><td class="n">R$ 8.900</td><td><span class="pill">Medido</span></td></tr>
+              <tr><td>Hidráulica MT</td><td>Instal. hidráulicas</td><td class="n">45%</td><td class="n">R$ 6.200</td><td><span class="pill">Medido</span></td></tr>
+              <tr class="alerta"><td>Cobertura &amp; Cia</td><td>Cobertura</td><td class="n">100%</td><td class="n">R$ 15.100</td><td><span class="pill warn">Pago acima do medido</span></td></tr>
+              <tr><td>Pintura Goiás</td><td>Pintura</td><td class="n">0%</td><td class="n">R$ 4.800</td><td><span class="pill mudo">Planejado</span></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <div class="app__panel" id="pnl-compras" role="tabpanel" aria-labelledby="tab-compras" hidden>
+        <div class="app__pad">
+          <div class="mini-head"><h4>Plano de compras</h4><span>4 itens · R$ 8.100 a comprar nas etapas</span></div>
+          <div class="mini-wrap"><table class="mini">
+            <thead><tr><th>Material</th><th>Fornecedor</th><th>Comprar até</th><th class="n">Valor</th><th class="n">Falta na etapa</th></tr></thead>
+            <tbody>
+              <tr><td>Bloco cerâmico 14</td><td>Cerâmica Aurora</td><td>12/set</td><td class="n">R$ 9.800</td><td class="n">R$ 2.400</td></tr>
+              <tr><td>Cimento CP-II 50 kg</td><td>Depósito União</td><td>20/set</td><td class="n">R$ 6.300</td><td class="n">—</td></tr>
+              <tr class="alerta"><td>Telha cerâmica</td><td>Cerâmica Aurora</td><td class="warn-tx">28/ago · vencido</td><td class="n">R$ 6.120</td><td class="n">R$ 1.800</td></tr>
+              <tr><td>Aço CA-50 10 mm</td><td>Ferro &amp; Aço GO</td><td>05/out</td><td class="n">R$ 11.400</td><td class="n">R$ 3.900</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <div class="app__panel" id="pnl-diario" role="tabpanel" aria-labelledby="tab-diario" hidden>
+        <div class="app__pad">
+          <div class="mini-head"><h4>Diário de obra</h4><span>últimos registros</span></div>
+          <div class="diario-mock">
+            <article>
+              <div class="di-cab"><b>04/set</b><span>Sol · 8 na obra</span></div>
+              <p>Concretagem da laje do pavimento térreo. Forma retirada do bloco 2.</p>
+              <div class="di-fotos" aria-hidden="true"><span></span><span></span></div>
+            </article>
+            <article>
+              <div class="di-cab"><b>02/set</b><span>Nublado · 6 na obra</span></div>
+              <p>Elevação de alvenaria, 3ª fiada. Recebido caminhão de bloco cerâmico.</p>
+              <div class="di-fotos" aria-hidden="true"><span></span></div>
+            </article>
+            <article>
+              <div class="di-cab"><b>30/ago</b><span>Chuva · 3 na obra</span></div>
+              <p>Serviço parado pela manhã. À tarde, impermeabilização do reservatório.</p>
+              <div class="di-fotos" aria-hidden="true"><span></span><span></span></div>
+            </article>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </header>
 
 <!-- ======================= PROBLEMA ======================= -->
-<section class="section section--raise">
+<section class="section section--raise section--problema">
   <div class="wrap wrap--narrow center">
     <p class="eyebrow reveal">O problema</p>
     <h2 class="thesis reveal" style="margin-top: 18px">
@@ -1682,9 +2302,9 @@
     </h2>
     <p class="thesis-note reveal">
       Medição do empreiteiro numa aba, recebimento do cliente em outra, compra de material numa
-      terceira, prazo numa quarta. Nada conversa. O erro mais caro — pagar o mesmo serviço duas
-      vezes, uma como medição e outra como compra — só aparece no fechamento, quando a margem já
-      foi.
+      terceira, prazo numa quarta. Nada conversa. O erro mais caro —
+      <span class="mau">pagar o mesmo serviço duas vezes</span>, uma como medição e outra como
+      compra — só aparece no fechamento, quando a margem já foi.
     </p>
   </div>
 </section>
@@ -1701,50 +2321,93 @@
       </p>
     </div>
 
-    <div class="bento" data-stagger>
-      <div class="tile">
-        <div class="tnum">01</div>
-        <h3>Financeiro da obra</h3>
-        <p class="tsub">O que entra e o que sai, no mesmo lugar.</p>
-        <ul>
-          <li>Contratos e aditivos com posição contratual por código-base</li>
-          <li>Medições de prestador, com alerta de pagamento acima do medido</li>
-          <li>Recebimentos do cliente, do financiamento e de recursos próprios</li>
-          <li>Lançamentos de compra, taxa, honorário e serviço avulso</li>
-          <li>Fluxo de caixa mês a mês, com o acumulado projetado</li>
-        </ul>
+    <div class="rec">
+      <div class="rec-list">
+        <article class="rec-t reveal" data-rec="0">
+          <div class="tnum">01</div>
+          <h3>Financeiro da obra</h3>
+          <p class="tsub">O que entra e o que sai, no mesmo lugar.</p>
+          <ul>
+            <li>Contratos e aditivos com posição contratual por código-base</li>
+            <li>Medições de prestador, com alerta de pagamento acima do medido</li>
+            <li>Recebimentos do cliente, do financiamento e de recursos próprios</li>
+            <li>Lançamentos de compra, taxa, honorário e serviço avulso</li>
+            <li>Fluxo de caixa mês a mês, com o acumulado projetado</li>
+          </ul>
+        </article>
+        <article class="rec-t reveal" data-rec="1">
+          <div class="tnum">02</div>
+          <h3>Produção e prazo</h3>
+          <p class="tsub">O que o canteiro entregou, contra o combinado.</p>
+          <ul>
+            <li>Cronograma com avanço físico ponderado por peso de etapa</li>
+            <li>Controle financeiro: físico previsto × realizado × desembolso</li>
+            <li>Diário de obra com clima, efetivo, atividades e fotos</li>
+            <li>Alertas de etapa atrasada, contrato ultrapassado e caixa negativo</li>
+          </ul>
+        </article>
+        <article class="rec-t reveal" data-rec="2">
+          <div class="tnum">03</div>
+          <h3>Materiais</h3>
+          <p class="tsub">Comprar na hora certa, sem comprar duas vezes.</p>
+          <ul>
+            <li>Plano de compras por etapa, com data-limite</li>
+            <li>Saldo a comprar atualizado sozinho quando a compra é lançada</li>
+            <li>Aviso de material vencido sem compra registrada</li>
+          </ul>
+        </article>
+        <article class="rec-t reveal" data-rec="3">
+          <div class="tnum">04</div>
+          <h3>Visão e prestação de contas</h3>
+          <p class="tsub">O que você mostra para o cliente, o banco e o sócio.</p>
+          <ul>
+            <li>Painel consolidado da carteira e de cada obra</li>
+            <li>Relatório em PDF com a sua logo e a do cliente</li>
+            <li>Exportação CSV e acesso direto do Power BI ao banco</li>
+            <li>Trilha de auditoria de quem alterou cada valor financeiro</li>
+          </ul>
+        </article>
       </div>
-      <div class="tile">
-        <div class="tnum">02</div>
-        <h3>Produção e prazo</h3>
-        <p class="tsub">O que o canteiro entregou, contra o combinado.</p>
-        <ul>
-          <li>Cronograma com avanço físico ponderado por peso de etapa</li>
-          <li>Controle financeiro: físico previsto × realizado × desembolso</li>
-          <li>Diário de obra com clima, efetivo, atividades e fotos</li>
-          <li>Alertas de etapa atrasada, contrato ultrapassado e caixa negativo</li>
-        </ul>
-      </div>
-      <div class="tile">
-        <div class="tnum">03</div>
-        <h3>Materiais</h3>
-        <p class="tsub">Comprar na hora certa, sem comprar duas vezes.</p>
-        <ul>
-          <li>Plano de compras por etapa, com data-limite</li>
-          <li>Saldo a comprar atualizado sozinho quando a compra é lançada</li>
-          <li>Aviso de material vencido sem compra registrada</li>
-        </ul>
-      </div>
-      <div class="tile">
-        <div class="tnum">04</div>
-        <h3>Visão e prestação de contas</h3>
-        <p class="tsub">O que você mostra para o cliente, o banco e o sócio.</p>
-        <ul>
-          <li>Painel consolidado da carteira e de cada obra</li>
-          <li>Relatório em PDF com a sua logo e a do cliente</li>
-          <li>Exportação CSV e acesso direto do Power BI ao banco</li>
-          <li>Trilha de auditoria de quem alterou cada valor financeiro</li>
-        </ul>
+
+      <div class="rec-sticky" aria-hidden="true">
+        <div class="rec-v is-on" data-rv="0">
+          <span class="rec-v-k">Financeiro da obra</span>
+          <div class="rows">
+            <div class="row"><span class="tag">Contrato</span><span>Empreitada — CT-001</span><span class="val">R$ 214.000</span></div>
+            <div class="row"><span class="tag">Medição</span><span>Alvenaria — Construtora Lima</span><span class="val">R$ 12.400</span></div>
+            <div class="row"><span class="tag">Recebimento</span><span>Parcela 4 — CAIXA</span><span class="val">R$ 38.900</span></div>
+          </div>
+          <div class="rec-v-foot"><span>Saldo em caixa</span><b class="mono">R$ 17.870</b></div>
+        </div>
+        <div class="rec-v" data-rv="1">
+          <span class="rec-v-k">Produção e prazo</span>
+          <div class="rec-bar"><span class="rec-bar-k">Avanço físico</span><i style="--p: 62%"></i><b class="mono">62%</b></div>
+          <div class="rec-bar"><span class="rec-bar-k">Previsto</span><i class="prev" style="--p: 65%"></i><b class="mono">65%</b></div>
+          <div class="rows" style="margin-top: 12px">
+            <div class="row"><span class="tag warn">Alerta</span><span>Etapa “Cobertura” 6 dias atrasada</span><span class="val">28/ago</span></div>
+          </div>
+        </div>
+        <div class="rec-v" data-rv="2">
+          <span class="rec-v-k">Materiais</span>
+          <div class="mini-wrap"><table class="mini">
+            <thead><tr><th>Material</th><th>Comprar até</th><th class="n">Falta</th></tr></thead>
+            <tbody>
+              <tr><td>Bloco cerâmico</td><td>12/set</td><td class="n">R$ 2.400</td></tr>
+              <tr class="alerta"><td>Telha cerâmica</td><td class="warn-tx">vencido</td><td class="n">R$ 1.800</td></tr>
+              <tr><td>Aço CA-50</td><td>05/out</td><td class="n">R$ 3.900</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+        <div class="rec-v" data-rv="3">
+          <span class="rec-v-k">Visão e prestação de contas</span>
+          <div class="rec-grid">
+            <div><span class="k">Recebido</span><b class="mono">R$ 62.200</b></div>
+            <div><span class="k">Pago</span><b class="mono">R$ 44.330</b></div>
+            <div><span class="k">Margem</span><b class="mono">14,8%</b></div>
+            <div><span class="k">Custo/m²</span><b class="mono">R$ 2.094</b></div>
+          </div>
+          <div class="rec-v-foot"><span>Saída</span><b>Relatório PDF · CSV · Power BI</b></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1753,43 +2416,62 @@
 <!-- ======================= SPOTLIGHT: DUPLICIDADE (seção que gruda) ======================= -->
 <section class="section section--raise">
   <div class="wrap">
-    <div class="spot spot--sticky">
+    <div class="spot spot--sim">
       <div class="spot__lead reveal">
         <p class="eyebrow">O que a planilha não tem</p>
         <h3>Cada real entra uma vez, e num lugar certo.</h3>
         <p>
-          O sistema separa medição, lançamento e recebimento por natureza — e recusa a duplicidade.
-          É a diferença entre saber a margem hoje e descobrir no fechamento que a obra pagou o piso
-          duas vezes.
+          Na planilha, o mesmo serviço vira uma linha de medição e uma linha de compra — e ninguém
+          percebe até o fechamento. No SouZ, tente você mesmo.
         </p>
-        <div class="spot__rail" aria-hidden="true"><i></i></div>
-        <a class="arrow" href="#contato" style="margin-top: 20px; display: inline-flex"
-          >Ver isso numa obra sua</a
-        >
       </div>
-      <div class="spot__steps">
-        <article class="stepcard reveal" data-step>
-          <span class="sc-k">01 · Medição</span>
-          <h4>Serviço do prestador, medido e pago.</h4>
-          <p>Nunca ultrapassa o contrato mais os aditivos aprovados. Se o pago passa do medido, o sistema avisa na hora.</p>
-        </article>
-        <article class="stepcard reveal" data-step>
-          <span class="sc-k">02 · Lançamento</span>
-          <h4>Compra, taxa ou serviço sem medição.</h4>
-          <p>Entra aqui — e em nenhum outro lugar. É o que impede o material de ser pago como medição e como compra.</p>
-        </article>
-        <article class="stepcard reveal" data-step>
-          <span class="sc-k">03 · Recebimento</span>
-          <h4>Parcela do cliente ou do financiamento.</h4>
-          <p>Previsto, aprovado e o que foi de fato creditado — separados, para o caixa não mostrar dinheiro que ainda não entrou.</p>
-        </article>
+
+      <div class="dup" data-sim>
+        <div class="dup-cards">
+          <div class="dup-card">
+            <span class="dup-k">Medição</span>
+            <label>Serviço<input type="text" data-f="desc-med" value="Alvenaria · Construtora Lima" /></label>
+            <label>Valor<input type="text" inputmode="decimal" data-f="val-med" value="R$ 12.400" /></label>
+          </div>
+          <div class="dup-card">
+            <span class="dup-k">Compra</span>
+            <label>Item<input type="text" data-f="desc-comp" value="Alvenaria (mão de obra)" /></label>
+            <label>Valor<input type="text" inputmode="decimal" data-f="val-comp" value="R$ 12.400" /></label>
+          </div>
+        </div>
+
+        <div class="dup-acao">
+          <button type="button" class="btn btn--primary" data-sim-lancar>Lançar os dois</button>
+        </div>
+
+        <div class="dup-res" data-sim-res hidden>
+          <div class="dup-alerta" role="alert">
+            <svg viewBox="0 0 20 20" width="18" height="18" fill="none" aria-hidden="true">
+              <path d="M10 2 18.5 17H1.5L10 2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" />
+              <path d="M10 8v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+              <circle cx="10" cy="14.4" r="0.9" fill="currentColor" />
+            </svg>
+            <div>
+              <b>Duplicidade detectada</b>
+              <p>Este serviço já foi medido e pago em <b>28/ago</b>. O sistema bloqueia o segundo lançamento.</p>
+            </div>
+          </div>
+          <div class="dup-margem">
+            <span class="dup-margem-k">Impacto na margem se o erro passasse</span>
+            <div class="dup-margem-v mono">
+              <span>14,8%</span><span class="dup-seta" aria-hidden="true">→</span
+              ><span class="dup-alvo" data-sim-to>12,1%</span>
+            </div>
+          </div>
+          <button type="button" class="btn btn--ghost btn--sm" data-sim-refazer>Refazer</button>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
 <!-- ======================= RESULTADO (paper) ======================= -->
-<section class="section section--paper" id="resultado">
+<section class="section secao-clara" id="resultado">
   <div class="wrap">
     <div class="center reveal">
       <p class="eyebrow">Resultado em tempo real</p>
@@ -1896,7 +2578,7 @@
           Para quem está saindo da planilha na primeira ou segunda obra. Importação e suporte por
           e-mail.
         </p>
-        <span class="ptag">valor sob medida</span>
+        <!-- com preço definido: <span class="pprice">a partir de R$ X/mês</span> -->
       </div>
       <div class="plan is-featured">
         <span class="prange">4 a 12 obras</span>
@@ -1905,7 +2587,7 @@
           Carteira em andamento, mais de um responsável por obra. Painel consolidado, Power BI e
           acompanhamento de implantação.
         </p>
-        <span class="ptag">valor sob medida</span>
+        <!-- com preço definido: <span class="pprice">a partir de R$ X/mês</span> -->
       </div>
       <div class="plan">
         <span class="prange">13+ obras</span>
@@ -1914,12 +2596,16 @@
           Volume alto e prestação de contas para banco e investidor. Onboarding conduzido e canal
           direto.
         </p>
-        <span class="ptag">valor sob medida</span>
+        <!-- com preço definido: <span class="pprice">a partir de R$ X/mês</span> -->
       </div>
     </div>
-    <p class="plans-note reveal">
-      O valor certo para a sua operação sai na demonstração — é rápido, e sem compromisso.
-    </p>
+    <ul class="plan-garantias reveal">
+      <li>Sem taxa de implantação</li>
+      <li>Sem fidelidade</li>
+      <li>Cancela quando quiser</li>
+      <li>Seus dados exportáveis a qualquer momento</li>
+    </ul>
+    <p class="plans-note reveal">O preço sai na demonstração — e é o mesmo que você paga, sem surpresa depois.</p>
   </div>
 </section>
 
@@ -2033,8 +2719,22 @@
         </div>
       </div>
       <div class="field">
-        <label for="msg">Como você controla hoje</label>
-        <textarea id="msg" name="msg" placeholder="Planilha, outro sistema, papel…"></textarea>
+        <span class="field-lbl" id="ctrl-lbl">Como você controla hoje</span>
+        <div class="chips" role="group" aria-labelledby="ctrl-lbl">
+          <button type="button" class="chip" data-chip>Planilha</button>
+          <button type="button" class="chip" data-chip>ERP genérico</button>
+          <button type="button" class="chip" data-chip>Papel / WhatsApp</button>
+          <button type="button" class="chip" data-chip>Nada estruturado</button>
+          <button type="button" class="chip" data-chip data-outro>Outro</button>
+        </div>
+        <input type="hidden" id="msg" name="msg" />
+        <input
+          type="text"
+          id="msg-outro"
+          class="field-outro"
+          placeholder="Conte em uma linha"
+          hidden
+        />
       </div>
       <button class="btn btn--primary" type="submit">Enviar e receber um horário</button>
       <p class="sent" id="sent">
@@ -2044,6 +2744,13 @@
     </form>
   </div>
 </section>
+
+<div class="selo">
+  <div class="wrap">
+    <span>LGPD</span><span>backup diário</span><span>exportação em CSV a qualquer momento</span
+    ><span>acesso direto ao Power BI</span>
+  </div>
+</div>
 
 <!-- ======================= RODAPÉ ======================= -->
 <footer class="foot">
@@ -2070,10 +2777,92 @@
   </div>
 </footer>
 
+<a class="wz" data-wz aria-label="Falar no WhatsApp" hidden>
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+    <path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.7 4.8-1.3A10 10 0 1 0 12 2Zm5.8 14.1c-.2.7-1.4 1.3-2 1.4-.5.1-1.2.1-1.9-.1-.4-.1-1-.3-1.7-.6-3-1.3-5-4.4-5.1-4.6-.2-.2-1.3-1.7-1.3-3.2 0-1.5.8-2.3 1.1-2.6.3-.3.6-.4.8-.4h.6c.2 0 .4 0 .7.5l.9 2.2c.1.2.1.4 0 .5l-.4.6-.4.4c-.1.2-.3.3-.1.6.1.3.7 1.2 1.5 1.9 1 .9 1.9 1.2 2.2 1.3.3.1.4.1.6-.1l.9-1c.2-.2.4-.2.6-.1l2 1c.3.1.5.2.5.3.1.2.1.7-.1 1.3Z"/>
+  </svg>
+</a>
+
+<div class="cta-mob" data-cta-mob>
+  <a class="btn btn--primary" href="#contato">Agendar demonstração</a>
+</div>
+
 <script>
+  /* número do WhatsApp (só dígitos, com DDI + DDD). Preencher: */
+  var WHATSAPP = '5562999999999';
+
   (function () {
     var reduz =
       window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ---------- WhatsApp flutuante ----------
+    (function () {
+      var wz = document.querySelector('[data-wz]');
+      if (!wz) return;
+      var so = String(WHATSAPP).replace(/\D/g, '');
+      if (!so || /^5562999999999$/.test(so)) return; // sem número real, não mostra
+      wz.href =
+        'https://wa.me/' +
+        so +
+        '?text=' +
+        encodeURIComponent('Olá! Vim pelo site do SouZ e queria conhecer o sistema.');
+      wz.target = '_blank';
+      wz.rel = 'noopener';
+      wz.hidden = false;
+    })();
+
+    // ---------- barra de CTA no mobile depois de 60% de rolagem ----------
+    (function () {
+      var bar = document.querySelector('[data-cta-mob]');
+      if (!bar) return;
+      var contato = document.getElementById('contato');
+      window.addEventListener(
+        'scroll',
+        function () {
+          var h = document.documentElement.scrollHeight - window.innerHeight;
+          var passou = h > 0 && window.pageYOffset / h > 0.6;
+          var noContato =
+            contato && contato.getBoundingClientRect().top < window.innerHeight;
+          bar.classList.toggle('is-on', passou && !noContato);
+        },
+        { passive: true },
+      );
+    })();
+
+    // ---------- chips do formulário ('Como você controla hoje') ----------
+    (function () {
+      var chips = [].slice.call(document.querySelectorAll('.chips [data-chip]'));
+      if (!chips.length) return;
+      var hid = document.getElementById('msg');
+      var outro = document.getElementById('msg-outro');
+      function sync() {
+        var m = chips.filter(function (c) {
+          return c.getAttribute('aria-pressed') === 'true';
+        })[0];
+        if (!m) {
+          hid.value = '';
+        } else if (m.hasAttribute('data-outro')) {
+          hid.value = outro.value.trim() || 'Outro';
+        } else {
+          hid.value = m.textContent.trim();
+        }
+      }
+      chips.forEach(function (c) {
+        c.setAttribute('aria-pressed', 'false');
+        c.addEventListener('click', function () {
+          var jaOn = c.getAttribute('aria-pressed') === 'true';
+          chips.forEach(function (o) {
+            o.setAttribute('aria-pressed', 'false');
+          });
+          c.setAttribute('aria-pressed', jaOn ? 'false' : 'true');
+          var eOutro = !jaOn && c.hasAttribute('data-outro');
+          outro.hidden = !eOutro;
+          if (eOutro) outro.focus();
+          sync();
+        });
+      });
+      outro.addEventListener('input', sync);
+    })();
 
     // ---------- herói: carrossel de fotos em cross-fade ----------
     (function () {
@@ -2119,6 +2908,66 @@
             feito(false);
           });
         }
+      });
+    })();
+
+    // ---------- abas do mock ----------
+    (function () {
+      var tablist = document.querySelector('.app__seg[role="tablist"]');
+      if (!tablist) return;
+      var tabs = [].slice.call(tablist.querySelectorAll('[role="tab"]'));
+      function sel(tab) {
+        tabs.forEach(function (t) {
+          var on = t === tab;
+          t.setAttribute('aria-selected', on ? 'true' : 'false');
+          t.tabIndex = on ? 0 : -1;
+          var pnl = document.getElementById(t.getAttribute('aria-controls'));
+          if (pnl) {
+            pnl.hidden = !on;
+            pnl.classList.toggle('is-on', on);
+          }
+        });
+      }
+      tablist.addEventListener('click', function (e) {
+        var t = e.target.closest('[role="tab"]');
+        if (t) sel(t);
+      });
+      tablist.addEventListener('keydown', function (e) {
+        var i = tabs.indexOf(document.activeElement);
+        if (i < 0) return;
+        var n =
+          e.key === 'ArrowRight' ? i + 1 :
+          e.key === 'ArrowLeft' ? i - 1 :
+          e.key === 'Home' ? 0 :
+          e.key === 'End' ? tabs.length - 1 : -1;
+        if (n < 0) return;
+        e.preventDefault();
+        n = (n + tabs.length) % tabs.length;
+        tabs[n].focus();
+        sel(tabs[n]);
+      });
+    })();
+
+    // ---------- recursos: visual gruda e troca com o texto (Fase 4) ----------
+    (function () {
+      var texts = [].slice.call(document.querySelectorAll('.rec-t[data-rec]'));
+      var vis = [].slice.call(document.querySelectorAll('.rec-v[data-rv]'));
+      if (!texts.length || !vis.length || !('IntersectionObserver' in window)) return;
+      var io = new IntersectionObserver(
+        function (ents) {
+          ents.forEach(function (e) {
+            if (e.isIntersecting) {
+              var i = texts.indexOf(e.target);
+              vis.forEach(function (v, j) {
+                v.classList.toggle('is-on', j === i);
+              });
+            }
+          });
+        },
+        { threshold: 0, rootMargin: '-45% 0px -45% 0px' },
+      );
+      texts.forEach(function (t) {
+        io.observe(t);
       });
     })();
 
@@ -2225,8 +3074,6 @@
       });
       var heroFade = document.querySelector('[data-hero-fade]');
       var hero = document.querySelector('.hero');
-      var rail = document.querySelector('.spot__rail');
-      var steps = [].slice.call(document.querySelectorAll('.spot__steps [data-step]'));
       var tick = false;
 
       function frame() {
@@ -2246,14 +3093,6 @@
           heroFade.style.opacity = String(1 - prog);
           heroFade.style.transform = 'translate3d(0,' + (prog * 40).toFixed(1) + 'px,0)';
         }
-
-        if (rail && steps.length) {
-          var vistos = steps.filter(function (s) {
-            var r = s.getBoundingClientRect();
-            return r.top < vh * 0.6;
-          }).length;
-          rail.style.setProperty('--fill', (vistos / steps.length) * 100 + '%');
-        }
       }
       function onScroll() {
         if (!tick) {
@@ -2264,6 +3103,38 @@
       window.addEventListener('scroll', onScroll, { passive: true });
       window.addEventListener('resize', onScroll);
       frame();
+    })();
+
+    // ---------- simulador de duplicidade (Fase 3) ----------
+    (function () {
+      var sim = document.querySelector('[data-sim]');
+      if (!sim) return;
+      var res = sim.querySelector('[data-sim-res]');
+      var alvo = sim.querySelector('[data-sim-to]');
+      var raf;
+      function anima(de, ate) {
+        if (reduz) {
+          alvo.textContent = ate.toFixed(1).replace('.', ',') + '%';
+          return;
+        }
+        cancelAnimationFrame(raf);
+        var t0 = performance.now();
+        (function passo(t) {
+          var p = Math.min(1, (t - t0) / 700);
+          var e = 1 - Math.pow(1 - p, 3);
+          alvo.textContent = (de + (ate - de) * e).toFixed(1).replace('.', ',') + '%';
+          if (p < 1) raf = requestAnimationFrame(passo);
+        })(t0);
+      }
+      sim.querySelector('[data-sim-lancar]').addEventListener('click', function () {
+        res.hidden = false;
+        anima(14.8, 12.1);
+      });
+      sim.querySelector('[data-sim-refazer]').addEventListener('click', function () {
+        cancelAnimationFrame(raf);
+        res.hidden = true;
+        alvo.textContent = '12,1%';
+      });
     })();
 
     // ---------- nav ganha fundo sólido depois de rolar ----------
