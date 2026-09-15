@@ -127,26 +127,8 @@
     --r: 8px; /* botão e card. Nada mais arredondado que isto. */
   }
 
-  @media (prefers-color-scheme: light) {
-    :root:not([data-theme='dark']) {
-      color-scheme: light;
-      --ground: #fbfcfb;
-      --surface: #f2f5f4;
-      --surface-2: #e9edeb;
-      --line: #dce3e0;
-      --line-strong: #b7c2be;
-      --ink: #05100e;
-      --ink-2: #3e4b48;
-      --ink-3: #5f6b68;
-      --accent: #0a6b62;
-      --accent-solid: #0a6b62;
-      --on-accent: #fbfcfb;
-      --grid: rgba(10, 107, 98, 0.12);
-      --warn: #a4661f;
-      --neg: #c14a3a;
-    }
-  }
-
+  /* o escuro é o padrão da marca — não segue o tema do sistema do visitante.
+     data-theme="light" fica pronto para um alternador futuro, se um dia existir. */
   :root[data-theme='light'] {
     color-scheme: light;
     --ground: #fbfcfb;
@@ -1397,7 +1379,7 @@
     border: 1px solid var(--line-strong);
   }
   .figure {
-    padding: 30px 28px;
+    padding: 40px 32px;
     border-left: 1px solid var(--line-strong);
   }
   .figure:first-child {
@@ -1405,7 +1387,7 @@
   }
   .figure .n {
     font-family: var(--mono);
-    font-size: clamp(28px, 4vw, 40px);
+    font-size: clamp(38px, 5.6vw, 60px);
     font-weight: 500;
     letter-spacing: -0.02em;
     line-height: 1;
@@ -2297,7 +2279,7 @@
 </header>
 
 <!-- ======================= PROBLEMA ======================= -->
-<section class="section section--raise section--problema">
+<section class="section secao-clara section--problema">
   <div class="wrap wrap--narrow center">
     <p class="eyebrow reveal">O problema</p>
     <h2 class="thesis reveal" style="margin-top: 18px">
@@ -2533,7 +2515,7 @@
 </section>
 
 <!-- ======================= COMO COMEÇA ======================= -->
-<section class="section section--raise">
+<section class="section secao-clara">
   <div class="wrap">
     <div class="section__head center reveal">
       <p class="eyebrow">Como começa</p>
@@ -2563,7 +2545,7 @@
 </section>
 
 <!-- ======================= PLANOS ======================= -->
-<section class="section" id="planos">
+<section class="section secao-clara" id="planos">
   <div class="wrap">
     <div class="section__head center reveal">
       <p class="eyebrow">Planos</p>
@@ -2613,7 +2595,7 @@
 </section>
 
 <!-- ======================= PERGUNTAS ======================= -->
-<section class="section section--raise" id="perguntas">
+<section class="section secao-clara" id="perguntas">
   <div class="wrap wrap--narrow">
     <div class="section__head center reveal">
       <p class="eyebrow">Perguntas frequentes</p>

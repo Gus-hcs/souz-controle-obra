@@ -27,6 +27,13 @@
   a regra de contraste do manual (5,41:1 no escuro, branco não passa).
 - Site troca Archivo + IBM Plex Mono por **Space Grotesk + Inter + JetBrains
   Mono**, mesma trinca já usada no sistema.
+- Site: o escuro deixa de seguir o `prefers-color-scheme` do visitante — a
+  marca é dark-first sempre, não só para quem já está no escuro.
+- Site: ritmo claro/escuro inspirado no roqt.com.br. Problema, Como começa,
+  Planos e Perguntas viram seções claras (`secao-clara`); Recursos, o
+  simulador de duplicidade, Módulo CAIXA e o CTA final continuam escuros.
+  Números de resultado maiores (até 60px). Botões seguem o raio 7/12/16px do
+  manual — sem pílula, diferente da referência.
 - `fonteImagem()` filtra todo `src` de imagem vindo do banco (fotos, logos).
 - CSP por `<meta>` no build, `Referrer-Policy: no-referrer`, anti-frame.
 - Migração `0006_seguranca.sql`: corrige falha crítica da `0005` — o usuário
