@@ -18,6 +18,15 @@
   e símbolo) na Edge Function, na validação do front e na senha provisória.
 - Migração `0010_revoga_truncate.sql`: `revoke truncate` de anon/authenticated.
 - Cliente Supabase em PKCE; reset de senha volta para a URL limpa.
+
+**Marca**
+- Paleta de marca alinhada ao Manual da Marca v1.0 (set/2026): ciano mais
+  fechado (`--marca: #0E9384`, escala 300/400/500/700/900/050) no sistema
+  (`src/estilo.css`) e no site (`site/index.html` / `docs/landing.html`).
+- Texto sobre o preenchimento da marca passa a ser **escuro**, nunca branco —
+  a regra de contraste do manual (5,41:1 no escuro, branco não passa).
+- Site troca Archivo + IBM Plex Mono por **Space Grotesk + Inter + JetBrains
+  Mono**, mesma trinca já usada no sistema.
 - `fonteImagem()` filtra todo `src` de imagem vindo do banco (fotos, logos).
 - CSP por `<meta>` no build, `Referrer-Policy: no-referrer`, anti-frame.
 - Migração `0006_seguranca.sql`: corrige falha crítica da `0005` — o usuário

@@ -22,13 +22,13 @@
   --tinta2: #ADADAD;
   --mudo: #7C8A86;
 
-  /* marca — ciano. Claro para texto/link/número; sólido só como preenchimento. */
-  --marca: #2FD4C4;
-  --marca-forte: #5CE3D3;
-  --marca-fraca: #082521;
-  --marca-tinta: #03231F;
-  --marca-solida: #0B7D72;
-  --on-marca: #FBFCFB;
+  /* marca — ciano-500 do manual (mais fechado). Preenchimento leva texto ESCURO, nunca branco. */
+  --marca: #0E9384;
+  --marca-forte: #12A594;
+  --marca-fraca: #062B27;
+  --marca-tinta: #020403;
+  --marca-solida: #0E9384;
+  --on-marca: #020403;
 
   /* semânticos — separados da marca */
   --ok: #5FE0A3;
@@ -39,7 +39,7 @@
   --critico-fraco: #33191A;
 
   /* séries de gráfico (contraste e daltonismo) */
-  --s1: #2FD4C4; --s2: #F59E5B; --s3: #8B93F8;
+  --s1: #3FC9B8; --s2: #F59E5B; --s3: #8B93F8;
   --s4: #86BE3C; --s5: #C879C4; --s6: #C79A45;
   --grade: #101614;
 
@@ -70,22 +70,23 @@
 :root[data-theme="light"] {
   color-scheme: light;
 
-  --bg: #EDEFEE;
-  --sup: #FBFCFB;
+  --bg: #FBFCFB;
+  --sup: #F2F5F4;
   --sup2: #E9EDEB;
   --sup3: #E3E7E5;
-  --linha: #D3DAD7;
+  --linha: #DCE3E0;
   --linha-forte: #B7C2BE;
 
   --tinta: #05100E;
   --tinta2: #3E4B48;
-  --mudo: #686868;
+  --mudo: #5F6B68;
 
-  --marca: #0B7D72;
-  --marca-forte: #096A61;
-  --marca-fraca: #DCEFEC;
-  --marca-tinta: #FFFFFF;
-  --marca-solida: #0B7D72;
+  /* no claro o preenchimento é ciano-700 — mais escuro, leva texto branco */
+  --marca: #0A6B62;
+  --marca-forte: #085B54;
+  --marca-fraca: #CFEDE7;
+  --marca-tinta: #FBFCFB;
+  --marca-solida: #0A6B62;
   --on-marca: #FBFCFB;
 
   --ok: #17794C;
@@ -95,7 +96,7 @@
   --critico: #A32B20;
   --critico-fraco: #F7E3E0;
 
-  --s1: #0B7D72; --s2: #C0561D; --s3: #4B5EAE;
+  --s1: #0A6B62; --s2: #C0561D; --s3: #4B5EAE;
   --s4: #6D8F1E; --s5: #93498F; --s6: #A9822F;
   --grade: #E1E6E4;
 
@@ -780,7 +781,7 @@ select { cursor: pointer; }
     --bg: #fff; --sup: #fff; --sup2: #f5f4f0; --sup3: #ecebe5;
     --linha: #d9d6cc; --linha-forte: #b9b5a8;
     --tinta: #111; --tinta2: #333; --mudo: #666;
-    --marca: #0B6F66; --grade: #ddd;
+    --marca: #0A6B62; --grade: #ddd;
     --sombra: none; --realce: none;
   }
   #rail, #topo, .nao-imprime, #toasts, #modal-camada { display: none !important; }

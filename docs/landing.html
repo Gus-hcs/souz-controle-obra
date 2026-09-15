@@ -71,7 +71,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link
   rel="stylesheet"
-  href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap"
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
 />
 
 <style>
@@ -84,11 +84,11 @@
   :root {
     color-scheme: dark;
 
-    --preto: #040706; /* fundo — quase preto, só um fio de verde */
-    --grafite: #0a0e0d;
-    --elevado: #121917;
-    --ciano: #0b7d72;
-    --ciano-claro: #2fd4c4;
+    --preto: #020403; /* fundo — quase preto, só um fio de verde */
+    --grafite: #080b0a;
+    --elevado: #0d1211;
+    --ciano: #0e9384; /* ciano-500 — preenchimento. Leva texto ESCURO, nunca branco. */
+    --ciano-claro: #3fc9b8; /* ciano-300 — texto, link, número em destaque no escuro */
     --nevoa: #e8e8e8;
     --cinza: #adadad;
     --traco: #686868;
@@ -96,15 +96,15 @@
     --ground: var(--preto);
     --surface: var(--grafite);
     --surface-2: var(--elevado);
-    --line: #191f1d;
-    --line-strong: #2a3431;
+    --line: #171e1b;
+    --line-strong: #29322e;
     --ink: var(--nevoa);
     --ink-2: var(--cinza);
     --ink-3: #7c8a86;
     --accent: var(--ciano-claro); /* texto, link, número em destaque (só no escuro) */
     --accent-solid: var(--ciano); /* preenchimento: botão, barra de gráfico */
-    --on-accent: #fbfcfb;
-    --grid: rgba(47, 212, 196, 0.055);
+    --on-accent: #020403;
+    --grid: rgba(63, 201, 184, 0.055);
     --warn: #e0a44a;
     --neg: #e2705f;
 
@@ -118,8 +118,9 @@
     --face-right: #e8e8e8;
     --face-stroke: #686868;
 
-    --sans: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
-    --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    --disp: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
     --w: 1120px;
     --w-narrow: 940px;
@@ -129,18 +130,18 @@
   @media (prefers-color-scheme: light) {
     :root:not([data-theme='dark']) {
       color-scheme: light;
-      --ground: #edefee;
-      --surface: #fbfcfb;
-      --surface-2: #e3e7e5;
-      --line: #d3dad7;
+      --ground: #fbfcfb;
+      --surface: #f2f5f4;
+      --surface-2: #e9edeb;
+      --line: #dce3e0;
       --line-strong: #b7c2be;
       --ink: #05100e;
       --ink-2: #3e4b48;
-      --ink-3: #686868;
-      --accent: #0b7d72;
-      --accent-solid: #0b7d72;
+      --ink-3: #5f6b68;
+      --accent: #0a6b62;
+      --accent-solid: #0a6b62;
       --on-accent: #fbfcfb;
-      --grid: rgba(11, 125, 114, 0.12);
+      --grid: rgba(10, 107, 98, 0.12);
       --warn: #a4661f;
       --neg: #c14a3a;
     }
@@ -148,18 +149,18 @@
 
   :root[data-theme='light'] {
     color-scheme: light;
-    --ground: #edefee;
-    --surface: #fbfcfb;
-    --surface-2: #e3e7e5;
-    --line: #d3dad7;
+    --ground: #fbfcfb;
+    --surface: #f2f5f4;
+    --surface-2: #e9edeb;
+    --line: #dce3e0;
     --line-strong: #b7c2be;
     --ink: #05100e;
     --ink-2: #3e4b48;
-    --ink-3: #686868;
-    --accent: #0b7d72;
-    --accent-solid: #0b7d72;
+    --ink-3: #5f6b68;
+    --accent: #0a6b62;
+    --accent-solid: #0a6b62;
     --on-accent: #fbfcfb;
-    --grid: rgba(11, 125, 114, 0.12);
+    --grid: rgba(10, 107, 98, 0.12);
     --warn: #a4661f;
     --neg: #c14a3a;
   }
@@ -199,6 +200,7 @@
   h3,
   h4 {
     margin: 0;
+    font-family: var(--disp);
     font-weight: 700;
     letter-spacing: -0.022em;
     text-wrap: balance;
@@ -268,7 +270,7 @@
     font-size: clamp(38px, 7vw, 68px);
     line-height: 1.02;
     letter-spacing: -0.035em;
-    font-weight: 800;
+    font-weight: 700;
   }
   .display .soft {
     color: var(--ink-3);
@@ -417,6 +419,7 @@
     display: inline-flex;
     align-items: center;
     gap: 10px;
+    font-family: var(--disp);
     font-weight: 700;
     font-size: 16px;
     letter-spacing: -0.02em;
@@ -1085,7 +1088,7 @@
     font-size: clamp(26px, 4.4vw, 44px);
     line-height: 1.12;
     letter-spacing: -0.03em;
-    font-weight: 800;
+    font-weight: 700;
   }
   .thesis-note {
     margin: 26px auto 0;
