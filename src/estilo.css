@@ -465,6 +465,7 @@ table.tab td.trunc { max-width: 260px; overflow: hidden; text-overflow: ellipsis
 .ct-tab td { vertical-align: top; }
 .ct-escopo-w { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .ct-detalhe { font-size: 11px; color: var(--mudo); }
+.celula-chips { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; min-width: 0; }
 .ct-contagem { margin: -4px 0 0; font-size: 12px; color: var(--mudo); }
 @media (max-width: 720px) {
   .ct-stats .ct-exec { margin-left: 0; }
@@ -740,7 +741,9 @@ select { cursor: pointer; }
 
 /* celular: cada linha da tabela vira um cartão */
 @media (max-width: 720px) {
-  .tab-rolagem { overflow-x: visible; }
+  /* a tabela vira cartão e não precisa mais rolar; o gráfico (gantt) continua
+     largo e precisa da rolagem — por isso o escopo com :has() */
+  .tab-rolagem:has(table.tab) { overflow-x: visible; }
   table.tab, table.tab tbody, table.tab tr, table.tab td { display: block; width: 100%; }
   table.tab thead, table.tab tfoot { display: none; }
   table.tab tr {
@@ -763,6 +766,9 @@ select { cursor: pointer; }
   table.tab td.trunc { max-width: none; white-space: normal; }
   table.tab td.acoes { justify-content: flex-end; opacity: 1; background: var(--sup2); }
   table.tab tbody tr:hover td { background: none; }
+  /* a linha de detalhe (2ª linha da célula) não herda o nowrap do .num — só o
+     valor principal precisa ficar numa linha só */
+  table.tab td .ct-detalhe { white-space: normal; text-align: right; }
 }
 @media (max-width: 520px) {
   #conteudo { padding: 10px; }

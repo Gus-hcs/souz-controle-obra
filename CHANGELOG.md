@@ -2,6 +2,19 @@
 
 ## Não publicado
 
+**Responsivo**
+- Corrige rótulo de coluna vazando na mensagem "nenhum registro" de qualquer
+  tabela vazia no celular (a linha de estado vazio, com `colspan`, ganhava por
+  engano o rótulo da 1ª coluna).
+- Gantt do cronograma (`Linha do tempo`) recupera a rolagem horizontal no
+  celular — tinha ficado ilegível, espremido pela mesma regra que tira a
+  rolagem das tabelas (que viram cartão, diferente do gráfico).
+- Medições: dois selos de status na mesma linha (ex.: "Pago" +
+  "Contrato ultrapassado") agora quebram linha no celular em vez de cortar.
+- Fluxo de caixa: o detalhe de "Saídas" (ex.: "medições R$ 21 mil · outras
+  R$ 480") não fica mais cortado no celular — parava de quebrar por herdar o
+  `nowrap` da coluna numérica.
+
 **Segurança**
 - Migração `0009_seguranca_perfis.sql`: fecha o INSERT/DELETE de `perfis` que a
   `0006` deixou aberto — dava para apagar a própria linha e recriá-la como

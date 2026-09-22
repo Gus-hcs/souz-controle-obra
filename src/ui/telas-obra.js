@@ -516,7 +516,7 @@ VIEWS.medicoes = () => {
       <td class="num mono"><b>${fmtMoney(liq)}</b></td>
       <td class="num mono"><div class="ct-escopo-w"><span>${fmtMoney(pago)}</span><span class="ct-detalhe">${pgSub}</span></div></td>
       <td class="num mono ${falta > 0.005 ? 'neg' : ''}">${Math.abs(falta) < 0.005 ? '—' : fmtMoney(falta)}</td>
-      <td>${chip(m.status, tomStatus(m.status))}${alerta && alerta !== 'OK' ? ' ' + chip(alerta, tomA) : ''}</td>
+      <td><span class="celula-chips">${chip(m.status, tomStatus(m.status))}${alerta && alerta !== 'OK' ? chip(alerta, tomA) : ''}</span></td>
       <td class="acoes">${acoesLinha('medicao', m.id)}</td>
     </tr>`;
   }).join('');

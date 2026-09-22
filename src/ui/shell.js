@@ -247,6 +247,7 @@ function prepararTabelas(raiz) {
 
     tab.querySelectorAll('tbody tr').forEach((tr) => {
       [...tr.children].forEach((td, i) => {
+        if (td.colSpan > 1) return; // linha de estado vazio, não é dado de coluna
         if (rotulos[i] && !td.classList.contains('acoes')) td.setAttribute('data-rotulo', rotulos[i]);
         if (numerica[i]) td.classList.add('num');
       });
