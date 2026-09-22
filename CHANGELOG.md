@@ -14,6 +14,10 @@
 - Fluxo de caixa: o detalhe de "Saídas" (ex.: "medições R$ 21 mil · outras
   R$ 480") não fica mais cortado no celular — parava de quebrar por herdar o
   `nowrap` da coluna numérica.
+- Tabela com poucas colunas (Clientes, Prestadores) não esticava mais até a
+  borda do cartão em telas largas, deixando as colunas espalhadas com muito
+  vazio entre elas. Agora a largura segue o conteúdo — tabela densa continua
+  larga (e rola se precisar), tabela enxuta fica compacta.
 
 **Segurança**
 - Migração `0009_seguranca_perfis.sql`: fecha o INSERT/DELETE de `perfis` que a
