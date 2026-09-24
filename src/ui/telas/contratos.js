@@ -66,6 +66,19 @@ const TOM_SITUACAO = {
 };
 const PROBLEMA_PRAZO = new Set(['atrasado', 'nao-iniciado-atrasado']);
 
+/* Estado só de tela: qual código-base está com o inspetor aberto. */
+const tela = { selecao: '' };
+
+/* Pílulas de situação: agrupam as chaves de contratoSituacao em quatro
+   estados que importam para quem decide o que olhar primeiro — o resto
+   (em andamento, não iniciado no prazo) é o estado esperado, sem pílula. */
+const SIT_PILULAS = [
+  { chave: 'atraso', rotulo: 'Atrasados', chaves: ['atrasado', 'nao-iniciado-atrasado'] },
+  { chave: 'a-pagar', rotulo: 'A pagar', chaves: ['a-pagar'] },
+  { chave: 'parado', rotulo: 'Parados', chaves: ['paralisado', 'rescindido'] },
+  { chave: 'encerrado', rotulo: 'Encerrados', chaves: ['encerrado'] },
+];
+
 function nomePrestadorRegistro(c) {
   if (c && c.prestadorId) {
     const p = Store.estado.prestadores.find((x) => x.id === c.prestadorId);
@@ -120,6 +133,10 @@ function filtrar(linhas) {
     if (f.kpiCt === 'medido' && !(l.ind.medido > 0.005)) return false;
     if (f.kpiCt === 'apagar' && !(l.ind.aPagarAgora > 0.005)) return false;
     if (f.kpiCt === 'amedir' && !(l.ind.aMedir > 0.005)) return false;
+    if (f.situacaoCt) {
+      const grupo = SIT_PILULAS.find((p) => p.chave === f.situacaoCt);
+      if (grupo && !grupo.chaves.includes(l.sit.chave)) return false;
+    }
     if (busca) {
       const alvo =
         `${l.base} ${l.prestador} ${l.registros.map((c) => c.codigo + ' ' + c.escopo).join(' ')}`.toLowerCase();
@@ -190,18 +207,54 @@ ACOES['ct-kpi'] = (el, d) => {
   App.renderConteudo();
 };
 
-/* -------------------------------------------------------------- tabela */
-function celulaContrato(l, leitura) {
+/* -------------------------------------------------------- pílulas (Fase 4)
+   Situação (calculada, agrupada) e status (bruto, os valores que aparecem
+   nos dados) — os dois filtros que mudam o que é urgente ver. Prestador e
+   forma de preço são recorte, não urgência: continuam em <select>. */
+function pilulasContratos(todas) {
+  const sitPil = SIT_PILULAS.map((g) => {
+    const n = todas.filter((l) => g.chaves.includes(l.sit.chave)).length;
+    if (!n) return '';
+    const ativa = App.filtros.situacaoCt === g.chave;
+    return `<button class="pilula${ativa ? ' ativa' : ''}" data-acao="ct-pilula-situacao"
+        data-valor="${g.chave}" aria-pressed="${ativa}">
+      ${esc(g.rotulo)} <span class="conta">${n}</span>
+    </button>`;
+  }).join('');
+
+  const statusPresentes = [
+    ...new Set(todas.flatMap((l) => l.registros.map((c) => c.status)).filter(Boolean)),
+  ];
+  const statusPil = statusPresentes
+    .map((s) => {
+      const n = todas.filter((l) => l.registros.some((c) => c.status === s)).length;
+      const ativa = App.filtros.status === s;
+      return `<button class="pilula${ativa ? ' ativa' : ''}" data-acao="ct-pilula-status"
+          data-valor="${esc(s)}" aria-pressed="${ativa}">
+        ${esc(s)} <span class="conta">${n}</span>
+      </button>`;
+    })
+    .join('');
+
+  if (!sitPil && !statusPil) return '';
+  return `<div class="filtro-barra nao-imprime">${sitPil}${statusPil}</div>`;
+}
+
+ACOES['ct-pilula-situacao'] = (el, d) => {
+  App.filtros.situacaoCt = App.filtros.situacaoCt === d.valor ? '' : d.valor;
+  App.renderConteudo();
+};
+ACOES['ct-pilula-status'] = (el, d) => {
+  App.filtros.status = App.filtros.status === d.valor ? '' : d.valor;
+  App.renderConteudo();
+};
+
+/* -------------------------------------------------------------- tabela
+   A linha inteira é clicável (abre o inspetor, Fase 5) — sem botão "⋯" na
+   célula: as ações da linha ficam no cabeçalho do inspetor. */
+function celulaContrato(l) {
   const sub = [l.principal.escopo, l.base].filter(Boolean).join(' · ') || l.base;
-  return `<div class="cel-prest">
-    <div class="cel-obra"><b>${esc(l.prestador || 'prestador não informado')}</b><span>${esc(sub)}</span></div>
-    ${
-      leitura
-        ? ''
-        : `<button class="btn sutil icone pequeno acao-hover" data-acao="ct-menu" data-base="${esc(l.base)}"
-      title="Mais ações" aria-label="Mais ações para ${esc(l.base)}" aria-haspopup="menu">${svg(ICO.maisH, 15)}</button>`
-    }
-  </div>`;
+  return `<div class="cel-obra"><b>${esc(l.prestador || 'prestador não informado')}</b><span>${esc(sub)}</span></div>`;
 }
 
 function celulaPrazo(l) {
@@ -248,7 +301,7 @@ function chaveOrdemPadrao(l) {
   return `${atrasado}_${l.fim || '9999-99-99'}`;
 }
 
-function colunasContratos(leitura) {
+function colunasContratos() {
   return [
     {
       k: 'contrato',
@@ -256,7 +309,7 @@ function colunasContratos(leitura) {
       largura: '21%',
       celular: 'principal',
       valor: (l) => (l.prestador || '').toLowerCase(),
-      celula: (l) => celulaContrato(l, leitura),
+      celula: celulaContrato,
     },
     {
       k: 'prazo',
@@ -324,6 +377,94 @@ function colunasContratos(leitura) {
   ];
 }
 
+/* ------------------------------------------------------------- inspetor
+   Substitui o menu "⋯": clicar na linha abre o detalhe completo — os
+   números de indicadoresContrato, o prazo com o motivo do atraso, a
+   composição (principal + aditivos) e as últimas medições ligadas ao
+   código-base. As mesmas ações do menu antigo ficam no cabeçalho. */
+const linhaNum = (rotulo, valor, tom = '') =>
+  `<div class="par par-num"><dt>${esc(rotulo)}</dt><dd class="${tom}">${valor}</dd></div>`;
+
+function inspetorContrato(o, l) {
+  const ind = l.ind;
+  const registros = l.registros
+    .slice()
+    .sort((a, b) => (a.registro === b.registro ? 0 : a.registro === 'Contrato' ? -1 : 1));
+
+  const composicao = registros.length
+    ? `<table class="mini-tab"><thead><tr><th>Registro</th><th class="num">Valor</th></tr></thead>
+        <tbody>${registros
+          .map(
+            (c) => `<tr>
+          <td><b class="mono">${esc(c.codigo)}</b><br><span class="tinta3">${esc(c.escopo || (c.registro === 'Aditivo' ? 'Aditivo' : 'Contrato'))} · ${esc(c.registro === 'Aditivo' ? c.statusAditivo || 'aprovado' : c.status)}</span></td>
+          <td class="num">${fmtMoney(contratoValor(c), { dec: 0 })}</td>
+        </tr>`,
+          )
+          .join('')}</tbody></table>`
+    : '<p class="linha-cinza">Sem registros.</p>';
+
+  const medicoes = o.medicoes
+    .filter((m) => m.contratoBase === l.base && m.status !== 'Cancelado')
+    .sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
+  const medicoesHtml = medicoes.length
+    ? `<table class="mini-tab"><thead><tr><th>Data</th><th class="num">Líquido</th><th class="num">Pago</th></tr></thead>
+        <tbody>${medicoes
+          .slice(0, 5)
+          .map(
+            (m) => `<tr>
+          <td class="mono">${isISO(m.data) ? fmtDataCurta(m.data) : '—'}</td>
+          <td class="num">${fmtMoney(medicaoLiquido(m), { dec: 0 })}</td>
+          <td class="num">${dinheiro(m.valorPago, { dec: 0, cinzaNoZero: true })}</td>
+        </tr>`,
+          )
+          .join('')}</tbody></table>
+       ${medicoes.length > 5 ? `<button class="btn-link ver-todos" data-acao="ir" data-view="medicoes">Ver todas as medições</button>` : ''}`
+    : '<p class="linha-cinza">Nenhuma medição registrada ainda.</p>';
+
+  const temData = isISO(l.principal.inicioPrevisto) || isISO(l.fim);
+  const prazoTxt = temData
+    ? `${isISO(l.principal.inicioPrevisto) ? fmtDataCurta(l.principal.inicioPrevisto) : '?'} → ${isISO(l.fim) ? fmtDataCurta(l.fim) : '?'}`
+    : 'sem datas';
+  const tomSit = TOM_SITUACAO[l.sit.chave] || '';
+
+  return `<aside class="inspetor" tabindex="-1" data-testid="inspetor-contrato" aria-label="${esc(l.base)}">
+    <div class="inspetor-cab">
+      <h2>${esc(l.prestador || 'prestador não informado')}<span class="sub">${esc([l.principal.escopo, l.base].filter(Boolean).join(' · ') || l.base)}</span></h2>
+      ${
+        Store.somenteLeitura()
+          ? ''
+          : `<button class="btn sutil icone" data-acao="ct-menu" data-base="${esc(l.base)}"
+        title="Mais ações" aria-label="Mais ações para ${esc(l.base)}" aria-haspopup="menu">${svg(ICO.maisH, 15)}</button>`
+      }
+      <button class="btn sutil icone" data-acao="ct-fechar" title="Fechar" aria-label="Fechar">${svg(ICO.x, 13)}</button>
+    </div>
+    <div class="inspetor-corpo">
+      <div class="inspetor-secao">
+        <span class="situacao-ct ${tomSit}"><span class="pt"></span>${esc(l.sit.texto)}</span>
+        ${l.sit.motivo ? `<p class="linha-cinza">${esc(l.sit.motivo)}</p>` : ''}
+      </div>
+      <div class="inspetor-secao"><h3>Números</h3><dl class="pares">
+        ${linhaNum('Autorizado', fmtMoney(ind.autorizado, { dec: 0 }))}
+        ${linhaNum('Medido', fmtMoney(ind.medido, { dec: 0 }))}
+        ${linhaNum('Pago', fmtMoney(ind.pago, { dec: 0 }))}
+        ${ind.retido > 0.005 ? linhaNum('Retido', fmtMoney(ind.retido, { dec: 0 })) : ''}
+        ${linhaNum('A pagar agora', fmtMoney(ind.aPagarAgora, { dec: 0 }), ind.aPagarAgora > 0.005 ? 'tom-alerta' : '')}
+        ${linhaNum('A medir', fmtMoney(ind.aMedir, { dec: 0 }))}
+      </dl></div>
+      <div class="inspetor-secao"><h3>Prazo</h3><p class="linha-cinza">${esc(prazoTxt)}</p></div>
+      <div class="inspetor-secao"><h3>Composição</h3>${composicao}</div>
+      <div class="inspetor-secao"><h3>Últimas medições</h3>${medicoesHtml}</div>
+      ${
+        l.principal.documentoUrl
+          ? `<div class="inspetor-secao"><h3>Documento</h3>
+        <a class="btn sutil" href="${esc(l.principal.documentoUrl)}" target="_blank" rel="noopener" data-acao="abrir-externo">${svg(ICO.baixar, 14)}Ver documento anexado</a>
+      </div>`
+          : ''
+      }
+    </div>
+  </aside>`;
+}
+
 /* ---------------------------------------------------------------- tela */
 
 VIEWS.contratos = () => {
@@ -338,9 +479,9 @@ VIEWS.contratos = () => {
     });
   }
 
-  const leitura = Store.somenteLeitura();
   const todas = basesContratuais(o).map((b) => linhaDados(o, b));
   const linhas = filtrar(todas);
+  const sel = tela.selecao && todas.find((l) => l.base === tela.selecao);
 
   const atrasados = todas.filter((l) => PROBLEMA_PRAZO.has(l.sit.chave)).length;
   const aviso =
@@ -356,27 +497,36 @@ VIEWS.contratos = () => {
     mostrar: todas.length > 1,
     controles: [
       seletor('prestador', prestadores, 'Todos os prestadores'),
-      seletor('status', opcoesLista('statusContrato'), 'Todos os status'),
       seletor('regime', opcoesLista('regimes'), 'Todas as formas de preço'),
     ],
     filtrados: linhas.length,
     total: todas.length,
   });
 
-  return `<div class="tela-lista">
-    ${kpisContratos(todas)}
-    ${aviso}
-    ${barra}
-    ${lista({
-      id: 'contratos',
-      colunas: colunasContratos(leitura),
-      itens: linhas,
-      ordemPadrao: { col: 'situacao', dir: 1 },
-      testid: 'lista-contratos',
-      rodapeRotulo: (n) => `${n} contratos`,
-    })}
+  return `<div class="tela-contratos">
+    <div class="tela-principal">
+      <div class="tela-lista">
+        ${kpisContratos(todas)}
+        ${aviso}
+        ${pilulasContratos(todas)}
+        ${barra}
+        ${lista({
+          id: 'contratos',
+          colunas: colunasContratos(),
+          itens: linhas,
+          ordemPadrao: { col: 'situacao', dir: 1 },
+          testid: 'lista-contratos',
+          rodapeRotulo: (n) => `${n} contratos`,
+          linhaAttrs: (l) =>
+            `data-acao="ct-selecionar" data-base="${esc(l.base)}"${l.base === tela.selecao ? ' aria-selected="true"' : ''}`,
+          linhaClasse: () => 'clicavel',
+        })}
+      </div>
+    </div>
+    ${sel ? inspetorContrato(o, sel) : ''}
   </div>`;
 };
+VIEWS.contratos.paineis = true;
 
 /* --------------------------------------------------------- toolbar */
 VIEWS.contratos.toolbar = () => {
@@ -426,18 +576,28 @@ function menuLinha(base) {
 
 ACOES['ct-menu'] = (el, d) => abrirMenuEm(el, menuLinha(d.base));
 
+/* -------------------------------------------------------- inspetor (Fase 5)
+   Clicar na linha abre o painel lateral — o botão "⋯" some da tabela e
+   vira o menu de ações do cabeçalho do inspetor. */
+ACOES['ct-selecionar'] = (el, d) => {
+  tela.selecao = tela.selecao === d.base ? '' : d.base;
+  App.renderConteudo();
+};
+ACOES['ct-fechar'] = () => {
+  tela.selecao = '';
+  App.renderConteudo();
+};
+
 document.addEventListener('contextmenu', (ev) => {
   if (App.rota.view !== 'contratos') return;
   const tr = ev.target.closest('table[data-testid="lista-contratos"] tbody tr');
-  if (!tr || Store.somenteLeitura()) return;
-  const base = tr.querySelector('[data-acao="ct-menu"]');
-  if (!base) return;
+  if (!tr || !tr.dataset.base || Store.somenteLeitura()) return;
   ev.preventDefault();
   fecharMenuCt();
   const menu = document.createElement('div');
   menu.className = 'menu-ctx menu-ct';
   menu.setAttribute('role', 'menu');
-  menu.innerHTML = menuLinha(base.dataset.base);
+  menu.innerHTML = menuLinha(tr.dataset.base);
   document.body.appendChild(menu);
   const m = menu.getBoundingClientRect();
   menu.style.left = Math.min(ev.clientX, window.innerWidth - m.width - 8) + 'px';

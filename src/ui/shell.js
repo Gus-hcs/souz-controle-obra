@@ -565,7 +565,7 @@ function campoHTML(c, valores) {
 function abrirForm({ titulo, campos, valores = {}, aoSalvar, largura = '', calcular, validar, rodapeExtra = '' }) {
   const grupos = [];
   campos.forEach((c) => {
-    if (c.secao) { grupos.push(`<div class="secao-form"><span class="rotulo">${esc(c.secao)}</span></div>`); }
+    if (c.secao) { grupos.push(`<div class="secao-form"><span class="rotulo">${esc(c.secao)}</span></div>`); return; }
     grupos.push(campoHTML(c, valores));
   });
   abrirModal({

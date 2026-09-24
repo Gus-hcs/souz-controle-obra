@@ -2261,6 +2261,9 @@ table.lista-carteira td.cel-saude {
 .tela-prestadores {
   display: contents;
 }
+.tela-contratos {
+  display: contents;
+}
 table.lista-prestadores tbody td {
   height: 40px;
 }
