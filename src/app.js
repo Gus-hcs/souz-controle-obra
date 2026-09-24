@@ -25,6 +25,7 @@ import './ui/telas-cadastros.js';
    sobrescrevem a versão antiga registrada em VIEWS. */
 import './ui/telas/carteira.js';
 import './ui/telas/carteira-acoes.js';
+import './ui/telas/contratos.js';
 
 /* ---------------------------------------------------------- eventos */
 document.addEventListener('click', (ev) => {

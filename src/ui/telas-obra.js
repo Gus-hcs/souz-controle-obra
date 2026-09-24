@@ -1541,5 +1541,6 @@ export {
   alertaHTML,
   carregarAuditoria,
   contratosAbertos,
-  implExpandida
+  implExpandida,
+  prazoRegistro
 };

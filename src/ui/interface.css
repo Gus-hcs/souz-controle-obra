@@ -587,12 +587,19 @@ input::placeholder,
 textarea::placeholder {
   color: var(--tinta3);
 }
+/* Campo de texto mostra o anel sempre que tem foco: é onde se digita, e
+   saber onde o cursor está importa. O select, não: depois de escolher uma
+   opção com o mouse ele continua focado, e o anel ficava aceso à toa em
+   volta do seletor de obra. Só com teclado (focus-visible) ele aparece. */
 input:focus,
-select:focus,
-textarea:focus {
+textarea:focus,
+select:focus-visible {
   outline: none;
   border-color: var(--foco);
   box-shadow: var(--anel-foco);
+}
+select:focus:not(:focus-visible) {
+  outline: none;
 }
 input:disabled,
 select:disabled,
@@ -1423,5 +1430,148 @@ table.lista tfoot td.num {
   }
   table.lista tbody tr {
     break-inside: avoid;
+  }
+}
+
+/* ================================================================
+   Lista em árvore — contratos e aditivos
+   Código-base é a linha-pai; contrato principal e aditivos, recuados
+   embaixo, como uma pasta aberta no Finder.
+   ================================================================ */
+
+.filtro-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e2);
+  margin-bottom: var(--e3);
+}
+.filtro-barra select {
+  width: auto;
+  height: var(--alt-peq);
+  padding: 0 var(--e5) 0 var(--e2);
+  font-size: var(--t-peq);
+}
+.filtro-conta {
+  font-size: var(--t-peq);
+}
+.filtro-dir {
+  margin-left: auto;
+}
+
+/* A zebra alterna mal entre pai e filho; aqui quem diferencia é o recuo
+   e um fundo levíssimo nos filhos. */
+table.lista-arvore tbody tr:nth-child(even) td {
+  background: none;
+}
+table.lista-arvore tbody tr.lista-grupo td {
+  font-weight: var(--p-medio);
+}
+table.lista-arvore tbody tr.lista-filho td {
+  height: auto;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  background: var(--fundo-zebra);
+}
+table.lista-arvore tbody tr.lista-filho td:first-child {
+  padding-left: calc(var(--e3) + 18px);
+}
+table.lista-arvore tbody tr:hover td {
+  background: var(--fundo-hover);
+}
+
+.cel-arvore {
+  display: flex;
+  align-items: center;
+  gap: var(--e1);
+  min-width: 0;
+}
+/* A seta gira, não muda de lugar: animação só em transform. */
+.disclosure {
+  flex: 0 0 14px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--tinta3);
+  transition: transform var(--mov-rapido) var(--curva);
+}
+.lista-grupo.aberto .disclosure {
+  transform: rotate(90deg);
+}
+.cel-registro b {
+  font-weight: var(--p-normal);
+}
+.cel-aviso {
+  font-size: var(--t-peq);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ações da linha aparecem com o ponteiro em cima ou com foco de teclado;
+   em tela de toque ficam sempre visíveis, porque não existe "em cima". */
+table.lista td.acoes-linha {
+  text-align: right;
+  overflow: visible;
+}
+.acoes-linha .btn {
+  opacity: 0;
+  transition: opacity var(--mov-rapido) var(--curva);
+}
+tr:hover .acoes-linha .btn,
+tr:focus-within .acoes-linha .btn {
+  opacity: 1;
+}
+@media (hover: none) {
+  .acoes-linha .btn {
+    opacity: 1;
+  }
+}
+
+/* Só para leitor de tela. */
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  /* Cada célula vira um bloco de largura própria no celular; fundo por
+     célula ficava em retalhos. O fundo passa para a linha inteira. */
+  table.lista-arvore tbody tr.lista-filho {
+    padding-left: var(--e6);
+    background: var(--fundo-zebra);
+  }
+  table.lista-arvore tbody tr.lista-filho td,
+  table.lista-arvore tbody tr:hover td {
+    background: none;
+  }
+  table.lista-arvore tbody tr.lista-filho td:first-child {
+    padding-left: 0;
+  }
+  table.lista-arvore td.acoes-linha {
+    display: block;
+    text-align: left;
+    margin-top: var(--e1);
+  }
+}
+
+.cel-aviso-alerta {
+  color: var(--alerta);
+}
+
+/* Tela de lista não estica sem limite: num monitor de 1900px, sete
+   colunas espalhadas em 1600px deixam o olho viajando entre o nome e o
+   número. 1320px cabe tudo com folga e mantém a linha legível. */
+.tela-lista {
+  max-width: 1320px;
+}
+
+@media (max-width: 720px) {
+  #topo .so-largo {
+    display: none;
   }
 }
