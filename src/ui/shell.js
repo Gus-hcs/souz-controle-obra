@@ -114,6 +114,14 @@ const TITULOS = {
 
 const VIEWS_OBRA = new Set(MENU.filter((g) => g.obra).flatMap((g) => g.itens.map((i) => i.v)));
 
+/* "Casa 12 — Residencial Aurora" → ['Casa 12', 'Residencial Aurora'].
+   Sem separador, a cidade vai na segunda linha. */
+function partesNomeObra(o) {
+  const nome = String(o.nome || '').trim();
+  const m = nome.match(/^(.+?)\s+[—–-]\s+(.+)$/);
+  return m ? [m[1], m[2]] : [nome, o.cidade || ''];
+}
+
 /* ========================================================== App shell */
 const App = {
   rota: { view: 'carteira', obraId: '' },
@@ -168,10 +176,19 @@ const App = {
       });
     }
 
-    const opcoes = obras.length
-      ? `<option value="" ${naCarteira ? 'selected' : ''}>Todas as obras</option>` +
-        obras.map((o) => `<option value="${o.id}" ${!naCarteira && o.id === this.rota.obraId ? 'selected' : ''}>${esc(o.nome)}</option>`).join('')
-      : '<option value="">Nenhuma obra cadastrada</option>';
+    /* Seletor de obra em duas linhas — obra em cima, empreendimento em cinza
+       embaixo — em vez de um select que cortava o nome no meio da palavra. */
+    const ativa = !naCarteira && obra;
+    const [linha1, linha2] = !obras.length
+      ? ['Nenhuma obra', 'cadastre a primeira']
+      : ativa
+        ? partesNomeObra(obra)
+        : ['Todas as obras', `${obras.length} obra${obras.length > 1 ? 's' : ''}`];
+    const seletorObra = `<button class="seletor-obra" data-acao="obra-menu" aria-haspopup="menu" aria-expanded="false"
+        ${obras.length ? '' : 'disabled'} title="${esc(ativa ? obra.nome : linha1)}" aria-label="Obra: ${esc(ativa ? obra.nome : linha1)}">
+        <span class="seletor-obra-txt"><b>${esc(linha1)}</b>${linha2 ? `<span>${esc(linha2)}</span>` : ''}</span>
+        <svg class="ic" width="10" height="14" viewBox="0 0 10 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 5.5 5 3l2.5 2.5M2.5 8.5 5 11l2.5-2.5"/></svg>
+      </button>`;
 
     const nav = MENU.map((g) => {
       if (g.obra && !obras.length) return '';
@@ -205,9 +222,7 @@ const App = {
         <span class="marca-mark">${LOGO}</span>
         <b>SouZ</b>
       </div>
-      <div class="lateral-obra">
-        <select data-acao="trocar-obra" aria-label="Obra ativa">${opcoes}</select>
-      </div>
+      <div class="lateral-obra">${seletorObra}</div>
       <nav class="lateral-nav">${nav}</nav>
       <div class="lateral-conta">
         <button class="conta-btn" data-acao="conta-menu" aria-haspopup="menu" aria-expanded="false">
@@ -638,6 +653,7 @@ function selectFiltro(id, opcoes, rotulo) {
 }
 
 export {
+  partesNomeObra,
   ICO,
   svg,
   LOGO,

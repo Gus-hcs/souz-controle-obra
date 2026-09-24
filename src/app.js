@@ -107,6 +107,27 @@ document.addEventListener('keydown', (ev) => {
   }
 });
 
+/* Barra de rolagem só enquanto se rola, como no macOS: o elemento que
+   rola ganha .rolando e perde 900ms depois do último movimento. */
+const rolagens = new Map();
+document.addEventListener(
+  'scroll',
+  (ev) => {
+    const el = ev.target === document ? document.documentElement : ev.target;
+    if (!el || !el.classList) return;
+    el.classList.add('rolando');
+    clearTimeout(rolagens.get(el));
+    rolagens.set(
+      el,
+      setTimeout(() => {
+        el.classList.remove('rolando');
+        rolagens.delete(el);
+      }, 900),
+    );
+  },
+  true,
+);
+
 /* Atalhos globais. ⌘ no Mac, Ctrl no resto — a tecla certa para cada casa. */
 document.addEventListener('keydown', (ev) => {
   if (!(ev.metaKey || ev.ctrlKey) || ev.altKey) return;

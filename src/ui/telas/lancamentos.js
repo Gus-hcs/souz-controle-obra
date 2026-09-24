@@ -14,11 +14,14 @@ import {
   fmtMoneyCurto,
   fmtNum,
   fmtPct,
+  nomeExibicao,
   norm,
   num,
 } from '../../nucleo/base.js';
-import { lancamentoTotal } from '../../dominio/calculos.js';
+import { lancamentoTotal, ligadoAoPrestador } from '../../dominio/calculos.js';
 import { graficoBarras } from '../../graficos/index.js';
+import { Store } from '../../dados/store.js';
+import { ACOES } from '../acoes.js';
 import { App, botao, opcoesEtapas, opcoesLista } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
 import {
@@ -65,6 +68,10 @@ VIEWS.lancamentos = () => {
   if (f.tipo) itens = itens.filter((d) => d.l.tipo === f.tipo);
   if (f.etapa) itens = itens.filter((d) => d.l.etapa === f.etapa);
   if (f.fornecedor) itens = itens.filter((d) => d.l.fornecedor === f.fornecedor);
+  /* Vindo da ficha do prestador ("Ver todos os lançamentos"): só os dele. */
+  const prestFiltro = f.prestadorId && Store.estado.prestadores.find((p) => p.id === f.prestadorId);
+  if (prestFiltro)
+    itens = itens.filter((d) => ligadoAoPrestador(prestFiltro, d.l.prestadorId, d.l.fornecedor));
   if (f.mes) itens = itens.filter((d) => competencia(d.l.data) === f.mes);
   if (f.situacao === 'plano') itens = itens.filter((d) => d.l.materialId);
   if (f.situacao === 'avulso') itens = itens.filter((d) => !d.l.materialId);
@@ -194,10 +201,15 @@ VIEWS.lancamentos = () => {
     ])}
     ${barraFiltros({
       mostrar:
-        todos.length > 1 || filtrando(['tipo', 'etapa', 'fornecedor', 'mes', 'situacao', 'busca']),
+        todos.length > 1 ||
+        filtrando(['tipo', 'etapa', 'fornecedor', 'mes', 'situacao', 'busca', 'prestadorId']),
       filtrados: itens.length,
       total: todos.length,
       controles: [
+        prestFiltro
+          ? `<button class="pilula ativa" data-acao="lanc-sem-prestador" title="Tirar o filtro de prestador">
+              ${esc(nomeExibicao(prestFiltro.nome))} <span aria-hidden="true">✕</span></button>`
+          : '',
         seletor('tipo', opcoesLista('tiposSaida'), 'Todos os tipos'),
         seletor('etapa', opcoesEtapas(), 'Todas as etapas'),
         fornecedores.length > 1 ? seletor('fornecedor', fornecedores, 'Todos os fornecedores') : '',
@@ -238,4 +250,10 @@ VIEWS.lancamentos.toolbar = () => {
     buscaToolbar('Buscar lançamento', 'busca-lancamentos') +
     botaoNovo('Novo lançamento', 'novo-lancamento')
   );
+};
+
+/* Tira o filtro de prestador que veio da ficha dele. */
+ACOES['lanc-sem-prestador'] = () => {
+  delete App.filtros.prestadorId;
+  App.renderConteudo();
 };

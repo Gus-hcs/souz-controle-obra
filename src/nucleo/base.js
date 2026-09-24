@@ -132,6 +132,26 @@ const norm = (s) => String(s ?? '').trim().toLowerCase()
 
 const slug = (s) => norm(s).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
+/* Capitalização de nome de gente: "MARIA DAS DORES" → "Maria das Dores".
+   Partículas (de, da, do, das, dos, e) ficam minúsculas fora do começo. */
+const PARTICULAS_NOME = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+const capitalizarNome = (texto) => String(texto ?? '')
+  .toLowerCase()
+  .split(/\s+/)
+  .filter(Boolean)
+  .map((w, i) => (i > 0 && PARTICULAS_NOME.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+  .join(' ');
+
+/* Nome para EXIBIR. Só mexe no que está todo em caixa alta ("WESLEY
+   PINTOR" → "Wesley Pintor"); nome já escrito à mão ("João da Silva",
+   "MRV Engenharia") aparece como está. Não altera o dado salvo. */
+const nomeExibicao = (nome) => {
+  const t = String(nome ?? '').trim().replace(/\s+/g, ' ');
+  const letras = t.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g, '');
+  const tudoMaiusculo = letras.length > 1 && letras === letras.toUpperCase() && letras !== letras.toLowerCase();
+  return tudoMaiusculo ? capitalizarNome(t) : t;
+};
+
 /* Filtra o que vai para o atributo src de uma <img>. Só passa o que o próprio
    sistema gera: data URI de imagem rasterizada ou caminho relativo/HTTPS sem
    aspas. Barra 'javascript:', 'data:text/html', SVG com script e qualquer
@@ -379,6 +399,8 @@ export {
   norm,
   slug,
   fonteImagem,
+  capitalizarNome,
+  nomeExibicao,
   LISTAS_PADRAO,
   TIPOS_PIX,
   FORMAS_CONTRATACAO,

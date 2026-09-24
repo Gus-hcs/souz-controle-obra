@@ -80,9 +80,13 @@ a:hover {
   border-radius: var(--r-micro);
 }
 
-/* Barra de rolagem fina, no estilo overlay do macOS. */
+/* Barra de rolagem fina e invisível em repouso; aparece enquanto se rola
+   (classe .rolando, posta por app.js no scroll) — o overlay do macOS. */
 * {
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.rolando {
   scrollbar-color: var(--separador-forte) transparent;
 }
 ::-webkit-scrollbar {
@@ -90,12 +94,16 @@ a:hover {
   height: 11px;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--separador-forte);
+  background: transparent;
   border-radius: var(--r-total);
   border: 3px solid transparent;
   background-clip: content-box;
 }
-::-webkit-scrollbar-thumb:hover {
+.rolando::-webkit-scrollbar-thumb {
+  background: var(--separador-forte);
+  background-clip: content-box;
+}
+.rolando::-webkit-scrollbar-thumb:hover {
   background: var(--tinta3);
   background-clip: content-box;
 }
@@ -166,23 +174,71 @@ a:hover {
   letter-spacing: 0.01em;
 }
 
-/* Seletor de obra: parece um pop-up button do AppKit. */
+/* Seletor de obra: pop-up button do AppKit em duas linhas — obra em cima,
+   empreendimento em cinza embaixo, cada linha com reticências. */
 .lateral-obra {
   padding: 0 var(--e2) var(--e2);
 }
-.lateral-obra select {
+.seletor-obra {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
   width: 100%;
-  height: var(--alt-ctrl);
-  padding: 0 var(--e5) 0 var(--e2);
-  background: var(--fundo-ctrl)
-    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='14' fill='none' stroke='%236E7775' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2.5 5.5 5 3l2.5 2.5M2.5 8.5 5 11l2.5-2.5'/%3E%3C/svg%3E")
-    no-repeat right var(--e2) center;
+  min-height: 40px;
+  padding: var(--e1) var(--e2);
+  background: var(--fundo-ctrl);
   border: var(--fio) solid var(--separador-forte);
   border-radius: var(--r-btn);
-  font-size: var(--t-corpo);
-  appearance: none;
-  -webkit-appearance: none;
+  color: var(--tinta);
+  text-align: left;
   cursor: pointer;
+}
+.seletor-obra:hover {
+  background: var(--fundo-ctrl-ativo);
+}
+.seletor-obra .ic {
+  flex: 0 0 10px;
+  margin-left: auto;
+  color: var(--tinta3);
+}
+.seletor-obra-txt,
+.item-duplo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+.seletor-obra-txt b,
+.seletor-obra-txt span,
+.item-duplo b,
+.item-duplo span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seletor-obra-txt b,
+.item-duplo b {
+  font-size: var(--t-corpo);
+  font-weight: var(--p-medio);
+}
+.seletor-obra-txt span,
+.item-duplo span {
+  font-size: var(--t-peq);
+  color: var(--tinta2);
+}
+.menu-obra {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.menu-ctx.menu-obra button {
+  height: auto;
+  padding: var(--e1) var(--e2);
+}
+.menu-ctx.menu-obra button[aria-checked='true'] {
+  background: var(--fundo-hover);
+}
+.menu-obra button:hover .item-duplo span {
+  color: inherit;
 }
 
 .lateral-nav {
@@ -835,32 +891,23 @@ table.lista tbody tr.clicavel {
   cursor: default;
 }
 
-/* Seleção: preenchida no acento, texto escuro — a regra da marca.
-   Tudo dentro da linha selecionada herda essa tinta, inclusive o que
-   estava em vermelho: dentro da seleção o contraste manda. */
+/* Seleção — o mesmo componente em todas as tabelas do sistema.
+   Fundo do acento a ~15% e barra de 2px à esquerda; o texto continua na
+   cor normal, então vermelho continua vermelho e cinza continua cinza.
+   Com o foco no inspetor, a seleção fica cinza: a atenção está lá, não
+   na lista — o padrão do macOS para seleção sem foco. */
 table.lista tbody tr[aria-selected='true'] td,
 table.lista tbody tr[aria-selected='true']:hover td {
-  background: var(--acento);
-  color: var(--sobre-acento);
+  background: color-mix(in srgb, var(--acento) 15%, var(--fundo-conteudo));
 }
-table.lista tbody tr[aria-selected='true'] .atraso,
-table.lista tbody tr[aria-selected='true'] .tinta2,
-table.lista tbody tr[aria-selected='true'] .tinta3,
-table.lista tbody tr[aria-selected='true'] .tom-alerta,
-table.lista tbody tr[aria-selected='true'] .cel-dupla span {
-  color: var(--sobre-acento);
+table.lista tbody tr[aria-selected='true'] td:first-child {
+  box-shadow: inset 2px 0 0 var(--acento);
 }
-/* A informação de apoio continua sendo apoio dentro da seleção: mais
-   clara que o texto principal, mas ainda legível sobre o acento. */
-table.lista tbody tr[aria-selected='true'] .cel-dupla span,
-table.lista tbody tr[aria-selected='true'] .tinta3 {
-  opacity: 0.72;
+:root:has(.inspetor:focus-within) table.lista tbody tr[aria-selected='true'] td {
+  background: var(--fundo-ctrl-ativo);
 }
-table.lista tbody tr[aria-selected='true'] .barra-fina > i {
-  background: var(--sobre-acento);
-}
-table.lista tbody tr[aria-selected='true'] .barra-fina {
-  background: rgb(0 0 0 / 0.2);
+:root:has(.inspetor:focus-within) table.lista tbody tr[aria-selected='true'] td:first-child {
+  box-shadow: inset 2px 0 0 var(--tinta3);
 }
 
 table.lista tfoot td {
@@ -1817,21 +1864,6 @@ table.lista-carteira tbody td {
   border-radius: 1px;
   background: var(--tinta);
 }
-table.lista tbody tr[aria-selected='true'] .avanco-barra b,
-table.lista tbody tr[aria-selected='true'] .avanco-barra i,
-table.lista tbody tr[aria-selected='true'] .saude i {
-  background: var(--sobre-acento);
-}
-table.lista tbody tr[aria-selected='true'] .avanco-barra {
-  background: rgb(0 0 0 / 0.2);
-}
-table.lista tbody tr[aria-selected='true'] .saude,
-table.lista tbody tr[aria-selected='true'] .cel-obra span,
-table.lista tbody tr[aria-selected='true'] .cel-dois span,
-table.lista tbody tr[aria-selected='true'] .cel-aviso-alerta,
-table.lista tbody tr[aria-selected='true'] .btn-link {
-  color: var(--sobre-acento);
-}
 
 /* ---------------------------------------------- precisa de ação */
 .inspetor-vazio {
@@ -2265,9 +2297,6 @@ table.lista-prestadores tbody td {
 table.lista td.cel-contato {
   overflow: visible;
 }
-table.lista tbody tr[aria-selected='true'] .btn-contato {
-  color: var(--sobre-acento);
-}
 
 .nota {
   display: inline-flex;
@@ -2276,23 +2305,6 @@ table.lista tbody tr[aria-selected='true'] .btn-contato {
 }
 .nota .ic {
   color: var(--tinta3);
-}
-
-/* Filtro liga/desliga, na aparência de botão do segmentado. */
-.filtro-chave {
-  height: var(--alt-peq);
-  padding: 0 var(--e3);
-  border: var(--fio) solid var(--separador-forte);
-  border-radius: var(--r-btn);
-  background: var(--fundo-ctrl);
-  color: var(--tinta2);
-  font-size: var(--t-peq);
-  cursor: pointer;
-}
-.filtro-chave[aria-pressed='true'] {
-  background: var(--acento-fraco);
-  border-color: var(--acento);
-  color: var(--acento-texto);
 }
 
 /* ------------------------------------------------------- inspetor */
@@ -2360,7 +2372,7 @@ table.lista tbody tr[aria-selected='true'] .btn-contato {
 }
 .pagamentos li {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr) auto;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
   gap: var(--e2);
   align-items: baseline;
   padding: var(--e1) 0;
@@ -2599,4 +2611,257 @@ table.lista tbody tr[aria-selected='true'] .btn-contato {
 .mini-tab td.num {
   padding-left: var(--e3);
   white-space: nowrap;
+}
+
+/* ================================================================
+   Refino — prestadores e peças comuns
+   ================================================================ */
+
+/* O conteúdo ocupa toda a largura da janela. O legado limitava a 1500px,
+   e num monitor largo sobrava uma faixa vazia à direita do inspetor.
+   Telas de leitura têm o próprio limite (.tela-lista). */
+#conteudo {
+  max-width: none;
+}
+
+/* Pílulas de filtro: menu (especialidade) e liga/desliga, com contagem. */
+.pilula {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--alt-peq);
+  padding: 0 var(--e3);
+  border: var(--fio) solid var(--separador-forte);
+  border-radius: var(--r-total);
+  background: var(--fundo-ctrl);
+  color: var(--tinta);
+  font-size: var(--t-peq);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--mov-rapido) var(--curva);
+}
+.pilula:hover {
+  background: var(--fundo-ctrl-ativo);
+}
+.pilula .conta {
+  color: var(--tinta3);
+  font-variant-numeric: tabular-nums;
+}
+.pilula .ic {
+  color: var(--tinta3);
+  transform: rotate(90deg);
+}
+.pilula.ativa {
+  background: var(--acento-fraco);
+  border-color: var(--acento);
+  color: var(--acento-texto);
+}
+.pilula.ativa .conta,
+.pilula.ativa .ic {
+  color: var(--acento-texto);
+}
+.menu-prest button {
+  justify-content: space-between;
+}
+.menu-prest button .conta {
+  margin-left: var(--e4);
+  color: var(--tinta3);
+  font-variant-numeric: tabular-nums;
+}
+.menu-prest button[aria-checked='true'] {
+  font-weight: var(--p-medio);
+}
+
+/* "Revisar nomes": aviso discreto, não botão de destaque. */
+.aviso-discreto {
+  font-size: var(--t-peq);
+  color: var(--tinta3);
+}
+
+/* Faixa acima da lista: pagamentos sem contrato. */
+.faixa-aviso {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--e1) var(--e3);
+  margin-bottom: var(--e3);
+  padding: var(--e2) var(--e3);
+  border-radius: var(--r-campo);
+  background: var(--alerta-fundo);
+  color: var(--alerta);
+  font-size: var(--t-peq);
+}
+.faixa-aviso .btn-link {
+  color: var(--alerta);
+  font-weight: var(--p-medio);
+  text-decoration: underline;
+}
+
+/* Coluna Prestador: nome em peso médio + especialidade em cinza; o "⋯"
+   aparece no fim da célula ao passar o mouse — sem coluna vazia no fim. */
+.cel-prest {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  min-width: 0;
+}
+.cel-prest .cel-obra {
+  flex: 1;
+  min-width: 0;
+}
+.cel-obra .nome-prest {
+  font-size: inherit;
+  color: var(--tinta);
+  font-weight: var(--p-medio);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acao-hover {
+  flex: none;
+  opacity: 0;
+  transition: opacity var(--mov-rapido) var(--curva);
+}
+tr:hover .acao-hover,
+tr:focus-within .acao-hover,
+tr[aria-selected='true'] .acao-hover {
+  opacity: 1;
+}
+@media (hover: none) {
+  .acao-hover {
+    opacity: 1;
+  }
+}
+table.lista td.centro,
+table.lista th.centro {
+  text-align: center;
+}
+.sem-contrato {
+  color: var(--tinta3);
+}
+table.lista td.cel-sem-contrato {
+  text-align: center;
+}
+
+/* "+ WhatsApp": cinza; o acento só aparece no hover e no foco. */
+.mais-whats {
+  background: none;
+  border: 0;
+  padding: 0 var(--e1);
+  font: inherit;
+  font-size: var(--t-peq);
+  color: var(--tinta3);
+  cursor: pointer;
+}
+.mais-whats:hover,
+.mais-whats:focus-visible {
+  color: var(--acento-texto);
+}
+
+/* ------------------------------------------------------- inspetor */
+.inspetor-cab .btn.pequeno {
+  flex: none;
+}
+.contato-numero {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+  margin-bottom: var(--e2);
+  font-variant-numeric: tabular-nums;
+}
+.contato-numero .tinta3 {
+  font-size: var(--t-peq);
+}
+.contato-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e2);
+}
+.contato-botoes .btn .ic {
+  margin-right: 2px;
+}
+.botao-dividido {
+  display: inline-flex;
+}
+.botao-dividido .btn:first-child {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.botao-dividido .btn.icone {
+  width: 22px;
+  border-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.botao-dividido .btn.icone .ic {
+  transform: rotate(90deg);
+}
+.linha-cinza {
+  margin: var(--e2) 0 0;
+  font-size: var(--t-peq);
+  color: var(--tinta3);
+}
+.inspetor-secao > .linha-cinza:first-of-type {
+  margin-top: 0;
+}
+/* Número: rótulo com a origem em cinza embaixo; valor à direita. */
+.par-num {
+  align-items: flex-start;
+}
+.par-num dt {
+  display: flex;
+  flex-direction: column;
+}
+.par-num dt span {
+  font-size: var(--t-mini);
+  color: var(--tinta3);
+}
+.ver-todos {
+  margin-top: var(--e2);
+}
+
+/* ------------------------------------------------------- celular */
+@media (max-width: 767px) {
+  /* Inspetor vira sheet de tela cheia por cima da lista. */
+  #conteudo.paineis .inspetor.inspetor-prestador {
+    position: fixed;
+    inset: 0;
+    z-index: 95;
+    width: auto;
+    height: 100dvh;
+    overflow-y: auto;
+    border: 0;
+    background: var(--fundo-janela);
+  }
+  .inspetor-prestador .inspetor-cab {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--fundo-janela);
+    padding-top: max(var(--e3), env(safe-area-inset-top));
+  }
+  .inspetor-prestador .contato-botoes .btn {
+    height: 44px;
+  }
+  /* Cartão: nome, especialidade, Pago ou "Sem contrato", contato de 44px. */
+  table.lista-prestadores tbody td.some-no-celular.mostrar-celular {
+    display: inline;
+    width: auto;
+    font-size: var(--t-peq);
+  }
+  table.lista-prestadores tbody td.cel-sem-contrato {
+    text-align: left;
+  }
+  /* A célula principal do cartão é peso médio; a especialidade não. */
+  table.lista-prestadores .cel-obra span:not(.nome-prest) {
+    font-weight: var(--p-normal);
+  }
+  table.lista-prestadores .acao-hover {
+    width: 44px;
+    height: 44px;
+  }
+  .mais-whats {
+    min-height: 44px;
+  }
 }

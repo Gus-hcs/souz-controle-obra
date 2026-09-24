@@ -144,7 +144,9 @@ describe('totais da lista', () => {
       contratado: soma('contratado'),
       pago: soma('pago'),
       aPagar: soma('aPagar'),
+      comContrato: est.prestadores.filter((p) => resumoPrestador(est, p).temContrato).length,
     });
+    expect(t.comContrato).toBe(2); // Ana e Beto têm contrato; Caio e Dani, não
     expect(t.contratado).toBe(20000);
     expect(t.pago).toBe(10000 + 400);
   });

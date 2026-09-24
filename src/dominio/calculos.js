@@ -1,7 +1,7 @@
 /**
  * calculos.js — Regras de negócio: todo cálculo do sistema vive aqui, sem tocar em DOM.
  */
-import { addMeses, competencia, diasEntre, fimDoMes, fmtData, fmtMoney, fmtNum, fmtPct, hojeISO, inicioDoMes, isISO, norm, num, round2 } from '../nucleo/base.js';
+import { addMeses, capitalizarNome, competencia, diasEntre, fimDoMes, fmtData, fmtMoney, fmtNum, fmtPct, hojeISO, inicioDoMes, isISO, norm, num, round2 } from '../nucleo/base.js';
 
 /* ------------------------------------------------------ CONTRATOS  */
 /* Planilha: K = SE(valor informado > 0; valor informado; qtd × preço) */
@@ -939,6 +939,7 @@ function ligadoAoPrestador(p, prestadorId, nomeTexto) {
    - medidoNaoPago: medições já feitas e ainda não quitadas (devido hoje). */
 function resumoPrestador(estado, p) {
   let contratado = 0, pagoMedicoes = 0, pagoLancamentos = 0, aPagar = 0, medidoNaoPago = 0;
+  let qtdContratos = 0, qtdMedicoesPagas = 0, qtdLancamentos = 0;
   const obras = [];
   const pagamentos = [];
   estado.obras.forEach((o) => {
@@ -955,7 +956,8 @@ function resumoPrestador(estado, p) {
       pmObra += pg;
       abertoObra += Math.max(0, medicaoLiquido(m) - pg);
       if (pg > 0) {
-        pagamentos.push({ data: m.dataPagamento || m.data, valor: pg, origem: 'medicao',
+        qtdMedicoesPagas++;
+        pagamentos.push({ data: m.dataPagamento || m.data, valor: pg, origem: 'medicao', etapa: '',
           descricao: `Medição ${m.numero || ''} ${m.descricao || ''}`.replace(/\s+/g, ' ').trim(), obraId: o.id, obraNome: o.nome });
       }
     });
@@ -965,8 +967,11 @@ function resumoPrestador(estado, p) {
     lancs.forEach((l) => {
       const v = lancamentoTotal(l);
       plObra += v;
-      pagamentos.push({ data: l.data, valor: v, origem: 'lancamento', descricao: l.descricao || l.tipo || 'Lançamento', obraId: o.id, obraNome: o.nome });
+      qtdLancamentos++;
+      pagamentos.push({ data: l.data, valor: v, origem: 'lancamento', etapa: l.etapa || '',
+        descricao: l.descricao || l.tipo || 'Lançamento', obraId: o.id, obraNome: o.nome });
     });
+    qtdContratos += doPrestador.filter((c) => c.status !== 'Cancelado').length;
 
     if (doPrestador.length || lancs.length) {
       const saldoObra = Math.max(0, ctObra - pmObra);
@@ -982,20 +987,37 @@ function resumoPrestador(estado, p) {
   return {
     contratado, pago: pagoMedicoes + pagoLancamentos, pagoMedicoes, pagoLancamentos,
     aPagar, medidoNaoPago, obras, pagamentos,
+    qtdContratos, qtdMedicoesPagas, qtdLancamentos,
+    /* Sem contrato, "Contratado R$ 0" e "A pagar R$ 0" seriam falsos: não
+       é que não haja nada a pagar, é que não há contrato para comparar. */
+    temContrato: qtdContratos > 0,
     /* com qualquer vínculo, só pode ser arquivado — nunca apagado */
     temVinculo: obras.length > 0
   };
 }
 
-/* Totais de uma lista de prestadores — o rodapé da tela sai daqui. */
+/* Totais de uma lista de prestadores — o rodapé da tela sai daqui.
+   comContrato: quantos têm contrato. Se nenhum tem, o rodapé mostra "Sem
+   contrato" em vez de um R$ 0 que parece dado. */
 function totaisPrestadores(estado, prestadores) {
   return prestadores.reduce((t, p) => {
     const r = resumoPrestador(estado, p);
     t.contratado += r.contratado;
     t.pago += r.pago;
     t.aPagar += r.aPagar;
+    if (r.temContrato) t.comContrato++;
     return t;
-  }, { contratado: 0, pago: 0, aPagar: 0 });
+  }, { contratado: 0, pago: 0, aPagar: 0, comContrato: 0 });
+}
+
+/* Prestadores ativos que receberam sem ter contrato ligado — pagos só por
+   lançamento. É o aviso "N prestadores com pagamentos sem contrato". */
+function prestadoresPagosSemContrato(estado) {
+  return estado.prestadores
+    .filter((p) => !p.arquivado)
+    .map((p) => ({ p, r: resumoPrestador(estado, p) }))
+    .filter(({ r }) => r.pago > 0.005 && !r.temContrato)
+    .map(({ p, r }) => ({ id: p.id, nome: p.nome, pago: r.pago }));
 }
 
 /* Avaliação do prestador: notas dadas ao concluir cada contrato dele.
@@ -1048,16 +1070,7 @@ function duplicadosPrestador(estado, p) {
    apelido ("Wesley Pintor") e a especialidade reconhecida ("Pintor").
    Devolve null quando não há nada a sugerir. NUNCA aplica: quem aplica é a
    tela, depois de a pessoa conferir a prévia. */
-const PARTICULAS = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
-
-function capitalizarNome(texto) {
-  return String(texto || '')
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((w, i) => (i > 0 && PARTICULAS.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
-    .join(' ');
-}
+/* capitalizarNome vem de nucleo/base.js — uma regra só para cadastro e exibição. */
 
 function sugestaoNomePrestador(p, especialidades = []) {
   const nome = String(p.nome || '').trim().replace(/\s+/g, ' ');
@@ -1139,6 +1152,7 @@ export {
   ligadoAoPrestador,
   resumoPrestador,
   totaisPrestadores,
+  prestadoresPagosSemContrato,
   avaliacaoPrestador,
   duplicadosPrestador,
   CRITERIOS_AVAL,

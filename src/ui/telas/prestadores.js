@@ -8,6 +8,9 @@
  * digitados — saem de resumoPrestador (dominio/calculos.js), a partir dos
  * contratos e lançamentos ligados a cada um.
  *
+ * Sem contrato ligado, a tela diz "Sem contrato" — nunca "R$ 0", que
+ * pareceria um dado. O mesmo estado na lista, no rodapé e no inspetor.
+ *
  * Prestador com contrato ou pagamento ligado não é apagado: é arquivado.
  * O banco garante o mesmo (ON DELETE RESTRICT, migração 0011).
  */
@@ -18,6 +21,8 @@ import {
   fmtMoney,
   FORMAS_CONTRATACAO,
   hojeISO,
+  isISO,
+  nomeExibicao,
   norm,
   novoPrestador,
   TIPOS_PIX,
@@ -35,6 +40,7 @@ import {
   avaliacaoPrestador,
   CRITERIOS_AVAL,
   duplicadosPrestador,
+  prestadoresPagosSemContrato,
   resumoPrestador,
   sugestaoNomePrestador,
   totaisPrestadores,
@@ -52,35 +58,53 @@ const tela = { selecao: '', especialidade: '', comSaldo: false, arquivados: fals
 /* Valores de prestador sem centavos: a coluna fica estreita com o inspetor
    aberto, e para contratado e pago o real inteiro basta. */
 const reais = (v, o = {}) => dinheiro(v, { dec: 0, ...o });
+const SEM_CONTRATO = '<span class="sem-contrato">Sem contrato</span>';
 
 const somenteLeitura = () => Store.somenteLeitura();
 const acharPrestador = (id) => Store.estado.prestadores.find((p) => p.id === id);
 /* Como a pessoa é chamada na obra: o apelido, se houver; senão o nome
    inteiro. Primeiro nome não serve — "Construtora Alfa" virava "Construtora". */
-const comoChamar = (p) => String(p.apelido || p.nome || '').trim();
+const comoChamar = (p) => nomeExibicao(p.apelido || p.nome || '');
+/* Data com ano, curta: 01/04/26. */
+const dataCurtaAno = (iso) =>
+  isISO(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}` : '';
+const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+
+/* Tira o nome do próprio prestador da descrição do pagamento: na ficha
+   dele, "Pagamento Pedro Encanador semana 3" diz o nome à toa. */
+function semNomeDoPrestador(p, texto) {
+  let t = String(texto || '');
+  for (const nome of [p.nome, p.apelido, nomeExibicao(p.nome)].filter(Boolean)) {
+    const re = new RegExp(nome.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'ig');
+    t = t.replace(re, ' ');
+  }
+  return t
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s\-–—·:,]+|[\s\-–—·:,]+$/g, '')
+    .trim();
+}
 
 /* --------------------------------------------------------------- contato */
 
-/* Botões de contato. Links reais (target=_blank, rel=noopener); o clique
-   passa por "abrir-externo" porque a linha inteira também é clicável. */
-function botoesContato(p, { grande = false } = {}) {
-  const cls = `btn-contato${grande ? ' grande' : ''}`;
+/* Botões de contato da LINHA: ícones. Links reais (target=_blank,
+   rel=noopener); o clique passa por "abrir-externo" porque a linha
+   inteira também é clicável. Sem número: "+ WhatsApp", discreto. */
+function botoesContato(p) {
   const out = [];
   if (p.whatsapp && p.temWhatsapp !== false) {
-    out.push(`<a class="${cls}" href="${esc(linkWhatsApp(p.whatsapp))}" target="_blank" rel="noopener"
-      data-acao="abrir-externo" title="WhatsApp" aria-label="Abrir WhatsApp de ${esc(p.nome)}">${svg(ICO.whatsapp, 15)}</a>`);
-    out.push(`<button class="${cls} menu" data-acao="prest-mensagens" data-id="${esc(p.id)}"
-      title="Mensagem pronta" aria-label="Mensagens prontas para ${esc(p.nome)}" aria-haspopup="menu">${svg(ICO.seta, 10)}</button>`);
+    out.push(`<a class="btn-contato" href="${esc(linkWhatsApp(p.whatsapp))}" target="_blank" rel="noopener"
+      data-acao="abrir-externo" title="WhatsApp" aria-label="Abrir WhatsApp de ${esc(comoChamar(p))}">${svg(ICO.whatsapp, 15)}</a>`);
+    out.push(`<button class="btn-contato menu" data-acao="prest-mensagens" data-id="${esc(p.id)}"
+      title="Mensagem pronta" aria-label="Mensagens prontas para ${esc(comoChamar(p))}" aria-haspopup="menu">${svg(ICO.seta, 10)}</button>`);
   }
-  const ligar = p.whatsapp || p.telefone;
-  if (ligar) {
-    out.push(`<a class="${cls}" href="${esc(linkTelefone(p.telefone && (!p.whatsapp || p.temWhatsapp === false) ? p.telefone : p.whatsapp))}"
-      data-acao="abrir-externo" title="Ligar" aria-label="Ligar para ${esc(p.nome)}">${svg(ICO.telefone, 15)}</a>`);
+  const numLigar = p.telefone && (!p.whatsapp || p.temWhatsapp === false) ? p.telefone : p.whatsapp;
+  if (numLigar) {
+    out.push(`<a class="btn-contato" href="${esc(linkTelefone(numLigar))}"
+      data-acao="abrir-externo" title="Ligar" aria-label="Ligar para ${esc(comoChamar(p))}">${svg(ICO.telefone, 15)}</a>`);
   }
   if (!p.whatsapp && !somenteLeitura()) {
-    out.push(
-      `<button class="btn-link" data-acao="editar-prestador" data-id="${esc(p.id)}" data-foco="whatsapp">Adicionar WhatsApp</button>`,
-    );
+    out.push(`<button class="mais-whats" data-acao="editar-prestador" data-id="${esc(p.id)}" data-foco="whatsapp"
+      aria-label="Adicionar WhatsApp de ${esc(comoChamar(p))}">+ WhatsApp</button>`);
   }
   return `<span class="contatos">${out.join('')}</span>`;
 }
@@ -100,159 +124,186 @@ function variaveisMensagem(p) {
 
 /* ----------------------------------------------------------------- lista */
 
-function base() {
+function base({ semEspecialidade = false } = {}) {
   const busca = norm(App.filtros.busca || '');
   const dig = busca.replace(/\D/g, '');
   return Store.estado.prestadores.filter((p) => {
     if (!!p.arquivado !== tela.arquivados) return false;
-    if (tela.especialidade && p.especialidade !== tela.especialidade) return false;
+    if (!semEspecialidade && tela.especialidade && p.especialidade !== tela.especialidade)
+      return false;
     if (!busca) return true;
     if (norm(`${p.nome} ${p.apelido} ${p.especialidade}`).includes(busca)) return true;
     return dig.length >= 4 && `${p.whatsapp}${p.telefone}`.includes(dig);
   });
 }
 
-function dados() {
-  let ds = base().map((p) => ({
+const comDados = (ps) =>
+  ps.map((p) => ({
     p,
     r: resumoPrestador(Store.estado, p),
     a: avaliacaoPrestador(Store.estado, p),
   }));
+
+function dados() {
+  let ds = comDados(base());
   if (tela.comSaldo) ds = ds.filter((d) => d.r.aPagar > 0.005);
   return ds;
 }
 
-const COLUNAS = [
-  {
-    k: 'nome',
-    rotulo: 'Prestador',
-    largura: '24%',
-    celular: 'principal',
-    valor: (d) => norm(d.p.nome),
-    celula: (d) =>
-      `<div class="cel-obra"><b>${esc(d.p.nome)}</b>${d.p.apelido && d.p.apelido !== d.p.nome ? `<span>${esc(d.p.apelido)}</span>` : ''}</div>`,
-  },
-  {
-    k: 'especialidade',
-    rotulo: 'Especialidade',
-    largura: '11%',
-    valor: (d) => d.p.especialidade || '',
-    celula: (d) =>
-      d.p.especialidade ? `<span class="tinta2">${esc(d.p.especialidade)}</span>` : '',
-  },
-  {
-    k: 'contato',
-    rotulo: 'Contato',
-    largura: '13%',
-    classe: 'cel-contato',
-    celula: (d) => botoesContato(d.p),
-  },
-  {
-    k: 'obras',
-    rotulo: 'Obras',
-    largura: '6%',
-    num: true,
-    celular: 'some',
-    valor: (d) => d.r.obras.length,
-    celula: (d) => (d.r.obras.length ? `${d.r.obras.length}` : ''),
-  },
-  {
-    k: 'contratado',
-    rotulo: 'Contratado',
-    largura: '12%',
-    num: true,
-    celular: 'some',
-    valor: (d) => d.r.contratado,
-    celula: (d) => reais(d.r.contratado, { cinzaNoZero: true }),
-    total: (ds) =>
-      reais(
-        totaisPrestadores(
-          Store.estado,
-          ds.map((d) => d.p),
-        ).contratado,
-      ),
-  },
-  {
-    k: 'pago',
-    rotulo: 'Pago',
-    largura: '12%',
-    num: true,
-    celular: 'some',
-    valor: (d) => d.r.pago,
-    celula: (d) => reais(d.r.pago, { cinzaNoZero: true }),
-    total: (ds) =>
-      reais(
-        totaisPrestadores(
-          Store.estado,
-          ds.map((d) => d.p),
-        ).pago,
-      ),
-  },
-  {
-    k: 'aPagar',
-    rotulo: 'A pagar',
-    largura: '11%',
-    num: true,
-    valor: (d) => d.r.aPagar,
-    celula: (d) => reais(d.r.aPagar, { cinzaNoZero: true }),
-    total: (ds) =>
-      reais(
-        totaisPrestadores(
-          Store.estado,
-          ds.map((d) => d.p),
-        ).aPagar,
-      ),
-  },
-  {
-    k: 'avaliacao',
-    rotulo: 'Avaliação',
-    largura: '8%',
-    num: true,
-    celular: 'some',
-    valor: (d) => (d.a.media === null ? -1 : d.a.media),
-    /* sem avaliação, célula vazia — nem traço, nem zero */
-    celula: (d) =>
-      d.a.media === null
-        ? ''
-        : `<span class="nota" title="${d.a.avaliacoes} avaliação(ões)">${d.a.media.toFixed(1).replace('.', ',')} ${svg(ICO.estrela, 11)}</span>`,
-  },
-  {
-    k: 'acoes',
-    rotulo: '',
-    largura: '3%',
-    celula: (d) =>
-      somenteLeitura()
-        ? ''
-        : `<button class="btn sutil icone pequeno" data-acao="prest-menu" data-id="${esc(d.p.id)}"
-      title="Mais ações" aria-label="Mais ações para ${esc(d.p.nome)}" aria-haspopup="menu">${svg(ICO.maisH, 15)}</button>`,
-  },
-];
+/* Colunas. A de Avaliação só existe quando alguém tem avaliação — coluna
+   vazia em todas as linhas é ruído. Contratado e A pagar ficam lado a
+   lado para virar uma célula só, "Sem contrato", quando não há contrato. */
+function colunas(temAvaliacao) {
+  const L = temAvaliacao
+    ? {
+        nome: '32%',
+        contato: '16%',
+        obras: '6%',
+        pago: '12%',
+        contratado: '12%',
+        aPagar: '12%',
+        aval: '10%',
+      }
+    : { nome: '36%', contato: '17%', obras: '7%', pago: '13%', contratado: '14%', aPagar: '13%' };
+  const totais = (ds) =>
+    totaisPrestadores(
+      Store.estado,
+      ds.map((d) => d.p),
+    );
+  const cols = [
+    {
+      k: 'nome',
+      rotulo: 'Prestador',
+      largura: L.nome,
+      celular: 'principal',
+      valor: (d) => norm(nomeExibicao(d.p.nome)),
+      celula: (
+        d,
+      ) => `<div class="cel-prest" ${d.p.apelido ? `title="Chamado de ${esc(d.p.apelido)}"` : ''}>
+          <div class="cel-obra"><span class="nome-prest">${esc(nomeExibicao(d.p.nome))}</span>${
+            d.p.especialidade ? `<span>${esc(d.p.especialidade)}</span>` : ''
+          }</div>
+          ${
+            somenteLeitura()
+              ? ''
+              : `<button class="btn sutil icone pequeno acao-hover" data-acao="prest-menu" data-id="${esc(d.p.id)}"
+            title="Mais ações" aria-label="Mais ações para ${esc(nomeExibicao(d.p.nome))}" aria-haspopup="menu">${svg(ICO.maisH, 15)}</button>`
+          }
+        </div>`,
+    },
+    {
+      k: 'contato',
+      rotulo: 'Contato',
+      largura: L.contato,
+      classe: 'cel-contato',
+      celula: (d) => botoesContato(d.p),
+    },
+    {
+      k: 'obras',
+      rotulo: 'Obras',
+      largura: L.obras,
+      classe: 'centro',
+      celular: 'some',
+      valor: (d) => d.r.obras.length,
+      celula: (d) => (d.r.obras.length ? `${d.r.obras.length}` : ''),
+    },
+    {
+      k: 'pago',
+      rotulo: 'Pago',
+      largura: L.pago,
+      num: true,
+      valor: (d) => d.r.pago,
+      celula: (d) => reais(d.r.pago, { cinzaNoZero: true }),
+      total: (ds) => reais(totais(ds).pago),
+    },
+    {
+      k: 'contratado',
+      rotulo: 'Contratado',
+      largura: L.contratado,
+      num: true,
+      celular: 'some',
+      valor: (d) => (d.r.temContrato ? d.r.contratado : -1),
+      celula: (d) =>
+        d.r.temContrato
+          ? reais(d.r.contratado)
+          : { span: 2, html: SEM_CONTRATO, classe: 'cel-sem-contrato mostrar-celular' },
+      total: (ds) => {
+        const t = totais(ds);
+        return t.comContrato
+          ? reais(t.contratado)
+          : { span: 2, html: SEM_CONTRATO, classe: 'cel-sem-contrato' };
+      },
+    },
+    {
+      k: 'aPagar',
+      rotulo: 'A pagar',
+      largura: L.aPagar,
+      num: true,
+      celular: 'some',
+      valor: (d) => (d.r.temContrato ? d.r.aPagar : -1),
+      celula: (d) => reais(d.r.aPagar, { cinzaNoZero: true }),
+      total: (ds) => reais(totais(ds).aPagar),
+    },
+  ];
+  if (temAvaliacao) {
+    cols.push({
+      k: 'avaliacao',
+      rotulo: 'Avaliação',
+      largura: L.aval,
+      num: true,
+      celular: 'some',
+      valor: (d) => (d.a.media === null ? -1 : d.a.media),
+      /* sem avaliação, célula vazia — nem traço, nem zero */
+      celula: (d) =>
+        d.a.media === null
+          ? ''
+          : `<span class="nota" title="${plural(d.a.avaliacoes, 'avaliação', 'avaliações')}">${d.a.media.toFixed(1).replace('.', ',')} ${svg(ICO.estrela, 11)}</span>`,
+    });
+  }
+  return cols;
+}
 
-function barraFiltros(todos) {
-  const esp = [...new Set(todos.map((p) => p.especialidade).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b, 'pt'),
-  );
+/* Filtros em pílula: especialidade abre um menu; "Com saldo a pagar" e
+   "Arquivados" ligam e desligam. Cada um com a contagem. */
+function barraFiltros() {
+  const semEsp = base({ semEspecialidade: true });
+  const comSaldo = comDados(base()).filter((d) => d.r.aPagar > 0.005).length;
   const arquivados = Store.estado.prestadores.filter((p) => p.arquivado).length;
+  const sug = somenteLeitura() ? 0 : sugestoes().length;
   return `<div class="filtro-barra nao-imprime">
-    <select data-acao="prest-especialidade" aria-label="Especialidade">
-      <option value="">Todas as especialidades</option>
-      ${esp.map((e) => `<option ${e === tela.especialidade ? 'selected' : ''}>${esc(e)}</option>`).join('')}
-    </select>
-    <button class="filtro-chave" data-acao="prest-com-saldo" aria-pressed="${tela.comSaldo}">Com saldo a pagar</button>
+    <button class="pilula${tela.especialidade ? ' ativa' : ''}" data-acao="prest-esp-menu" aria-haspopup="menu">
+      ${tela.especialidade ? esc(tela.especialidade) : 'Todas as especialidades'} <span class="conta">${
+        tela.especialidade
+          ? semEsp.filter((p) => p.especialidade === tela.especialidade).length
+          : semEsp.length
+      }</span> ${svg(ICO.seta, 10)}
+    </button>
+    <button class="pilula${tela.comSaldo ? ' ativa' : ''}" data-acao="prest-com-saldo" aria-pressed="${tela.comSaldo}">
+      Com saldo a pagar <span class="conta">${comSaldo}</span>
+    </button>
     ${
       arquivados || tela.arquivados
-        ? `<button class="filtro-chave" data-acao="prest-arquivados" aria-pressed="${tela.arquivados}">Arquivados (${arquivados})</button>`
+        ? `<button class="pilula${tela.arquivados ? ' ativa' : ''}" data-acao="prest-arquivados" aria-pressed="${tela.arquivados}">
+          Arquivados <span class="conta">${arquivados}</span></button>`
         : ''
     }
-    ${(() => {
-      /* Arrumação do cadastro fica junto dos filtros, não na toolbar: no
-         celular ela empurrava o título para fora da tela. */
-      const sug = somenteLeitura() ? 0 : sugestoes().length;
-      return sug
-        ? `<button class="btn pequeno filtro-dir" data-acao="prest-revisar-nomes"
-            title="Nomes em caixa alta ou com a especialidade junto">Revisar nomes (${sug})</button>`
-        : '';
-    })()}
+    ${
+      sug
+        ? `<span class="aviso-discreto filtro-dir">${plural(sug, 'nome', 'nomes')} em caixa alta ·
+          <button class="btn-link" data-acao="prest-revisar-nomes">Revisar</button></span>`
+        : ''
+    }
+  </div>`;
+}
+
+/* Faixa acima da lista: quem recebeu sem contrato ligado. */
+function faixaSemContrato() {
+  if (tela.arquivados) return '';
+  const n = prestadoresPagosSemContrato(Store.estado).length;
+  if (!n) return '';
+  return `<div class="faixa-aviso" role="status">
+    <span>${plural(n, 'prestador', 'prestadores')} com pagamentos sem contrato</span>
+    <button class="btn-link" data-acao="ir" data-view="contratos">Vincular contratos</button>
   </div>`;
 }
 
@@ -261,68 +312,117 @@ function barraFiltros(todos) {
 function inspetor(p) {
   const r = resumoPrestador(Store.estado, p);
   const a = avaliacaoPrestador(Store.estado, p);
-  const par = (rot, val) =>
-    val ? `<div class="par"><dt>${esc(rot)}</dt><dd>${val}</dd></div>` : '';
   const pix = TIPOS_PIX.find((t) => t.v === p.tipoPix);
   const forma = FORMAS_CONTRATACAO.find((f) => f.v === p.formaContratacao);
+  const nome = nomeExibicao(p.nome);
 
-  const contato =
-    p.whatsapp || p.telefone
-      ? `<div class="inspetor-contato">
-        ${p.whatsapp ? `<div class="linha-contato"><span><b>${esc(formatarTelefoneBR(p.whatsapp))}</b><span class="tinta3">${p.temWhatsapp === false ? 'sem WhatsApp' : 'WhatsApp'}</span></span>${botoesContato({ ...p, telefone: '' }, { grande: true })}</div>` : ''}
-        ${
-          p.telefone
-            ? `<div class="linha-contato"><span><b>${esc(formatarTelefoneBR(p.telefone))}</b><span class="tinta3">telefone</span></span>
-            <span class="contatos"><a class="btn-contato grande" href="${esc(linkTelefone(p.telefone))}" data-acao="abrir-externo" aria-label="Ligar para ${esc(p.nome)}">${svg(ICO.telefone, 15)}</a></span></div>`
-            : ''
-        }
-      </div>`
-      : `<p class="tinta2 inspetor-vazio">Sem telefone. ${somenteLeitura() ? '' : `<button class="btn-link" data-acao="editar-prestador" data-id="${esc(p.id)}" data-foco="whatsapp">Adicionar WhatsApp</button>`}</p>`;
+  /* linha de número: rótulo (com a origem em cinza embaixo) e valor à direita */
+  const linhaNum = (rotulo, valor, origem = '') =>
+    `<div class="par par-num"><dt>${esc(rotulo)}${origem ? `<span>${esc(origem)}</span>` : ''}</dt><dd>${valor}</dd></div>`;
+  const origemPago = [
+    r.qtdMedicoesPagas ? plural(r.qtdMedicoesPagas, 'medição', 'medições') : '',
+    r.qtdLancamentos ? plural(r.qtdLancamentos, 'lançamento', 'lançamentos') : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const numero = p.whatsapp || p.telefone;
+  const contato = `
+    ${
+      numero
+        ? `<div class="contato-numero"><b>${esc(formatarTelefoneBR(numero))}</b><span class="tinta3">${
+            p.whatsapp && p.temWhatsapp !== false ? 'WhatsApp' : 'telefone'
+          }</span></div>`
+        : ''
+    }
+    <div class="contato-botoes">
+      ${
+        p.whatsapp && p.temWhatsapp !== false
+          ? `<span class="botao-dividido">
+            <a class="btn" href="${esc(linkWhatsApp(p.whatsapp))}" target="_blank" rel="noopener" data-acao="abrir-externo">${svg(ICO.whatsapp, 14)}WhatsApp</a>
+            <button class="btn icone" data-acao="prest-mensagens" data-id="${esc(p.id)}" aria-haspopup="menu"
+              title="Mensagem pronta" aria-label="Mensagens prontas">${svg(ICO.seta, 10)}</button>
+          </span>`
+          : ''
+      }
+      ${
+        numero
+          ? `<a class="btn" href="${esc(linkTelefone(p.telefone && (!p.whatsapp || p.temWhatsapp === false) ? p.telefone : p.whatsapp))}"
+            data-acao="abrir-externo">${svg(ICO.telefone, 14)}Ligar</a>`
+          : ''
+      }
+      ${
+        p.chavePix
+          ? `<button class="btn" data-acao="prest-copiar-pix" data-id="${esc(p.id)}" title="${esc(p.chavePix)}">${svg(ICO.copiar, 14)}<span>Copiar PIX</span></button>`
+          : ''
+      }
+      ${
+        !p.whatsapp && !somenteLeitura()
+          ? `<button class="mais-whats" data-acao="editar-prestador" data-id="${esc(p.id)}" data-foco="whatsapp">+ WhatsApp</button>`
+          : ''
+      }
+    </div>
+    ${p.chavePix ? `<p class="linha-cinza">PIX${pix ? ` · ${esc(pix.t)}` : ''}: ${esc(p.chavePix)}</p>` : ''}`;
 
   const obras = r.obras.length
     ? `<table class="mini-tab"><thead><tr><th>Obra</th><th class="num">Contratado</th><th class="num">Pago</th></tr></thead>
-        <tbody>${r.obras.map((o) => `<tr><td>${esc(o.obraNome)}</td><td class="num">${reais(o.contratado, { cinzaNoZero: true })}</td><td class="num">${reais(o.pago, { cinzaNoZero: true })}</td></tr>`).join('')}</tbody></table>`
-    : '<p class="tinta2 inspetor-vazio">Ainda sem contrato nem pagamento. Escolha este prestador num contrato ou num lançamento.</p>';
+        <tbody>${r.obras
+          .map(
+            (o) => `<tr><td>${esc(o.obraNome)}</td>
+          <td class="num">${o.contratado > 0.005 ? reais(o.contratado) : '<span class="tinta3">sem contrato</span>'}</td>
+          <td class="num">${reais(o.pago, { cinzaNoZero: true })}</td></tr>`,
+          )
+          .join('')}</tbody></table>`
+    : '<p class="linha-cinza">Ainda sem contrato nem pagamento.</p>';
 
   const pagamentos = r.pagamentos.length
     ? `<ol class="pagamentos">${r.pagamentos
         .slice(0, 5)
         .map(
           (x) => `<li>
-          <span class="tinta2">${fmtDataCurta(x.data)}</span>
-          <span class="pg-txt"><b>${esc(x.descricao)}</b><span>${esc(x.obraNome)} · ${x.origem === 'medicao' ? 'medição' : 'lançamento'}</span></span>
-          <span class="num">${fmtMoney(x.valor)}</span></li>`,
+          <span class="tinta2">${dataCurtaAno(x.data)}</span>
+          <span class="pg-txt"><b>${esc(semNomeDoPrestador(p, x.descricao) || x.etapa || 'Pagamento')}</b><span>${esc(x.obraNome)}</span></span>
+          <span class="num">${fmtMoney(x.valor, { dec: 0 })}</span></li>`,
         )
-        .join('')}</ol>`
-    : '<p class="tinta2 inspetor-vazio">Nenhum pagamento ainda.</p>';
+        .join('')}</ol>
+       ${r.qtdLancamentos ? `<button class="btn-link ver-todos" data-acao="prest-ver-pagamentos" data-id="${esc(p.id)}">Ver todos os lançamentos</button>` : ''}`
+    : '<p class="linha-cinza">Nenhum pagamento ainda.</p>';
 
   const avaliacao =
     a.media === null
-      ? '<p class="tinta2 inspetor-vazio">Sem avaliação. Ela é pedida quando um contrato dele é concluído.</p>'
+      ? '<p class="linha-cinza">Sem avaliação</p>'
       : `<dl class="pares">
-        ${par('Média', `${a.media.toFixed(1).replace('.', ',')} ${svg(ICO.estrela, 11)} <span class="tinta3">${a.avaliacoes} contrato${a.avaliacoes > 1 ? 's' : ''}</span>`)}
-        ${a.criterios.map((c) => par(c.rotulo, c.media === null ? '<span class="tinta3">—</span>' : c.media.toFixed(1).replace('.', ','))).join('')}
+        ${linhaNum('Média', `${a.media.toFixed(1).replace('.', ',')} ${svg(ICO.estrela, 11)}`, plural(a.avaliacoes, 'contrato', 'contratos'))}
+        ${a.criterios.map((c) => linhaNum(c.rotulo, c.media === null ? '<span class="tinta3">—</span>' : c.media.toFixed(1).replace('.', ','))).join('')}
       </dl>`;
 
-  return `<aside class="inspetor" data-testid="inspetor-prestador" aria-label="${esc(p.nome)}">
+  return `<aside class="inspetor inspetor-prestador" tabindex="-1" data-testid="inspetor-prestador" aria-label="${esc(nome)}">
     <div class="inspetor-cab">
-      <h2>${esc(p.nome)}<span class="sub">${esc([p.apelido && p.apelido !== p.nome ? p.apelido : '', p.especialidade].filter(Boolean).join(' · ') || 'sem especialidade')}${p.arquivado ? ' · arquivado' : ''}</span></h2>
+      <h2>${esc(nome)}<span class="sub">${esc(
+        [p.especialidade, p.apelido && p.apelido !== p.nome ? `“${p.apelido}”` : '']
+          .filter(Boolean)
+          .join(' · ') || 'sem especialidade',
+      )}${p.arquivado ? ' · arquivado' : ''}</span></h2>
+      ${
+        somenteLeitura()
+          ? ''
+          : `${botao('Editar', 'editar-prestador', { id: p.id }, 'btn pequeno')}
+        <button class="btn sutil icone" data-acao="prest-menu" data-id="${esc(p.id)}" data-no-inspetor="1"
+          title="Mais ações" aria-label="Mais ações" aria-haspopup="menu">${svg(ICO.maisH, 15)}</button>`
+      }
       <button class="btn sutil icone" data-acao="prest-fechar" title="Fechar" aria-label="Fechar">${svg(ICO.x, 13)}</button>
     </div>
     <div class="inspetor-corpo">
       <div class="inspetor-secao"><h3>Contato</h3>${contato}</div>
-      ${
-        p.chavePix
-          ? `<div class="inspetor-secao"><h3>PIX${pix ? ` · ${esc(pix.t)}` : ''}</h3>
-          <div class="linha-pix"><code>${esc(p.chavePix)}</code>
-          <button class="btn pequeno" data-acao="prest-copiar-pix" data-id="${esc(p.id)}">${svg(ICO.copiar, 13)}<span>Copiar PIX</span></button></div></div>`
-          : ''
-      }
       <div class="inspetor-secao"><h3>Números</h3><dl class="pares">
-        ${par('Contratado', reais(r.contratado))}
-        ${par('Pago', `${reais(r.pago)}${r.pagoLancamentos ? ` <span class="tinta3">${fmtMoney(r.pagoLancamentos, { dec: 0 })} por lançamento</span>` : ''}`)}
-        ${par('A pagar', reais(r.aPagar))}
-        ${r.medidoNaoPago > 0.005 ? par('Medido e não pago', reais(r.medidoNaoPago)) : ''}
+        ${linhaNum('Pago', reais(r.pago, { cinzaNoZero: true }), origemPago)}
+        ${
+          r.temContrato
+            ? `${linhaNum('Contratado', reais(r.contratado), plural(r.qtdContratos, 'contrato', 'contratos'))}
+             ${linhaNum('A pagar', reais(r.aPagar, { cinzaNoZero: true }))}
+             ${r.medidoNaoPago > 0.005 ? linhaNum('Medido e não pago', reais(r.medidoNaoPago)) : ''}`
+            : linhaNum('Contratado e a pagar', SEM_CONTRATO)
+        }
       </dl></div>
       <div class="inspetor-secao"><h3>Obras</h3>${obras}</div>
       <div class="inspetor-secao"><h3>Últimos pagamentos</h3>${pagamentos}</div>
@@ -330,27 +430,10 @@ function inspetor(p) {
       ${
         p.documento || forma || p.observacoes
           ? `<div class="inspetor-secao"><h3>Cadastro</h3><dl class="pares">
-        ${par('CPF/CNPJ', esc(p.documento))}
-        ${forma ? par('Contratação', `${esc(forma.t)}${p.valorReferencia ? ` · ${fmtMoney(p.valorReferencia)}` : ''}`) : ''}
-      </dl>${p.observacoes ? `<p class="obs">${esc(p.observacoes)}</p>` : ''}</div>`
+            ${p.documento ? linhaNum('CPF/CNPJ', esc(p.documento)) : ''}
+            ${forma ? linhaNum('Contratação', `${esc(forma.t)}${p.valorReferencia ? ` · ${fmtMoney(p.valorReferencia)}` : ''}`) : ''}
+          </dl>${p.observacoes ? `<p class="obs">${esc(p.observacoes)}</p>` : ''}</div>`
           : ''
-      }
-      ${
-        somenteLeitura()
-          ? ''
-          : `<div class="inspetor-secao acoes-inspetor">
-        ${botao('Editar', 'editar-prestador', { id: p.id }, 'btn')}
-        ${
-          p.arquivado
-            ? botao('Desarquivar', 'prest-desarquivar', { id: p.id }, 'btn')
-            : botao(
-                r.temVinculo ? 'Arquivar' : 'Excluir',
-                'excluir-prestador',
-                { id: p.id },
-                'btn sutil',
-              )
-        }
-      </div>`
       }
     </div>
   </aside>`;
@@ -372,14 +455,18 @@ VIEWS.prestadores = () => {
   }
   const ds = dados();
   const sel = tela.selecao && acharPrestador(tela.selecao);
+  const temAvaliacao = todos.some(
+    (p) => !p.arquivado && avaliacaoPrestador(Store.estado, p).media !== null,
+  );
   return `<div class="tela-prestadores">
     <div class="tela-principal">
-      ${barraFiltros(todos.filter((p) => !!p.arquivado === tela.arquivados))}
+      ${barraFiltros()}
+      ${faixaSemContrato()}
       ${lista({
         id: 'prestadores',
         testid: 'lista-prestadores',
         tabelaClasse: 'lista-prestadores',
-        colunas: COLUNAS,
+        colunas: colunas(temAvaliacao),
         itens: ds,
         ordemPadrao: { col: 'nome', dir: 1 },
         rodapeRotulo: (n) => `${n} prestadores`,
@@ -397,6 +484,42 @@ VIEWS.prestadores.toolbar = () => {
   if (!Store.estado.prestadores.length) return '';
   return `${buscaToolbar('Buscar prestador', 'busca-prestadores')}
     ${somenteLeitura() ? '' : botao('<span class="rotulo-btn">Novo prestador</span>', 'novo-prestador', {}, 'btn primario', 'mais')}`;
+};
+
+/* ---------------------------------------- filtros e atalhos do inspetor */
+
+ACOES['prest-esp-menu'] = (el) => {
+  const semEsp = base({ semEspecialidade: true });
+  const esp = [...new Set(semEsp.map((p) => p.especialidade).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, 'pt'),
+  );
+  const item = (valor, rotulo, n) =>
+    `<button role="menuitemradio" aria-checked="${tela.especialidade === valor}" data-acao="prest-filtrar-esp" data-esp="${esc(valor)}">
+      <span>${esc(rotulo)}</span><span class="conta">${n}</span></button>`;
+  abrirMenuEm(
+    el,
+    [
+      item('', 'Todas as especialidades', semEsp.length),
+      esp.length ? '<hr>' : '',
+      ...esp.map((e) => item(e, e, semEsp.filter((p) => p.especialidade === e).length)),
+    ].join(''),
+  );
+};
+ACOES['prest-filtrar-esp'] = (el, d) => {
+  tela.especialidade = d.esp || '';
+  App.renderConteudo();
+};
+
+/* "Ver todos": Lançamentos filtrado por este prestador, na obra do
+   pagamento mais recente. */
+ACOES['prest-ver-pagamentos'] = (el, d) => {
+  const p = acharPrestador(d.id);
+  if (!p) return;
+  const r = resumoPrestador(Store.estado, p);
+  const ult = r.pagamentos.find((x) => x.origem === 'lancamento');
+  App.ir('lancamentos', ult ? ult.obraId : undefined);
+  App.filtros.prestadorId = p.id;
+  App.renderConteudo();
 };
 
 /* ============================================================ formulário
@@ -602,10 +725,6 @@ ACOES['prest-com-saldo'] = () => {
 ACOES['prest-arquivados'] = () => {
   tela.arquivados = !tela.arquivados;
   tela.selecao = '';
-  App.renderConteudo();
-};
-ACOES['prest-especialidade'] = (el) => {
-  tela.especialidade = el.value;
   App.renderConteudo();
 };
 ACOES['prest-desarquivar'] = (el, d) => {

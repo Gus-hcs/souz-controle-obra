@@ -155,16 +155,35 @@ function lista({
       .filter(Boolean)
       .join(' ');
 
+  /* Uma célula pode devolver { span, html, classe } para ocupar várias
+     colunas — ex.: "Sem contrato" no lugar de Contratado e A pagar. As
+     colunas cobertas pelo span não são desenhadas nessa linha. */
+  const linha = (valores, td) => {
+    let pular = 0;
+    return colunas
+      .map((c, i) => {
+        if (pular > 0) {
+          pular--;
+          return '';
+        }
+        const v = valores(c, i);
+        if (v && typeof v === 'object') {
+          pular = Math.max(0, (v.span || 1) - 1);
+          return `<td colspan="${v.span || 1}" class="${[td(c, i), v.classe].filter(Boolean).join(' ')}">${v.html}</td>`;
+        }
+        return `<td class="${td(c, i)}"${c.num && c.celular !== 'some' && v !== '' ? ` data-rotulo="${esc(c.rotulo)}"` : ''}>${v ?? ''}</td>`;
+      })
+      .join('');
+  };
+
   const corpo = ordenados.length
     ? ordenados
         .map(
           (it) =>
-            `<tr${linhaClasse ? ` class="${linhaClasse(it) || ''}"` : ''}${linhaAttrs ? ' ' + linhaAttrs(it) : ''}>${colunas
-              .map(
-                (c) =>
-                  `<td class="${classeTd(c)}"${c.num && c.celular !== 'some' ? ` data-rotulo="${esc(c.rotulo)}"` : ''}>${c.celula(it)}</td>`,
-              )
-              .join('')}</tr>`,
+            `<tr${linhaClasse ? ` class="${linhaClasse(it) || ''}"` : ''}${linhaAttrs ? ' ' + linhaAttrs(it) : ''}>${linha(
+              (c) => c.celula(it),
+              (c) => classeTd(c),
+            )}</tr>`,
         )
         .join('')
     : `<tr><td colspan="${colunas.length}" class="tinta2" style="text-align:center;height:56px">
@@ -173,15 +192,17 @@ function lista({
   const temTotal = colunas.some((c) => c.total);
   const rodape =
     ordenados.length > 1 && temTotal
-      ? `<tfoot><tr>${colunas
-          .map((c, i) => {
+      ? `<tfoot><tr>${linha(
+          (c, i) => {
             if (i === 0)
-              return `<td>${esc(rodapeRotulo ? rodapeRotulo(ordenados.length) : `${ordenados.length}`)}</td>`;
-            if (!c.total)
-              return `<td class="${c.celular === 'some' ? 'some-no-celular' : ''}"></td>`;
-            return `<td class="num">${c.total(ordenados)}</td>`;
-          })
-          .join('')}</tr></tfoot>`
+              return esc(rodapeRotulo ? rodapeRotulo(ordenados.length) : `${ordenados.length}`);
+            return c.total ? c.total(ordenados) : '';
+          },
+          (c, i) =>
+            [i > 0 && c.total ? 'num' : '', c.celular === 'some' ? 'some-no-celular' : '']
+              .filter(Boolean)
+              .join(' '),
+        )}</tr></tfoot>`
       : '';
 
   return `<div class="lista-cx">

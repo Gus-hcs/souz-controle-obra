@@ -6,7 +6,7 @@ import { alertasObra, basesContratuais, contratoTotalAutorizado, contratoTotalPa
 import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
-import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, toast } from './shell.js';
+import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
 import { carregarAuditoria, contratosAbertos, implExpandida } from './telas-obra.js';
 
 const ACOES = {};
@@ -207,6 +207,49 @@ ACOES['excluir-obra'] = () => {
     toast('Obra excluída.', 'aviso');
   });
 };
+
+/* Menu do seletor de obra: cada obra em duas linhas, como no botão. */
+function fecharMenuObra() {
+  const m = document.querySelector('.menu-obra');
+  if (m) m.remove();
+  const b = document.querySelector('[data-acao="obra-menu"]');
+  if (b) b.setAttribute('aria-expanded', 'false');
+}
+ACOES['obra-menu'] = (el) => {
+  if (document.querySelector('.menu-obra')) return fecharMenuObra();
+  const naCarteira = App.rota.view === 'carteira';
+  const item = (id, l1, l2, marcado) => `<button role="menuitemradio" aria-checked="${marcado}"
+      data-acao="trocar-obra-id" data-obra="${esc(id)}"><span class="item-duplo"><b>${esc(l1)}</b>${l2 ? `<span>${esc(l2)}</span>` : ''}</span></button>`;
+  const menu = document.createElement('div');
+  menu.className = 'menu-ctx menu-obra';
+  menu.setAttribute('role', 'menu');
+  menu.innerHTML = [
+    item('', 'Todas as obras', 'visão da carteira', naCarteira),
+    '<hr>',
+    ...Store.estado.obras.map((o) => {
+      const [l1, l2] = partesNomeObra(o);
+      return item(o.id, l1, l2, !naCarteira && o.id === App.rota.obraId);
+    }),
+  ].join('');
+  document.body.appendChild(menu);
+  const r = el.getBoundingClientRect();
+  menu.style.left = r.left + 'px';
+  menu.style.top = r.bottom + 4 + 'px';
+  menu.style.minWidth = r.width + 'px';
+  el.setAttribute('aria-expanded', 'true');
+  const atual = menu.querySelector('[aria-checked="true"]') || menu.querySelector('button');
+  if (atual) atual.focus();
+};
+ACOES['trocar-obra-id'] = (el, d) => {
+  fecharMenuObra();
+  ACOES['trocar-obra']({ value: d.obra || '' });
+};
+document.addEventListener('mousedown', (ev) => {
+  if (!ev.target.closest('.menu-obra, [data-acao="obra-menu"]')) fecharMenuObra();
+});
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && document.querySelector('.menu-obra')) fecharMenuObra();
+});
 
 ACOES['trocar-obra'] = (el) => {
   /* "Todas as obras" leva à carteira; a obra ativa continua lembrada
