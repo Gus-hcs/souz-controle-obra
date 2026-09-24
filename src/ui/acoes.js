@@ -51,11 +51,16 @@ ACOES['recarregar-auditoria'] = () => {
   if (o) { carregarAuditoria(o.id, true); App.renderConteudo(); }
 };
 ACOES.tema = () => {
-  /* O escuro é o padrão; alterna só entre padrão e claro. */
-  const claro = document.documentElement.getAttribute('data-theme') === 'light';
-  const novo = claro ? 'dark' : 'light';
-  document.documentElement.setAttribute('data-theme', novo);
-  try { localStorage.setItem('souz_tema', novo); } catch (e) {}
+  /* Sem escolha gravada, o sistema segue a preferência do aparelho. O botão
+     alterna a partir do que está na tela agora, não de um padrão fixo. */
+  const html = document.documentElement;
+  const escolhido = html.getAttribute('data-theme');
+  const escuroAgora = escolhido
+    ? escolhido === 'dark'
+    : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const novo = escuroAgora ? 'light' : 'dark';
+  html.setAttribute('data-theme', novo);
+  try { localStorage.setItem('souz_tema', novo); } catch (e) { /* navegação privada */ }
 };
 ACOES['fechar-modal'] = () => fecharModal();
 ACOES.imprimir = () => window.print();

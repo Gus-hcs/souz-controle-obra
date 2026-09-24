@@ -1,13 +1,30 @@
 /**
  * app.js — Ponto de entrada: delegação de eventos, rotas e inicialização.
  */
+/* Ordem importa: estilo.css é o legado, tokens/interface são a linguagem
+   nova e legado.css religa os nomes antigos aos tokens. Quem vem depois
+   vence na cascata. */
 import './estilo.css';
+import './ui/tokens.css';
+import './ui/interface.css';
+import './ui/legado.css';
 import { Store } from './dados/store.js';
-import { EXIGE_BANCO, SUPA, ehArtefato, entrarNoSistema, telaConfigBanco, telaLogin } from './dados/supabase.js';
+import {
+  EXIGE_BANCO,
+  SUPA,
+  ehArtefato,
+  entrarNoSistema,
+  telaConfigBanco,
+  telaLogin,
+} from './dados/supabase.js';
 import { App, VIEWS_OBRA, fecharModal, modalAoSalvar, rodarCalcForm, toast } from './ui/shell.js';
 import { ACOES } from './ui/acoes.js';
 import './ui/telas-obra.js';
 import './ui/telas-cadastros.js';
+/* Telas já convertidas para a linguagem nova — entram depois, porque
+   sobrescrevem a versão antiga registrada em VIEWS. */
+import './ui/telas/carteira.js';
+import './ui/telas/carteira-acoes.js';
 
 /* ---------------------------------------------------------- eventos */
 document.addEventListener('click', (ev) => {
@@ -17,7 +34,9 @@ document.addEventListener('click', (ev) => {
   const fn = ACOES[acao];
   if (!fn) return;
   ev.preventDefault();
-  try { fn(el, { ...el.dataset }); } catch (e) {
+  try {
+    fn(el, { ...el.dataset });
+  } catch (e) {
     console.error(e);
     toast('Erro: ' + e.message, 'critico');
   }
@@ -25,7 +44,12 @@ document.addEventListener('click', (ev) => {
 
 document.addEventListener('change', (ev) => {
   const el = ev.target;
-  if (el.tagName === 'INPUT' && el.type === 'file' && el.dataset.logo && ACOES['logo-selecionada']) {
+  if (
+    el.tagName === 'INPUT' &&
+    el.type === 'file' &&
+    el.dataset.logo &&
+    ACOES['logo-selecionada']
+  ) {
     ACOES['logo-selecionada'](el, { ...el.dataset });
     return;
   }
@@ -56,17 +80,60 @@ document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && document.getElementById('modal-camada').classList.contains('aberto')) {
     fecharModal();
   }
-  if (ev.key === 'Enter' && ev.target.dataset && ev.target.dataset.campo &&
-      ev.target.tagName === 'INPUT' && modalAoSalvar) {
+  if (
+    ev.key === 'Enter' &&
+    ev.target.dataset &&
+    ev.target.dataset.campo &&
+    ev.target.tagName === 'INPUT' &&
+    modalAoSalvar
+  ) {
     ev.preventDefault();
     ACOES['salvar-form']();
   }
   /* elementos com role="button" respondem a Enter/Espaço como um botão */
-  if ((ev.key === 'Enter' || ev.key === ' ') &&
-      ev.target.getAttribute && ev.target.getAttribute('role') === 'button' &&
-      ev.target.dataset.acao) {
+  if (
+    (ev.key === 'Enter' || ev.key === ' ') &&
+    ev.target.getAttribute &&
+    ev.target.getAttribute('role') === 'button' &&
+    ev.target.dataset.acao
+  ) {
     ev.preventDefault();
     ev.target.click();
+  }
+});
+
+/* Atalhos globais. ⌘ no Mac, Ctrl no resto — a tecla certa para cada casa. */
+document.addEventListener('keydown', (ev) => {
+  if (!(ev.metaKey || ev.ctrlKey) || ev.altKey) return;
+  const tecla = ev.key.toLowerCase();
+
+  if (tecla === 'k') {
+    const busca = document.querySelector('#topo input[type=search]');
+    if (!busca) return;
+    ev.preventDefault();
+    busca.focus();
+    busca.select();
+    return;
+  }
+
+  if (tecla === 'n') {
+    /* Cria o que faz sentido na tela em que se está. */
+    const novo = {
+      carteira: 'nova-obra',
+      medicoes: 'nova-medicao',
+      recebimentos: 'novo-recebimento',
+      lancamentos: 'novo-lancamento',
+      materiais: 'novo-material',
+      contratos: 'novo-contrato',
+      cronograma: 'nova-etapa',
+      diario: 'novo-diario',
+      clientes: 'novo-cliente',
+      prestadores: 'novo-prestador',
+    }[App.rota.view];
+    if (!novo || !ACOES[novo]) return;
+    if (document.getElementById('modal-camada').classList.contains('aberto')) return;
+    ev.preventDefault();
+    ACOES[novo](document.body, {});
   }
 });
 
@@ -75,7 +142,10 @@ document.getElementById('modal-camada').addEventListener('mousedown', (ev) => {
 });
 
 window.addEventListener('beforeunload', (ev) => {
-  if (Store.pendente) { ev.preventDefault(); ev.returnValue = ''; }
+  if (Store.pendente) {
+    ev.preventDefault();
+    ev.returnValue = '';
+  }
 });
 
 function restaurarRota() {
@@ -104,7 +174,9 @@ async function iniciar() {
     if (!SUPA.configurado()) return telaConfigBanco();
     const r = await SUPA.iniciar();
     if (r.estado === 'sem-biblioteca') {
-      return telaConfigBanco('Não consegui carregar a biblioteca do Supabase. Verifique a conexão com a internet.');
+      return telaConfigBanco(
+        'Não consegui carregar a biblioteca do Supabase. Verifique a conexão com a internet.',
+      );
     }
     if (r.estado === 'erro') return telaConfigBanco('Erro ao conectar: ' + (r.mensagem || ''));
     Store.aoMudar(() => App.renderTopo());
@@ -126,7 +198,11 @@ async function iniciar() {
   App.render();
 
   if (Store.modo === 'local') {
-    toast('Gravação na nuvem indisponível neste acesso: os dados ficam neste navegador. Baixe um backup em Ajustes.', 'aviso', 8000);
+    toast(
+      'Gravação na nuvem indisponível neste acesso: os dados ficam neste navegador. Baixe um backup em Ajustes.',
+      'aviso',
+      8000,
+    );
   }
   if (Store.modo === 'leitura') {
     toast('Acesso somente leitura: você pode consultar, mas não alterar.', 'aviso', 6000);
@@ -135,8 +211,4 @@ async function iniciar() {
 
 iniciar();
 
-export {
-  tFiltro,
-  restaurarRota,
-  iniciar
-};
+export { tFiltro, restaurarRota, iniciar };

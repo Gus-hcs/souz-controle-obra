@@ -1,0 +1,180 @@
+/* ================================================================
+   SOUZ — ponte para as telas ainda não convertidas
+
+   ARQUIVO TEMPORÁRIO. Existe só enquanto o redesenho anda tela a tela.
+   Ele religa os nomes de variável antigos de estilo.css aos tokens
+   novos, para que as 16 telas que ainda não foram refeitas herdem a
+   paleta e a tipografia corretas em vez de ficarem destoando ao lado
+   da tela já convertida.
+
+   Não escreva nada novo contra estes nomes. Quando a última tela sair
+   de estilo.css, este arquivo e o estilo.css vão junto.
+
+   Carregado DEPOIS de estilo.css, por isso vence na cascata.
+   ================================================================ */
+
+:root,
+:root[data-theme='light'],
+:root[data-theme='dark'] {
+  /* superfícies */
+  --bg: var(--fundo-janela);
+  --sup: var(--fundo-conteudo);
+  --sup2: var(--fundo-agrupado);
+  --sup3: var(--fundo-ctrl-ativo);
+  --linha: var(--separador);
+  --linha-forte: var(--separador-forte);
+
+  /* tinta — --tinta e --tinta2 já são tokens; falta só o terceiro nível */
+  --mudo: var(--tinta3);
+
+  /* marca */
+  --marca: var(--acento-texto);
+  --marca-forte: var(--acento-texto);
+  --marca-solida: var(--acento);
+  --marca-tinta: var(--sobre-acento);
+  --on-marca: var(--sobre-acento);
+
+  /* semânticos — "ok" deixa de ser verde: concluído é estado, não ação,
+     e verde nesta interface passou a significar só ação. */
+  --ok: var(--neutro-feito);
+  --aviso: var(--alerta);
+  --aviso-fraco: var(--alerta-fundo);
+  --critico: var(--atraso);
+  --critico-fraco: var(--atraso-fundo);
+
+  /* gráficos */
+  --s1: var(--serie1);
+  --s2: var(--serie2);
+  --s3: var(--serie3);
+  --grade: var(--grade-grafico);
+
+  /* a lateral antiga era preta em qualquer tema; agora acompanha o tema */
+  --rail: var(--fundo-lateral-solido);
+  --rail2: var(--fundo-hover);
+  --rail-linha: var(--separador);
+  --rail-tinta: var(--tinta);
+  --rail-mudo: var(--tinta2);
+  --rail-w: var(--lateral-w);
+  --topo-h: var(--toolbar-h);
+
+  /* raio e elevação */
+  --r: var(--r-btn);
+  --r2: var(--r-cartao);
+  --sombra: none;
+  --realce: none;
+}
+
+/* ------------------------------------------------------ tipografia
+   Tira Space Grotesk, Inter e JetBrains Mono das telas antigas: a
+   pilha do sistema passa a valer em toda parte. */
+body,
+h1,
+h2,
+h3,
+h4,
+.rotulo,
+table.tab th,
+.kpi .valor,
+.anel-t,
+.mono,
+.impl-fase-t,
+.rail-marca b,
+.acesso-marca b,
+#topo .titulo b,
+.lateral-nav .grupo {
+  font-family: var(--fonte);
+}
+
+/* Caixa alta com entreletra era o jeito antigo de marcar rótulo.
+   Agora o rótulo se distingue por tamanho e cinza, como no macOS. */
+.rotulo,
+table.tab th,
+.impl-fase-t,
+.rail-nav .grupo,
+table.tab td[data-rotulo]::before {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--t-mini);
+  font-weight: var(--p-medio);
+  color: var(--tinta2);
+}
+
+/* Nenhum número de tela de trabalho passa de 22px. */
+.kpi .valor {
+  font-size: var(--t-max);
+  font-weight: var(--p-semi);
+  letter-spacing: -0.01em;
+}
+.kpi.destaque .valor {
+  font-size: var(--t-max);
+}
+.kpi .rotulo {
+  font-size: var(--t-mini);
+}
+
+/* Cartão separa por fio, não por sombra. */
+.cartao,
+.kpi,
+.obra-cartao,
+.hero,
+.modal,
+.acesso-painel,
+table.tab tr {
+  box-shadow: none;
+}
+.cartao,
+.kpi,
+.obra-cartao {
+  border-radius: var(--r-cartao);
+}
+
+/* Linha de tabela antiga: de 56px para a altura da lista do Finder. */
+table.tab th {
+  height: var(--alt-ctrl);
+  padding: 0 var(--e3);
+  background: var(--fundo-agrupado);
+}
+table.tab td {
+  padding: var(--e1) var(--e3);
+}
+table.tab tbody tr:hover td {
+  background: var(--fundo-hover);
+}
+
+/* A tela de acesso perde o brilho radial de fundo. */
+#acesso {
+  background: var(--fundo-agrupado);
+  background-image: none;
+}
+:root[data-theme='light'] #acesso {
+  background: var(--fundo-agrupado);
+}
+
+/* O blur de fundo do modal sai: sheet não escurece com desfoque. */
+#modal-camada {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Chip antigo: vira etiqueta discreta, sem bolinha e sem cor de enfeite. */
+.chip {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--tinta2);
+  font-size: var(--t-peq);
+  font-weight: var(--p-normal);
+}
+.chip .pt {
+  display: none;
+}
+.chip.critico {
+  color: var(--atraso);
+}
+.chip.aviso {
+  color: var(--alerta);
+}
+.chip.ok,
+.chip.marca {
+  color: var(--tinta2);
+}

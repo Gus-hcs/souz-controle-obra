@@ -30,6 +30,7 @@ const ICO = {
   mais: '<path d="M8 3v10M3 8h10"/>',
   busca: '<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>',
   menu: '<path d="M2 4h12M2 8h12M2 12h12"/>',
+  tema: '<circle cx="8" cy="8" r="5.6"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor" stroke="none"/>',
   x: '<path d="M4 4l8 8M12 4l-8 8"/>',
   baixar: '<path d="M8 2v8M4.5 7 8 10.5 11.5 7M2.5 13.5h11"/>',
   lapis: '<path d="M11 2.5 13.5 5 5.5 13H3v-2.5z"/>',
@@ -164,27 +165,26 @@ const App = {
         }
         if (it.v === 'carteira' && obras.length) cont = `<span class="cont">${obras.length}</span>`;
         const ponto = marcaPasso && impl
-          ? `<span class="rail-ponto${feitoView[it.v] ? ' feito' : ''}" aria-hidden="true"></span>`
+          ? `<span class="ponto${feitoView[it.v] ? ' feito' : ''}" aria-hidden="true"></span>`
           : '';
         return `<button data-acao="ir" data-view="${it.v}"${ativo}>${svg(ICO[it.i])}<span>${it.t}</span>${ponto}${cont}</button>`;
       }).join('');
       if (!itens) return '';
       const cab = g.passo
-        ? `<div class="grupo grupo-fase"><span class="grupo-n">${g.passo}</span><span>${g.grupo}</span><span class="grupo-nota">${g.nota}</span></div>`
+        ? `<div class="grupo"><span>${g.grupo}</span><span class="grupo-nota">${g.nota}</span></div>`
         : `<div class="grupo">${g.grupo}</div>`;
       return cab + itens;
     }).join('');
 
     document.getElementById('rail').innerHTML = `
-      <div class="rail-marca">
+      <div class="lateral-marca">
         <span class="marca-mark">${LOGO}</span>
-        <div><b>SouZ</b><span>Controle de obra</span></div>
+        <b>SouZ</b>
       </div>
-      <div class="rail-obra">
-        <span class="rotulo">Obra ativa</span>
-        <select data-acao="trocar-obra" aria-label="Selecionar obra">${opcoes}</select>
+      <div class="lateral-obra">
+        <select data-acao="trocar-obra" aria-label="Obra ativa">${opcoes}</select>
       </div>
-      <nav class="rail-nav">${nav}</nav>`;
+      <nav class="lateral-nav">${nav}</nav>`;
   },
 
   renderTopo() {
@@ -194,15 +194,26 @@ const App = {
     const legenda = VIEWS_OBRA.has(this.rota.view) && obra
       ? `${esc(obra.nome)}${obra.cidade ? ' · ' + esc(obra.cidade) : ''}`
       : sub;
+    /* Toolbar unificada: cada tela pode contribuir com as próprias ações,
+       que entram à direita, antes dos controles globais do sistema. */
+    const fnTela = VIEWS[this.rota.view];
+    let acoesTela = '';
+    try {
+      if (fnTela && typeof fnTela.toolbar === 'function') acoesTela = fnTela.toolbar() || '';
+    } catch (e) {
+      console.error(e);
+    }
+
     document.getElementById('topo').innerHTML = `
-      <button class="btn sutil menu-mob" data-acao="menu" aria-label="Abrir menu">${svg(ICO.menu)}</button>
+      <button class="btn sutil icone menu-mob" data-acao="menu" aria-label="Abrir menu">${svg(ICO.menu)}</button>
       <div class="titulo"><b>${t}</b><span>${legenda}</span></div>
       <div class="dir">
+        ${acoesTela}
         <span class="status-salvo ${st.tom}" title="${esc(Store.ultimoErro || '')}"><span class="pt"></span>${st.texto}</span>
         ${Store.backend === 'supabase' && SUPA.usuario ? `
           <span class="usuario" title="${esc(SUPA.usuario.email || '')}">${esc((SUPA.usuario.email || '').split('@')[0])}</span>
           <button class="btn sutil" data-acao="auth-sair" title="Sair do sistema" aria-label="Sair">Sair</button>` : ''}
-        <button class="btn sutil" data-acao="tema" aria-label="Alternar tema claro/escuro" title="Alternar tema">◐</button>
+        <button class="btn sutil icone" data-acao="tema" aria-label="Alternar tema claro/escuro" title="Alternar tema">${svg(ICO.tema, 15)}</button>
       </div>`;
   },
 
@@ -210,6 +221,9 @@ const App = {
     const alvo = document.getElementById('conteudo');
     document.body.dataset.view = this.rota.view;
     const fn = VIEWS[this.rota.view];
+    /* Telas com inspetor cuidam da própria rolagem: o conteúdo vira um
+       contêiner de painéis lado a lado em vez de um bloco que rola inteiro. */
+    alvo.classList.toggle('paineis', !!(fn && fn.paineis));
     try {
       alvo.innerHTML = fn ? fn() : '<div class="vazio">Tela não encontrada.</div>';
     } catch (e) {

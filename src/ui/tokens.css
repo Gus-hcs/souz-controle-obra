@@ -1,0 +1,295 @@
+/* ================================================================
+   SOUZ — tokens de interface  (PROPOSTA — ainda não ligada ao build)
+
+   Linguagem: app nativo de macOS (Finder, Notas, Numbers, Ajustes do
+   Sistema) com a marca Souz no lugar do azul da Apple.
+
+   Três regras que explicam todas as escolhas daqui para baixo:
+
+   1. Hierarquia por PESO e TOM, nunca por tamanho nem por cor.
+      Por isso a escala de tipo é curta (11→22) e os cinzas são muitos.
+   2. Separação por LINHA de 1px, não por caixa nem por sombra.
+      Sombra existe só no que flutua de verdade: menu, popover, sheet.
+   3. Cor só quando INFORMA. Um único acento (o ciano da marca) para
+      seleção, foco, ação principal e estado ativo. O resto é cinza,
+      fora atraso / estouro, que são vermelho e âmbar.
+
+   O claro é a base; o escuro entra por prefers-color-scheme e pode ser
+   forçado nos dois sentidos por data-theme no <html>.
+   ================================================================ */
+
+:root {
+  color-scheme: light;
+
+  /* ---------------------------------------------------------- tipo
+     Pilha do sistema. SF Pro não se embute: a licença da Apple não
+     permite uso web fora das plataformas dela — mas em um Mac o
+     -apple-system já entrega SF Pro. No Windows cai no Segoe UI. */
+  --fonte: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'Helvetica Neue', sans-serif;
+  --fonte-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  --t-mini: 11px; /* rótulo de coluna, legenda de gráfico, contador */
+  --t-peq: 12px; /* texto secundário, subtítulo, dica */
+  --t-corpo: 13px; /* PADRÃO — tabela, botão, campo, item de menu */
+  --t-medio: 15px; /* título de seção, valor em destaque numa linha */
+  --t-grande: 17px; /* título de sheet e de popover */
+  --t-tela: 20px; /* título da tela na toolbar */
+  --t-max: 22px; /* teto absoluto dentro do app; nada passa disso */
+
+  --p-normal: 400;
+  --p-medio: 500;
+  --p-semi: 590; /* o "semibold" do SF; no Segoe arredonda para 600 */
+  --p-forte: 700;
+
+  --lh-apertado: 1.25;
+  --lh: 1.45;
+
+  /* ------------------------------------------------- espaço (4px) */
+  --e1: 4px;
+  --e2: 8px;
+  --e3: 12px;
+  --e4: 16px;
+  --e5: 20px;
+  --e6: 24px;
+  --e8: 32px;
+  --e10: 40px;
+
+  /* -------------------------------------------------------- raio
+     macOS é econômico: 6px no botão, 8px no cartão, 10px no que
+     flutua. Nada de 16px "arredondado por decoração". */
+  --r-micro: 3px; /* indicador, tag, barra de progresso */
+  --r-campo: 5px; /* campo de texto, select */
+  --r-btn: 6px; /* botão, controle segmentado */
+  --r-cartao: 8px; /* cartão, popover */
+  --r-sheet: 10px; /* sheet, folha que desce do topo */
+  --r-total: 999px;
+
+  /* ------------------------------------------------------ medidas
+     Alturas de controle do AppKit. A linha de tabela em 28px é o que
+     põe 15+ linhas em 1440×900 sem rolagem. */
+  --alt-mini: 20px;
+  --alt-peq: 24px;
+  --alt-ctrl: 28px; /* botão e campo padrão */
+  --linha-tab: 28px; /* linha de tabela — lista do Finder */
+  --linha-tab-alta: 32px; /* só quando a linha leva duas informações */
+  --item-lateral: 28px; /* item da sidebar */
+  --toolbar-h: 52px; /* toolbar unificada */
+  --lateral-w: 220px; /* sidebar */
+  --inspetor-w: 300px; /* painel inspetor à direita */
+
+  /* ------------------------------------------------------ camadas
+     No claro, o conteúdo é branco e a sidebar é o material cinza —
+     o contrário do escuro. É assim no Finder, e é o que faz a janela
+     parecer profunda sem sombra nenhuma. */
+  --fundo-janela: #ffffff;
+  --fundo-conteudo: #ffffff;
+  --fundo-lateral: rgba(246, 247, 247, 0.82); /* material translúcido */
+  --fundo-lateral-solido: #f6f7f7; /* fallback sem backdrop-filter */
+  --fundo-toolbar: rgba(252, 252, 252, 0.8);
+  --fundo-agrupado: #f5f6f6; /* fundo de área com cartões dentro */
+  --fundo-elevado: #ffffff; /* popover, menu, sheet */
+  --fundo-campo: #ffffff;
+  --fundo-ctrl: #ffffff; /* botão neutro */
+  --fundo-ctrl-ativo: #eceded; /* botão pressionado */
+  --fundo-zebra: rgba(0, 0, 0, 0.022); /* zebra quase imperceptível */
+  --fundo-hover: rgba(0, 0, 0, 0.045);
+
+  /* ------------------------------------------------------- tinta
+     Todos passam AA (4,5:1) para texto pequeno sobre o fundo do conteúdo,
+     nos dois temas — tests/contraste.test.js confere.
+     Uma restrição: --tinta3 NÃO vale sobre a lateral no escuro (3,9:1).
+     Cabeçalho de seção da sidebar usa --tinta2. */
+  --tinta: #161a19; /* primária */
+  --tinta2: #5b6462; /* secundária — rótulo, subtítulo */
+  --tinta3: #69726f; /* terciária — placeholder, unidade, dica (AA: 4,96 no branco) */
+  --tinta-inversa: #ffffff;
+
+  /* --------------------------------------------------- separador
+     Uma linha, nunca uma caixa. A "forte" só separa cabeçalho de
+     tabela do corpo e rodapé de total. */
+  --separador: rgba(0, 0, 0, 0.1);
+  --separador-forte: rgba(0, 0, 0, 0.18);
+
+  /* ------------------------------------------------------- acento
+     Ciano da marca. Regra do manual: preenchimento ciano leva texto
+     ESCURO, nunca branco. Vale também para a linha selecionada. */
+  --acento: #0e9384; /* preenchimento: botão primário, seleção */
+  --acento-premido: #0b7a6d;
+  --acento-texto: #0a6b62; /* texto/link/ícone em ciano sobre claro */
+  --acento-fraco: #e6f4f2; /* fundo de apoio bem lavado */
+  --sobre-acento: #04120f; /* o que fica em cima do ciano */
+  --foco: #0e9384;
+  --anel-foco: 0 0 0 3px rgba(14, 147, 132, 0.3);
+
+  /* --------------------------------------------------- semânticos
+     Discretos e só quando informam. CONCLUÍDO É CINZA, de propósito:
+     se "feito" fosse verde, brigaria com o acento e a tela voltaria a
+     ter duas cores competindo. Verde nesta interface = ação, não estado. */
+  --atraso: #c0392b; /* atrasado, orçamento estourado, saldo negativo */
+  --atraso-fundo: #fcedeb;
+  --alerta: #8a5a00; /* vence em breve, medição não enviada */
+  --alerta-fundo: #fcf3e2;
+  --neutro-feito: var(--tinta3); /* concluído, pago, encerrado */
+
+  /* ------------------------------------------------ séries de gráfico
+     Ordem pensada para daltonismo. A 1ª é o acento; as demais não
+     competem com ele. */
+  --serie1: #0e9384;
+  --serie2: #a35f0c;
+  --serie3: #5b6abf;
+  --serie4: #4a7c2f;
+  --serie5: #9a4e8f;
+  --serie6: #5f6c75;
+  --grade-grafico: rgba(0, 0, 0, 0.08);
+
+  /* ------------------------------------------------------- sombra
+     Só no que flutua. Cartão não tem sombra: tem separador. */
+  --sombra-nenhuma: none;
+  --sombra-popover: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 6px 20px rgba(0, 0, 0, 0.14);
+  --sombra-menu: 0 0 0 0.5px rgba(0, 0, 0, 0.12), 0 8px 26px rgba(0, 0, 0, 0.16);
+  --sombra-sheet: 0 20px 60px rgba(0, 0, 0, 0.24);
+
+  /* ----------------------------------------------------- movimento
+     Anima só o que muda de lugar. Nada de entrada em cascata. */
+  --curva: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --mov-rapido: 150ms; /* realce, pressionado, troca de aba */
+  --mov: 200ms; /* abrir inspetor, popover */
+  --mov-lento: 250ms; /* sheet descendo */
+}
+
+/* ---------------------------------------------------------- escuro
+   Dois seletores, mesma paleta: a preferência do sistema (a menos que o
+   claro esteja travado na mão) e o escuro travado na mão.
+
+   ATENÇÃO: os dois blocos abaixo são gêmeos. CSS puro não deixa reusar um
+   conjunto de variáveis em dois seletores sem repetir, e o projeto não
+   tem pré-processador. Mexeu em um, mexa no outro — tests/tokens.test.js
+   quebra o `npm test` se os dois saírem de sincronia.
+
+   No escuro a sidebar é MAIS CLARA que o conteúdo, o inverso do claro.
+   É o que dá a leitura de "janela" do macOS sem precisar de sombra. */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --fundo-janela: #1b1f1e;
+    --fundo-conteudo: #1b1f1e;
+    --fundo-lateral: rgba(44, 50, 48, 0.72);
+    --fundo-lateral-solido: #2c3230;
+    --fundo-toolbar: rgba(38, 43, 42, 0.78);
+    --fundo-agrupado: #161a19;
+    --fundo-elevado: #2a302e;
+    --fundo-campo: #101413;
+    --fundo-ctrl: #343b39;
+    --fundo-ctrl-ativo: #414947;
+    --fundo-zebra: rgba(255, 255, 255, 0.025);
+    --fundo-hover: rgba(255, 255, 255, 0.06);
+
+    --tinta: #f2f4f3;
+    --tinta2: #a7b0ae;
+    --tinta3: #858e8b;
+    --tinta-inversa: #101413;
+
+    --separador: rgba(255, 255, 255, 0.11);
+    --separador-forte: rgba(255, 255, 255, 0.2);
+
+    --acento: #12a594;
+    --acento-premido: #0e9384;
+    --acento-texto: #3fc9b8;
+    --acento-fraco: #0e2b27;
+    --sobre-acento: #04120f;
+    --foco: #3fc9b8;
+    --anel-foco: 0 0 0 3px rgba(63, 201, 184, 0.32);
+
+    --atraso: #f08070;
+    --atraso-fundo: #35201d;
+    --alerta: #e0a44a;
+    --alerta-fundo: #2e2415;
+    --neutro-feito: var(--tinta3);
+
+    --serie1: #3fc9b8;
+    --serie2: #e0a44a;
+    --serie3: #8b93f8;
+    --serie4: #8cc63f;
+    --serie5: #d18bcb;
+    --serie6: #9aa7ad;
+    --grade-grafico: rgba(255, 255, 255, 0.08);
+
+    --sombra-popover: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.45);
+    --sombra-menu: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 8px 26px rgba(0, 0, 0, 0.5);
+    --sombra-sheet: 0 20px 60px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* gêmeo do bloco acima — escuro travado na mão */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --fundo-janela: #1b1f1e;
+  --fundo-conteudo: #1b1f1e;
+  --fundo-lateral: rgba(44, 50, 48, 0.72);
+  --fundo-lateral-solido: #2c3230;
+  --fundo-toolbar: rgba(38, 43, 42, 0.78);
+  --fundo-agrupado: #161a19;
+  --fundo-elevado: #2a302e;
+  --fundo-campo: #101413;
+  --fundo-ctrl: #343b39;
+  --fundo-ctrl-ativo: #414947;
+  --fundo-zebra: rgba(255, 255, 255, 0.025);
+  --fundo-hover: rgba(255, 255, 255, 0.06);
+
+  --tinta: #f2f4f3;
+  --tinta2: #a7b0ae;
+  --tinta3: #858e8b;
+  --tinta-inversa: #101413;
+
+  --separador: rgba(255, 255, 255, 0.11);
+  --separador-forte: rgba(255, 255, 255, 0.2);
+
+  --acento: #12a594;
+  --acento-premido: #0e9384;
+  --acento-texto: #3fc9b8;
+  --acento-fraco: #0e2b27;
+  --sobre-acento: #04120f;
+  --foco: #3fc9b8;
+  --anel-foco: 0 0 0 3px rgba(63, 201, 184, 0.32);
+
+  --atraso: #f08070;
+  --atraso-fundo: #35201d;
+  --alerta: #e0a44a;
+  --alerta-fundo: #2e2415;
+  --neutro-feito: var(--tinta3);
+
+  --serie1: #3fc9b8;
+  --serie2: #e0a44a;
+  --serie3: #8b93f8;
+  --serie4: #8cc63f;
+  --serie5: #d18bcb;
+  --serie6: #9aa7ad;
+  --grade-grafico: rgba(255, 255, 255, 0.08);
+
+  --sombra-popover: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.45);
+  --sombra-menu: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 8px 26px rgba(0, 0, 0, 0.5);
+  --sombra-sheet: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+/* Fio de separação: meio pixel em tela retina (é a linha do macOS),
+   1px onde meio pixel sumiria. */
+:root {
+  --fio: 1px;
+}
+@media (min-resolution: 2dppx) {
+  :root {
+    --fio: 0.5px;
+  }
+}
+
+/* Movimento reduzido: o sistema continua respondendo na hora, só não desliza. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --mov-rapido: 0ms;
+    --mov: 0ms;
+    --mov-lento: 0ms;
+  }
+}
