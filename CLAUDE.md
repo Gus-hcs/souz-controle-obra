@@ -2,7 +2,7 @@
 
 Souz Controle de Obra: sistema web de gestão de obras. Nasceu de uma planilha de
 controle de obra MCMV financiada pela CAIXA e virou produto. No ar em
-<https://gus-hcs.github.io/souz-controle-obra/>.
+<https://obras.souztech.com/>.
 
 Fale, escreva e comente **em português** — código, commits, respostas.
 

@@ -9,7 +9,7 @@ git push
 ```
 
 O resto é automático: a CI roda lint, testes de cálculo, build e o teste de
-navegador. Se tudo passar, publica em <https://gus-hcs.github.io/souz-controle-obra/>.
+navegador. Se tudo passar, publica em <https://obras.souztech.com/>.
 Se algo falhar, **nada vai ao ar** — o site continua na versão anterior.
 
 Acompanhe em *Actions*, na página do repositório.
