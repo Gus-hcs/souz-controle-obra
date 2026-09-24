@@ -5,7 +5,7 @@ medições, recebimentos da CAIXA, plano de materiais, lançamentos, cronograma,
 curva S física × financeira, diário de obra com fotos, alertas automáticos e
 relatório em PDF para cliente e para a CAIXA.
 
-**No ar:** <https://gus-hcs.github.io/souz-controle-obra/>
+**No ar:** <https://obras.souztech.com/>
 
 ---
 
