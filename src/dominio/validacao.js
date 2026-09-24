@@ -20,10 +20,24 @@
  * Ajustes, então status inválido também é 'alerta', nunca 'erro' — o banco não
  * conhece a lista de cada empresa.
  */
-import { isISO, num, PAPEIS_OBRA, PLANOS } from '../nucleo/base.js';
+import {
+  CONDICOES_PAGAMENTO,
+  FORMAS_PRECO,
+  isISO,
+  num,
+  PAPEIS_OBRA,
+  PLANOS,
+  SITUACOES_MANUAIS_CONTRATO,
+  STATUS_ADITIVO,
+  TIPOS_ADITIVO,
+} from '../nucleo/base.js';
 import { motivoTelefoneInvalido } from '../nucleo/contato.js';
 
 const REGISTROS_CONTRATO = ['Contrato', 'Aditivo'];
+const TIPOS_ADITIVO_VALIDOS = TIPOS_ADITIVO.map((x) => x.v);
+const STATUS_ADITIVO_VALIDOS = STATUS_ADITIVO.map((x) => x.v);
+const CONDICOES_PAGAMENTO_VALIDAS = CONDICOES_PAGAMENTO.map((x) => x.v);
+const FORMAS_PRECO_VALIDAS = FORMAS_PRECO.map((x) => x.v);
 
 /* monta um problema */
 const problema = (campo, mensagem, sev = 'erro') => ({ campo, mensagem, sev });
@@ -112,6 +126,40 @@ function validarContrato(c) {
       out.push(problema(k, `A nota de ${rot} vai de 1 a 5.`));
     }
   }
+
+  /* Aditivo: tipo, status e o novo prazo (só faz sentido com tipo "prazo"). */
+  if (c.registro === 'Aditivo' && String(c.tipoAditivo || '').trim() && !TIPOS_ADITIVO_VALIDOS.includes(c.tipoAditivo)) {
+    out.push(problema('tipoAditivo', `Tipo de aditivo inválido: "${c.tipoAditivo}".`));
+  }
+  if (String(c.statusAditivo || '').trim() && !STATUS_ADITIVO_VALIDOS.includes(c.statusAditivo)) {
+    out.push(problema('statusAditivo', `Status de aditivo inválido: "${c.statusAditivo}".`));
+  }
+  if (c.registro === 'Aditivo' && c.tipoAditivo === 'prazo' && !isISO(c.novoPrazoAditivo)) {
+    out.push(problema('novoPrazoAditivo', 'Aditivo de prazo precisa do novo prazo.'));
+  }
+  if (c.registro === 'Aditivo' && (c.statusAditivo === 'aprovado' || c.statusAditivo === 'recusado')
+      && !String(c.motivoAditivo || '').trim()) {
+    out.push(problema('motivoAditivo', 'Informe o motivo ao aprovar ou recusar o aditivo.', 'alerta'));
+  }
+
+  /* Condição de pagamento, retenção e forma de preço do contrato. */
+  if (String(c.condicaoPagamento || '').trim() && !CONDICOES_PAGAMENTO_VALIDAS.includes(c.condicaoPagamento)) {
+    out.push(problema('condicaoPagamento', `Condição de pagamento inválida: "${c.condicaoPagamento}".`));
+  }
+  if (String(c.formaPreco || '').trim() && !FORMAS_PRECO_VALIDAS.includes(c.formaPreco)) {
+    out.push(problema('formaPreco', `Forma de preço inválida: "${c.formaPreco}".`));
+  }
+  fracao(c, 'retencaoPct', 'A retenção', out);
+
+  /* Situação manual: só Paralisado ou Rescindido — o resto é calculado. */
+  if (String(c.situacaoManual || '').trim() && !SITUACOES_MANUAIS_CONTRATO.includes(c.situacaoManual)) {
+    out.push(problema('situacaoManual', `Situação manual inválida: "${c.situacaoManual}". Use Paralisado ou Rescindido.`));
+  }
+  if (c.situacaoManual && !String(c.motivoSituacaoManual || '').trim()) {
+    out.push(problema('motivoSituacaoManual', `Informe o motivo de marcar o contrato como ${c.situacaoManual}.`, 'alerta'));
+  }
+
+  ordemDatas(c, 'fimPrevisto', 'dataEncerramento', 'Encerramento do contrato', out);
   return out;
 }
 

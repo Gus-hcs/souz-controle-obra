@@ -92,6 +92,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0010_revoga_truncate.sql` | revoga `TRUNCATE` de `anon`/`authenticated` (ignora RLS); ajusta o default privilege |
 | `0011_prestadores.sql` | vínculo por id (`prestador_id` em contratos e lançamentos, `ON DELETE RESTRICT`); WhatsApp, PIX, apelido, forma de contratação e `arquivado` no prestador; notas de avaliação (prazo, qualidade, organização) no contrato; CHECKs; liga os registros antigos pelo nome |
 | `0012_prestador_cidade.sql` | coluna `cidade` no prestador (texto livre, opcional) e `CHECK` de até 60 caracteres |
+| `0013_contratos_situacao_e_aditivos.sql` | aditivo com tipo/status/motivo/aprovação/novo prazo; contrato com condição de pagamento, retenção, forma de preço, data de encerramento e documento (Storage); situação manual (só Paralisado/Rescindido) — o resto a tela calcula; CHECKs |
 
 ### 0011 — prestadores
 
@@ -115,6 +116,28 @@ ligado falha no banco. A tela oferece **arquivar** no lugar.
 Blocos A (coluna), B (diagnóstico — volta vazio, a coluna nasce sem dados),
 C (`CHECK not valid`) e D (valida). Como na 0011, **o código que grava `cidade`
 só pode ir ao ar depois do bloco A**.
+
+### 0013 — contratos: aditivo, condições e situação manual
+
+Blocos A (colunas), B (diagnóstico — volta vazio, colunas novas nascem vazias
+ou no padrão que o app já grava), C (`CHECK not valid`) e D (valida). Como nas
+anteriores, **o código que grava essas colunas só pode ir ao ar depois do
+bloco A**.
+
+`status_aditivo` nasce `'aprovado'`: um aditivo já cadastrado antes desta
+migração sempre valeu para o autorizado, então o padrão preserva esse
+histórico. Só o formulário novo de aditivo grava `'proposto'`.
+
+`situacao_manual` só aceita Paralisado ou Rescindido — qualquer outra
+situação (Não iniciado, Em andamento, Atrasado, Medido 100% · a pagar,
+Encerrado) é calculada pelo app a partir das datas, do medido e do pago
+(`contratoSituacao`, `src/dominio/calculos.js`) e não é gravada no banco.
+
+Esta migração é um **rascunho para revisão** — ainda não foi aplicada no
+Supabase. Antes de aplicar: rodar a prévia de vínculo prestador×contrato
+(`previaVinculoPrestadores`) e conferir se sobra algum "ambíguo" ou "sugerir
+criar" que precise de decisão antes de a seleção de prestador virar
+obrigatória (próximo passo da Fase 1, ainda não incluído aqui).
 
 Ao criar uma migração nova, numere em sequência e descreva a mudança aqui.
 

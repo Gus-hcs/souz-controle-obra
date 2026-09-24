@@ -218,6 +218,30 @@ const FORMAS_CONTRATACAO = [
   { v: 'etapa', t: 'Por etapa' }
 ];
 
+/* Opções fixas do contrato e do aditivo — batem com os CHECKs da migração 0013. */
+const TIPOS_ADITIVO = [
+  { v: 'acrescimo', t: 'Acréscimo' },
+  { v: 'supressao', t: 'Supressão' },
+  { v: 'prazo', t: 'Prazo' }
+];
+const STATUS_ADITIVO = [
+  { v: 'proposto', t: 'Proposto' },
+  { v: 'aprovado', t: 'Aprovado' },
+  { v: 'recusado', t: 'Recusado' }
+];
+const CONDICOES_PAGAMENTO = [
+  { v: 'por_medicao', t: 'Por medição' },
+  { v: 'parcelas', t: 'Parcelas' },
+  { v: 'sinal_mais_medicoes', t: 'Sinal + medições' }
+];
+const FORMAS_PRECO = [
+  { v: 'preco_fechado', t: 'Preço fechado' },
+  { v: 'por_m2', t: 'Por m²' },
+  { v: 'preco_unitario', t: 'Preço unitário' },
+  { v: 'diaria', t: 'Diária' }
+];
+const SITUACOES_MANUAIS_CONTRATO = ['Paralisado', 'Rescindido'];
+
 /* -------------------------------------------------------------- schema */
 
 const novaObra = (nome = 'Nova obra') => ({
@@ -264,7 +288,19 @@ const novoContrato = () => ({
   valorInformado: 0, incluiMaterial: 'Não', inicioPrevisto: '', fimPrevisto: '',
   status: 'Planejado', observacoes: '',
   /* nota do prestador ao concluir: 1–5; 0 = não avaliado */
-  avalPrazo: 0, avalQualidade: 0, avalOrganizacao: 0
+  avalPrazo: 0, avalQualidade: 0, avalOrganizacao: 0,
+  /* aditivo (só quando registro === 'Aditivo'): tipo, status e o que ele muda.
+     statusAditivo nasce 'aprovado' para não alterar o autorizado do histórico —
+     um aditivo já cadastrado antes desta versão sempre valeu. Só o formulário
+     novo (Fase 6) vai nascer com 'proposto'. */
+  tipoAditivo: '', statusAditivo: 'aprovado', motivoAditivo: '',
+  dataAprovacaoAditivo: '', novoPrazoAditivo: '',
+  /* condições do contrato principal */
+  condicaoPagamento: 'por_medicao', retencaoPct: 0, formaPreco: '',
+  dataEncerramento: '', documentoUrl: '',
+  /* situação: calculada em dominio/calculos.js (contratoSituacao). Só estes
+     dois estados podem ser marcados à mão, com motivo. */
+  situacaoManual: '', motivoSituacaoManual: ''
 });
 
 const novaMedicao = () => ({
@@ -404,6 +440,11 @@ export {
   LISTAS_PADRAO,
   TIPOS_PIX,
   FORMAS_CONTRATACAO,
+  TIPOS_ADITIVO,
+  STATUS_ADITIVO,
+  CONDICOES_PAGAMENTO,
+  FORMAS_PRECO,
+  SITUACOES_MANUAIS_CONTRATO,
   PAPEIS_OBRA,
   PLANOS,
   novoMembro,

@@ -1,7 +1,7 @@
 /**
  * calculos.js — Regras de negócio: todo cálculo do sistema vive aqui, sem tocar em DOM.
  */
-import { addMeses, capitalizarNome, competencia, diasEntre, fimDoMes, fmtData, fmtMoney, fmtNum, fmtPct, hojeISO, inicioDoMes, isISO, norm, num, round2 } from '../nucleo/base.js';
+import { addMeses, capitalizarNome, competencia, diasEntre, fimDoMes, fmtData, fmtMoney, fmtNum, fmtPct, hojeISO, inicioDoMes, isISO, norm, num, round2, SITUACOES_MANUAIS_CONTRATO } from '../nucleo/base.js';
 
 /* ------------------------------------------------------ CONTRATOS  */
 /* Planilha: K = SE(valor informado > 0; valor informado; qtd × preço) */
@@ -61,6 +61,106 @@ function basesContratuais(obra) {
       execFinanceira: autorizado > 0 ? pago / autorizado : 0
     };
   }).sort((a, b) => a.base.localeCompare(b.base));
+}
+
+/* ============================================================
+   SITUAÇÃO CALCULADA e INDICADORES por código-base — tela nova de
+   Contratos e aditivos. Antes a situação era um campo digitado (podia
+   contradizer as datas) e "pago" e "executado" mostravam quase o mesmo
+   número. Aqui os dois saem separados e a situação nunca é escrita à mão,
+   a não ser Paralisado/Rescindido (com motivo).
+   ============================================================ */
+const EPS_CONTRATO = 0.01;
+
+/* Fim de prazo vigente: o previsto do contrato principal, estendido pelo
+   aditivo de prazo APROVADO mais distante (novoPrazoAditivo). Proposto ou
+   recusado não muda o prazo — só o aprovado vale. */
+function contratoFimVigente(registros) {
+  const principal = registros.find((c) => c.registro === 'Contrato') || registros[0] || {};
+  let fim = isISO(principal.fimPrevisto) ? principal.fimPrevisto : '';
+  registros.forEach((a) => {
+    if (a.registro !== 'Aditivo' || a.status === 'Cancelado') return;
+    if (a.tipoAditivo === 'prazo' && (a.statusAditivo || 'aprovado') === 'aprovado' && isISO(a.novoPrazoAditivo)) {
+      if (!fim || a.novoPrazoAditivo > fim) fim = a.novoPrazoAditivo;
+    }
+  });
+  return fim;
+}
+
+/* Indicadores de um código-base: autorizado, medido, pago, retido,
+   a_pagar_agora e a_medir — uma função só, usada aqui, no Painel e em
+   Prestadores.
+   autorizado difere de contratoTotalAutorizado (que soma tudo não
+   cancelado — a conta antiga, conferida contra a planilha original em
+   tests/planilha.test.js): aqui só entra aditivo com statusAditivo
+   'aprovado' (o padrão, para não mudar o histórico) e supressão SUBTRAI. */
+function indicadoresContrato(obra, codigoBase) {
+  const registros = obra.contratos.filter((c) => (c.codigoBase || c.codigo) === codigoBase);
+  const principal = registros.find((c) => c.registro === 'Contrato') || registros[0] || {};
+  let autorizado = 0;
+  registros.forEach((c) => {
+    if (c.status === 'Cancelado') return;
+    if (c.registro !== 'Aditivo') { autorizado += contratoValor(c); return; }
+    if ((c.statusAditivo || 'aprovado') !== 'aprovado') return;
+    autorizado += c.tipoAditivo === 'supressao' ? -contratoValor(c) : contratoValor(c);
+  });
+  const medicoesBase = obra.medicoes.filter((m) => m.contratoBase === codigoBase && m.status !== 'Cancelado');
+  const medido = medicoesBase.reduce((s, m) => s + medicaoLiquido(m), 0);
+  const pago = medicoesBase.reduce((s, m) => s + num(m.valorPago), 0);
+  const retido = round2(medido * Math.min(1, Math.max(0, num(principal.retencaoPct))));
+  return {
+    codigoBase,
+    autorizado: round2(autorizado),
+    medido: round2(medido),
+    pago: round2(pago),
+    retido,
+    aPagarAgora: Math.max(0, round2(medido - retido - pago)),
+    aMedir: Math.max(0, round2(autorizado - medido))
+  };
+}
+
+/* Situação do contrato — sempre calculada. Ordem de decisão:
+     1. override manual (Paralisado / Rescindido), com motivo;
+     2. tudo medido: paga (Encerrado) ou falta pagar (Medido 100% · a pagar);
+     3. ainda não chegou o início (Não iniciado);
+     4. já chegou o início e nada foi medido (Não iniciado · atrasado);
+     5. passou do fim vigente sem medir tudo (Atrasado N dias);
+     6. caso contrário, Em andamento. */
+function contratoSituacao(obra, codigoBase, hoje = hojeISO()) {
+  const registros = obra.contratos.filter((c) => (c.codigoBase || c.codigo) === codigoBase);
+  const principal = registros.find((c) => c.registro === 'Contrato') || registros[0] || {};
+
+  if (SITUACOES_MANUAIS_CONTRATO.includes(principal.situacaoManual)) {
+    return {
+      texto: principal.situacaoManual,
+      chave: principal.situacaoManual === 'Paralisado' ? 'paralisado' : 'rescindido',
+      atrasoDias: 0,
+      motivo: principal.motivoSituacaoManual || ''
+    };
+  }
+
+  const ind = indicadoresContrato(obra, codigoBase);
+  const inicio = principal.inicioPrevisto;
+  const fim = contratoFimVigente(registros);
+  const completo = ind.autorizado > EPS_CONTRATO && ind.medido >= ind.autorizado - EPS_CONTRATO;
+
+  if (completo) {
+    if (ind.pago >= ind.medido - ind.retido - EPS_CONTRATO) {
+      return { texto: 'Encerrado', chave: 'encerrado', atrasoDias: 0, motivo: '' };
+    }
+    return { texto: 'Medido 100% · a pagar', chave: 'a-pagar', atrasoDias: 0, motivo: '' };
+  }
+  if (isISO(inicio) && hoje < inicio) {
+    return { texto: 'Não iniciado', chave: 'nao-iniciado', atrasoDias: 0, motivo: '' };
+  }
+  if (isISO(inicio) && hoje >= inicio && ind.medido <= EPS_CONTRATO) {
+    return { texto: 'Não iniciado · atrasado', chave: 'nao-iniciado-atrasado', atrasoDias: 0, motivo: '' };
+  }
+  if (isISO(fim) && hoje > fim) {
+    const dias = diasEntre(fim, hoje);
+    return { texto: `Atrasado ${dias} dias`, chave: 'atrasado', atrasoDias: dias, motivo: '' };
+  }
+  return { texto: 'Em andamento', chave: 'em-andamento', atrasoDias: 0, motivo: '' };
 }
 
 /* ------------------------------------------------------- MEDIÇÕES  */
@@ -1020,6 +1120,46 @@ function prestadoresPagosSemContrato(estado) {
     .map(({ p, r }) => ({ id: p.id, nome: p.nome, pago: r.pago }));
 }
 
+/* Prévia do vínculo prestador×contrato/lançamento pelo nome digitado — Fase 1
+   da tela nova de Contratos: liga o texto livre (contratos.prestador,
+   lancamentos.fornecedor) ao cadastro antes de a seleção virar obrigatória.
+   Só relata; NUNCA aplica — quem grava o prestadorId é a tela, depois de o
+   usuário conferir "casou" / "ambíguo" / "sugerir criar". */
+function previaVinculoPrestadores(estado) {
+  const prestadores = estado.prestadores || [];
+  const candidatos = (texto) => {
+    const t = norm(texto);
+    if (!t) return [];
+    return prestadores.filter((p) => norm(p.nome) === t || (p.apelido && norm(p.apelido) === t));
+  };
+
+  const casaram = [], ambiguos = [], semCadastro = [];
+  const registrar = (obra, tipo, item, texto) => {
+    const cands = candidatos(texto);
+    const base = {
+      obraId: obra.id, obraNome: obra.nome, tipo, id: item.id,
+      referencia: tipo === 'contrato' ? (item.codigo || item.escopo || '') : (item.descricao || ''),
+      textoDigitado: texto
+    };
+    if (cands.length === 1) casaram.push({ ...base, prestadorId: cands[0].id, prestadorNome: cands[0].nome });
+    else if (cands.length > 1) ambiguos.push({ ...base, candidatos: cands.map((c) => ({ id: c.id, nome: c.nome })) });
+    else semCadastro.push(base);
+  };
+
+  (estado.obras || []).forEach((obra) => {
+    (obra.contratos || []).forEach((c) => {
+      if (c.prestadorId || !String(c.prestador || '').trim()) return;
+      registrar(obra, 'contrato', c, c.prestador);
+    });
+    (obra.lancamentos || []).forEach((l) => {
+      if (l.prestadorId || !String(l.fornecedor || '').trim()) return;
+      registrar(obra, 'lancamento', l, l.fornecedor);
+    });
+  });
+
+  return { casaram, ambiguos, semCadastro, total: casaram.length + ambiguos.length + semCadastro.length };
+}
+
 /* Avaliação do prestador: notas dadas ao concluir cada contrato dele.
    Nota do contrato = média dos critérios preenchidos (0 = não avaliado).
    Média do prestador = média das notas dos contratos avaliados. Sem
@@ -1115,6 +1255,9 @@ export {
   contratoTotalPago,
   contratoSaldo,
   basesContratuais,
+  contratoFimVigente,
+  indicadoresContrato,
+  contratoSituacao,
   medicaoLiquido,
   medicaoSaldoContratual,
   medicaoAlerta,
@@ -1153,6 +1296,7 @@ export {
   resumoPrestador,
   totaisPrestadores,
   prestadoresPagosSemContrato,
+  previaVinculoPrestadores,
   avaliacaoPrestador,
   duplicadosPrestador,
   CRITERIOS_AVAL,

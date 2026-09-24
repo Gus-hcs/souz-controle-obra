@@ -74,7 +74,13 @@ const TABELAS_DB = [
       escopo: 'escopo', regime: 'regime', quantidade: ['quantidade', 'num'], unidade: 'unidade',
       precoUnitario: ['preco_unitario', 'num'], valorInformado: ['valor_informado', 'num'],
       incluiMaterial: 'inclui_material', inicioPrevisto: ['inicio_previsto', 'data'],
-      fimPrevisto: ['fim_previsto', 'data'], status: 'status', observacoes: 'observacoes'
+      fimPrevisto: ['fim_previsto', 'data'], status: 'status', observacoes: 'observacoes',
+      /* colunas novas (tipoAditivo em diante) exigem a migração 0013 aplicada */
+      tipoAditivo: 'tipo_aditivo', statusAditivo: 'status_aditivo', motivoAditivo: 'motivo_aditivo',
+      dataAprovacaoAditivo: ['data_aprovacao_aditivo', 'data'], novoPrazoAditivo: ['novo_prazo_aditivo', 'data'],
+      condicaoPagamento: 'condicao_pagamento', retencaoPct: ['retencao_pct', 'num'], formaPreco: 'forma_preco',
+      dataEncerramento: ['data_encerramento', 'data'], documentoUrl: 'documento_url',
+      situacaoManual: 'situacao_manual', motivoSituacaoManual: 'motivo_situacao_manual'
     }
   },
   {
