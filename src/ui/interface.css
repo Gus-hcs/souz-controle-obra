@@ -2882,3 +2882,57 @@ table.lista td.cel-sem-contrato {
     min-height: 44px;
   }
 }
+
+/* Diário de obra: feed de cartões — a única tela de lista que não é uma
+   tabela (cada registro tem texto livre e fotos, não colunas). */
+.feed-diario {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e4);
+}
+.registro-diario {
+  border: var(--fio) solid var(--separador);
+  border-radius: var(--r-cartao);
+  padding: var(--e4);
+}
+.registro-diario header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--e2);
+  margin-bottom: var(--e3);
+}
+.registro-diario .corpo-diario {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+  font-size: var(--t-corpo);
+}
+.acoes-diario {
+  display: flex;
+  gap: var(--e1);
+  flex: none;
+}
+.fotos-diario {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e2);
+}
+.fotos-diario img {
+  width: 92px;
+  height: 92px;
+  object-fit: cover;
+  border-radius: var(--r-campo);
+  cursor: pointer;
+}
+
+/* Caixa: bloco com borda, sem sombra — para conteúdo fora da lista
+   principal (seção recolhível, zona de ações sensíveis). */
+.caixa {
+  border: var(--fio) solid var(--separador);
+  border-radius: var(--r-cartao);
+  padding: var(--e4);
+}
+.caixa + .caixa {
+  margin-top: var(--e3);
+}

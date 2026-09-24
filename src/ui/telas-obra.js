@@ -1272,9 +1272,11 @@ VIEWS.diario = () => {
   </div>`;
 };
 
-/* ==================================================== TRILHA DE AUDITORIA */
-/* Somente leitura. Não entra no ciclo do Store: a trilha vive no banco e só o
-   gatilho a escreve. Por isso tem carga própria, guardada aqui. */
+/* ==================================================== TRILHA DE AUDITORIA
+   Só o estado da carga e o carregamento ficam aqui (acoes.js precisa de
+   carregarAuditoria e este módulo não pode importar telas/auditoria.js —
+   ele importa componentes.js, que importa acoes.js, e fecharia um ciclo).
+   O resto — formatação e a tela em si — está em telas/auditoria.js. */
 const Auditoria = { chave: '', linhas: null, erro: '', carregando: false };
 
 function carregarAuditoria(chave, forcar = false) {
@@ -1293,167 +1295,6 @@ function carregarAuditoria(chave, forcar = false) {
       if (App.rota.view === 'auditoria' && o && o.id === chave) App.renderConteudo();
     });
 }
-
-const AUD_TABELAS = {
-  contratos: 'Contrato', medicoes: 'Medição', recebimentos: 'Recebimento', lancamentos: 'Lançamento',
-};
-const AUD_CAMPOS = {
-  quantidade: ['Quantidade', 'numero'],
-  preco_unitario: ['Preço unitário', 'dinheiro'],
-  valor_informado: ['Valor fechado', 'dinheiro'],
-  valor_medido: ['Valor medido', 'dinheiro'],
-  desconto: ['Desconto', 'dinheiro'],
-  valor_pago: ['Valor pago', 'dinheiro'],
-  valor_previsto: ['Valor previsto', 'dinheiro'],
-  valor_aprovado: ['Valor aprovado', 'dinheiro'],
-  descontos: ['Descontos', 'dinheiro'],
-  valor_recebido: ['Valor recebido', 'dinheiro'],
-  frete: ['Frete', 'dinheiro'],
-};
-
-const audValor = (v, tipo) => {
-  if (v === null || v === undefined || v === '') return '—';
-  return tipo === 'dinheiro' ? fmtMoney(num(v)) : fmtNum(num(v), 2);
-};
-
-function audQuem(usuarioId) {
-  if (SUPA.usuario && usuarioId === SUPA.usuario.id) {
-    return esc((SUPA.usuario.email || 'você').split('@')[0]);
-  }
-  return usuarioId ? 'outro usuário' : 'sistema';
-}
-
-function audRegistro(o, tabela, id) {
-  const item = (o[tabela] || []).find((x) => x.id === id);
-  if (!item) return `${AUD_TABELAS[tabela] || tabela} (excluído)`;
-  if (tabela === 'contratos') return `Contrato ${esc(item.codigo || item.codigoBase || '')}`.trim();
-  if (tabela === 'medicoes') return `Medição ${esc(item.numero || '')}${item.contratoBase ? ' · ' + esc(item.contratoBase) : ''}`.trim();
-  if (tabela === 'recebimentos') return `Recebimento ${esc(item.numeroMedicao || item.etapaPci || '')}`.trim();
-  if (tabela === 'lancamentos') return esc(item.descricao || 'Lançamento');
-  return AUD_TABELAS[tabela] || tabela;
-}
-
-function audDataHora(iso) {
-  try {
-    return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-  } catch (e) { return esc(String(iso || '')); }
-}
-
-VIEWS.auditoria = () => {
-  const o = App.obra();
-  const painel = (titulo, texto, btn) => cartao('Trilha de auditoria', vazio(titulo, texto, btn || ''));
-
-  if (!o) return painel('Selecione uma obra', 'A trilha de auditoria é registrada por obra.');
-
-  if (Store.backend !== 'supabase') {
-    return painel('Disponível com login',
-      'A trilha registra quem alterou cada valor financeiro — contrato, medição, recebimento e lançamento — e de quanto para quanto. Ela vive no banco de dados e aparece quando você entra com a sua conta.');
-  }
-
-  carregarAuditoria(o.id);
-
-  if (Auditoria.carregando && !Auditoria.linhas) {
-    return painel('Carregando…', 'Buscando o histórico de alterações desta obra.');
-  }
-
-  if (Auditoria.erro) {
-    const faltaTabela = /relation .*auditoria.* does not exist|Could not find the table|schema cache/i.test(Auditoria.erro);
-    return painel(
-      faltaTabela ? 'Trilha ainda não ativada' : 'Não foi possível carregar',
-      faltaTabela
-        ? 'O sistema funciona sem ela, mas a trilha só guarda o histórico depois que a migração 0003 é aplicada no banco. Quem aplica é o responsável pelo projeto, no SQL Editor do Supabase.'
-        : Auditoria.erro,
-      botao('Tentar de novo', 'recarregar-auditoria', {}, 'btn'));
-  }
-
-  const linhas = Auditoria.linhas || [];
-  if (!linhas.length) {
-    return painel(
-      'Nenhuma alteração ainda',
-      'Assim que um valor financeiro for criado ou alterado, o registro aparece aqui: quem mudou, de quanto para quanto e quando.',
-      botao('Atualizar', 'recarregar-auditoria', {}, 'btn sutil pequeno'));
-  }
-
-  const f = App.filtros;
-  const agora = Date.now();
-  const dias = (iso) => (agora - new Date(iso).getTime()) / 86400000;
-  const recentes = linhas.filter((l) => dias(l.criado_em) <= 7).length;
-  const ultima = linhas[0];
-
-  /* ---------------------------------------------------------- filtros */
-  const busca = norm(f.busca || '');
-  let lista = linhas.slice();
-  if (f.operacao) lista = lista.filter((l) => l.operacao === f.operacao);
-  if (f.modulo) lista = lista.filter((l) => l.tabela === f.modulo);
-  if (f.campo) lista = lista.filter((l) => l.campo === f.campo);
-  if (busca) lista = lista.filter((l) => norm(`${audRegistro(o, l.tabela, l.registro_id)} ${audQuem(l.usuario_id)}`).includes(busca));
-  const filtrando = lista.length !== linhas.length;
-
-  const tabelas = [...new Set(linhas.map((l) => l.tabela))];
-  const campos = [...new Set(linhas.map((l) => l.campo))];
-
-  const resumo = `<div class="hero">
-    ${kpi('Alterações registradas', linhas.length,
-      linhas.length >= 500 ? 'as 500 mais recentes' : 'nesta obra', { destaque: true })}
-    ${kpi('Nos últimos 7 dias', recentes, recentes ? 'movimentação recente' : 'sem alterações na semana', { destaque: true })}
-    ${kpi('Última alteração', ultima ? `há ${Math.max(0, Math.floor(dias(ultima.criado_em)))}d` : '—',
-      ultima ? `${audQuem(ultima.usuario_id)} · ${audDataHora(ultima.criado_em)}` : 'nenhuma', { destaque: true })}
-  </div>`;
-
-  const corpo = lista.map((l) => {
-    const [rotulo, tipo] = AUD_CAMPOS[l.campo] || [l.campo, 'numero'];
-    const op = l.operacao === 'INSERT'
-      ? chip('criado', 'ok')
-      : l.operacao === 'DELETE' ? chip('excluído', 'aviso') : chip('alterado', 'marca');
-    const antes = audValor(l.valor_antes, tipo);
-    const depois = audValor(l.valor_depois, tipo);
-    const transicao = l.operacao === 'INSERT'
-      ? `<b>${depois}</b>`
-      : l.operacao === 'DELETE'
-        ? `<span style="color:var(--mudo)">${antes}</span>`
-        : `<span style="color:var(--mudo)">${antes}</span> &rarr; <b>${depois}</b>`;
-    return `<tr>
-      <td style="white-space:nowrap;color:var(--mudo)">${audDataHora(l.criado_em)}</td>
-      <td>${audQuem(l.usuario_id)}</td>
-      <td>${audRegistro(o, l.tabela, l.registro_id)}</td>
-      <td>${op} ${esc(rotulo)}</td>
-      <td style="text-align:right;font-variant-numeric:tabular-nums">${transicao}</td>
-    </tr>`;
-  }).join('');
-
-  return `<div class="grade" style="gap:16px">
-    ${resumo}
-    ${cartao('Alterações de valor financeiro', `
-      <table class="tab">
-        <thead><tr>
-          <th>Quando</th><th>Quem</th><th>Registro</th><th>Alteração</th>
-          <th style="text-align:right">Antes &rarr; depois</th>
-        </tr></thead>
-        <tbody>${corpo || `<tr><td colspan="5">${vazio('Nada com esse filtro', 'Ajuste a busca ou os filtros acima.')}</td></tr>`}</tbody>
-      </table>`, {
-      semPadding: true,
-      acoes: `<div class="filtros">
-        ${campoBusca('busca', 'Buscar registro ou pessoa…')}
-        <select data-filtro="operacao" aria-label="Operação">
-          <option value="">Toda operação</option>
-          <option value="INSERT" ${f.operacao === 'INSERT' ? 'selected' : ''}>Criados</option>
-          <option value="UPDATE" ${f.operacao === 'UPDATE' ? 'selected' : ''}>Alterados</option>
-          <option value="DELETE" ${f.operacao === 'DELETE' ? 'selected' : ''}>Excluídos</option>
-        </select>
-        ${tabelas.length > 1 ? `<select data-filtro="modulo" aria-label="Tipo">
-          <option value="">Todos os registros</option>
-          ${tabelas.map((t) => `<option value="${t}" ${f.modulo === t ? 'selected' : ''}>${esc(AUD_TABELAS[t] || t)}</option>`).join('')}
-        </select>` : ''}
-        ${campos.length > 1 ? `<select data-filtro="campo" aria-label="Campo">
-          <option value="">Todos os campos</option>
-          ${campos.map((c) => `<option value="${c}" ${f.campo === c ? 'selected' : ''}>${esc((AUD_CAMPOS[c] || [c])[0])}</option>`).join('')}
-        </select>` : ''}
-        ${filtrando ? `<span class="ct-contagem" style="margin:0">${lista.length} de ${linhas.length}</span>` : ''}
-        ${botao('Atualizar', 'recarregar-auditoria', {}, 'btn sutil pequeno')}
-      </div>`,
-    })}
-  </div>`;
-};
 
 /* ================================================== CONFIGURAÇÃO OBRA */
 VIEWS['obra-config'] = () => {
@@ -1539,6 +1380,7 @@ VIEWS['obra-config'] = () => {
 export {
   VIEWS,
   alertaHTML,
+  Auditoria,
   carregarAuditoria,
   contratosAbertos,
   implExpandida,
