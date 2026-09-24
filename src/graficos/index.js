@@ -1,7 +1,7 @@
 /**
  * index.js — Gráficos em SVG puro: curva S, fluxo de caixa, Gantt e barras.
  */
-import { addMeses, competencia, diasEntre, esc, fimDoMes, fmtCompetencia, fmtMoney, fmtMoneyCurto, fmtPct, hojeISO, inicioDoMes, isISO, num, round2 } from '../nucleo/base.js';
+import { addMeses, competencia, diasEntre, esc, fimDoMes, fmtCompetencia, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtPct, hojeISO, inicioDoMes, isISO, num, round2 } from '../nucleo/base.js';
 import { curvaS, etapaCalc, fluxoCaixa, fluxoCarteira } from '../dominio/calculos.js';
 import { vazio } from '../ui/shell.js';
 
@@ -198,7 +198,12 @@ function renderFluxo(dados, altura = 280) {
   </div>`;
 }
 
-/* -------------------------------------------------------------- GANTT */
+/* -------------------------------------------------------------- GANTT
+   Interativo (Fase 2): registra em GRAFICOS com modo 'linhas-y' — o hover
+   não segue X como nos gráficos de série (curva S, fluxo), segue a LINHA
+   sob o cursor (ver desenharGraficosPendentes). Fase 3: quando o diário
+   tem fotos citando a etapa (mesmo texto em d.etapa), a linha ganha um
+   selo com a contagem — clicar leva ao Diário já filtrado pela etapa. */
 function graficoGantt(obra) {
   const etapas = obra.cronograma.filter((e) => isISO(e.inicioPrevisto) || isISO(e.inicioReal));
   if (!etapas.length) return vazio('Cronograma sem datas', 'Informe início e fim previstos das etapas.');
@@ -208,10 +213,20 @@ function graficoGantt(obra) {
   datas.sort();
   const ini = datas[0], fim = datas[datas.length - 1];
   const span = Math.max(1, diasEntre(ini, fim));
-  const W = 920, linhaH = 26, ml = 176, mr = 14, mt = 26;
+  /* Fase 4: duas <svg> lado a lado, não uma só — a coluna de etapas (ml)
+     fica fixa fora do .tab-rolagem, só a linha do tempo rola. Antes as
+     duas viviam na mesma <svg> e rolar para ver setembro fazia o nome da
+     etapa sumir pela esquerda junto — no celular isso quebrava a leitura. */
+  const ml = 168, WT = 760, mr = 14, linhaH = 28, mt = 26;
   const H = mt + etapas.length * linhaH + 12;
-  const x0 = ml, x1 = W - mr;
+  const x0 = 0, x1 = WT - mr;
   const px = (d) => x0 + (diasEntre(ini, d) / span) * (x1 - x0);
+
+  const fotosPorEtapa = new Map();
+  (obra.diario || []).forEach((d) => {
+    if (!d.etapa || !d.fotos || !d.fotos.length) return;
+    fotosPorEtapa.set(d.etapa, (fotosPorEtapa.get(d.etapa) || 0) + d.fotos.length);
+  });
 
   const meses = [];
   let c = competencia(ini);
@@ -223,6 +238,8 @@ function graficoGantt(obra) {
             <text x="${px(d).toFixed(1)}" y="${mt - 12}" text-anchor="middle">${fmtCompetencia(m)}</text>`;
   }).join('');
 
+  const tooltips = [];
+  const rotulos = [];
   const linhas = etapas.map((e, i) => {
     const y = mt + i * linhaH;
     const c2 = etapaCalc(e);
@@ -230,7 +247,7 @@ function graficoGantt(obra) {
     let prev = '', real = '';
     if (isISO(e.inicioPrevisto) && isISO(e.fimPrevisto)) {
       const a = px(e.inicioPrevisto), b = Math.max(px(e.fimPrevisto), a + 3);
-      prev = `<rect x="${a.toFixed(1)}" y="${y + 4}" width="${(b - a).toFixed(1)}" height="7" rx="3" fill="var(--linha-forte)" opacity=".55"/>`;
+      prev = `<rect x="${a.toFixed(1)}" y="${y + 5}" width="${(b - a).toFixed(1)}" height="7" rx="3" fill="var(--linha-forte)" opacity=".55"/>`;
     }
     if (isISO(e.inicioReal)) {
       const a = px(e.inicioReal);
@@ -239,16 +256,41 @@ function graficoGantt(obra) {
       /* trilha translúcida = tempo decorrido; preenchimento cheio = o que já
          foi executado. Antes as duas eram a mesma cor sólida — dava pra ver
          só uma barra, nunca quanto da etapa estava pronto de fato. */
-      real = `<rect x="${a.toFixed(1)}" y="${y + 12}" width="${(b - a).toFixed(1)}" height="8" rx="3" fill="${cor}" opacity="${p >= 1 ? 1 : 0.28}"/>`;
+      real = `<rect x="${a.toFixed(1)}" y="${y + 13}" width="${(b - a).toFixed(1)}" height="8" rx="3" fill="${cor}" opacity="${p >= 1 ? 1 : 0.28}"/>`;
       if (p > 0 && p < 1) {
-        real += `<rect x="${a.toFixed(1)}" y="${y + 12}" width="${((b - a) * p).toFixed(1)}" height="8" rx="3" fill="${cor}"/>`;
+        real += `<rect x="${a.toFixed(1)}" y="${y + 13}" width="${((b - a) * p).toFixed(1)}" height="8" rx="3" fill="${cor}"/>`;
       }
     }
-    return `<text x="8" y="${y + 15}" fill="var(--tinta2)" style="font-size:11.5px">${esc(e.etapa.length > 26 ? e.etapa.slice(0, 25) + '…' : e.etapa)}</text>
-            <title>${esc(e.etapa)} — ${c2.situacao}</title>${prev}${real}`;
+    const nFotos = fotosPorEtapa.get(e.etapa) || 0;
+    const selo = nFotos
+      ? `<a data-acao="ir-diario-etapa" data-etapa="${esc(e.etapa)}" data-obra="${esc(obra.id)}" style="cursor:pointer">
+          <circle cx="${ml - 13}" cy="${y + 10}" r="7.5" fill="var(--s1)"/>
+          <text x="${ml - 13}" y="${y + 13}" text-anchor="middle" fill="var(--sup)" style="font-size:8.5px;font-weight:700">${nFotos}</text>
+        </a>`
+      : '';
+    rotulos.push(`<text x="8" y="${y + 17}" fill="var(--tinta2)" style="font-size:11.5px">${esc(e.etapa.length > 20 ? e.etapa.slice(0, 19) + '…' : e.etapa)}</text>${selo}`);
+
+    tooltips.push([
+      `<b>${esc(e.etapa)}</b>`,
+      `Situação: ${c2.situacao.charAt(0) + c2.situacao.slice(1).toLowerCase()}`,
+      isISO(e.inicioPrevisto) || isISO(e.fimPrevisto)
+        ? `Previsto: ${isISO(e.inicioPrevisto) ? fmtDataCurta(e.inicioPrevisto) : '?'} → ${isISO(e.fimPrevisto) ? fmtDataCurta(e.fimPrevisto) : '?'}`
+        : null,
+      isISO(e.inicioReal)
+        ? `Real: ${fmtDataCurta(e.inicioReal)} → ${isISO(e.fimReal) ? fmtDataCurta(e.fimReal) : 'em curso'}`
+        : null,
+      `Progresso: ${fmtPct(c2.progresso, 0)}`,
+      c2.atraso > 0 ? `${c2.atraso} dia${c2.atraso === 1 ? '' : 's'} de atraso` : null,
+      nFotos ? `${nFotos} foto${nFotos === 1 ? '' : 's'} no diário — clique no selo para ver` : null,
+    ].filter(Boolean).join('<br>'));
+
+    return `${prev}${real}`;
   }).join('');
 
   const hoje = `<line x1="${px(hojeISO()).toFixed(1)}" y1="${mt - 6}" x2="${px(hojeISO()).toFixed(1)}" y2="${H - 6}" stroke="var(--critico)" stroke-width="1.5" stroke-dasharray="4 3"/>`;
+
+  const id = 'gr' + (++seqGrafico);
+  GRAFICOS[id] = { modo: 'linhas-y', W: WT, H, mt, linhaH, n: etapas.length, linhas: tooltips };
 
   return `<div class="legenda" style="margin-bottom:8px">
       <span style="color:var(--mudo)"><i style="background:var(--linha-forte)"></i>Previsto</span>
@@ -256,9 +298,17 @@ function graficoGantt(obra) {
       <span style="color:var(--ok)"><i style="background:var(--ok)"></i>Concluído</span>
       <span style="color:var(--critico)"><i style="background:var(--critico)"></i>Atrasado · linha de hoje</span>
     </div>
-    <div class="tab-rolagem"><svg class="grafico" viewBox="0 0 ${W} ${H}" style="min-width:640px" role="img" aria-label="Cronograma da obra">
-      ${gradeMes}${linhas}${hoje}
-    </svg></div>`;
+    <div class="gantt-flex">
+      <svg class="grafico" viewBox="0 0 ${ml} ${H}" style="width:${ml}px;height:${H}px;flex:none" aria-hidden="true">
+        ${rotulos.join('')}
+      </svg>
+      <div class="tab-rolagem" style="flex:1;min-width:0"><div class="grafico-cx" data-grafico="${id}" style="position:relative">
+        <svg class="grafico" viewBox="0 0 ${WT} ${H}" style="width:${WT}px;height:${H}px" role="img" aria-label="Cronograma da obra, interativo">
+          ${gradeMes}${linhas}${hoje}
+        </svg>
+        <div class="tt" style="display:none"></div>
+      </div></div>
+    </div>`;
 }
 
 /* ------------------------------------------------- BARRAS HORIZONTAIS */
@@ -293,6 +343,31 @@ function desenharGraficosPendentes() {
       borderRadius: '4px', fontSize: '12px', lineHeight: '1.45',
       boxShadow: '0 6px 18px rgba(0,0,0,.3)', whiteSpace: 'nowrap', maxWidth: '260px'
     });
+
+    /* Gantt (Fase 2): o hover segue a LINHA sob o cursor, não uma posição X
+       fixa como nos gráficos de série — cada etapa é uma linha, não um
+       ponto no tempo. Sem cursor vertical; o tooltip acompanha o mouse. */
+    if (g.modo === 'linhas-y') {
+      const moverY = (ev) => {
+        const r = svgEl.getBoundingClientRect();
+        const cx = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+        const cy = (ev.touches ? ev.touches[0].clientY : ev.clientY) - r.top;
+        const ySvg = (cy / r.height) * g.H;
+        const i = Math.floor((ySvg - g.mt) / g.linhaH);
+        if (i < 0 || i >= g.n) { tt.style.display = 'none'; return; }
+        tt.style.display = '';
+        tt.innerHTML = g.linhas[i];
+        tt.style.left = Math.min(Math.max(6, cx + 14), r.width - tt.offsetWidth - 6) + 'px';
+        tt.style.top = Math.min(Math.max(6, cy - 10), r.height - tt.offsetHeight - 6) + 'px';
+      };
+      const sairY = () => { tt.style.display = 'none'; };
+      svgEl.addEventListener('mousemove', moverY);
+      svgEl.addEventListener('mouseleave', sairY);
+      svgEl.addEventListener('touchmove', moverY, { passive: true });
+      svgEl.addEventListener('touchend', sairY);
+      return;
+    }
+
     const mover = (ev) => {
       const r = svgEl.getBoundingClientRect();
       const cliente = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;

@@ -100,6 +100,14 @@ ACOES['crono-kpi'] = (el, d) => {
   App.renderConteudo();
 };
 
+/* Selo de fotos na linha do Gantt (Fase 3, graficos/index.js) — leva ao
+   Diário já filtrado pela etapa clicada. */
+ACOES['ir-diario-etapa'] = (el, d) => {
+  App.ir('diario', d.obra);
+  App.filtros = { etapa: d.etapa };
+  App.renderConteudo();
+};
+
 /* -------------------------------------------------------------- tabela */
 function celulaEtapa(e) {
   const sub = e.responsavel || '';
