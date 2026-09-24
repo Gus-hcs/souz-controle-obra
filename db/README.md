@@ -93,6 +93,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0011_prestadores.sql` | vínculo por id (`prestador_id` em contratos e lançamentos, `ON DELETE RESTRICT`); WhatsApp, PIX, apelido, forma de contratação e `arquivado` no prestador; notas de avaliação (prazo, qualidade, organização) no contrato; CHECKs; liga os registros antigos pelo nome |
 | `0012_prestador_cidade.sql` | coluna `cidade` no prestador (texto livre, opcional) e `CHECK` de até 60 caracteres |
 | `0013_contratos_situacao_e_aditivos.sql` | aditivo com tipo/status/motivo/aprovação/novo prazo; contrato com condição de pagamento, retenção, forma de preço, data de encerramento e documento (Storage); situação manual (só Paralisado/Rescindido) — o resto a tela calcula; CHECKs |
+| `0014_convite_por_email.sql` | `convidar_membro()` e `membros_da_obra()` — convite de engenheiro/cliente por e-mail e listagem da equipe com e-mail (funções `security definer`, sem tabela nova) |
 
 ### 0011 — prestadores
 
@@ -133,13 +134,28 @@ situação (Não iniciado, Em andamento, Atrasado, Medido 100% · a pagar,
 Encerrado) é calculada pelo app a partir das datas, do medido e do pago
 (`contratoSituacao`, `src/dominio/calculos.js`) e não é gravada no banco.
 
-Esta migração é um **rascunho para revisão** — ainda não foi aplicada no
-Supabase. Antes de aplicar: rodar a prévia de vínculo prestador×contrato
-(`previaVinculoPrestadores`) e conferir se sobra algum "ambíguo" ou "sugerir
-criar" que precise de decisão antes de a seleção de prestador virar
-obrigatória (próximo passo da Fase 1, ainda não incluído aqui).
-
 Ao criar uma migração nova, numere em sequência e descreva a mudança aqui.
+
+### 0014 — convite por e-mail
+
+Roda direto (é re-executável). Rode `0001`–`0004` antes (precisa de
+`obra_membros`, `pode_ler_obra()` e `eh_dono_obra()`).
+
+Duas funções `security definer`, sem tabela nova e sem RLS nova — a
+autorização é checada dentro de cada função:
+
+- `convidar_membro(obra, email, papel)` — só o dono da obra chama. Acha o
+  usuário pelo e-mail exato (não lista ninguém) e grava/atualiza o papel em
+  `obra_membros`. Erro claro se a pessoa ainda não tem conta — ela precisa
+  se cadastrar primeiro; não existe e-mail de convite (sem servidor próprio,
+  só Supabase).
+- `membros_da_obra(obra)` — lista os membros da obra **com o e-mail**
+  (join com `auth.users`, só possível via `security definer`). Substitui a
+  leitura direta de `obra_membros` que `SUPA.lerMembros()` fazia antes —
+  aquela via só trazia o UUID, ilegível na tela.
+
+Depois de aplicar, a tela **Configuração da obra** ganha a seção "Equipe"
+(dono only): lista os membros, convida por e-mail e remove.
 
 ### 0002 — como aplicar
 
@@ -173,9 +189,10 @@ como membro sempre que uma obra é criada. Toda obra já existente recebe o memb
 `dono` na hora. Troca as políticas `dono_total` das tabelas da obra por políticas
 por comando que chamam `pode_ler_obra()` / `pode_escrever_obra()`.
 
-Ainda **não há tela** para convidar engenheiro ou cliente — o esquema está
-pronto, a interface de equipe é o próximo passo. Enquanto isso, todo mundo é
-`dono` da própria obra e nada muda.
+A interface de equipe (convidar, listar, remover) veio na `0014` + na tela
+**Configuração da obra**. Enquanto a `0004` não for aplicada, todo mundo é
+`dono` da própria obra e nada muda — `SUPA.papelNaObra()` cai no padrão
+`'dono'` quando `obra_membros` ainda não existe.
 
 ### 0005 — administração
 

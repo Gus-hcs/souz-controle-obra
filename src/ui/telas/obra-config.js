@@ -8,9 +8,21 @@
  */
 import { esc, fmtMoney, fmtNum, fmtPct, num } from '../../nucleo/base.js';
 import { kpisObra } from '../../dominio/calculos.js';
-import { App, botao, campoHTML, opcoesLista } from '../shell.js';
+import {
+  App,
+  abrirForm,
+  botao,
+  campoHTML,
+  confirmar,
+  fecharModal,
+  ICO,
+  opcoesLista,
+  svg,
+  toast,
+} from '../shell.js';
 import { Store } from '../../dados/store.js';
 import { SUPA } from '../../dados/supabase.js';
+import { ACOES } from '../acoes.js';
 import { VIEWS } from '../telas-obra.js';
 
 function kpisConfig(o, k) {
@@ -103,6 +115,145 @@ const SECOES = [
   },
 ];
 
+/* ---------------------------------------------------------- equipe (0014)
+   Só o dono vê e mexe (a função convidar_membro confere de novo no
+   banco). membros_da_obra() traz o e-mail — sem ela só daria pra ver o
+   UUID, ilegível na tela. */
+const Equipe = { obraId: '', linhas: null, erro: '', carregando: false };
+
+function carregarEquipe(obraId, forcar = false) {
+  if (Equipe.carregando) return;
+  if (!forcar && Equipe.obraId === obraId && (Equipe.linhas || Equipe.erro)) return;
+  Equipe.obraId = obraId;
+  Equipe.linhas = null;
+  Equipe.erro = '';
+  Equipe.carregando = true;
+  SUPA.lerMembros(obraId)
+    .then((linhas) => {
+      Equipe.linhas = linhas;
+    })
+    .catch((e) => {
+      Equipe.erro = String((e && e.message) || e);
+    })
+    .finally(() => {
+      Equipe.carregando = false;
+      if (App.rota.view === 'obra-config' && App.obra() && App.obra().id === obraId) {
+        App.renderConteudo();
+      }
+    });
+}
+
+function equipeHTML(o) {
+  carregarEquipe(o.id);
+  if (Equipe.carregando && !Equipe.linhas) {
+    return '<p class="linha-cinza">Carregando…</p>';
+  }
+  if (Equipe.erro) {
+    const faltaFuncao = /convidar_membro|membros_da_obra|does not exist|schema cache/i.test(
+      Equipe.erro,
+    );
+    return `<p class="linha-cinza">${
+      faltaFuncao
+        ? 'Convite por e-mail ainda não ativado. Aplique db/migracoes/0014_convite_por_email.sql no Supabase.'
+        : esc(Equipe.erro)
+    }</p>
+      ${botao('Tentar de novo', 'equipe-recarregar', { obra: o.id }, 'btn sutil pequeno')}`;
+  }
+  const linhas = Equipe.linhas || [];
+  if (!linhas.length) return '<p class="linha-cinza">Só você por enquanto.</p>';
+  return `<table class="mini-tab"><thead><tr><th>Pessoa</th><th>Papel</th><th></th></tr></thead>
+    <tbody>${linhas
+      .map(
+        (m) => `<tr>
+      <td>${esc(m.email)}${m.papel === 'dono' ? ' <span class="tinta3">(você)</span>' : ''}</td>
+      <td>${
+        m.papel === 'dono'
+          ? 'Dono'
+          : `<select data-acao="equipe-papel" data-id="${esc(m.id)}" aria-label="Papel de ${esc(m.email)}">
+            <option value="engenheiro" ${m.papel === 'engenheiro' ? 'selected' : ''}>Engenheiro</option>
+            <option value="cliente" ${m.papel === 'cliente' ? 'selected' : ''}>Cliente</option>
+          </select>`
+      }</td>
+      <td>${
+        m.papel === 'dono'
+          ? ''
+          : `<button class="btn sutil icone pequeno" data-acao="equipe-remover" data-id="${esc(m.id)}"
+          title="Remover" aria-label="Remover ${esc(m.email)}">${svg(ICO.lixo, 13)}</button>`
+      }</td>
+    </tr>`,
+      )
+      .join('')}</tbody></table>`;
+}
+
+ACOES['equipe-convidar'] = (el, d) => {
+  abrirForm({
+    titulo: 'Convidar para a obra',
+    campos: [
+      {
+        k: 'email',
+        label: 'E-mail',
+        tipo: 'texto',
+        col: 12,
+        obrigatorio: true,
+        dica: 'a pessoa precisa já ter uma conta no sistema — não há e-mail de convite',
+      },
+      {
+        k: 'papel',
+        label: 'Papel',
+        tipo: 'select',
+        vazio: false,
+        opcoes: [
+          { v: 'engenheiro', t: 'Engenheiro — lança, mede, edita' },
+          { v: 'cliente', t: 'Cliente — só acompanha (leitura)' },
+        ],
+        col: 12,
+      },
+    ],
+    valores: { papel: 'engenheiro' },
+    aoSalvar: async (dados) => {
+      try {
+        await SUPA.convidarMembro(d.obra, dados.email, dados.papel);
+        fecharModal();
+        toast('Convite gravado — a pessoa vê a obra no próximo login.', 'ok');
+        carregarEquipe(d.obra, true);
+      } catch (e) {
+        toast(String((e && e.message) || e), 'critico');
+      }
+    },
+  });
+};
+
+ACOES['equipe-papel'] = async (el, d) => {
+  const o = App.obra();
+  try {
+    await SUPA.alterarPapelMembro(d.id, el.value);
+    toast('Papel atualizado.', 'ok');
+    carregarEquipe(o.id, true);
+  } catch (e) {
+    toast(String((e && e.message) || e), 'critico');
+  }
+};
+
+ACOES['equipe-remover'] = (el, d) => {
+  const o = App.obra();
+  confirmar(
+    'Remover da equipe',
+    'Remover esta pessoa da obra? Ela perde o acesso no próximo login.',
+    async () => {
+      try {
+        await SUPA.removerMembro(d.id);
+        toast('Removido da equipe.', 'ok');
+        carregarEquipe(o.id, true);
+      } catch (e) {
+        toast(String((e && e.message) || e), 'critico');
+      }
+    },
+    'Remover',
+  );
+};
+
+ACOES['equipe-recarregar'] = (el, d) => carregarEquipe(d.obra, true);
+
 /* ---------------------------------------------------------------- tela */
 VIEWS['obra-config'] = () => {
   const o = App.obra();
@@ -110,6 +261,8 @@ VIEWS['obra-config'] = () => {
   const k = kpisObra(o);
   const mcmv =
     /MCMV/i.test(o.padrao || '') || o.fin.contratoCaixa || num(o.fin.valorFinanciado) > 0;
+
+  const ehDono = Store.backend !== 'supabase' || SUPA.papelNaObra(o.id) === 'dono';
 
   const valores = {};
   SECOES.forEach((s) =>
@@ -150,7 +303,22 @@ VIEWS['obra-config'] = () => {
     }
 
     ${
-      Store.backend !== 'supabase' || SUPA.papelNaObra(o.id) === 'dono'
+      ehDono && Store.backend === 'supabase'
+        ? `<div class="caixa">
+      <div class="caixa-cab">
+        <h3>Equipe</h3>
+        <div class="dir">${botao('Convidar', 'equipe-convidar', { obra: o.id }, 'btn sutil pequeno', 'mais')}</div>
+      </div>
+      ${equipeHTML(o)}
+      <p class="tinta3" style="font-size:var(--t-peq);margin:var(--e3) 0 0">
+        Engenheiro lança, mede e edita, mas não gerencia equipe nem exclui a obra. Cliente só acompanha.
+      </p>
+    </div>`
+        : ''
+    }
+
+    ${
+      ehDono
         ? `<div class="caixa">
       <span class="tinta2" style="font-size:var(--t-peq);font-weight:var(--p-semi)">Ações da obra</span>
       <div style="display:flex;gap:var(--e2);flex-wrap:wrap;margin-top:var(--e3)">
