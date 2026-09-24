@@ -217,3 +217,38 @@ Um ponto a conferir ao aplicar: criar uma obra pela primeira vez deve retornar a
 obra normalmente (a política de leitura tem um ramo `usuario_id = auth.uid()`
 justamente para isso). Se o `RETURNING` do insert vier vazio, é sinal de que esse
 ramo não pegou.
+
+## Demo
+
+`db/demo/` tem cinco scripts que criam, cada um, uma obra completa para
+apresentação: cliente, prestadores, contratos e aditivos, medições,
+recebimentos, materiais, lançamentos, cronograma e diário. Cada obra conta
+uma história diferente:
+
+| Script | Obra | O que mostra |
+|---|---|---|
+| `01_casa07_jardim_aurora.sql` | Casa 07 — Jardim Aurora (MCMV) | obra em dia, aditivo aprovado, medição a pagar |
+| `02_casa14_vila_nova.sql` | Casa 14 — Vila Nova (Anápolis) | obra com problemas: atraso, aditivos propostos, caixa negativo, alertas |
+| `03_sobrado_alto_da_gloria.sql` | Sobrado 3 — Alto da Glória | alto padrão no começo, recursos próprios, retenção de 10% |
+| `04_casa22_parque_das_flores.sql` | Casa 22 — Parque das Flores | quase entregue, contratos encerrados e avaliados |
+| `05_loja2_setor_bueno.sql` | Loja 2 — Setor Bueno | reforma comercial paralisada, contrato rescindido |
+
+Como usar:
+
+1. **Requer as migrações até a 0013** aplicadas. O script para com uma
+   mensagem clara se a 0013 faltar.
+2. **Use uma conta separada** para a demo. Prestadores e clientes são
+   reaproveitados pelo nome — numa conta real, se misturariam com os de verdade.
+3. **Limite de obras**: a conta precisa de `perfis.limite_obras` vazio ou ≥ 5
+   (0007). O script avisa se estiver no limite.
+4. Em cada arquivo, troque `SEU-EMAIL@AQUI.com` pelo e-mail da conta, cole no
+   SQL Editor e rode. A ordem não importa. Cada script termina com um `select`
+   de conferência (quantos registros foram criados).
+5. **Pode rodar de novo**: apaga a própria obra de demonstração e recria.
+6. **As datas são relativas a hoje** (`current_date`): rode perto da
+   apresentação, para "em aberto há 45 dias" e "atrasado 30 dias" saírem como
+   planejado.
+
+Os telefones `(62) 9000-01xx` não existem, então o WhatsApp não chama ninguém de
+verdade. CPFs e CNPJs são fictícios, mas passam na conferência de dígitos.
+E-mails usam `@exemplo.com`.
