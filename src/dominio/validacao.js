@@ -271,6 +271,8 @@ function motivoChavePixInvalida(tipo, chave) {
 
 const TIPOS_PIX_VALIDOS = ['cpf_cnpj', 'telefone', 'email', 'aleatoria'];
 const FORMAS_VALIDAS = ['empreitada', 'diaria', 'm2', 'etapa'];
+/* Espelha chk_prest_cidade (migração 0012). */
+const CIDADE_MAX = 60;
 
 function validarPrestador(p, listas = null) {
   const out = [];
@@ -303,6 +305,11 @@ function validarPrestador(p, listas = null) {
   }
   if (num(p.valorReferencia) < 0) {
     out.push(problema('valorReferencia', 'O valor de referência não pode ser negativo.'));
+  }
+
+  /* Cidade onde o prestador mora ou costuma atender. Texto livre. */
+  if (String(p.cidade || '').trim().length > CIDADE_MAX) {
+    out.push(problema('cidade', `A cidade tem no máximo ${CIDADE_MAX} caracteres.`));
   }
 
   /* Lista personalizável: especialidade nova é alerta, não erro. */

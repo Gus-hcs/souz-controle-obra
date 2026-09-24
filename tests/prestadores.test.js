@@ -233,6 +233,14 @@ describe('validação do cadastro', () => {
     );
   });
 
+  it('cidade é opcional e tem no máximo 60 caracteres (chk_prest_cidade)', () => {
+    expect(erros({ nome: 'A' })).toEqual([]);
+    expect(erros({ nome: 'A', cidade: 'Anápolis/GO' })).toEqual([]);
+    expect(erros({ nome: 'A', cidade: 'x'.repeat(60) })).toEqual([]);
+    expect(erros({ nome: 'A', cidade: 'x'.repeat(61) })[0].campo).toBe('cidade');
+    expect(prest({}).cidade).toBe('');
+  });
+
   it('especialidade nova é alerta, não erro — a lista é personalizável', () => {
     const r = validarPrestador(prest({ nome: 'A', especialidade: 'Soldador' }), LISTAS_PADRAO);
     expect(r.map((x) => x.sev)).toEqual(['alerta']);

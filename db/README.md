@@ -91,6 +91,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0009_seguranca_perfis.sql` | fecha o INSERT/DELETE de `perfis` (escalada a admin / fuga de bloqueio); trava `search_path` no resto das funções |
 | `0010_revoga_truncate.sql` | revoga `TRUNCATE` de `anon`/`authenticated` (ignora RLS); ajusta o default privilege |
 | `0011_prestadores.sql` | vínculo por id (`prestador_id` em contratos e lançamentos, `ON DELETE RESTRICT`); WhatsApp, PIX, apelido, forma de contratação e `arquivado` no prestador; notas de avaliação (prazo, qualidade, organização) no contrato; CHECKs; liga os registros antigos pelo nome |
+| `0012_prestador_cidade.sql` | coluna `cidade` no prestador (texto livre, opcional) e `CHECK` de até 60 caracteres |
 
 ### 0011 — prestadores
 
@@ -108,6 +109,12 @@ no contrato.
 
 Com o `ON DELETE RESTRICT`, apagar um prestador que tem contrato ou lançamento
 ligado falha no banco. A tela oferece **arquivar** no lugar.
+
+### 0012 — cidade do prestador
+
+Blocos A (coluna), B (diagnóstico — volta vazio, a coluna nasce sem dados),
+C (`CHECK not valid`) e D (valida). Como na 0011, **o código que grava `cidade`
+só pode ir ao ar depois do bloco A**.
 
 Ao criar uma migração nova, numere em sequência e descreva a mudança aqui.
 

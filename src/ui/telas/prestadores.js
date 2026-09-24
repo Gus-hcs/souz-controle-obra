@@ -69,6 +69,18 @@ const comoChamar = (p) => nomeExibicao(p.apelido || p.nome || '');
 const dataCurtaAno = (iso) =>
   isISO(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(2, 4)}` : '';
 const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+/* Linha cinza sob o nome: especialidade · cidade. O espaço não separável
+   prende o "·" à palavra anterior: a quebra nunca começa a linha com ele. */
+const subtitulo = (p) => [p.especialidade, p.cidade].filter(Boolean).join(' · ');
+/* Sugestões do campo Cidade: as cidades das obras e dos prestadores. */
+const cidadesConhecidas = () =>
+  [
+    ...new Set(
+      [...Store.estado.obras, ...Store.estado.prestadores]
+        .map((x) => String(x.cidade || '').trim())
+        .filter(Boolean),
+    ),
+  ].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
 /* Tira o nome do próprio prestador da descrição do pagamento: na ficha
    dele, "Pagamento Pedro Encanador semana 3" diz o nome à toa. */
@@ -132,7 +144,7 @@ function base({ semEspecialidade = false } = {}) {
     if (!semEspecialidade && tela.especialidade && p.especialidade !== tela.especialidade)
       return false;
     if (!busca) return true;
-    if (norm(`${p.nome} ${p.apelido} ${p.especialidade}`).includes(busca)) return true;
+    if (norm(`${p.nome} ${p.apelido} ${p.especialidade} ${p.cidade}`).includes(busca)) return true;
     return dig.length >= 4 && `${p.whatsapp}${p.telefone}`.includes(dig);
   });
 }
@@ -181,7 +193,7 @@ function colunas(temAvaliacao) {
         d,
       ) => `<div class="cel-prest" ${d.p.apelido ? `title="Chamado de ${esc(d.p.apelido)}"` : ''}>
           <div class="cel-obra"><span class="nome-prest">${esc(nomeExibicao(d.p.nome))}</span>${
-            d.p.especialidade ? `<span>${esc(d.p.especialidade)}</span>` : ''
+            d.p.especialidade || d.p.cidade ? `<span>${esc(subtitulo(d.p))}</span>` : ''
           }</div>
           ${
             somenteLeitura()
@@ -399,9 +411,13 @@ function inspetor(p) {
   return `<aside class="inspetor inspetor-prestador" tabindex="-1" data-testid="inspetor-prestador" aria-label="${esc(nome)}">
     <div class="inspetor-cab">
       <h2>${esc(nome)}<span class="sub">${esc(
-        [p.especialidade, p.apelido && p.apelido !== p.nome ? `“${p.apelido}”` : '']
+        [
+          p.especialidade || 'sem especialidade',
+          p.cidade,
+          p.apelido && p.apelido !== p.nome ? `“${p.apelido}”` : '',
+        ]
           .filter(Boolean)
-          .join(' · ') || 'sem especialidade',
+          .join(' · '),
       )}${p.arquivado ? ' · arquivado' : ''}</span></h2>
       ${
         somenteLeitura()
@@ -556,13 +572,24 @@ function htmlForm(p, detalhes) {
     <div class="form-prest-avisos" data-avisos-prest></div>
     ${contatos ? `<button type="button" class="btn sutil pequeno importar-contato" data-acao="prest-importar-contato">${svg(ICO.contatos, 14)}Importar dos contatos</button>` : ''}
     ${campo('nome', 'Nome', `<input type="text" id="pf_nome" data-prest="nome" value="${v('nome')}" autocomplete="off" required>`)}
-    ${campo(
-      'especialidade',
-      'Especialidade',
-      `<input type="text" id="pf_especialidade" data-prest="especialidade" value="${v('especialidade')}"
-        list="pf_lista_esp" autocomplete="off" placeholder="Pedreiro, Pintor…">
-        <datalist id="pf_lista_esp">${(Store.estado.listas.especialidades || []).map((e) => `<option value="${esc(e)}"></option>`).join('')}</datalist>`,
-    )}
+    <div class="form-prest-par">
+      ${campo(
+        'especialidade',
+        'Especialidade',
+        `<input type="text" id="pf_especialidade" data-prest="especialidade" value="${v('especialidade')}"
+          list="pf_lista_esp" autocomplete="off" placeholder="Pedreiro, Pintor…">
+          <datalist id="pf_lista_esp">${(Store.estado.listas.especialidades || []).map((e) => `<option value="${esc(e)}"></option>`).join('')}</datalist>`,
+      )}
+      ${campo(
+        'cidade',
+        'Cidade',
+        `<input type="text" id="pf_cidade" data-prest="cidade" value="${v('cidade')}"
+          list="pf_lista_cidade" autocomplete="off" maxlength="60" placeholder="Anápolis/GO">
+          <datalist id="pf_lista_cidade">${cidadesConhecidas()
+            .map((c) => `<option value="${esc(c)}"></option>`)
+            .join('')}</datalist>`,
+      )}
+    </div>
     ${campo(
       'whatsapp',
       'WhatsApp',

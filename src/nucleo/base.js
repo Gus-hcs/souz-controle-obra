@@ -311,7 +311,7 @@ const novoCliente = () => ({
    (normalizarTelefoneBR, nucleo/contato.js). `documento` é o CPF/CNPJ.
    `arquivado` substitui a exclusão: quem tem pagamento vinculado não some. */
 const novoPrestador = () => ({
-  id: uid('prest'), nome: '', apelido: '', especialidade: '',
+  id: uid('prest'), nome: '', apelido: '', especialidade: '', cidade: '',
   whatsapp: '', temWhatsapp: true, telefone: '', documento: '',
   chavePix: '', tipoPix: '', formaContratacao: '', valorReferencia: 0,
   avaliacao: 0, observacoes: '', arquivado: false

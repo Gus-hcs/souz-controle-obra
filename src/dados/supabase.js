@@ -44,7 +44,9 @@ const TABELAS_DB = [
       documento: 'documento', avaliacao: ['avaliacao', 'num'], observacoes: 'observacoes',
       apelido: 'apelido', whatsapp: 'whatsapp', temWhatsapp: ['tem_whatsapp', 'bool'],
       chavePix: 'chave_pix', tipoPix: 'tipo_pix', formaContratacao: 'forma_contratacao',
-      valorReferencia: ['valor_referencia', 'num'], arquivado: ['arquivado', 'bool']
+      valorReferencia: ['valor_referencia', 'num'], arquivado: ['arquivado', 'bool'],
+      /* exige a migração 0012 */
+      cidade: 'cidade'
     }
   },
   {
