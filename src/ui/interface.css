@@ -2936,3 +2936,30 @@ table.lista td.cel-sem-contrato {
 .caixa + .caixa {
   margin-top: var(--e3);
 }
+.caixa-cab {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  margin-bottom: var(--e3);
+}
+.caixa-cab h3 {
+  font-size: var(--t-medio);
+  font-weight: var(--p-semi);
+  margin: 0;
+}
+.caixa-cab .dir {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+}
+
+/* Faixa de chips de contexto (status, prazo, pendências) acima dos kpis. */
+.faixa-contexto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e3);
+  font-size: var(--t-peq);
+  color: var(--tinta2);
+}

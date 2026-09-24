@@ -39,6 +39,8 @@ import './ui/telas/curva.js';
 import './ui/telas/obra-config.js';
 import './ui/telas/auditoria.js';
 import './ui/telas/clientes.js';
+import './ui/telas/painel.js';
+import './ui/telas/ajustes.js';
 
 /* ---------------------------------------------------------- eventos */
 document.addEventListener('click', (ev) => {
