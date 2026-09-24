@@ -76,6 +76,7 @@
   --toolbar-h: 52px; /* toolbar unificada */
   --lateral-w: 220px; /* sidebar */
   --inspetor-w: 300px; /* painel inspetor à direita */
+  --leitura-max: 1080px; /* telas de leitura e formulário: Configuração, Ajustes, Relatório */
 
   /* ------------------------------------------------------ camadas
      No claro, o conteúdo é branco e a sidebar é o material cinza —

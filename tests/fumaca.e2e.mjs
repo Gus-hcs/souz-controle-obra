@@ -10,6 +10,7 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { estadoDemo } from './fixture.js';
+import { novoPrestador } from '../src/nucleo/base.js';
 
 const { chromium } = pw;
 const pasta = path.resolve(process.argv[2] || 'dist-local');
@@ -36,7 +37,14 @@ pagina.on('console', (m) => {
   if (m.type() === 'error' && !ignorar.test(m.text())) erros.push('console: ' + m.text());
 });
 
-const estado = JSON.stringify(estadoDemo());
+/* Dois prestadores, para Prestadores ter lista (a fixture não tem) e
+   entrar na conferência de largura. */
+const demo = estadoDemo();
+demo.prestadores.push(
+  Object.assign(novoPrestador(), { id: 'e2e-p1', nome: 'Construtora Horizonte', especialidade: 'Empreiteiro geral' }),
+  Object.assign(novoPrestador(), { id: 'e2e-p2', nome: 'Elétrica Luz Forte', especialidade: 'Eletricista' }),
+);
+const estado = JSON.stringify(demo);
 await pagina.addInitScript((json) => {
   localStorage.setItem('souz_controle_obra_v1', json);
 }, estado);
@@ -61,6 +69,62 @@ for (const v of telas) {
   console.log(`  ${marca} ${v.padEnd(16)} ${String(info.chars).padStart(5)} car.  ${info.linhas} linhas  ${info.svg} svg`);
   if (info.chars <= 40) erros.push(`tela ${v} praticamente vazia`);
 }
+
+/* Largura das telas a 1920 px (regra única em interface.css):
+   - lista e tabela: o que está mais à direita (tabela, faixa de KPIs,
+     coluna principal) chega à borda útil — ou ao inspetor, se ele estiver
+     aberto. Faixa vazia maior que a tolerância é falha;
+   - leitura e formulário: as três com a mesma largura, alinhadas à
+     esquerda, e sem passar do limite. */
+const LISTAS = ['carteira', 'contratos', 'medicoes', 'recebimentos', 'lancamentos', 'materiais',
+  'cronograma', 'prestadores', 'clientes', 'alertas', 'auditoria', 'painel', 'diario', 'curva', 'fluxo'];
+const LEITURA = ['obra-config', 'ajustes', 'relatorio'];
+const TOLERANCIA = 40; // gutter da coluna principal + folga de borda
+await pagina.setViewportSize({ width: 1920, height: 1080 });
+console.log('\n  largura a 1920 px:');
+const leitura = [];
+for (const v of [...LISTAS, ...LEITURA].filter((x) => telas.includes(x))) {
+  await pagina.click(`#rail [data-view="${v}"]`);
+  await pagina.waitForTimeout(260);
+  const m = await pagina.evaluate(() => {
+    const c = document.getElementById('conteudo');
+    const cs = getComputedStyle(c);
+    const r = c.getBoundingClientRect();
+    const inspetor = [...c.querySelectorAll(':scope > aside.inspetor, :scope .inspetor')].find(
+      (x) => x.getBoundingClientRect().width > 0,
+    );
+    const borda = inspetor ? inspetor.getBoundingClientRect().left : r.right - parseFloat(cs.paddingRight);
+    /* só o que tem conteúdo: o contêiner de layout (.tela-principal) ocupa
+       tudo sempre e esconderia uma tabela limitada lá dentro */
+    const pecas = [...c.querySelectorAll('table, .kpis, .resumo, .tela-lista')]
+      .filter((e) => !inspetor || !inspetor.contains(e))
+      .map((e) => e.getBoundingClientRect())
+      .filter((b) => b.width > 0);
+    const direita = Math.max(...pecas.map((b) => b.right));
+    const coluna = c.firstElementChild.getBoundingClientRect();
+    const vazia = !c.querySelector('table, .kpis, .resumo') && !!c.querySelector('.vazio');
+    return { vazia, faixa: Math.round(borda - direita), largura: Math.round(coluna.width), esquerda: Math.round(coluna.left) };
+  });
+  if (LEITURA.includes(v)) {
+    leitura.push({ v, ...m });
+    console.log(`    ${v.padEnd(14)} leitura: ${m.largura}px a partir de x=${m.esquerda}`);
+  } else if (m.vazia) {
+    console.log(`    --  ${v.padEnd(14)} estado vazio, sem tabela para medir`);
+  } else {
+    const ok = m.faixa <= TOLERANCIA;
+    console.log(`    ${ok ? 'ok ' : 'FAIXA'} ${v.padEnd(14)} sobra à direita: ${m.faixa}px`);
+    if (!ok) erros.push(`tela ${v} deixa faixa vazia de ${m.faixa}px a 1920 px`);
+  }
+}
+if (leitura.length > 1) {
+  const larguras = new Set(leitura.map((x) => x.largura));
+  const esquerdas = new Set(leitura.map((x) => x.esquerda));
+  if (larguras.size > 1 || esquerdas.size > 1) {
+    erros.push(`telas de leitura com largura ou alinhamento diferentes: ${JSON.stringify(leitura)}`);
+  }
+  if (leitura.some((x) => x.largura > 1200)) erros.push('tela de leitura passou do limite de largura');
+}
+await pagina.setViewportSize({ width: 1280, height: 720 });
 
 /* abre um formulário e confere que o cálculo ao vivo responde */
 await pagina.click('#rail [data-view="medicoes"]');
