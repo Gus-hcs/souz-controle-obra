@@ -178,3 +178,49 @@ table.tab tbody tr:hover td {
 .chip.marca {
   color: var(--tinta2);
 }
+
+/* ------------------------------------------------- altura no celular
+   100vh conta a barra do navegador: no telefone o conteúdo fica mais alto
+   que a tela e o rodapé some atrás dela. 100dvh acompanha a barra
+   aparecendo e sumindo. O 100vh antes é a reserva para quem não tem dvh. */
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+@media (max-width: 860px) {
+  .modal {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}
+
+/* -------------------------------------------- animação mais barata
+   estilo.css anima box-shadow junto com cor. Sombra não é composta na
+   placa de vídeo: cada quadro repinta a área inteira. As cores ficam,
+   a sombra sai. */
+.btn,
+.rail-nav button,
+.kpi,
+.obra-cartao,
+.cartao,
+table.tab tbody tr,
+.chip,
+a {
+  transition:
+    background-color 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease,
+    transform 0.14s ease;
+}
+
+/* ------------------------------------------- largura de leitura
+   Em monitor ultrawide o texto corrido chegava a 1.470px numa linha só.
+   Acima de ~90 caracteres o olho perde a volta da linha. Não vale para
+   tabela nem gráfico, que ganham com a largura toda. */
+#conteudo p,
+#conteudo .ct-contagem,
+#conteudo .alerta .txt p,
+#conteudo .vazio p,
+#conteudo .impl-lead {
+  max-width: 88ch;
+}

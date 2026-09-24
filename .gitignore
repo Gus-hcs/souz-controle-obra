@@ -5,6 +5,10 @@ site/
 coverage/
 test-results/
 playwright-report/
+
+# Relatório de responsividade: artefato, regerado por npm run test:responsivo
+docs/relatorio-responsivo/
+docs/relatorio-responsivo.html
 .env.local
 .env.*.local
 *.log

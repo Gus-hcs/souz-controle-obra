@@ -106,7 +106,8 @@ a:hover {
    toolbar e o cabeçalho da lista fiquem fixos sem truque de posição. */
 #app {
   display: flex;
-  height: 100vh;
+  height: 100vh; /* reserva para navegador sem dvh */
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -117,7 +118,8 @@ a:hover {
   flex: 0 0 var(--lateral-w);
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: 100vh; /* reserva para navegador sem dvh */
+  height: 100dvh;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1140,6 +1142,7 @@ table.lista tfoot td.num {
     bottom: 0;
     z-index: 90;
     height: 100vh;
+    height: 100dvh;
     transform: translateX(-100%);
     transition: transform var(--mov) var(--curva);
     box-shadow: var(--sombra-menu);

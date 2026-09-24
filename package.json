@@ -15,7 +15,10 @@
     "lint:fix": "eslint . --fix",
     "formatar": "prettier --write \"**/*.{js,css,json,md}\"",
     "verificar": "npm run lint && npm run test && npm run build && npm run test:e2e",
-    "test:e2e": "vite build --mode teste --outDir dist-local --emptyOutDir && node tests/fumaca.e2e.mjs dist-local"
+    "test:e2e": "vite build --mode teste --outDir dist-local --emptyOutDir && node tests/fumaca.e2e.mjs dist-local",
+    "test:responsivo": "vite build --mode teste --outDir dist-local --emptyOutDir && node tests/responsivo/executar.mjs && node tests/responsivo/relatorio.mjs",
+    "test:responsivo:rapido": "vite build --mode teste --outDir dist-local --emptyOutDir && node tests/responsivo/executar.mjs --rapido --sem-fluidez && node tests/responsivo/relatorio.mjs",
+    "relatorio:responsivo": "node tests/responsivo/relatorio.mjs"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.8",
