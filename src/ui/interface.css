@@ -1379,3 +1379,46 @@ table.lista tfoot td.num {
     display: block;
   }
 }
+
+/* ---------------------------------------------------------- impressão
+   Na tela, a janela não rola e cada painel rola por dentro. No papel isso
+   cortaria o relatório na primeira página: não existe "rolar" em papel.
+   Aqui o documento volta a ser um fluxo contínuo. */
+@media print {
+  #app {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+  #main {
+    display: block;
+  }
+  #conteudo,
+  #conteudo.paineis {
+    display: block;
+    height: auto;
+    overflow: visible;
+    padding: 0;
+  }
+  .tela-principal {
+    overflow: visible;
+    padding: 0;
+  }
+  /* O inspetor é apoio de tela; no documento impresso ele não entra. */
+  .inspetor,
+  .menu-ctx,
+  #toasts {
+    display: none !important;
+  }
+  /* Cabeçalho fixo vira cabeçalho normal, e repete a cada página. */
+  table.lista thead th {
+    position: static;
+    background: transparent;
+  }
+  table.lista thead {
+    display: table-header-group;
+  }
+  table.lista tbody tr {
+    break-inside: avoid;
+  }
+}
