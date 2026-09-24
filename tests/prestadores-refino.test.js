@@ -3,8 +3,21 @@
  * de um R$ 0 falso, e o aviso de pagamentos sem contrato.
  */
 import { describe, expect, it } from 'vitest';
-import { estadoInicial, migrar, nomeExibicao, novaObra, novoContrato, novoLancamento, novaMedicao, novoPrestador } from '../src/nucleo/base.js';
-import { prestadoresPagosSemContrato, resumoPrestador, totaisPrestadores } from '../src/dominio/calculos.js';
+import {
+  estadoInicial,
+  migrar,
+  nomeExibicao,
+  novaObra,
+  novoContrato,
+  novoLancamento,
+  novaMedicao,
+  novoPrestador,
+} from '../src/nucleo/base.js';
+import {
+  prestadoresPagosSemContrato,
+  resumoPrestador,
+  totaisPrestadores,
+} from '../src/dominio/calculos.js';
 
 describe('nomeExibicao — só o que está todo em caixa alta muda', () => {
   it.each([
@@ -30,11 +43,38 @@ function estado() {
     P({ id: 'arq', nome: 'Arquivado Pago', arquivado: true }),
   );
   const o = Object.assign(novaObra(), { id: 'o1', nome: 'Casa 12' });
-  o.contratos.push(Object.assign(novoContrato(), { codigo: 'CT-1', codigoBase: 'CT-1', prestadorId: 'com', valorInformado: 9000, status: 'Em andamento' }));
-  o.medicoes.push(Object.assign(novaMedicao(), { contratoBase: 'CT-1', valorMedido: 3000, valorPago: 3000, status: 'Pago' }));
+  o.contratos.push(
+    Object.assign(novoContrato(), {
+      codigo: 'CT-1',
+      codigoBase: 'CT-1',
+      prestadorId: 'com',
+      valorInformado: 9000,
+      status: 'Em andamento',
+    }),
+  );
+  o.medicoes.push(
+    Object.assign(novaMedicao(), {
+      contratoBase: 'CT-1',
+      valorMedido: 3000,
+      valorPago: 3000,
+      status: 'Pago',
+    }),
+  );
   o.lancamentos.push(
-    ...[1, 2, 3, 4, 5].map((i) => Object.assign(novoLancamento(), { descricao: `Semana ${i}`, prestadorId: 'lanc', quantidade: 1, precoUnitario: 7542 })),
-    Object.assign(novoLancamento(), { descricao: 'Antigo', prestadorId: 'arq', quantidade: 1, precoUnitario: 100 }),
+    ...[1, 2, 3, 4, 5].map((i) =>
+      Object.assign(novoLancamento(), {
+        descricao: `Semana ${i}`,
+        prestadorId: 'lanc',
+        quantidade: 1,
+        precoUnitario: 7542,
+      }),
+    ),
+    Object.assign(novoLancamento(), {
+      descricao: 'Antigo',
+      prestadorId: 'arq',
+      quantidade: 1,
+      precoUnitario: 100,
+    }),
   );
   e.obras.push(o);
   return migrar(e);
@@ -65,7 +105,9 @@ describe('sem contrato não vira R$ 0', () => {
 
 describe('aviso de pagamentos sem contrato', () => {
   it('lista quem recebeu sem contrato, fora os arquivados', () => {
-    expect(prestadoresPagosSemContrato(est)).toEqual([{ id: 'lanc', nome: 'Só Lançamento', pago: 37710 }]);
+    expect(prestadoresPagosSemContrato(est)).toEqual([
+      { id: 'lanc', nome: 'Só Lançamento', pago: 37710 },
+    ]);
   });
 
   it('quem não recebeu nada não entra — não há o que vincular', () => {
