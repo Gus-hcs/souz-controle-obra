@@ -2,7 +2,7 @@
  * telas-cadastros.js — Telas de cadastro: clientes, prestadores, relatórios e ajustes.
  */
 import { esc, fmtData, fmtDataCurta, fmtMoney, fmtPct, fonteImagem, hojeISO, norm, num, PLANOS } from '../nucleo/base.js';
-import { alertasObra, basesContratuais, contratoValor, etapaCalc, kpisObra } from '../dominio/calculos.js';
+import { alertasObra, basesContratuais, etapaCalc, kpisObra, resumoPrestador } from '../dominio/calculos.js';
 import { apenasErros, validarPerfilAdmin, validarSenhaForte, validarUsuarioNovo } from '../dominio/validacao.js';
 import { Store, horaCurta } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
@@ -44,18 +44,15 @@ VIEWS.clientes = () => {
 /* ======================================================== PRESTADORES */
 VIEWS.prestadores = () => {
   const e = Store.estado;
-  const lista = filtraTexto(e.prestadores, App.filtros.busca, ['nome', 'especialidade', 'telefone']);
+  const ativos = e.prestadores.filter((p) => !p.arquivado);
+  const lista = filtraTexto(ativos, App.filtros.busca, ['nome', 'apelido', 'especialidade', 'telefone']);
   const linhas = lista.map((p) => {
-    let contratado = 0, pago = 0;
-    const obras = new Set();
-    e.obras.forEach((o) => {
-      o.contratos.filter((c) => norm(c.prestador) === norm(p.nome) && c.status !== 'Cancelado').forEach((c) => {
-        contratado += contratoValor(c); obras.add(o.nome);
-      });
-      const bases = o.contratos.filter((c) => norm(c.prestador) === norm(p.nome)).map((c) => c.codigoBase);
-      o.medicoes.filter((m) => bases.includes(m.contratoBase) && m.status !== 'Cancelado')
-        .forEach((m) => { pago += num(m.valorPago); });
-    });
+    /* Contratado e pago saem do domínio (resumoPrestador): contratos e
+       lançamentos ligados pelo id, ou pelo nome nos registros antigos. */
+    const r = resumoPrestador(e, p);
+    const contratado = r.contratado;
+    const pago = r.pago;
+    const obras = new Set(r.obras.map((x) => x.obraNome));
     return `<tr>
       <td><b>${esc(p.nome)}</b></td>
       <td>${esc(p.especialidade || '—')}</td>

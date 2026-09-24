@@ -2,7 +2,7 @@
  * acoes.js — Ações: tudo que um clique dispara — abrir formulário, salvar, excluir.
  */
 import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, uid } from '../nucleo/base.js';
-import { alertasObra, basesContratuais, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, materialCalc, medicaoAlerta } from '../dominio/calculos.js';
+import { alertasObra, basesContratuais, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, materialCalc, medicaoAlerta, resumoPrestador } from '../dominio/calculos.js';
 import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
@@ -264,10 +264,26 @@ document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && document.querySelector('.menu-conta')) fecharMenuConta();
 });
 
+/* Prestadores para escolher num contrato ou lançamento: os ativos, mais o
+   que já está no registro (mesmo arquivado — não pode sumir da edição). */
+function opcoesPrestador(atualId) {
+  return Store.estado.prestadores
+    .filter((p) => !p.arquivado || p.id === atualId)
+    .slice()
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt'))
+    .map((p) => ({ v: p.id, t: p.apelido && p.apelido !== p.nome ? `${p.nome} (${p.apelido})` : p.nome }));
+}
+
+/* Guarda também o nome no campo de texto antigo: relatórios e telas que
+   ainda leem o nome continuam certos. Sem escolha, o texto antigo fica. */
+function nomeDoPrestador(id, textoAntigo) {
+  const p = id && Store.estado.prestadores.find((x) => x.id === id);
+  return p ? p.nome : textoAntigo || '';
+}
+
 /* ========================================================= CONTRATOS */
 function formContrato(c, novo, aoSalvar) {
   const o = App.obra();
-  const prestadores = Store.estado.prestadores.map((p) => p.nome);
   const bases = [...new Set(o.contratos.map((x) => x.codigoBase).filter(Boolean))];
   abrirForm({
     titulo: novo ? (c.registro === 'Aditivo' ? 'Novo aditivo' : 'Novo contrato') : 'Editar registro contratual',
@@ -277,7 +293,9 @@ function formContrato(c, novo, aoSalvar) {
       { k: 'codigoBase', label: 'Código-base', tipo: 'lista', opcoes: bases, col: 3, obrigatorio: true, dica: 'liga o aditivo ao contrato' },
       { k: 'registro', label: 'Tipo de registro', tipo: 'select', opcoes: ['Contrato', 'Aditivo'], col: 3, vazio: false },
       { k: 'status', label: 'Status', tipo: 'select', opcoes: opcoesLista('statusContrato'), col: 3, vazio: false },
-      { k: 'prestador', label: 'Prestador', tipo: 'lista', opcoes: prestadores, col: 6 },
+      { k: 'prestadorId', label: 'Prestador', tipo: 'select', opcoes: opcoesPrestador(c.prestadorId), col: 6,
+        placeholder: 'sem prestador',
+        dica: !c.prestadorId && c.prestador ? `Digitado antes como "${c.prestador}" — escolha o cadastro.` : '' },
       { k: 'escopo', label: 'Escopo', tipo: 'texto', col: 6, placeholder: 'Empreitada principal, muro frontal…' },
       { k: 'regime', label: 'Regime', tipo: 'select', opcoes: opcoesLista('regimes'), col: 3, vazio: false },
       { k: 'quantidade', label: 'Quantidade', tipo: 'numero', col: 2 },
@@ -305,6 +323,7 @@ function formContrato(c, novo, aoSalvar) {
     aoSalvar: (d) => {
       if (!d.codigo) return toast('Informe o código do contrato.', 'aviso');
       if (!d.codigoBase) d.codigoBase = d.codigo;
+      d.prestador = nomeDoPrestador(d.prestadorId, c.prestador);
       Object.assign(c, d);
       fecharModal();
       aoSalvar(c);
@@ -510,7 +529,9 @@ function formLancamento(l, novo, aoSalvar) {
       { k: 'frete', label: 'Frete / acréscimo', tipo: 'dinheiro', col: 2 },
       { k: 'formaPagamento', label: 'Pagamento', tipo: 'select', opcoes: opcoesLista('formasPagamento'), col: 2, vazio: false },
       { k: 'materialId', label: 'Item do plano de materiais', tipo: 'select', opcoes: planos, col: 6, placeholder: 'não vincular' },
-      { k: 'observacoes', label: 'Observações', tipo: 'texto', col: 6 },
+      { k: 'prestadorId', label: 'Pago a prestador', tipo: 'select', opcoes: opcoesPrestador(l.prestadorId), col: 6,
+        placeholder: 'não é pagamento a prestador', dica: 'diária ou serviço pago direto, sem medição' },
+      { k: 'observacoes', label: 'Observações', tipo: 'texto', col: 12 },
       { k: 'total', label: 'Total do lançamento', tipo: 'calc', col: 12 }
     ],
     valores: l,
@@ -521,6 +542,7 @@ function formLancamento(l, novo, aoSalvar) {
     validar: (d) => validarLancamento(d),
     aoSalvar: (d) => {
       if (!d.descricao) return toast('Informe a descrição do lançamento.', 'aviso');
+      if (d.prestadorId && !d.fornecedor) d.fornecedor = nomeDoPrestador(d.prestadorId, '');
       Object.assign(l, d);
       fecharModal();
       aoSalvar(l);
@@ -945,6 +967,19 @@ function abrirFormPrestador(p, novo) {
 }
 ACOES['excluir-prestador'] = (el, d) => {
   const p = Store.estado.prestadores.find((x) => x.id === d.id);
+  /* Quem tem contrato ou pagamento ligado não some: é arquivado. O banco
+     garante o mesmo (ON DELETE RESTRICT, migração 0011). */
+  const r = resumoPrestador(Store.estado, p);
+  if (r.temVinculo) {
+    confirmar('Arquivar prestador',
+      `"${p.nome}" tem contratos ou pagamentos em ${r.obras.length} obra${r.obras.length > 1 ? 's' : ''}, então não pode ser excluído. ` +
+      'Arquivar tira da lista e dos formulários, e mantém o histórico.',
+      () => {
+        mutar(() => { p.arquivado = true; });
+        toast('Prestador arquivado.', 'ok');
+      }, 'Arquivar');
+    return;
+  }
   confirmar('Excluir prestador', `Excluir "${p.nome}" do cadastro?`, () => {
     mutar((e) => { e.prestadores = e.prestadores.filter((x) => x.id !== d.id); });
     toast('Prestador excluído.', 'aviso');

@@ -38,9 +38,13 @@ const TABELAS_DB = [
   },
   {
     nome: 'prestadores', raiz: 'prestadores', novo: () => novoPrestador(),
+    /* colunas novas (apelido em diante) exigem a migração 0011 aplicada */
     campos: {
       nome: 'nome', especialidade: 'especialidade', telefone: 'telefone',
-      documento: 'documento', avaliacao: ['avaliacao', 'num'], observacoes: 'observacoes'
+      documento: 'documento', avaliacao: ['avaliacao', 'num'], observacoes: 'observacoes',
+      apelido: 'apelido', whatsapp: 'whatsapp', temWhatsapp: ['tem_whatsapp', 'bool'],
+      chavePix: 'chave_pix', tipoPix: 'tipo_pix', formaContratacao: 'forma_contratacao',
+      valorReferencia: ['valor_referencia', 'num'], arquivado: ['arquivado', 'bool']
     }
   },
   {
@@ -62,6 +66,7 @@ const TABELAS_DB = [
     nome: 'contratos', colecao: 'contratos', ordenado: true, novo: () => novoContrato(),
     campos: {
       codigo: 'codigo', codigoBase: 'codigo_base', registro: 'registro', prestador: 'prestador',
+      prestadorId: ['prestador_id', 'ref'],
       escopo: 'escopo', regime: 'regime', quantidade: ['quantidade', 'num'], unidade: 'unidade',
       precoUnitario: ['preco_unitario', 'num'], valorInformado: ['valor_informado', 'num'],
       incluiMaterial: 'inclui_material', inicioPrevisto: ['inicio_previsto', 'data'],
@@ -101,6 +106,7 @@ const TABELAS_DB = [
     campos: {
       materialId: ['material_id', 'ref'], data: ['data', 'data'], tipo: 'tipo', etapa: 'etapa',
       categoria: 'categoria', descricao: 'descricao', fornecedor: 'fornecedor', documento: 'documento',
+      prestadorId: ['prestador_id', 'ref'],
       quantidade: ['quantidade', 'num'], unidade: 'unidade', precoUnitario: ['preco_unitario', 'num'],
       desconto: ['desconto', 'num'], frete: ['frete', 'num'], formaPagamento: 'forma_pagamento',
       observacoes: 'observacoes'
@@ -146,6 +152,7 @@ function paraLinha(item, tab) {
     else if (tipo === 'data') linha[coluna] = isISO(v) ? v : null;
     else if (tipo === 'ref') linha[coluna] = v ? String(v) : null;
     else if (tipo === 'json') linha[coluna] = v || [];
+    else if (tipo === 'bool') linha[coluna] = v === true;
     else linha[coluna] = v === undefined || v === '' ? null : String(v);
   });
   /* Autoria da linha: preserva quem criou; item novo fica com o usuário atual.
@@ -178,6 +185,8 @@ function paraApp(linha, tab) {
     if (tipo === 'num') definir(item, caminho, num(v));
     else if (tipo === 'data') definir(item, caminho, paraDataISO(v));
     else if (tipo === 'json') definir(item, caminho, Array.isArray(v) ? v : []);
+    /* booleano nulo mantém o padrão do cadastro novo (ex.: temWhatsapp = true) */
+    else if (tipo === 'bool') { if (typeof v === 'boolean') definir(item, caminho, v); }
     else definir(item, caminho, v === null || v === undefined ? '' : String(v));
   });
   if (linha.usuario_id) item.usuarioId = linha.usuario_id;

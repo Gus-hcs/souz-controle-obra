@@ -168,8 +168,28 @@ const LISTAS_PADRAO = {
   origensRecebimento: ['CAIXA', 'Cliente', 'Recursos próprios', 'Outro'],
   prioridades: ['Alta', 'Média', 'Baixa'],
   statusObra: ['Planejada', 'Em andamento', 'Paralisada', 'Concluída'],
-  climas: ['Bom', 'Nublado', 'Chuva fraca', 'Chuva forte', 'Impraticável']
+  climas: ['Bom', 'Nublado', 'Chuva fraca', 'Chuva forte', 'Impraticável'],
+  /* Personalizável: o usuário acrescenta a dele. Por isso especialidade fora
+     da lista é alerta, não erro, e não vira CHECK no banco. */
+  especialidades: [
+    'Pedreiro', 'Servente', 'Eletricista', 'Encanador', 'Pintor', 'Gesseiro',
+    'Carpinteiro', 'Serralheiro', 'Azulejista', 'Empreiteiro geral', 'Outro'
+  ]
 };
+
+/* Opções fixas do cadastro de prestador — batem com os CHECKs da migração 0011. */
+const TIPOS_PIX = [
+  { v: 'cpf_cnpj', t: 'CPF/CNPJ' },
+  { v: 'telefone', t: 'Telefone' },
+  { v: 'email', t: 'E-mail' },
+  { v: 'aleatoria', t: 'Chave aleatória' }
+];
+const FORMAS_CONTRATACAO = [
+  { v: 'empreitada', t: 'Empreitada' },
+  { v: 'diaria', t: 'Diária' },
+  { v: 'm2', t: 'Por m²' },
+  { v: 'etapa', t: 'Por etapa' }
+];
 
 /* -------------------------------------------------------------- schema */
 
@@ -212,7 +232,7 @@ const novaObra = (nome = 'Nova obra') => ({
 });
 
 const novoContrato = () => ({
-  id: uid('ct'), codigo: '', codigoBase: '', registro: 'Contrato', prestador: '',
+  id: uid('ct'), codigo: '', codigoBase: '', registro: 'Contrato', prestadorId: '', prestador: '',
   escopo: '', regime: 'Preço fechado', quantidade: 0, unidade: 'vb', precoUnitario: 0,
   valorInformado: 0, incluiMaterial: 'Não', inicioPrevisto: '', fimPrevisto: '',
   status: 'Planejado', observacoes: ''
@@ -232,7 +252,7 @@ const novoRecebimento = () => ({
 
 const novoLancamento = () => ({
   id: uid('lan'), data: hojeISO(), tipo: 'Material', etapa: '', categoria: '',
-  descricao: '', fornecedor: '', documento: '', quantidade: 1, unidade: 'un',
+  descricao: '', fornecedor: '', prestadorId: '', documento: '', quantidade: 1, unidade: 'un',
   precoUnitario: 0, desconto: 0, frete: 0, formaPagamento: 'PIX',
   materialId: '', observacoes: ''
 });
@@ -258,9 +278,14 @@ const novoCliente = () => ({
   origem: '', situacao: 'Cliente', observacoes: '', logo: ''
 });
 
+/* whatsapp e telefone ficam só em dígitos, no formato 55DDDNNNNNNNNN
+   (normalizarTelefoneBR, nucleo/contato.js). `documento` é o CPF/CNPJ.
+   `arquivado` substitui a exclusão: quem tem pagamento vinculado não some. */
 const novoPrestador = () => ({
-  id: uid('prest'), nome: '', especialidade: '', telefone: '', documento: '',
-  avaliacao: 0, observacoes: ''
+  id: uid('prest'), nome: '', apelido: '', especialidade: '',
+  whatsapp: '', temWhatsapp: true, telefone: '', documento: '',
+  chavePix: '', tipoPix: '', formaContratacao: '', valorReferencia: 0,
+  avaliacao: 0, observacoes: '', arquivado: false
 });
 
 const PAPEIS_OBRA = ['dono', 'engenheiro', 'cliente'];
@@ -293,7 +318,12 @@ function migrar(s) {
     }
   }
   out.clientes = (Array.isArray(s.clientes) ? s.clientes : []).map((c) => Object.assign(novoCliente(), c));
-  out.prestadores = Array.isArray(s.prestadores) ? s.prestadores : [];
+  out.prestadores = (Array.isArray(s.prestadores) ? s.prestadores : []).map((p) => {
+    const n = Object.assign(novoPrestador(), p);
+    n.arquivado = n.arquivado === true;
+    n.temWhatsapp = n.temWhatsapp !== false;
+    return n;
+  });
   out.obras = (Array.isArray(s.obras) ? s.obras : []).map((o) => {
     const nova = novaObra();
     const obra = Object.assign(nova, o);
@@ -302,6 +332,9 @@ function migrar(s) {
       obra[k] = Array.isArray(o[k]) ? o[k] : [];
     }
     obra.diario.forEach((d) => { if (!Array.isArray(d.fotos)) d.fotos = []; });
+    /* vínculo com o cadastro de prestador — antes era só o nome digitado */
+    obra.contratos.forEach((c) => { if (c.prestadorId == null) c.prestadorId = ''; });
+    obra.lancamentos.forEach((l) => { if (l.prestadorId == null) l.prestadorId = ''; });
     /* numeração sempre como texto: a planilha traz número, o banco guarda texto */
     obra.medicoes.forEach((m) => { m.numero = m.numero == null ? '' : String(m.numero); });
     obra.recebimentos.forEach((r) => { r.numeroMedicao = r.numeroMedicao == null ? '' : String(r.numeroMedicao); });
@@ -338,6 +371,8 @@ export {
   slug,
   fonteImagem,
   LISTAS_PADRAO,
+  TIPOS_PIX,
+  FORMAS_CONTRATACAO,
   PAPEIS_OBRA,
   PLANOS,
   novoMembro,

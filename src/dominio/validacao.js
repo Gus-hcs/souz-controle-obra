@@ -21,6 +21,7 @@
  * conhece a lista de cada empresa.
  */
 import { isISO, num, PAPEIS_OBRA, PLANOS } from '../nucleo/base.js';
+import { motivoTelefoneInvalido } from '../nucleo/contato.js';
 
 const REGISTROS_CONTRATO = ['Contrato', 'Aditivo'];
 
@@ -220,11 +221,87 @@ function validarCliente(c) {
   return out;
 }
 
-function validarPrestador(p) {
+/* ------------------------------------------------------ CPF e CNPJ
+   Dígitos verificadores pela regra da Receita. Devolve '' se válido, ou o
+   motivo. Aceita com ou sem pontuação. */
+function motivoCpfCnpjInvalido(doc) {
+  const d = String(doc ?? '').replace(/\D/g, '');
+  if (!d) return '';
+  if (d.length !== 11 && d.length !== 14) return 'CPF tem 11 dígitos; CNPJ, 14.';
+  if (/^(\d)\1+$/.test(d)) return 'Documento com todos os dígitos iguais não existe.';
+  const dv = (base, pesos) => {
+    const s = base.split('').reduce((acc, n, i) => acc + Number(n) * pesos[i], 0);
+    const r = s % 11;
+    return r < 2 ? 0 : 11 - r;
+  };
+  if (d.length === 11) {
+    const p1 = [10, 9, 8, 7, 6, 5, 4, 3, 2];
+    const p2 = [11, 10, 9, 8, 7, 6, 5, 4, 3, 2];
+    const ok = dv(d.slice(0, 9), p1) === Number(d[9]) && dv(d.slice(0, 10), p2) === Number(d[10]);
+    return ok ? '' : 'CPF inválido: confira os dígitos.';
+  }
+  const p1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const p2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const ok = dv(d.slice(0, 12), p1) === Number(d[12]) && dv(d.slice(0, 13), p2) === Number(d[13]);
+  return ok ? '' : 'CNPJ inválido: confira os dígitos.';
+}
+
+/* ------------------------------------------------------ chave PIX
+   Cada tipo tem um formato. Telefone PIX é +55DDDNÚMERO (o banco aceita
+   com ou sem o +); aleatória é UUID. Devolve '' se válida. */
+function motivoChavePixInvalida(tipo, chave) {
+  const c = String(chave ?? '').trim();
+  if (!c) return '';
+  if (!TIPOS_PIX_VALIDOS.includes(tipo)) return 'Escolha o tipo da chave PIX.';
+  if (tipo === 'cpf_cnpj') return motivoCpfCnpjInvalido(c) || '';
+  if (tipo === 'telefone') return motivoTelefoneInvalido(c) ? 'Telefone da chave PIX inválido.' : '';
+  if (tipo === 'email') return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(c) ? '' : 'E-mail da chave PIX inválido.';
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c)
+    ? ''
+    : 'Chave aleatória tem o formato 8-4-4-4-12 (letras e números).';
+}
+
+const TIPOS_PIX_VALIDOS = ['cpf_cnpj', 'telefone', 'email', 'aleatoria'];
+const FORMAS_VALIDAS = ['empreitada', 'diaria', 'm2', 'etapa'];
+
+function validarPrestador(p, listas = null) {
   const out = [];
   if (!String(p.nome || '').trim()) out.push(problema('nome', 'O prestador precisa de um nome.'));
+
   const a = num(p.avaliacao);
   if (a < 0 || a > 5) out.push(problema('avaliacao', 'A avaliação vai de 0 a 5.'));
+
+  /* WhatsApp e telefone: quem digita no celular erra fácil; o motivo vai
+     para a linha abaixo do campo. Guardados só em dígitos (55DDD…). */
+  if (String(p.whatsapp || '').trim()) {
+    const m = motivoTelefoneInvalido(p.whatsapp);
+    if (m) out.push(problema('whatsapp', m));
+  }
+  if (String(p.telefone || '').trim()) {
+    const m = motivoTelefoneInvalido(p.telefone);
+    if (m) out.push(problema('telefone', m));
+  }
+
+  const doc = motivoCpfCnpjInvalido(p.documento);
+  if (doc) out.push(problema('documento', doc));
+
+  if (String(p.chavePix || '').trim()) {
+    const m = motivoChavePixInvalida(p.tipoPix, p.chavePix);
+    if (m) out.push(problema(p.tipoPix ? 'chavePix' : 'tipoPix', m));
+  }
+
+  if (p.formaContratacao && !FORMAS_VALIDAS.includes(p.formaContratacao)) {
+    out.push(problema('formaContratacao', 'Forma de contratação desconhecida.'));
+  }
+  if (num(p.valorReferencia) < 0) {
+    out.push(problema('valorReferencia', 'O valor de referência não pode ser negativo.'));
+  }
+
+  /* Lista personalizável: especialidade nova é alerta, não erro. */
+  const esp = String(p.especialidade || '').trim();
+  if (esp && listas && Array.isArray(listas.especialidades) && !listas.especialidades.includes(esp)) {
+    out.push(problema('especialidade', `"${esp}" não está na lista de especialidades — será acrescentada.`, 'alerta'));
+  }
   return out;
 }
 
@@ -331,6 +408,8 @@ export {
   validarDiario,
   validarCliente,
   validarPrestador,
+  motivoCpfCnpjInvalido,
+  motivoChavePixInvalida,
   validarMembro,
   validarPerfilAdmin,
   validarUsuarioNovo,

@@ -90,6 +90,24 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0008_logos.sql` | `perfis.logo` e `clientes.logo` para o cabeçalho do relatório em PDF |
 | `0009_seguranca_perfis.sql` | fecha o INSERT/DELETE de `perfis` (escalada a admin / fuga de bloqueio); trava `search_path` no resto das funções |
 | `0010_revoga_truncate.sql` | revoga `TRUNCATE` de `anon`/`authenticated` (ignora RLS); ajusta o default privilege |
+| `0011_prestadores.sql` | vínculo por id (`prestador_id` em contratos e lançamentos, `ON DELETE RESTRICT`); WhatsApp, PIX, apelido, forma de contratação e `arquivado` no prestador; CHECKs; liga os registros antigos pelo nome |
+
+### 0011 — prestadores
+
+Rode os blocos **na ordem**: A (estrutura), B (normaliza telefones e liga os
+registros antigos), C (diagnóstico), D (restrições `not valid`) e E (valida o
+histórico — só com a parte "viola regra" do C zerada).
+
+**O código que usa as colunas novas só pode ir ao ar depois do bloco A** — antes
+disso o sistema tentaria gravar colunas inexistentes e a sincronização falharia.
+
+O bloco C tem duas partes: "viola regra" (corrigir antes do E) e "sem vínculo"
+(contratos cujo prestador foi digitado sem cadastro, ou deixado em branco). Os
+sem vínculo não impedem nada: ligam-se depois, pela tela, escolhendo o prestador
+no contrato.
+
+Com o `ON DELETE RESTRICT`, apagar um prestador que tem contrato ou lançamento
+ligado falha no banco. A tela oferece **arquivar** no lugar.
 
 Ao criar uma migração nova, numere em sequência e descreva a mudança aqui.
 

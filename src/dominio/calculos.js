@@ -912,6 +912,127 @@ function curvaSCarteira(obras) {
   });
 }
 
+/* =====================================================================
+   PRESTADORES — vínculo, números calculados e normalização do cadastro.
+   ===================================================================== */
+
+/* Vínculo de um contrato ou lançamento com um prestador.
+   Pelo id quando ele existe (prestadorId, migração 0011). Registro antigo,
+   sem id, cai no nome digitado — como a tela fazia —, mas só se o id
+   estiver vazio: registro já ligado a OUTRO prestador nunca casa pelo nome. */
+function ligadoAoPrestador(p, prestadorId, nomeTexto) {
+  if (prestadorId) return prestadorId === p.id;
+  const t = norm(nomeTexto);
+  if (!t) return false;
+  return t === norm(p.nome) || (!!p.apelido && t === norm(p.apelido));
+}
+
+/* Contratado, pago, a pagar e obras de um prestador — sempre calculados,
+   nunca digitados.
+   - contratado: contratos ligados a ele (fora os cancelados). Um aditivo
+     sem prestador próprio herda o do seu código-base.
+   - pago: medições pagas desses contratos + lançamentos ligados a ele
+     (diária, serviço avulso pago direto). Antes a tela ignorava os
+     lançamentos, e quem recebia por diária aparecia com R$ 0.
+   - aPagar: saldo dos contratos — contratado − pago em medições. O que
+     foi pago por lançamento não abate contrato: não passou por medição.
+   - medidoNaoPago: medições já feitas e ainda não quitadas (devido hoje). */
+function resumoPrestador(estado, p) {
+  let contratado = 0, pagoMedicoes = 0, pagoLancamentos = 0, aPagar = 0, medidoNaoPago = 0;
+  const obras = [];
+  const pagamentos = [];
+  estado.obras.forEach((o) => {
+    const proprios = o.contratos.filter((c) => ligadoAoPrestador(p, c.prestadorId, c.prestador));
+    const bases = new Set(proprios.map((c) => c.codigoBase || c.codigo).filter(Boolean));
+    const doPrestador = o.contratos.filter((c) =>
+      proprios.includes(c) || (!c.prestadorId && !String(c.prestador || '').trim() && bases.has(c.codigoBase || c.codigo)));
+    const ctObra = doPrestador.filter((c) => c.status !== 'Cancelado').reduce((s, c) => s + contratoValor(c), 0);
+
+    let pmObra = 0, abertoObra = 0;
+    o.medicoes.forEach((m) => {
+      if (!bases.has(m.contratoBase) || m.status === 'Cancelado') return;
+      const pg = num(m.valorPago);
+      pmObra += pg;
+      abertoObra += Math.max(0, medicaoLiquido(m) - pg);
+      if (pg > 0) {
+        pagamentos.push({ data: m.dataPagamento || m.data, valor: pg, origem: 'medicao',
+          descricao: `Medição ${m.numero || ''} ${m.descricao || ''}`.replace(/\s+/g, ' ').trim(), obraId: o.id, obraNome: o.nome });
+      }
+    });
+
+    const lancs = o.lancamentos.filter((l) => ligadoAoPrestador(p, l.prestadorId, l.fornecedor));
+    let plObra = 0;
+    lancs.forEach((l) => {
+      const v = lancamentoTotal(l);
+      plObra += v;
+      pagamentos.push({ data: l.data, valor: v, origem: 'lancamento', descricao: l.descricao || l.tipo || 'Lançamento', obraId: o.id, obraNome: o.nome });
+    });
+
+    if (doPrestador.length || lancs.length) {
+      const saldoObra = Math.max(0, ctObra - pmObra);
+      obras.push({ obraId: o.id, obraNome: o.nome, contratado: ctObra, pago: pmObra + plObra, aPagar: saldoObra });
+      contratado += ctObra;
+      pagoMedicoes += pmObra;
+      pagoLancamentos += plObra;
+      aPagar += saldoObra;
+      medidoNaoPago += abertoObra;
+    }
+  });
+  pagamentos.sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
+  return {
+    contratado, pago: pagoMedicoes + pagoLancamentos, pagoMedicoes, pagoLancamentos,
+    aPagar, medidoNaoPago, obras, pagamentos,
+    /* com qualquer vínculo, só pode ser arquivado — nunca apagado */
+    temVinculo: obras.length > 0
+  };
+}
+
+/* Nomes em caixa alta e apelido misturado no nome ("WESLEY PINTOR").
+   Sugere: nome com capitalização de gente ("Wesley"), o nome completo como
+   apelido ("Wesley Pintor") e a especialidade reconhecida ("Pintor").
+   Devolve null quando não há nada a sugerir. NUNCA aplica: quem aplica é a
+   tela, depois de a pessoa conferir a prévia. */
+const PARTICULAS = new Set(['de', 'da', 'do', 'das', 'dos', 'e']);
+
+function capitalizarNome(texto) {
+  return String(texto || '')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w, i) => (i > 0 && PARTICULAS.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(' ');
+}
+
+function sugestaoNomePrestador(p, especialidades = []) {
+  const nome = String(p.nome || '').trim().replace(/\s+/g, ' ');
+  if (!nome) return null;
+  const letras = nome.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ]/g, '');
+  const caixaAlta = letras.length > 1 && letras === letras.toUpperCase() && letras !== letras.toLowerCase();
+
+  /* especialidade no começo ou no fim do nome: "WESLEY PINTOR", "PEDREIRO JOÃO" */
+  const palavras = nome.split(' ');
+  let esp = '';
+  let resto = palavras;
+  const lista = especialidades.filter((e) => e && e !== 'Outro').sort((a, b) => b.split(' ').length - a.split(' ').length);
+  for (const e of lista) {
+    const pe = norm(e).split(' ');
+    const n = pe.length;
+    if (palavras.length <= n) continue;
+    if (norm(palavras.slice(-n).join(' ')) === pe.join(' ')) { esp = e; resto = palavras.slice(0, -n); break; }
+    if (norm(palavras.slice(0, n).join(' ')) === pe.join(' ')) { esp = e; resto = palavras.slice(n); break; }
+  }
+  if (!caixaAlta && !esp) return null;
+
+  const depois = {
+    nome: caixaAlta ? capitalizarNome(resto.join(' ')) : resto.join(' '),
+    apelido: p.apelido || (esp ? (caixaAlta ? capitalizarNome(nome) : nome) : ''),
+    especialidade: p.especialidade || esp
+  };
+  const antes = { nome: p.nome || '', apelido: p.apelido || '', especialidade: p.especialidade || '' };
+  if (depois.nome === antes.nome && depois.apelido === antes.apelido && depois.especialidade === antes.especialidade) return null;
+  return { id: p.id, antes, depois };
+}
+
 /* Soma de dias numa data AAAA-MM-DD, sem fuso: meio-dia UTC não vira dia. */
 function addDiasISO(iso, n) {
   const d = new Date(iso + 'T12:00:00Z');
@@ -958,5 +1079,9 @@ export {
   riscoCarteira,
   agendaCarteira,
   curvaSCarteira,
-  ORDEM_SAUDE
+  ORDEM_SAUDE,
+  ligadoAoPrestador,
+  resumoPrestador,
+  capitalizarNome,
+  sugestaoNomePrestador
 };
