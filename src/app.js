@@ -30,6 +30,17 @@ import './ui/telas/medicoes.js';
 import './ui/telas/recebimentos.js';
 import './ui/telas/lancamentos.js';
 import './ui/telas/prestadores.js';
+import './ui/telas/cronograma.js';
+import './ui/telas/materiais.js';
+import './ui/telas/diario.js';
+import './ui/telas/alertas.js';
+import './ui/telas/fluxo.js';
+import './ui/telas/curva.js';
+import './ui/telas/obra-config.js';
+import './ui/telas/auditoria.js';
+import './ui/telas/clientes.js';
+import './ui/telas/painel.js';
+import './ui/telas/ajustes.js';
 
 /* ---------------------------------------------------------- eventos */
 document.addEventListener('click', (ev) => {

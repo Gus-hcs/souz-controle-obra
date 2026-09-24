@@ -74,7 +74,13 @@ const TABELAS_DB = [
       escopo: 'escopo', regime: 'regime', quantidade: ['quantidade', 'num'], unidade: 'unidade',
       precoUnitario: ['preco_unitario', 'num'], valorInformado: ['valor_informado', 'num'],
       incluiMaterial: 'inclui_material', inicioPrevisto: ['inicio_previsto', 'data'],
-      fimPrevisto: ['fim_previsto', 'data'], status: 'status', observacoes: 'observacoes'
+      fimPrevisto: ['fim_previsto', 'data'], status: 'status', observacoes: 'observacoes',
+      /* colunas novas (tipoAditivo em diante) exigem a migração 0013 aplicada */
+      tipoAditivo: 'tipo_aditivo', statusAditivo: 'status_aditivo', motivoAditivo: 'motivo_aditivo',
+      dataAprovacaoAditivo: ['data_aprovacao_aditivo', 'data'], novoPrazoAditivo: ['novo_prazo_aditivo', 'data'],
+      condicaoPagamento: 'condicao_pagamento', retencaoPct: ['retencao_pct', 'num'], formaPreco: 'forma_preco',
+      dataEncerramento: ['data_encerramento', 'data'], documentoUrl: 'documento_url',
+      situacaoManual: 'situacao_manual', motivoSituacaoManual: 'motivo_situacao_manual'
     }
   },
   {
@@ -467,16 +473,36 @@ const SUPA = {
     return Math.max(0, this.limiteObras - qtdAtual);
   },
 
-  /* Lista de membros de uma obra, para uma futura tela de equipe. */
+  /* Equipe da obra (migração 0014). membros_da_obra() traz o e-mail junto
+     (join com auth.users, só possível via security definer) — sem ela só
+     daria pra ver o UUID, ilegível na tela. */
   async lerMembros(obraId) {
     if (!this.sb || !obraId) return [];
-    const { data, error } = await this.sb
-      .from('obra_membros')
-      .select('*')
-      .eq('obra_id', obraId)
-      .order('criado_em', { ascending: true });
+    const { data, error } = await this.sb.rpc('membros_da_obra', { p_obra: obraId });
     if (error) throw error;
     return data || [];
+  },
+
+  /* Só o dono chama (a função confere por dentro); acha a pessoa pelo
+     e-mail e grava o papel. Erro claro se ela ainda não tem conta. */
+  async convidarMembro(obraId, email, papel) {
+    const { data, error } = await this.sb.rpc('convidar_membro', {
+      p_obra: obraId,
+      p_email: email,
+      p_papel: papel,
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  async removerMembro(id) {
+    const { error } = await this.sb.from('obra_membros').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  async alterarPapelMembro(id, papel) {
+    const { error } = await this.sb.from('obra_membros').update({ papel }).eq('id', id);
+    if (error) throw error;
   },
 
   /* --------------------------------------------------------- auditoria */

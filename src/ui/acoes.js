@@ -2,29 +2,18 @@
  * acoes.js — Ações: tudo que um clique dispara — abrir formulário, salvar, excluir.
  */
 import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, uid } from '../nucleo/base.js';
-import { alertasObra, basesContratuais, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, materialCalc, medicaoAlerta, resumoPrestador } from '../dominio/calculos.js';
+import { alertasObra, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, materialCalc, medicaoAlerta, resumoPrestador } from '../dominio/calculos.js';
 import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
-import { carregarAuditoria, contratosAbertos, implExpandida } from './telas-obra.js';
+import { carregarAuditoria, implExpandida } from './telas-obra.js';
 
 const ACOES = {};
 
 /* ------------------------------------------------------- navegação */
 ACOES.ir = (el, d) => App.ir(d.view, d.obra);
 
-/* ------------------------------------------- contratos: expandir/recolher */
-ACOES['ct-toggle'] = (el, d) => {
-  if (contratosAbertos.has(d.base)) contratosAbertos.delete(d.base);
-  else contratosAbertos.add(d.base);
-  App.renderConteudo();
-};
-ACOES['ct-todos'] = (el, d) => {
-  contratosAbertos.clear();
-  if (d.abrir === '1') basesContratuais(App.obra()).forEach((b) => contratosAbertos.add(b.base));
-  App.renderConteudo();
-};
 /* ---------------------------------- cartão de implantação (Painel) */
 ACOES['impl-toggle'] = (el, d) => {
   const id = d.obra || (App.obra() && App.obra().id);
@@ -332,6 +321,7 @@ function formContrato(c, novo, aoSalvar) {
     titulo: novo ? (c.registro === 'Aditivo' ? 'Novo aditivo' : 'Novo contrato') : 'Editar registro contratual',
     largura: 'largo',
     campos: [
+      { secao: 'Identificação' },
       { k: 'codigo', label: 'Código', tipo: 'texto', col: 3, obrigatorio: true, dica: 'ex.: CT-002 ou CT-001-A1' },
       { k: 'codigoBase', label: 'Código-base', tipo: 'lista', opcoes: bases, col: 3, obrigatorio: true, dica: 'liga o aditivo ao contrato' },
       { k: 'registro', label: 'Tipo de registro', tipo: 'select', opcoes: ['Contrato', 'Aditivo'], col: 3, vazio: false },
@@ -340,15 +330,18 @@ function formContrato(c, novo, aoSalvar) {
         placeholder: 'sem prestador',
         dica: !c.prestadorId && c.prestador ? `Digitado antes como "${c.prestador}" — escolha o cadastro.` : '' },
       { k: 'escopo', label: 'Escopo', tipo: 'texto', col: 6, placeholder: 'Empreitada principal, muro frontal…' },
+      { secao: 'Valor' },
       { k: 'regime', label: 'Regime', tipo: 'select', opcoes: opcoesLista('regimes'), col: 3, vazio: false },
       { k: 'quantidade', label: 'Quantidade', tipo: 'numero', col: 2 },
       { k: 'unidade', label: 'Unidade', tipo: 'select', opcoes: opcoesLista('unidades'), col: 2, vazio: false },
       { k: 'precoUnitario', label: 'Preço unitário', tipo: 'dinheiro', col: 2 },
       { k: 'valorInformado', label: 'Valor fechado', tipo: 'dinheiro', col: 3, dica: 'se preenchido, prevalece' },
       { k: 'incluiMaterial', label: 'Inclui material?', tipo: 'check', col: 3 },
+      { k: 'valor', label: 'Valor do registro', tipo: 'calc', col: 12 },
+      { secao: 'Prazo' },
       { k: 'inicioPrevisto', label: 'Início previsto', tipo: 'data', col: 3 },
       { k: 'fimPrevisto', label: 'Fim previsto', tipo: 'data', col: 3 },
-      { k: 'valor', label: 'Valor do registro', tipo: 'calc', col: 12 },
+      { secao: 'Observações' },
       { k: 'observacoes', label: 'Observações', tipo: 'area', col: 12 }
     ],
     valores: c,

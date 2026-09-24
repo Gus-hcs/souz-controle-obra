@@ -6,7 +6,7 @@
  * então ficam cobertos aqui.
  */
 import { describe, it, expect } from 'vitest';
-import { num, competencia, diasEntre, addDias, isISO, slug, migrar, estadoInicial, novaObra, fonteImagem } from '../src/nucleo/base.js';
+import { num, competencia, diasEntre, addDias, isISO, slug, migrar, estadoInicial, novaObra, fonteImagem, dataUriParaArquivo } from '../src/nucleo/base.js';
 
 describe('num(): lê número em qualquer formato que apareça na planilha', () => {
   const casos = [
@@ -92,6 +92,29 @@ describe('fonteImagem(): só passa imagem que o sistema mesmo gera', () => {
     expect(fonteImagem(null)).toBe('');
     expect(fonteImagem('')).toBe('');
     expect(fonteImagem(undefined)).toBe('');
+  });
+});
+
+describe('dataUriParaArquivo(): foto do diário em base64 vira File para compartilhar', () => {
+  it('converte uma data URI de imagem válida', () => {
+    const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAA';
+    const f = dataUriParaArquivo(png, 'foto-1.png');
+    expect(f).toBeInstanceOf(File);
+    expect(f.name).toBe('foto-1.png');
+    expect(f.type).toBe('image/png');
+    expect(f.size).toBeGreaterThan(0);
+  });
+
+  it('usa um nome padrão quando nenhum é informado', () => {
+    const f = dataUriParaArquivo('data:image/jpeg;base64,/9j/4AAQSkZJRg==');
+    expect(f.name).toBe('foto.jpg');
+  });
+
+  it('recusa o mesmo tanto que fonteImagem recusa', () => {
+    expect(dataUriParaArquivo('java' + 'script:alert(1)')).toBeNull();
+    expect(dataUriParaArquivo('data:text/html,<script>alert(1)</script>')).toBeNull();
+    expect(dataUriParaArquivo('')).toBeNull();
+    expect(dataUriParaArquivo(null)).toBeNull();
   });
 });
 

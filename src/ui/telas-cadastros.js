@@ -1,81 +1,14 @@
 /**
  * telas-cadastros.js — Telas de cadastro: clientes, prestadores, relatórios e ajustes.
  */
-import { esc, fmtData, fmtDataCurta, fmtMoney, fmtPct, fonteImagem, hojeISO, norm, num, PLANOS } from '../nucleo/base.js';
-import { alertasObra, basesContratuais, etapaCalc, kpisObra, resumoPrestador } from '../dominio/calculos.js';
+import { esc, fmtData, fmtDataCurta, fmtMoney, fmtPct, fonteImagem, hojeISO, norm, PLANOS } from '../nucleo/base.js';
+import { alertasObra, basesContratuais, etapaCalc, kpisObra } from '../dominio/calculos.js';
 import { apenasErros, validarPerfilAdmin, validarSenhaForte, validarUsuarioNovo } from '../dominio/validacao.js';
-import { Store, horaCurta } from '../dados/store.js';
+import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
-import { App, abrirModal, acoesLinha, botao, campoBusca, campoHTML, cartao, chip, confirmar, fecharModal, filtraTexto, ICO, kpi, MENU, nomeCliente, svg, toast, tomSituacao, vazio } from './shell.js';
+import { App, abrirModal, botao, campoBusca, cartao, chip, confirmar, fecharModal, ICO, kpi, MENU, nomeCliente, svg, toast, tomSituacao, vazio } from './shell.js';
 import { VIEWS } from './telas-obra.js';
 import { ACOES } from './acoes.js';
-
-/* =========================================================== CLIENTES */
-VIEWS.clientes = () => {
-  const e = Store.estado;
-  const lista = filtraTexto(e.clientes, App.filtros.busca, ['nome', 'contato', 'telefone', 'email', 'origem']);
-  const linhas = lista.map((c) => {
-    const obras = e.obras.filter((o) => o.clienteId === c.id);
-    const valor = obras.reduce((s, o) => s + num(o.fin.valorVenda), 0);
-    return `<tr>
-      <td><b>${esc(c.nome)}</b>${c.documento ? `<br><span style="font-size:11px;color:var(--mudo)" class="mono">${esc(c.documento)}</span>` : ''}</td>
-      <td>${chip(c.situacao || 'Cliente', c.situacao === 'Prospecção' ? 'aviso' : 'ok')}</td>
-      <td>${esc(c.telefone || '—')}</td>
-      <td class="trunc">${esc(c.email || '—')}</td>
-      <td>${esc(c.origem || '—')}</td>
-      <td>${obras.length ? obras.map((o) => `<button class="chip marca" data-acao="ir" data-view="painel" data-obra="${o.id}" style="cursor:pointer">${esc(o.nome)}</button>`).join(' ') : '<span style="color:var(--mudo)">—</span>'}</td>
-      <td class="num mono">${valor ? fmtMoney(valor, { dec: 0 }) : '—'}</td>
-      <td class="acoes">${acoesLinha('cliente', c.id)}</td>
-    </tr>`;
-  }).join('');
-
-  return cartao('Clientes e interessados', `
-    <div class="tab-rolagem"><table class="tab">
-      <thead><tr><th>Nome</th><th>Situação</th><th>Telefone</th><th>E-mail</th><th>Origem</th>
-        <th>Obras</th><th class="num">Valor contratado</th><th></th></tr></thead>
-      <tbody>${linhas || `<tr><td colspan="8">${vazio('Nenhum cliente', 'Cadastre compradores e interessados para vincular às obras e acompanhar a carteira.')}</td></tr>`}</tbody>
-    </table></div>`, {
-    semPadding: true,
-    acoes: `<div class="filtros">${campoBusca('busca', 'Buscar cliente…')}
-      ${botao('Novo cliente', 'novo-cliente', {}, 'btn primario pequeno', 'mais')}</div>`
-  });
-};
-
-/* ======================================================== PRESTADORES */
-VIEWS.prestadores = () => {
-  const e = Store.estado;
-  const ativos = e.prestadores.filter((p) => !p.arquivado);
-  const lista = filtraTexto(ativos, App.filtros.busca, ['nome', 'apelido', 'especialidade', 'telefone']);
-  const linhas = lista.map((p) => {
-    /* Contratado e pago saem do domínio (resumoPrestador): contratos e
-       lançamentos ligados pelo id, ou pelo nome nos registros antigos. */
-    const r = resumoPrestador(e, p);
-    const contratado = r.contratado;
-    const pago = r.pago;
-    const obras = new Set(r.obras.map((x) => x.obraNome));
-    return `<tr>
-      <td><b>${esc(p.nome)}</b></td>
-      <td>${esc(p.especialidade || '—')}</td>
-      <td>${esc(p.telefone || '—')}</td>
-      <td>${p.avaliacao ? '★'.repeat(Math.min(5, Math.round(num(p.avaliacao)))) : '—'}</td>
-      <td>${obras.size ? esc([...obras].join(', ')) : '—'}</td>
-      <td class="num mono">${fmtMoney(contratado, { dec: 0 })}</td>
-      <td class="num mono">${fmtMoney(pago, { dec: 0 })}</td>
-      <td class="acoes">${acoesLinha('prestador', p.id)}</td>
-    </tr>`;
-  }).join('');
-
-  return cartao('Prestadores e empreiteiros', `
-    <div class="tab-rolagem"><table class="tab">
-      <thead><tr><th>Nome</th><th>Especialidade</th><th>Telefone</th><th>Avaliação</th>
-        <th>Obras</th><th class="num">Contratado</th><th class="num">Pago</th><th></th></tr></thead>
-      <tbody>${linhas || `<tr><td colspan="8">${vazio('Nenhum prestador', 'Cadastre empreiteiros e prestadores para reaproveitar em contratos e acompanhar o quanto cada um já recebeu.')}</td></tr>`}</tbody>
-    </table></div>`, {
-    semPadding: true,
-    acoes: `<div class="filtros">${campoBusca('busca', 'Buscar prestador…')}
-      ${botao('Novo prestador', 'novo-prestador', {}, 'btn primario pequeno', 'mais')}</div>`
-  });
-};
 
 /* ========================================================= RELATÓRIOS */
 VIEWS.relatorio = () => {
@@ -157,84 +90,13 @@ VIEWS.relatorio = () => {
         ${botao('Exportar medições (CSV)', 'csv-medicoes', {}, 'btn', 'baixar')}
         ${botao('Exportar recebimentos (CSV)', 'csv-recebimentos', {}, 'btn', 'baixar')}
         ${botao('Imprimir a prévia', 'imprimir', {}, 'btn sutil')}
+        ${botao('Compartilhar status por WhatsApp', 'whatsapp-status', {}, 'btn', 'whatsapp')}
       </div>`, { classe: 'nao-imprime' })}
 
     ${cartao('Prévia — amostra do relatório de status', previa, {
       semPadding: false,
       sub: 'o PDF traz a obra completa; abaixo é só uma amostra',
     })}
-  </div>`;
-};
-
-/* ============================================================ AJUSTES */
-VIEWS.ajustes = () => {
-  const e = Store.estado;
-  const emp = e.empresa;
-  const tamanho = (JSON.stringify(e).length / 1024).toFixed(0);
-  const listasEditaveis = [
-    ['etapas', 'Etapas da obra'], ['tiposSaida', 'Tipos de saída'], ['unidades', 'Unidades'],
-    ['formasPagamento', 'Formas de pagamento'], ['regimes', 'Regimes de contrato'],
-    ['origensRecebimento', 'Origens de recebimento'], ['especialidades', 'Especialidades de prestador'],
-    ['mensagensWhatsapp', 'Mensagens prontas do WhatsApp',
-      'Uma por linha: "Título | texto". Use {nome}, {obra}, {valor} (último pagamento) e {data} (amanhã).']
-  ];
-
-  return `<div class="grade" style="gap:16px">
-    ${cartao('Empresa', `<form class="form-grade" data-form="1" onsubmit="return false">
-      ${campoHTML({ k: 'nome', label: 'Nome da empresa', tipo: 'texto', col: 6 }, emp)}
-      ${campoHTML({ k: 'responsavel', label: 'Responsável técnico', tipo: 'texto', col: 6 }, emp)}
-      ${campoHTML({ k: 'creaCau', label: 'CREA/CAU', tipo: 'texto', col: 4 }, emp)}
-      ${campoHTML({ k: 'telefone', label: 'Telefone', tipo: 'texto', col: 4 }, emp)}
-      ${campoHTML({ k: 'email', label: 'E-mail', tipo: 'texto', col: 4 }, emp)}
-      <div class="campo c12">
-        <label>Logo da empresa</label>
-        <input type="hidden" data-campo="logo" id="emp_logo_val" value="${esc(emp.logo || '')}">
-        <div class="logo-campo" id="logo-cx-empresa">${emp.logo
-          ? `<img src="${fonteImagem(emp.logo)}" alt="Logo" class="logo-preview"><button type="button" class="btn sutil pequeno" data-acao="logo-remover" data-alvo="empresa">Remover</button>`
-          : `<label class="btn pequeno" style="cursor:pointer">Escolher imagem<input type="file" accept="image/png,image/jpeg,image/webp" data-logo="1" data-alvo="empresa" hidden></label>`}</div>
-        <span class="dica">PNG ou JPG. Aparece no cabeçalho do relatório em PDF, ao lado do nome.</span>
-      </div>
-    </form>`, { acoes: botao('Salvar', 'salvar-empresa', {}, 'btn primario pequeno') })}
-
-    ${cartao('Dados e backup', `
-      <div style="display:flex;flex-direction:column;gap:14px">
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          ${botao('Baixar backup (JSON)', 'backup-json', {}, 'btn', 'baixar')}
-          ${botao('Restaurar backup', 'restaurar-json', {}, 'btn')}
-          ${botao('Importar planilha (modelo MCMV)', 'importar-xlsx', {}, 'btn')}
-          ${botao('Carregar dados de exemplo', 'exemplo', {}, 'btn sutil')}
-        </div>
-        <table class="tab">
-          <tbody>
-            <tr><td style="width:220px">Obras cadastradas</td><td class="mono">${e.obras.length}</td></tr>
-            <tr><td>Registros no total</td><td class="mono">${e.obras.reduce((s, o) =>
-              s + o.contratos.length + o.medicoes.length + o.recebimentos.length + o.lancamentos.length + o.materiais.length + o.cronograma.length + o.diario.length, 0)}</td></tr>
-            <tr><td>Tamanho da base</td><td class="mono">${tamanho} KB</td></tr>
-            <tr><td>Modo de gravação</td><td class="mono">${Store.descricaoModo()}</td></tr>
-            ${Store.backend === 'supabase' ? `<tr><td>Conta</td><td class="mono">${esc((SUPA.usuario && SUPA.usuario.email) || '')}</td></tr>
-            <tr><td>Projeto do banco</td><td class="mono">${esc(SUPA.cfg.url)}</td></tr>` : ''}
-            <tr><td>Última gravação</td><td class="mono">${Store.salvoEm ? fmtData(Store.salvoEm.slice(0, 10)) + ' ' + horaCurta(Store.salvoEm) : '—'}</td></tr>
-          </tbody>
-        </table>
-        <p style="margin:0;font-size:12.5px;color:var(--mudo)">
-          O backup JSON contém toda a base e serve tanto para guardar cópia quanto para migrar o sistema
-          para um servidor próprio no futuro.
-        </p>
-      </div>`)}
-
-    ${cartao('Listas do sistema', `
-      <div class="grade g2">
-        ${listasEditaveis.map(([k, t, dica]) => `
-          <div class="campo">
-            <label for="lista_${k}">${t}</label>
-            <textarea id="lista_${k}" data-lista="${k}" rows="5">${esc((e.listas[k] || []).join('\n'))}</textarea>
-            <span class="dica">${esc(dica || 'Um item por linha.')}</span>
-          </div>`).join('')}
-      </div>`, { acoes: botao('Salvar listas', 'salvar-listas', {}, 'btn primario pequeno') })}
-
-    ${cartao('Zona de risco', `
-      <p style="margin:0 0 10px;font-size:13px">Apaga toda a base do sistema. Baixe um backup antes.</p>
-      ${botao('Apagar todos os dados', 'zerar', {}, 'btn perigo', 'lixo')}`)}
   </div>`;
 };
 

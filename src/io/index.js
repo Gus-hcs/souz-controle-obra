@@ -4,6 +4,7 @@
 import { addDias, competencia, fmtData, fmtDataCurta, fmtMoney, fmtNum, fmtPct, hojeISO, migrar, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, slug } from '../nucleo/base.js';
 import { alertasObra, basesContratuais, etapaCalc, kpisObra, lancamentoTotal, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
 import { apenasErros, validarObraCompleta } from '../dominio/validacao.js';
+import { linkWhatsApp, normalizarTelefoneBR } from '../nucleo/contato.js';
 import { Store, mutar } from '../dados/store.js';
 import { App, confirmar, nomeCliente, toast } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
@@ -475,11 +476,12 @@ async function salvarPDF(doc, nome) {
   await baixar(nome, buf);
 }
 
-/* ------------------------------------------- 1. status da obra */
-ACOES['pdf-status'] = async () => {
-  const o = App.obra();
+/* ------------------------------------------- 1. status da obra
+   Extraído de ACOES['pdf-status'] para virar o mesmo doc que
+   ACOES['whatsapp-status'] compartilha — sem duplicar a montagem. */
+async function montarPdfStatus(o) {
   const doc = await novoPDF(o, 'Relatório de status');
-  if (!doc) return;
+  if (!doc) return null;
   const k = kpisObra(o);
   let y = doc.__startY;
   y = pdfKPIs(doc, y, [
@@ -521,7 +523,51 @@ ACOES['pdf-status'] = async () => {
         a.modulo, a.titulo, a.acao]), { colunas: { 0: { cellWidth: 16 }, 1: { cellWidth: 24 } } });
   }
   pdfRodape(doc);
+  return doc;
+}
+
+ACOES['pdf-status'] = async () => {
+  const o = App.obra();
+  const doc = await montarPdfStatus(o);
+  if (!doc) return;
   await salvarPDF(doc, `status-${slug(o.nome)}-${hojeISO()}.pdf`);
+};
+
+/* ---------------------------------- compartilhar o status por WhatsApp
+   Web Share API com o PDF anexado quando o navegador suporta (celular,
+   normalmente); sem suporte (a maioria dos desktops), baixa o PDF e abre
+   a conversa com o texto pronto — a pessoa anexa o arquivo que acabou de
+   baixar, porque wa.me não aceita anexo por link. */
+ACOES['whatsapp-status'] = async () => {
+  const o = App.obra();
+  const doc = await montarPdfStatus(o);
+  if (!doc) return;
+  const nomeArquivo = `status-${slug(o.nome)}-${hojeISO()}.pdf`;
+  const cliente = Store.estado.clientes.find((c) => c.id === o.clienteId);
+  const numero = cliente ? normalizarTelefoneBR(cliente.telefone) : null;
+  const texto = `Relatório de status da obra ${o.nome} — ${fmtData(hojeISO())}.`;
+
+  let arquivo = null;
+  try {
+    arquivo = new File([doc.output('blob')], nomeArquivo, { type: 'application/pdf' });
+  } catch (e) { /* navegador sem File — segue para o download */ }
+
+  if (arquivo && navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+    try {
+      await navigator.share({ files: [arquivo], title: nomeArquivo, text: texto });
+      return;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+      /* falhou por outro motivo: segue para o download + wa.me */
+    }
+  }
+
+  await salvarPDF(doc, nomeArquivo);
+  const msg = `${texto} Anexe o arquivo "${nomeArquivo}" que acabou de baixar.`;
+  window.open(linkWhatsApp(numero || '', msg), '_blank', 'noopener');
+  if (!numero) {
+    toast('PDF baixado. Abra o WhatsApp e escolha o contato — não achei um telefone válido para o cliente.', 'aviso');
+  }
 };
 
 /* ------------------------------------- 2. prestação de contas */

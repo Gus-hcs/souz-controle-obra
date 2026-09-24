@@ -20,6 +20,7 @@ import {
 } from '../../nucleo/base.js';
 import { medicaoAlerta, medicaoLiquido } from '../../dominio/calculos.js';
 import { graficoBarras } from '../../graficos/index.js';
+import { ACOES } from '../acoes.js';
 import { App, botao, opcoesLista } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
 import {
@@ -30,7 +31,6 @@ import {
   dinheiro,
   filtrando,
   lista,
-  resumo,
   secao,
   seletor,
   vazioTela,
@@ -39,6 +39,47 @@ import {
 /* Alerta que é erro de dinheiro (pagou demais, estourou o contrato) é
    vermelho; o resto é âmbar. */
 const ALERTA_GRAVE = new Set(['PAGO ACIMA DA MEDIÇÃO', 'CONTRATO ULTRAPASSADO']);
+
+/* --------------------------------------------------------------- KPIs
+   Medido e Pago são só leitura; A pagar e Com alerta filtram a lista ao
+   clicar — mesmo padrão de telas/contratos.js, telas/cronograma.js e
+   telas/materiais.js. */
+function kpisMedicoes(itensTodos, totMed, totPago, emAberto, comAlerta) {
+  const item = (chave, rotulo, valor, contexto, tom = '', filtravel = false) => {
+    const ativo = filtravel && App.filtros.kpiMed === chave;
+    return `<div class="kpi-item${ativo ? ' ativo' : ''}"${filtravel ? ` data-acao="med-kpi" data-kpi="${chave}" role="button" tabindex="0" aria-pressed="${ativo}" title="Filtrar a lista"` : ''}>
+      <span class="kpi-rot">${esc(rotulo)}</span>
+      <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
+      <span class="kpi-ctx">${contexto}</span>
+    </div>`;
+  };
+
+  return `<div class="kpis" role="group" aria-label="Indicadores de medições">
+    ${item('medido', 'Medido (líquido)', fmtMoney(totMed, { dec: 0 }), `${itensTodos.length} mediç${itensTodos.length === 1 ? 'ão' : 'ões'}`)}
+    ${item('pago', 'Pago aos prestadores', fmtMoney(totPago, { dec: 0 }), `${fmtPct(totMed ? totPago / totMed : 0, 0)} do medido`)}
+    ${item(
+      'aberto',
+      'A pagar',
+      fmtMoney(totMed - totPago, { dec: 0 }),
+      emAberto.length ? `${emAberto.length} em aberto` : 'nada em aberto',
+      emAberto.length ? 'tom-alerta' : '',
+      true,
+    )}
+    ${item(
+      'alerta',
+      'Com alerta',
+      comAlerta.length,
+      comAlerta.length ? 'confira antes de pagar' : 'nenhum alerta',
+      comAlerta.length ? 'atraso' : '',
+      true,
+    )}
+  </div>`;
+}
+
+ACOES['med-kpi'] = (el, d) => {
+  App.filtros.kpiMed = App.filtros.kpiMed === d.kpi ? '' : d.kpi;
+  App.renderConteudo();
+};
 
 VIEWS.medicoes = () => {
   const o = App.obra();
@@ -68,6 +109,10 @@ VIEWS.medicoes = () => {
   const totMed = ativas.reduce((s, m) => s + medicaoLiquido(m), 0);
   const totPago = ativas.reduce((s, m) => s + num(m.valorPago), 0);
   const emAberto = ativas.filter((m) => medicaoLiquido(m) - num(m.valorPago) > 0.005);
+  const comAlerta = ativas.filter((m) => {
+    const al = medicaoAlerta(o, m);
+    return al && al !== 'OK';
+  });
 
   /* ------------------------------------------------------- filtros */
   const bases = [...new Set(o.contratos.map((c) => c.codigoBase).filter(Boolean))];
@@ -93,11 +138,11 @@ VIEWS.medicoes = () => {
   if (f.prestador) itens = itens.filter((d) => d.prestador === f.prestador);
   if (f.status) itens = itens.filter((d) => d.m.status === f.status);
   if (f.mes) itens = itens.filter((d) => competencia(d.m.data) === f.mes);
-  if (f.situacao === 'aberto')
-    itens = itens.filter((d) => d.m.status !== 'Cancelado' && d.falta > 0.005);
   if (f.situacao === 'pagas')
     itens = itens.filter((d) => d.m.status !== 'Cancelado' && d.falta <= 0.005);
-  if (f.situacao === 'alerta') itens = itens.filter((d) => d.alerta && d.alerta !== 'OK');
+  if (f.kpiMed === 'aberto')
+    itens = itens.filter((d) => d.m.status !== 'Cancelado' && d.falta > 0.005);
+  if (f.kpiMed === 'alerta') itens = itens.filter((d) => d.alerta && d.alerta !== 'OK');
   if (busca) {
     itens = itens.filter((d) =>
       norm(
@@ -211,42 +256,18 @@ VIEWS.medicoes = () => {
     .filter((x) => x.valor > 0.005);
 
   return `<div class="tela-lista">
-    ${resumo([
-      {
-        rotulo: 'Medido (líquido)',
-        valor: fmtMoney(totMed, { dec: 0 }),
-        nota: `${ativas.length} mediç${ativas.length === 1 ? 'ão' : 'ões'}`,
-      },
-      {
-        rotulo: 'Pago aos prestadores',
-        valor: fmtMoney(totPago, { dec: 0 }),
-        nota: `${fmtPct(totMed ? totPago / totMed : 0, 0)} do medido`,
-      },
-      {
-        rotulo: 'A pagar',
-        valor: fmtMoney(totMed - totPago, { dec: 0 }),
-        nota: emAberto.length ? `${emAberto.length} em aberto` : 'nada em aberto',
-      },
-    ])}
+    ${kpisMedicoes(ativas, totMed, totPago, emAberto, comAlerta)}
     ${barraFiltros({
       mostrar:
         o.medicoes.length > 1 ||
-        filtrando(['base', 'prestador', 'status', 'mes', 'situacao', 'busca']),
+        filtrando(['base', 'prestador', 'status', 'mes', 'situacao', 'kpiMed', 'busca']),
       filtrados: itens.length,
       total: o.medicoes.length,
       controles: [
         bases.length > 1 ? seletor('base', bases, 'Todos os contratos') : '',
         prestadores.length > 1 ? seletor('prestador', prestadores, 'Todos os prestadores') : '',
         seletor('status', opcoesLista('statusPagamento'), 'Todos os status'),
-        seletor(
-          'situacao',
-          [
-            ['aberto', 'Em aberto'],
-            ['pagas', 'Quitadas'],
-            ['alerta', 'Com alerta'],
-          ],
-          'Qualquer situação',
-        ),
+        seletor('situacao', [['pagas', 'Quitadas']], 'Todas as medições'),
         meses.length > 1
           ? seletor(
               'mes',

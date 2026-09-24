@@ -213,10 +213,28 @@ const Store = {
     }
   },
 
-  somenteLeitura() { return this.modo === 'leitura'; },
+  /* Além do modo global (backend fora do ar), quem entra como 'cliente'
+     numa obra (obra_membros, migração 0004) também é somente leitura ali
+     — é a mesma trava que já esconde "Novo"/editar/excluir em quase toda
+     tela, agora valendo por papel. O banco já recusa a escrita (RLS);
+     isto só faz a tela concordar com o que o banco decide. */
+  somenteLeitura() {
+    if (this.modo === 'leitura') return true;
+    if (this.backend === 'supabase') {
+      const o = App.obra();
+      if (o && !SUPA.podeEditarObra(o.id)) return true;
+    }
+    return false;
+  },
 
   descricaoModo() {
-    if (this.backend === 'supabase') return 'banco de dados online';
+    if (this.backend === 'supabase') {
+      const o = App.obra();
+      const papel = o ? SUPA.papelNaObra(o.id) : 'dono';
+      if (papel === 'cliente') return 'banco de dados online · você é cliente nesta obra (somente leitura)';
+      if (papel === 'engenheiro') return 'banco de dados online · você é engenheiro nesta obra';
+      return 'banco de dados online';
+    }
     if (this.modo === 'arquivo') return 'nuvem (arquivo de dados)';
     if (this.modo === 'pagina') return 'nuvem (página completa)';
     if (this.modo === 'leitura') return 'somente leitura';

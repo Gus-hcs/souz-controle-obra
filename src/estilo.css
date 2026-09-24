@@ -689,6 +689,10 @@ select { cursor: pointer; }
 .legenda .traco { background: none !important; border-top: 2px dashed currentColor; height: 0; }
 .grafico-cx .tt { border: 1px solid var(--linha-forte); }
 
+/* Gantt (Fase 4): coluna de etapas fixa + linha do tempo rolável lado a
+   lado — só a segunda rola no celular, a primeira nunca sai de vista. */
+.gantt-flex { display: flex; align-items: flex-start; }
+
 /* fotos do diário */
 .fotos { display: flex; gap: 8px; flex-wrap: wrap; }
 .fotos figure { margin: 0; position: relative; }

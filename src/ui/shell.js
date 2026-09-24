@@ -49,7 +49,7 @@ const ICO = {
 const svg = (d, tam = 16) =>
   `<svg class="ic" width="${tam}" height="${tam}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 
-/* Marca do sistema — dois cubos isométricos (Logo.jpeg, fundo recortado).
+/* Marca do sistema — dois cubos isométricos, fundo recortado.
    Usada no rail e na tela de acesso. */
 const LOGO = `<img class="marca-img" src="${marcaUrl}" alt="SouZ" draggable="false">`;
 
@@ -237,8 +237,15 @@ const App = {
     const [t, sub] = TITULOS[this.rota.view] || ['', ''];
     const obra = this.obra();
     const st = Store.descricaoStatus();
+    const papel = obra && Store.backend === 'supabase' ? SUPA.papelNaObra(obra.id) : 'dono';
+    const notaPapel =
+      papel === 'cliente'
+        ? ' · você vê como cliente (somente leitura)'
+        : papel === 'engenheiro'
+          ? ' · você vê como engenheiro'
+          : '';
     const legenda = VIEWS_OBRA.has(this.rota.view) && obra
-      ? `${esc(obra.nome)}${obra.cidade ? ' · ' + esc(obra.cidade) : ''}`
+      ? `${esc(obra.nome)}${obra.cidade ? ' · ' + esc(obra.cidade) : ''}${notaPapel}`
       : sub;
     /* Toolbar unificada: cada tela pode contribuir com as próprias ações,
        que entram à direita, antes dos controles globais do sistema. */
@@ -565,7 +572,7 @@ function campoHTML(c, valores) {
 function abrirForm({ titulo, campos, valores = {}, aoSalvar, largura = '', calcular, validar, rodapeExtra = '' }) {
   const grupos = [];
   campos.forEach((c) => {
-    if (c.secao) { grupos.push(`<div class="secao-form"><span class="rotulo">${esc(c.secao)}</span></div>`); }
+    if (c.secao) { grupos.push(`<div class="secao-form"><span class="rotulo">${esc(c.secao)}</span></div>`); return; }
     grupos.push(campoHTML(c, valores));
   });
   abrirModal({
