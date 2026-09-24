@@ -7,6 +7,7 @@
  */
 import {
   competencia,
+  dataUriParaArquivo,
   diasEntre,
   esc,
   fmtCompetencia,
@@ -18,8 +19,10 @@ import {
   norm,
   num,
 } from '../../nucleo/base.js';
+import { linkWhatsApp, normalizarTelefoneBR } from '../../nucleo/contato.js';
+import { Store } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
-import { App, botao } from '../shell.js';
+import { App, botao, ICO, svg, toast } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
 import {
   acoesRegistro,
@@ -67,6 +70,57 @@ ACOES['diario-kpi'] = (el, d) => {
   App.renderConteudo();
 };
 
+/* ------------------------------------------------- compartilhar (WhatsApp)
+   Web Share API com as fotos anexadas quando o navegador suporta (celular,
+   normalmente); sem suporte, abre a conversa só com o texto — wa.me não
+   aceita anexo por link, então as fotos ficam de fora nesse caminho. */
+ACOES['whatsapp-diario'] = async (el, d) => {
+  const o = App.obra();
+  const reg = o.diario.find((x) => x.id === d.id);
+  if (!reg) return;
+  const cliente = Store.estado.clientes.find((c) => c.id === o.clienteId);
+  const numero = cliente ? normalizarTelefoneBR(cliente.telefone) : null;
+
+  const texto = [
+    `Diário de obra — ${o.nome}`,
+    `${fmtData(reg.data)}${reg.clima ? ' · ' + reg.clima : ''}`,
+    reg.atividades ? `Atividades: ${reg.atividades}` : '',
+    reg.ocorrencias ? `Ocorrências: ${reg.ocorrencias}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const arquivos = (reg.fotos || [])
+    .slice(0, 8)
+    .map((foto, i) => dataUriParaArquivo(foto.dados, foto.nome || `foto-${i + 1}.jpg`))
+    .filter(Boolean);
+
+  if (arquivos.length && navigator.canShare && navigator.canShare({ files: arquivos })) {
+    try {
+      await navigator.share({ files: arquivos, title: `Diário ${fmtData(reg.data)}`, text: texto });
+      return;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+    }
+  } else if (!arquivos.length && navigator.share) {
+    try {
+      await navigator.share({ title: `Diário ${fmtData(reg.data)}`, text: texto });
+      return;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return;
+    }
+  }
+
+  const aviso = arquivos.length ? '\n\n(fotos: abra o registro no app para enviar as imagens)' : '';
+  window.open(linkWhatsApp(numero || '', texto + aviso), '_blank', 'noopener');
+  if (!numero) {
+    toast(
+      'Abra o WhatsApp e escolha o contato — não achei um telefone válido para o cliente.',
+      'aviso',
+    );
+  }
+};
+
 /* --------------------------------------------------------------- cartão */
 function cartaoRegistro(d) {
   const meta = [d.clima, d.etapa || null, num(d.efetivo) ? `${fmtNum(d.efetivo, 0)} na obra` : null]
@@ -84,7 +138,11 @@ function cartaoRegistro(d) {
   return `<article class="registro-diario">
     <header>
       <div class="cel-obra"><b>${esc(fmtData(d.data))}</b><span>${esc(meta || 'sem detalhes de clima/efetivo')}</span></div>
-      <span class="acoes-diario">${acoesRegistro('diario', d.id, 'registro de ' + fmtData(d.data))}</span>
+      <span class="acoes-diario">
+        <button class="btn sutil icone pequeno" data-acao="whatsapp-diario" data-id="${esc(d.id)}"
+          title="Compartilhar por WhatsApp" aria-label="Compartilhar registro de ${esc(fmtData(d.data))} por WhatsApp">${svg(ICO.whatsapp, 13)}</button>
+        ${acoesRegistro('diario', d.id, 'registro de ' + fmtData(d.data))}
+      </span>
     </header>
     <div class="corpo-diario">
       ${d.atividades ? `<p style="margin:0"><b>Atividades</b> — ${esc(d.atividades)}</p>` : ''}

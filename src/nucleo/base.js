@@ -164,6 +164,20 @@ const fonteImagem = (v) => {
   return '';
 };
 
+/* Converte uma data URI (foto do diário, guardada em base64) num File —
+   para compartilhar por WhatsApp via Web Share API. null se não for uma
+   data URI de imagem válida (mesmo filtro de fonteImagem). */
+const dataUriParaArquivo = (dataUri, nome) => {
+  const uri = fonteImagem(dataUri);
+  if (!uri.startsWith('data:')) return null;
+  const [meta, base64] = uri.split(',');
+  const mime = (/^data:([^;]+)/.exec(meta) || [])[1] || 'image/jpeg';
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new File([bytes], nome || 'foto.jpg', { type: mime });
+};
+
 /* -------------------------------------------------------------- listas */
 
 const LISTAS_PADRAO = {
@@ -435,6 +449,7 @@ export {
   norm,
   slug,
   fonteImagem,
+  dataUriParaArquivo,
   capitalizarNome,
   nomeExibicao,
   LISTAS_PADRAO,

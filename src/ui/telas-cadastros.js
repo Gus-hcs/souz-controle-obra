@@ -90,6 +90,7 @@ VIEWS.relatorio = () => {
         ${botao('Exportar medições (CSV)', 'csv-medicoes', {}, 'btn', 'baixar')}
         ${botao('Exportar recebimentos (CSV)', 'csv-recebimentos', {}, 'btn', 'baixar')}
         ${botao('Imprimir a prévia', 'imprimir', {}, 'btn sutil')}
+        ${botao('Compartilhar status por WhatsApp', 'whatsapp-status', {}, 'btn', 'whatsapp')}
       </div>`, { classe: 'nao-imprime' })}
 
     ${cartao('Prévia — amostra do relatório de status', previa, {
