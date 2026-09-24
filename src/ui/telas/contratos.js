@@ -117,16 +117,18 @@ function linhaDados(o, b) {
   const comp = composicaoContrato(o, b.base);
   const nome = (a) => a.registro.escopo || a.registro.codigo;
   const sinal = (v) => `${v < 0 ? '−' : '+'} ${fmtMoney(Math.abs(v), { dec: 0 })}`;
+  const prazoAte = (r) =>
+    `prazo até ${isISO(r.novoPrazoAditivo) ? fmtDataCurta(r.novoPrazoAditivo) : '?'}`;
   /* hover: a composição inteira, com sinal, e os propostos à parte */
   const composicao = [
     `${principal.escopo || principal.codigo || 'Contrato'}: ${fmtMoney(comp.principal, { dec: 0 })}`,
     ...comp.acrescimos.map((a) => `${nome(a)}: ${sinal(a.valor)}`),
     ...comp.supressoes.map((a) => `${nome(a)}: ${sinal(a.valor)} (supressão)`),
-    ...comp.prazos.map(
+    ...comp.prazos.map((a) => `${nome(a)}: ${prazoAte(a.registro)}`),
+    ...comp.pendentes.map(
       (a) =>
-        `${nome(a)}: prazo até ${isISO(a.registro.novoPrazoAditivo) ? fmtDataCurta(a.registro.novoPrazoAditivo) : '?'}`,
+        `${nome(a)}: ${a.registro.tipoAditivo === 'prazo' ? prazoAte(a.registro) : sinal(a.valor)} (proposto, ainda não conta)`,
     ),
-    ...comp.pendentes.map((a) => `${nome(a)}: ${sinal(a.valor)} (proposto, ainda não conta)`),
   ].join('\n');
   return {
     base: b.base,
@@ -275,7 +277,7 @@ function celulaPrazo(l) {
 }
 
 /* "37.440 + 1 aditivo − 1.500 (supressão)": o sinal de cada aditivo
-   aprovado; prazo não muda o valor e fica só no hover. */
+   aprovado. Prazo e proposto não mudam o valor: ficam só no hover. */
 function celulaAutorizado(l) {
   const c = l.comp;
   const n = c.acrescimos.length;
@@ -284,8 +286,6 @@ function celulaAutorizado(l) {
   if (c.supressoes.length) {
     partes.push(`− ${fmtMoney(c.totalSupressoes, { dec: 0, semSimbolo: true })} (supressão)`);
   }
-  const np = c.pendentes.length;
-  if (np) partes.push(`· ${np} proposto${np > 1 ? 's' : ''}`);
   const nota = partes.length
     ? `${fmtMoney(c.principal, { dec: 0, semSimbolo: true })} ${partes.join(' ')}`
     : '';

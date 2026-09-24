@@ -101,14 +101,15 @@ VIEWS.clientes = () => {
       rotulo: 'Obras',
       largura: '18%',
       valor: (d) => d.obras.length,
+      /* nome longo corta com reticências; o nome inteiro fica no title */
       celula: (d) =>
         d.obras.length
-          ? d.obras
+          ? `<div class="obras-cliente">${d.obras
               .map(
                 (o) =>
-                  `<button class="btn sutil pequeno" data-acao="ir" data-view="painel" data-obra="${esc(o.id)}">${esc(o.nome)}</button>`,
+                  `<button class="btn sutil pequeno" data-acao="ir" data-view="painel" data-obra="${esc(o.id)}" title="${esc(o.nome)}">${esc(o.nome)}</button>`,
               )
-              .join(' ')
+              .join('')}</div>`
           : '<span class="tinta3">—</span>',
     },
     {

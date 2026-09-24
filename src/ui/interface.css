@@ -1621,6 +1621,9 @@ tr:focus-within .acoes-linha .btn {
 .cel-num-nota span {
   font-size: var(--t-peq);
   color: var(--tinta3);
+  /* a nota da composição quebra em vez de vazar pela esquerda */
+  white-space: normal;
+  text-align: right;
 }
 
 /* Aviso discreto abaixo dos KPIs ("2 contratos atrasados"). */
@@ -3020,4 +3023,23 @@ table.lista td.cel-sem-contrato {
   .vinc-item select {
     min-height: 44px;
   }
+}
+
+/* Clientes: obras do cliente empilhadas, cada uma cortada na largura da
+   coluna — nome longo não invade a coluna ao lado. */
+.obras-cliente {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+.obras-cliente .btn {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
 }
