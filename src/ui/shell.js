@@ -237,8 +237,15 @@ const App = {
     const [t, sub] = TITULOS[this.rota.view] || ['', ''];
     const obra = this.obra();
     const st = Store.descricaoStatus();
+    const papel = obra && Store.backend === 'supabase' ? SUPA.papelNaObra(obra.id) : 'dono';
+    const notaPapel =
+      papel === 'cliente'
+        ? ' · você vê como cliente (somente leitura)'
+        : papel === 'engenheiro'
+          ? ' · você vê como engenheiro'
+          : '';
     const legenda = VIEWS_OBRA.has(this.rota.view) && obra
-      ? `${esc(obra.nome)}${obra.cidade ? ' · ' + esc(obra.cidade) : ''}`
+      ? `${esc(obra.nome)}${obra.cidade ? ' · ' + esc(obra.cidade) : ''}${notaPapel}`
       : sub;
     /* Toolbar unificada: cada tela pode contribuir com as próprias ações,
        que entram à direita, antes dos controles globais do sistema. */

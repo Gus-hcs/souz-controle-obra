@@ -10,6 +10,7 @@ import { esc, fmtMoney, fmtNum, fmtPct, num } from '../../nucleo/base.js';
 import { kpisObra } from '../../dominio/calculos.js';
 import { App, botao, campoHTML, opcoesLista } from '../shell.js';
 import { Store } from '../../dados/store.js';
+import { SUPA } from '../../dados/supabase.js';
 import { VIEWS } from '../telas-obra.js';
 
 function kpisConfig(o, k) {
@@ -148,7 +149,9 @@ VIEWS['obra-config'] = () => {
         : ''
     }
 
-    <div class="caixa">
+    ${
+      Store.backend !== 'supabase' || SUPA.papelNaObra(o.id) === 'dono'
+        ? `<div class="caixa">
       <span class="tinta2" style="font-size:var(--t-peq);font-weight:var(--p-semi)">Ações da obra</span>
       <div style="display:flex;gap:var(--e2);flex-wrap:wrap;margin-top:var(--e3)">
         ${botao('Duplicar esta obra', 'duplicar-obra', {}, 'btn')}
@@ -156,14 +159,16 @@ VIEWS['obra-config'] = () => {
       </div>
       <p class="tinta3" style="font-size:var(--t-peq);margin:var(--e2) 0 0">
         Excluir apaga a obra e tudo que está ligado a ela — contratos, medições, recebimentos, lançamentos,
-        materiais, cronograma e diário. Não dá para desfazer.
+        materiais, cronograma e diário. Não dá para desfazer. Só o dono da obra vê estas ações.
       </p>
-    </div>
+    </div>`
+        : ''
+    }
   </div>`;
 };
 
 VIEWS['obra-config'].toolbar = () => {
   const o = App.obra();
-  if (!o) return '';
+  if (!o || Store.somenteLeitura()) return '';
   return botao('Salvar alterações', 'salvar-obra-config', {}, 'btn primario');
 };
