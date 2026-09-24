@@ -26,6 +26,7 @@ import {
   contratoSituacao,
   contratoValor,
   indicadoresContrato,
+  medicaoAPagar,
   medicaoLiquido,
 } from '../../dominio/calculos.js';
 import { Store, mutar } from '../../dados/store.js';
@@ -636,7 +637,7 @@ ACOES['ct-registrar-pagamento'] = (el, d) => {
   const doBase = o.medicoes.filter((m) => m.contratoBase === d.base && m.status !== 'Cancelado');
   if (!doBase.length) return ACOES['nova-medicao'](el, d);
   const pendente = doBase
-    .filter((m) => medicaoLiquido(m) - m.valorPago > 0.005)
+    .filter((m) => medicaoAPagar(o, m) > 0.005)
     .sort((a, b) => String(a.data || '').localeCompare(String(b.data || '')));
   if (!pendente.length)
     return toast('Nenhuma medição em aberto para pagar neste contrato.', 'aviso');

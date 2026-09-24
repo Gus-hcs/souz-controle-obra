@@ -2,7 +2,7 @@
  * index.js — Entrada e saída: importação de planilha MCMV, exportação CSV e PDF.
  */
 import { addDias, competencia, fmtData, fmtDataCurta, fmtMoney, fmtNum, fmtPct, hojeISO, migrar, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, slug } from '../nucleo/base.js';
-import { alertasObra, basesContratuais, etapaCalc, kpisObra, lancamentoTotal, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
+import { alertasObra, basesContratuais, etapaCalc, kpisObra, lancamentoTotal, medicaoAPagar, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
 import { apenasErros, validarObraCompleta } from '../dominio/validacao.js';
 import { linkWhatsApp, normalizarTelefoneBR } from '../nucleo/contato.js';
 import { Store, mutar } from '../dados/store.js';
@@ -116,7 +116,7 @@ ACOES['csv-medicoes'] = async () => {
       'Data pagamento', 'Valor pago', 'A pagar', 'Status', 'Documento', 'Alerta'],
     o.medicoes.map((m) => [m.numero, m.contratoBase, fmtData(m.data), m.descricao, fmtPct(m.progresso, 0),
       csvNum(m.valorMedido), csvNum(m.desconto), csvNum(medicaoLiquido(m)), fmtData(m.dataPagamento),
-      csvNum(m.valorPago), csvNum(medicaoLiquido(m) - num(m.valorPago)), m.status, m.documento, medicaoAlerta(o, m)]));
+      csvNum(m.valorPago), csvNum(medicaoAPagar(o, m)), m.status, m.documento, medicaoAlerta(o, m)]));
   await baixar(`medicoes-${slug(o.nome)}.csv`, csv);
 };
 

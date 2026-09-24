@@ -181,8 +181,28 @@ function medicaoAlerta(obra, m) {
   const pago = num(m.valorPago);
   if (pago > liq) return 'PAGO ACIMA DA MEDIÇÃO';
   if (medicaoSaldoContratual(obra, m) < 0) return 'CONTRATO ULTRAPASSADO';
-  if (pago < liq && m.status === 'Pago') return 'PAGAMENTO INCOMPLETO';
+  /* a retenção não é falta de pagamento: fica presa até a entrega */
+  if (medicaoAPagar(obra, m) > 0.005 && m.status === 'Pago') return 'PAGAMENTO INCOMPLETO';
   return 'OK';
+}
+
+/* Retenção do contrato (migração 0013): fração de cada medição que fica
+   presa até a entrega. Vem do contrato principal do código-base. */
+function retencaoDoContrato(obra, codigoBase) {
+  const registros = obra.contratos.filter((c) => (c.codigoBase || c.codigo) === codigoBase);
+  const principal = registros.find((c) => c.registro === 'Contrato') || registros[0];
+  return principal ? Math.min(1, Math.max(0, num(principal.retencaoPct))) : 0;
+}
+
+function medicaoRetencao(obra, m) {
+  return round2(medicaoLiquido(m) * retencaoDoContrato(obra, m.contratoBase));
+}
+
+/* O que ainda falta pagar de uma medição: líquido − retenção − pago.
+   Toda tela, alerta e soma de "a pagar" de medição sai daqui. */
+function medicaoAPagar(obra, m) {
+  if (m.status === 'Cancelado') return 0;
+  return Math.max(0, round2(medicaoLiquido(m) - medicaoRetencao(obra, m) - num(m.valorPago)));
 }
 
 /* --------------------------------------------------- RECEBIMENTOS  */
@@ -316,7 +336,7 @@ function fluxoCaixa(obra) {
       .reduce((s, r) => s + (recebimentoLiquido(r) || num(r.valorPrevisto)), 0);
     const medicoesNaoPagas = obra.medicoes
       .filter((m) => competencia(m.data) === ym && m.status !== 'Cancelado')
-      .reduce((s, m) => s + Math.max(0, medicaoLiquido(m) - num(m.valorPago)), 0);
+      .reduce((s, m) => s + medicaoAPagar(obra, m), 0);
     return {
       ym, entradas, medicoes, outras, saidas, saldoMes,
       acumulado, previstasNaoRecebidas, medicoesNaoPagas
@@ -376,7 +396,7 @@ function kpisObra(obra) {
     .reduce((s, r) => s + (recebimentoLiquido(r) || num(r.valorPrevisto)), 0);
   const medicoesNaoPagas = obra.medicoes
     .filter((m) => m.status !== 'Cancelado')
-    .reduce((s, m) => s + Math.max(0, medicaoLiquido(m) - num(m.valorPago)), 0);
+    .reduce((s, m) => s + medicaoAPagar(obra, m), 0);
 
   const etapas = obra.cronograma.map((e) => etapaCalc(e));
   const diasObra = isISO(obra.dataInicio) ? diasEntre(obra.dataInicio, hojeISO()) : 0;
@@ -482,11 +502,11 @@ function alertasObra(obra) {
         'Corrigir o valor pago ou a medição.', { view: 'medicoes', id: m.id });
     } else if (alerta === 'PAGAMENTO INCOMPLETO') {
       add(2, 'Medições', `Medição ${m.numero || ''} marcada como paga sem quitação`.trim(),
-        `Falta ${fmtMoney(medicaoLiquido(m) - num(m.valorPago))}.`,
+        `Falta ${fmtMoney(medicaoAPagar(obra, m))}.`,
         'Ajustar status para Parcial ou completar o pagamento.', { view: 'medicoes', id: m.id });
     }
-    const pendente = medicaoLiquido(m) - num(m.valorPago);
-    if (m.status !== 'Cancelado' && pendente > 0.005 && isISO(m.data) && diasEntre(m.data, hoje) > 15) {
+    const pendente = medicaoAPagar(obra, m);
+    if (pendente > 0.005 && isISO(m.data) && diasEntre(m.data, hoje) > 15) {
       add(2, 'Medições', `Medição ${m.numero || ''} em aberto há ${diasEntre(m.data, hoje)} dias`.trim(),
         `Saldo a pagar de ${fmtMoney(pendente)} para ${m.contratoBase || 'contrato não informado'}.`,
         'Programar o pagamento do prestador.', { view: 'medicoes', id: m.id });
@@ -1054,7 +1074,7 @@ function resumoPrestador(estado, p) {
       if (!bases.has(m.contratoBase) || m.status === 'Cancelado') return;
       const pg = num(m.valorPago);
       pmObra += pg;
-      abertoObra += Math.max(0, medicaoLiquido(m) - pg);
+      abertoObra += medicaoAPagar(o, m);
       if (pg > 0) {
         qtdMedicoesPagas++;
         pagamentos.push({ data: m.dataPagamento || m.data, valor: pg, origem: 'medicao', etapa: '',
@@ -1261,6 +1281,9 @@ export {
   medicaoLiquido,
   medicaoSaldoContratual,
   medicaoAlerta,
+  retencaoDoContrato,
+  medicaoRetencao,
+  medicaoAPagar,
   recebimentoLiquido,
   recebimentoDiferenca,
   lancamentoTotal,

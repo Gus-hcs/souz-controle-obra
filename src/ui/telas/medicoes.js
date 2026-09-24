@@ -18,7 +18,7 @@ import {
   num,
   round2,
 } from '../../nucleo/base.js';
-import { medicaoAlerta, medicaoLiquido } from '../../dominio/calculos.js';
+import { medicaoAPagar, medicaoAlerta, medicaoLiquido } from '../../dominio/calculos.js';
 import { graficoBarras } from '../../graficos/index.js';
 import { ACOES } from '../acoes.js';
 import { App, botao, opcoesLista } from '../shell.js';
@@ -108,7 +108,7 @@ VIEWS.medicoes = () => {
   const ativas = o.medicoes.filter((m) => m.status !== 'Cancelado');
   const totMed = ativas.reduce((s, m) => s + medicaoLiquido(m), 0);
   const totPago = ativas.reduce((s, m) => s + num(m.valorPago), 0);
-  const emAberto = ativas.filter((m) => medicaoLiquido(m) - num(m.valorPago) > 0.005);
+  const emAberto = ativas.filter((m) => medicaoAPagar(o, m) > 0.005);
   const comAlerta = ativas.filter((m) => {
     const al = medicaoAlerta(o, m);
     return al && al !== 'OK';
@@ -129,7 +129,7 @@ VIEWS.medicoes = () => {
       m,
       liq,
       pago,
-      falta: liq - pago,
+      falta: medicaoAPagar(o, m),
       alerta: medicaoAlerta(o, m),
       prestador: prestadorDe(m.contratoBase),
     };
@@ -250,7 +250,7 @@ VIEWS.medicoes = () => {
       valor: round2(
         ativas
           .filter((m) => m.contratoBase === base)
-          .reduce((s, m) => s + medicaoLiquido(m) - num(m.valorPago), 0),
+          .reduce((s, m) => s + medicaoAPagar(o, m), 0),
       ),
     }))
     .filter((x) => x.valor > 0.005);
