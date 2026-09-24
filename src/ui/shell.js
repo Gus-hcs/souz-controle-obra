@@ -49,7 +49,7 @@ const ICO = {
 const svg = (d, tam = 16) =>
   `<svg class="ic" width="${tam}" height="${tam}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 
-/* Marca do sistema — dois cubos isométricos (Logo.jpeg, fundo recortado).
+/* Marca do sistema — dois cubos isométricos, fundo recortado.
    Usada no rail e na tela de acesso. */
 const LOGO = `<img class="marca-img" src="${marcaUrl}" alt="SouZ" draggable="false">`;
 
