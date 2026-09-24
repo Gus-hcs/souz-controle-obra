@@ -95,6 +95,14 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0013_contratos_situacao_e_aditivos.sql` | aditivo com tipo/status/motivo/aprovação/novo prazo; contrato com condição de pagamento, retenção, forma de preço, data de encerramento e documento (Storage); situação manual (só Paralisado/Rescindido) — o resto a tela calcula; CHECKs |
 | `0014_convite_por_email.sql` | `convidar_membro()` e `membros_da_obra()` — convite de engenheiro/cliente por e-mail e listagem da equipe com e-mail (funções `security definer`, sem tabela nova) |
 
+### 0008 — logos
+
+A consulta de diagnóstico do fim juntava `perfis.id` (uuid) com `clientes.id`
+(text) num `UNION` e dava erro — como o SQL Editor roda o arquivo inteiro numa
+transação, o erro desfazia tudo e a 0008 ficou sem aplicar. Corrigida com
+`id::text` nas duas partes e aplicada em produção com essa correção. O app não
+depende dela para funcionar (a logo fica no navegador e no backup).
+
 ### 0011 — prestadores
 
 Rode os blocos **na ordem**: A (estrutura), B (normaliza telefones e liga os

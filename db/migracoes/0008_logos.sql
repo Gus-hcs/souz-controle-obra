@@ -28,10 +28,13 @@ alter table public.clientes add  constraint chk_clientes_logo
   check (logo is null or (logo like 'data:image/%' and length(logo) <= 500000)) not valid;
 
 -- Diagnóstico: linhas que violam o CHECK (deve vir vazio).
-select 'perfis'   as tabela, id from public.perfis
+-- id::text nas duas partes: perfis.id é uuid e clientes.id é text, e o
+-- UNION sem conversão dava erro — o que desfazia o script inteiro no SQL
+-- Editor (a 0008 ficou sem aplicar até isto ser corrigido).
+select 'perfis'   as tabela, id::text as id from public.perfis
   where logo is not null and not (logo like 'data:image/%' and length(logo) <= 500000)
 union all
-select 'clientes' as tabela, id from public.clientes
+select 'clientes' as tabela, id::text from public.clientes
   where logo is not null and not (logo like 'data:image/%' and length(logo) <= 500000);
 
 -- Depois de conferir que o diagnóstico veio vazio:
