@@ -235,10 +235,13 @@ function graficoGantt(obra) {
     if (isISO(e.inicioReal)) {
       const a = px(e.inicioReal);
       const b = Math.max(px(isISO(e.fimReal) ? e.fimReal : hojeISO()), a + 3);
-      real = `<rect x="${a.toFixed(1)}" y="${y + 12}" width="${(b - a).toFixed(1)}" height="8" rx="3" fill="${cor}"/>`;
-      if (c2.progresso > 0 && c2.progresso < 1) {
-        real += `<rect x="${a.toFixed(1)}" y="${y + 12}" width="${((b - a) * c2.progresso).toFixed(1)}" height="8" rx="3" fill="${cor}"/>
-                 <rect x="${a.toFixed(1)}" y="${y + 12}" width="${(b - a).toFixed(1)}" height="8" rx="3" fill="none" stroke="${cor}" stroke-width="1"/>`;
+      const p = Math.min(1, Math.max(0, c2.progresso));
+      /* trilha translúcida = tempo decorrido; preenchimento cheio = o que já
+         foi executado. Antes as duas eram a mesma cor sólida — dava pra ver
+         só uma barra, nunca quanto da etapa estava pronto de fato. */
+      real = `<rect x="${a.toFixed(1)}" y="${y + 12}" width="${(b - a).toFixed(1)}" height="8" rx="3" fill="${cor}" opacity="${p >= 1 ? 1 : 0.28}"/>`;
+      if (p > 0 && p < 1) {
+        real += `<rect x="${a.toFixed(1)}" y="${y + 12}" width="${((b - a) * p).toFixed(1)}" height="8" rx="3" fill="${cor}"/>`;
       }
     }
     return `<text x="8" y="${y + 15}" fill="var(--tinta2)" style="font-size:11.5px">${esc(e.etapa.length > 26 ? e.etapa.slice(0, 25) + '…' : e.etapa)}</text>
