@@ -31,6 +31,7 @@ import './ui/telas/recebimentos.js';
 import './ui/telas/lancamentos.js';
 import './ui/telas/prestadores.js';
 import './ui/telas/cronograma.js';
+import './ui/telas/materiais.js';
 
 /* ---------------------------------------------------------- eventos */
 document.addEventListener('click', (ev) => {
