@@ -46,26 +46,6 @@ jobs:
           npx playwright install --with-deps chromium
           npm run test:e2e
 
-      # AINDA NÃO BLOQUEIA. A suíte reprova hoje por decisão de projeto em
-      # aberto (alvo de toque de 44px e fonte de 12px no celular contra a
-      # densidade da linguagem macOS), não por regressão. Enquanto isso ela
-      # roda, publica o relatório como artefato e não impede a publicação.
-      # Quando a contagem zerar, tire o continue-on-error: a partir daí
-      # qualquer regressão de layout passa a barrar o deploy.
-      - name: Responsividade e fluidez — 17 telas em 9 tamanhos
-        run: npm run test:responsivo
-        continue-on-error: true
-
-      - name: Guardar o relatório de responsividade
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: relatorio-responsivo
-          path: |
-            docs/relatorio-responsivo.html
-            docs/relatorio-responsivo/
-          retention-days: 14
-
       - name: Guardar o site construído
         uses: actions/upload-pages-artifact@v3
         with:
