@@ -2966,3 +2966,58 @@ table.lista td.cel-sem-contrato {
   font-size: var(--t-peq);
   color: var(--tinta2);
 }
+
+/* ------------------------------------------ vínculo com o cadastro */
+/* Contrato cujo prestador é só nome digitado: marcado na linha. */
+.cel-obra .fora-cadastro {
+  font-size: var(--t-peq);
+  color: var(--alerta);
+}
+.fora-cadastro .btn-link {
+  font-size: inherit;
+  color: var(--alerta);
+  font-weight: var(--p-medio);
+  text-decoration: underline;
+}
+.vinc-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.vinc-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 280px);
+  gap: var(--e3);
+  align-items: center;
+  padding: var(--e2) var(--e2);
+  border-bottom: var(--fio) solid var(--separador);
+  border-radius: var(--r-campo);
+}
+.vinc-item.foco {
+  background: color-mix(in srgb, var(--acento) 10%, transparent);
+}
+.vinc-ref {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.35;
+}
+.vinc-ref span {
+  font-size: var(--t-peq);
+  color: var(--tinta3);
+}
+.vinc-ref .vinc-casou {
+  color: var(--acento-texto);
+}
+.vinc-ref .vinc-ambiguo,
+.vinc-ref .vinc-sem-cadastro {
+  color: var(--alerta);
+}
+@media (max-width: 767px) {
+  .vinc-item {
+    grid-template-columns: 1fr;
+  }
+  .vinc-item select {
+    min-height: 44px;
+  }
+}

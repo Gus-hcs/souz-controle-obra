@@ -30,6 +30,7 @@ import './ui/telas/medicoes.js';
 import './ui/telas/recebimentos.js';
 import './ui/telas/lancamentos.js';
 import './ui/telas/prestadores.js';
+import './ui/telas/vinculo.js';
 import './ui/telas/cronograma.js';
 import './ui/telas/materiais.js';
 import './ui/telas/diario.js';

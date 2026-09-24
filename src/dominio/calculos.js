@@ -102,6 +102,8 @@ function indicadoresContrato(obra, codigoBase) {
     if (c.status === 'Cancelado') return;
     if (c.registro !== 'Aditivo') { autorizado += contratoValor(c); return; }
     if ((c.statusAditivo || 'aprovado') !== 'aprovado') return;
+    /* aditivo de prazo muda o fim, não o valor */
+    if (c.tipoAditivo === 'prazo') return;
     autorizado += c.tipoAditivo === 'supressao' ? -contratoValor(c) : contratoValor(c);
   });
   const medicoesBase = obra.medicoes.filter((m) => m.contratoBase === codigoBase && m.status !== 'Cancelado');
@@ -117,6 +119,39 @@ function indicadoresContrato(obra, codigoBase) {
     aPagarAgora: Math.max(0, round2(medido - retido - pago)),
     aMedir: Math.max(0, round2(autorizado - medido))
   };
+}
+
+/* Composição do autorizado de um código-base: o contrato e o efeito de
+   cada aditivo, com sinal. Acréscimo aprovado soma, supressão aprovada
+   subtrai, aditivo de prazo não mexe no valor (só no fim). Proposto ainda
+   não conta: fica em `pendentes`, com o efeito que teria se aprovado.
+   principal + totalAcrescimos − totalSupressoes = indicadoresContrato().autorizado */
+function composicaoContrato(obra, codigoBase) {
+  const registros = obra.contratos.filter((c) => (c.codigoBase || c.codigo) === codigoBase);
+  const principal = registros.find((c) => c.registro === 'Contrato') || registros[0] || {};
+  const efeito = (a) => {
+    if (a.tipoAditivo === 'prazo') return 0;
+    return a.tipoAditivo === 'supressao' ? -contratoValor(a) : contratoValor(a);
+  };
+  const out = {
+    principal: principal.status === 'Cancelado' ? 0 : contratoValor(principal),
+    acrescimos: [], supressoes: [], prazos: [], pendentes: [],
+    totalAcrescimos: 0, totalSupressoes: 0, pendentesValor: 0
+  };
+  registros.forEach((a) => {
+    if (a.registro !== 'Aditivo' || a.status === 'Cancelado') return;
+    const st = a.statusAditivo || 'aprovado';
+    const item = { registro: a, valor: efeito(a) };
+    if (st === 'proposto') { out.pendentes.push(item); out.pendentesValor += item.valor; return; }
+    if (st !== 'aprovado') return;
+    if (a.tipoAditivo === 'prazo') out.prazos.push(item);
+    else if (a.tipoAditivo === 'supressao') { out.supressoes.push(item); out.totalSupressoes -= item.valor; }
+    else { out.acrescimos.push(item); out.totalAcrescimos += item.valor; }
+  });
+  out.totalAcrescimos = round2(out.totalAcrescimos);
+  out.totalSupressoes = round2(out.totalSupressoes);
+  out.pendentesValor = round2(out.pendentesValor);
+  return out;
 }
 
 /* Situação do contrato — sempre calculada. Ordem de decisão:
@@ -1277,6 +1312,7 @@ export {
   basesContratuais,
   contratoFimVigente,
   indicadoresContrato,
+  composicaoContrato,
   contratoSituacao,
   medicaoLiquido,
   medicaoSaldoContratual,

@@ -22,6 +22,7 @@ import {
 } from '../../nucleo/base.js';
 import {
   basesContratuais,
+  composicaoContrato,
   contratoFimVigente,
   contratoSituacao,
   contratoValor,
@@ -70,14 +71,31 @@ const PROBLEMA_PRAZO = new Set(['atrasado', 'nao-iniciado-atrasado']);
 /* Estado só de tela: qual código-base está com o inspetor aberto. */
 const tela = { selecao: '' };
 
-/* Pílulas de situação: agrupam as chaves de contratoSituacao em quatro
-   estados que importam para quem decide o que olhar primeiro — o resto
-   (em andamento, não iniciado no prazo) é o estado esperado, sem pílula. */
+/* Pílulas: só a situação calculada (contratoSituacao) e o a pagar agora
+   (indicadoresContrato) — nunca o status digitado, que podia contradizer
+   as datas. Paralisado e Rescindido só aparecem quando existem. */
 const SIT_PILULAS = [
-  { chave: 'atraso', rotulo: 'Atrasados', chaves: ['atrasado', 'nao-iniciado-atrasado'] },
-  { chave: 'a-pagar', rotulo: 'A pagar', chaves: ['a-pagar'] },
-  { chave: 'parado', rotulo: 'Parados', chaves: ['paralisado', 'rescindido'] },
-  { chave: 'encerrado', rotulo: 'Encerrados', chaves: ['encerrado'] },
+  { chave: 'atraso', rotulo: 'Atrasados', pertence: (l) => PROBLEMA_PRAZO.has(l.sit.chave) },
+  { chave: 'apagar', rotulo: 'A pagar agora', pertence: (l) => l.ind.aPagarAgora > 0.005 },
+  { chave: 'andamento', rotulo: 'Em andamento', pertence: (l) => l.sit.chave === 'em-andamento' },
+  {
+    chave: 'nao-iniciado',
+    rotulo: 'Não iniciados',
+    pertence: (l) => l.sit.chave === 'nao-iniciado',
+  },
+  { chave: 'encerrado', rotulo: 'Encerrados', pertence: (l) => l.sit.chave === 'encerrado' },
+  {
+    chave: 'paralisado',
+    rotulo: 'Paralisados',
+    pertence: (l) => l.sit.chave === 'paralisado',
+    soSeHouver: true,
+  },
+  {
+    chave: 'rescindido',
+    rotulo: 'Rescindidos',
+    pertence: (l) => l.sit.chave === 'rescindido',
+    soSeHouver: true,
+  },
 ];
 
 function nomePrestadorRegistro(c) {
@@ -96,19 +114,20 @@ function linhaDados(o, b) {
   const ind = indicadoresContrato(o, b.base);
   const sit = contratoSituacao(o, b.base);
   const fim = contratoFimVigente(registros);
-  const aditivosAprovados = registros.filter(
-    (c) =>
-      c.registro === 'Aditivo' &&
-      c.status !== 'Cancelado' &&
-      (c.statusAditivo || 'aprovado') === 'aprovado',
-  );
-  const valorPrincipal = contratoValor(principal);
+  const comp = composicaoContrato(o, b.base);
+  const nome = (a) => a.registro.escopo || a.registro.codigo;
+  const sinal = (v) => `${v < 0 ? '−' : '+'} ${fmtMoney(Math.abs(v), { dec: 0 })}`;
+  /* hover: a composição inteira, com sinal, e os propostos à parte */
   const composicao = [
-    `${principal.escopo || principal.codigo || 'contrato'}: ${fmtMoney(valorPrincipal, { dec: 0 })}`,
-    ...aditivosAprovados.map(
-      (a) => `${a.escopo || a.codigo}: ${fmtMoney(contratoValor(a), { dec: 0 })}`,
+    `${principal.escopo || principal.codigo || 'Contrato'}: ${fmtMoney(comp.principal, { dec: 0 })}`,
+    ...comp.acrescimos.map((a) => `${nome(a)}: ${sinal(a.valor)}`),
+    ...comp.supressoes.map((a) => `${nome(a)}: ${sinal(a.valor)} (supressão)`),
+    ...comp.prazos.map(
+      (a) =>
+        `${nome(a)}: prazo até ${isISO(a.registro.novoPrazoAditivo) ? fmtDataCurta(a.registro.novoPrazoAditivo) : '?'}`,
     ),
-  ].join(' · ');
+    ...comp.pendentes.map((a) => `${nome(a)}: ${sinal(a.valor)} (proposto, ainda não conta)`),
+  ].join('\n');
   return {
     base: b.base,
     registros,
@@ -117,8 +136,7 @@ function linhaDados(o, b) {
     sit,
     fim,
     prestador: nomePrestadorRegistro(principal),
-    aditivosAprovados,
-    valorPrincipal,
+    comp,
     composicao,
   };
 }
@@ -129,14 +147,13 @@ function filtrar(linhas) {
   const busca = App.filtros.busca ? App.filtros.busca.trim().toLowerCase() : '';
   return linhas.filter((l) => {
     if (f.prestador && l.prestador !== f.prestador) return false;
-    if (f.status && !l.registros.some((c) => c.status === f.status)) return false;
     if (f.regime && !l.registros.some((c) => c.regime === f.regime)) return false;
     if (f.kpiCt === 'medido' && !(l.ind.medido > 0.005)) return false;
     if (f.kpiCt === 'apagar' && !(l.ind.aPagarAgora > 0.005)) return false;
     if (f.kpiCt === 'amedir' && !(l.ind.aMedir > 0.005)) return false;
     if (f.situacaoCt) {
       const grupo = SIT_PILULAS.find((p) => p.chave === f.situacaoCt);
-      if (grupo && !grupo.chaves.includes(l.sit.chave)) return false;
+      if (grupo && !grupo.pertence(l)) return false;
     }
     if (busca) {
       const alvo =
@@ -157,16 +174,13 @@ function kpisContratos(todas) {
   const aPagarAgora = todas.reduce((s, l) => s + l.ind.aPagarAgora, 0);
   const aMedir = todas.reduce((s, l) => s + l.ind.aMedir, 0);
 
-  let aditivosAprovadosValor = 0,
-    aditivosPendentesValor = 0;
-  todas.forEach((l) => {
-    l.registros.forEach((c) => {
-      if (c.registro !== 'Aditivo' || c.status === 'Cancelado') return;
-      const st = c.statusAditivo || 'aprovado';
-      if (st === 'aprovado') aditivosAprovadosValor += contratoValor(c);
-      else if (st === 'proposto') aditivosPendentesValor += contratoValor(c);
-    });
-  });
+  const aditivosAprovadosValor = todas.reduce(
+    (s, l) => s + l.comp.totalAcrescimos - l.comp.totalSupressoes,
+    0,
+  );
+  const aditivosPendentesValor = todas.reduce((s, l) => s + l.comp.pendentesValor, 0);
+  const temPendente = todas.some((l) => l.comp.pendentes.length);
+  const comSinal = (v) => `${v < 0 ? '−' : ''}${fmtMoney(Math.abs(v), { dec: 0 })}`;
 
   const item = (chave, rotulo, valor, contexto, tom = '') => {
     const ativo = App.filtros.kpiCt === chave;
@@ -184,12 +198,10 @@ function kpisContratos(todas) {
       'Autorizado',
       fmtMoney(autorizado, { dec: 0 }),
       `${todas.length} contrato${todas.length === 1 ? '' : 's'}` +
-        (aditivosAprovadosValor > 0.005
-          ? ` · ${fmtMoney(aditivosAprovadosValor, { dec: 0 })} em aditivos`
+        (Math.abs(aditivosAprovadosValor) > 0.005
+          ? ` · ${comSinal(aditivosAprovadosValor)} em aditivos`
           : '') +
-        (aditivosPendentesValor > 0.005
-          ? ` · ${fmtMoney(aditivosPendentesValor, { dec: 0 })} em aditivos pendentes`
-          : ''),
+        (temPendente ? ` · ${comSinal(aditivosPendentesValor)} em aditivos pendentes` : ''),
     )}
     ${item('medido', 'Medido', fmtMoney(medido, { dec: 0 }), `${fmtPct(autorizado > 0 ? medido / autorizado : 0, 0)} do autorizado`)}
     ${item(
@@ -213,49 +225,42 @@ ACOES['ct-kpi'] = (el, d) => {
    nos dados) — os dois filtros que mudam o que é urgente ver. Prestador e
    forma de preço são recorte, não urgência: continuam em <select>. */
 function pilulasContratos(todas) {
-  const sitPil = SIT_PILULAS.map((g) => {
-    const n = todas.filter((l) => g.chaves.includes(l.sit.chave)).length;
-    if (!n) return '';
-    const ativa = App.filtros.situacaoCt === g.chave;
+  if (!todas.length) return '';
+  const atual = App.filtros.situacaoCt || '';
+  const pil = (chave, rotulo, n) => {
+    const ativa = atual === chave;
     return `<button class="pilula${ativa ? ' ativa' : ''}" data-acao="ct-pilula-situacao"
-        data-valor="${g.chave}" aria-pressed="${ativa}">
-      ${esc(g.rotulo)} <span class="conta">${n}</span>
+        data-valor="${chave}" aria-pressed="${ativa}">
+      ${esc(rotulo)} <span class="conta">${n}</span>
     </button>`;
-  }).join('');
-
-  const statusPresentes = [
-    ...new Set(todas.flatMap((l) => l.registros.map((c) => c.status)).filter(Boolean)),
-  ];
-  const statusPil = statusPresentes
-    .map((s) => {
-      const n = todas.filter((l) => l.registros.some((c) => c.status === s)).length;
-      const ativa = App.filtros.status === s;
-      return `<button class="pilula${ativa ? ' ativa' : ''}" data-acao="ct-pilula-status"
-          data-valor="${esc(s)}" aria-pressed="${ativa}">
-        ${esc(s)} <span class="conta">${n}</span>
-      </button>`;
-    })
+  };
+  const grupos = SIT_PILULAS.map((g) => ({ g, n: todas.filter(g.pertence).length }))
+    .filter(({ g, n }) => !g.soSeHouver || n > 0)
+    .map(({ g, n }) => pil(g.chave, g.rotulo, n))
     .join('');
-
-  if (!sitPil && !statusPil) return '';
-  return `<div class="filtro-barra nao-imprime">${sitPil}${statusPil}</div>`;
+  return `<div class="filtro-barra nao-imprime">${pil('', 'Todos', todas.length)}${grupos}</div>`;
 }
 
 ACOES['ct-pilula-situacao'] = (el, d) => {
-  App.filtros.situacaoCt = App.filtros.situacaoCt === d.valor ? '' : d.valor;
-  App.renderConteudo();
-};
-ACOES['ct-pilula-status'] = (el, d) => {
-  App.filtros.status = App.filtros.status === d.valor ? '' : d.valor;
+  App.filtros.situacaoCt = !d.valor || App.filtros.situacaoCt === d.valor ? '' : d.valor;
   App.renderConteudo();
 };
 
 /* -------------------------------------------------------------- tabela
    A linha inteira é clicável (abre o inspetor, Fase 5) — sem botão "⋯" na
    célula: as ações da linha ficam no cabeçalho do inspetor. */
+/* Prestador fora do cadastro (sem prestadorId): o nome digitado aparece
+   marcado, com o atalho para vincular — senão a ficha dele fica "sem
+   contrato" em Prestadores. */
 function celulaContrato(l) {
   const sub = [l.principal.escopo, l.base].filter(Boolean).join(' · ') || l.base;
-  return `<div class="cel-obra"><b>${esc(l.prestador || 'prestador não informado')}</b><span>${esc(sub)}</span></div>`;
+  const fora = !l.principal.prestadorId;
+  return `<div class="cel-obra"><b>${esc(l.prestador || 'prestador não informado')}</b><span>${esc(sub)}</span>${
+    fora
+      ? `<span class="fora-cadastro">fora do cadastro ·
+        <button class="btn-link" data-acao="vincular-prestadores" data-contrato="${esc(l.principal.id || '')}">Vincular prestador</button></span>`
+      : ''
+  }</div>`;
 }
 
 function celulaPrazo(l) {
@@ -269,11 +274,24 @@ function celulaPrazo(l) {
   </div>`;
 }
 
+/* "37.440 + 1 aditivo − 1.500 (supressão)": o sinal de cada aditivo
+   aprovado; prazo não muda o valor e fica só no hover. */
 function celulaAutorizado(l) {
-  const n = l.aditivosAprovados.length;
+  const c = l.comp;
+  const n = c.acrescimos.length;
+  const partes = [];
+  if (n) partes.push(`+ ${n} aditivo${n > 1 ? 's' : ''}`);
+  if (c.supressoes.length) {
+    partes.push(`− ${fmtMoney(c.totalSupressoes, { dec: 0, semSimbolo: true })} (supressão)`);
+  }
+  const np = c.pendentes.length;
+  if (np) partes.push(`· ${np} proposto${np > 1 ? 's' : ''}`);
+  const nota = partes.length
+    ? `${fmtMoney(c.principal, { dec: 0, semSimbolo: true })} ${partes.join(' ')}`
+    : '';
   return `<div class="cel-num-nota" title="${esc(l.composicao)}">
     <b>${dinheiro(l.ind.autorizado, { dec: 0 })}</b>
-    ${n ? `<span>${fmtMoney(l.valorPrincipal, { dec: 0, semSimbolo: true })} + ${n} aditivo${n > 1 ? 's' : ''}</span>` : ''}
+    ${nota ? `<span>${esc(nota)}</span>` : ''}
   </div>`;
 }
 
@@ -386,6 +404,20 @@ function colunasContratos() {
 const linhaNum = (rotulo, valor, tom = '') =>
   `<div class="par par-num"><dt>${esc(rotulo)}</dt><dd class="${tom}">${valor}</dd></div>`;
 
+const ROTULO_TIPO_ADITIVO = { acrescimo: 'acréscimo', supressao: 'supressão', prazo: 'prazo' };
+
+/* Valor de um registro na composição: supressão com sinal de menos,
+   prazo mostra o novo fim (não mexe no valor). */
+function valorDoRegistro(c) {
+  if (c.registro === 'Aditivo' && c.tipoAditivo === 'prazo') {
+    return isISO(c.novoPrazoAditivo)
+      ? `<span class="tinta2">até ${esc(fmtDataCurta(c.novoPrazoAditivo))}</span>`
+      : '<span class="tinta3">—</span>';
+  }
+  const v = fmtMoney(contratoValor(c), { dec: 0 });
+  return c.registro === 'Aditivo' && c.tipoAditivo === 'supressao' ? `− ${v}` : v;
+}
+
 function inspetorContrato(o, l) {
   const ind = l.ind;
   const registros = l.registros
@@ -397,8 +429,12 @@ function inspetorContrato(o, l) {
         <tbody>${registros
           .map(
             (c) => `<tr>
-          <td><b class="mono">${esc(c.codigo)}</b><br><span class="tinta3">${esc(c.escopo || (c.registro === 'Aditivo' ? 'Aditivo' : 'Contrato'))} · ${esc(c.registro === 'Aditivo' ? c.statusAditivo || 'aprovado' : c.status)}</span></td>
-          <td class="num">${fmtMoney(contratoValor(c), { dec: 0 })}</td>
+          <td><b class="mono">${esc(c.codigo)}</b><br><span class="tinta3">${esc(c.escopo || (c.registro === 'Aditivo' ? 'Aditivo' : 'Contrato'))}${
+            c.registro === 'Aditivo'
+              ? ` · ${esc(ROTULO_TIPO_ADITIVO[c.tipoAditivo] || 'acréscimo')} ${esc(c.statusAditivo || 'aprovado')}`
+              : ''
+          }</span></td>
+          <td class="num">${valorDoRegistro(c)}</td>
         </tr>`,
           )
           .join('')}</tbody></table>`
