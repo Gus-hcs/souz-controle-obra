@@ -144,23 +144,46 @@ forçando as colunas de controle a valores seguros no insert de quem não é adm
 
 ### No código / banco
 
-8. **Convite de membro + interface por papel.** O esquema existe (`0004`); falta
-   a tela e a interface esconder ação que o papel não permite.
-9. **Prestador por id, não por nome.** Hoje `contratos.prestador` é texto e a
-   política `prestadores_da_obra` casa por nome — um membro de obra consegue ler
-   o contato de um prestador homônimo de outra conta. Yield baixo (precisa
-   adivinhar o nome exato), mas o certo é referenciar por id.
-10. **SRI nos scripts de CDN.** `supabase-js`, `xlsx` e `jspdf` vêm de CDN. O
-    CSP já restringe a origem a `cdnjs`/`jsdelivr`; falta fixar o hash (ou
-    empacotar o `supabase-js` no build).
-11. **Dependabot + `npm audit` na CI.**
-12. **`frame-ancestors` e HSTS de verdade.** Só com header HTTP — num servidor
+8. **Prestador por id, não por nome — melhorado, não fechado.** Desde a `0011`,
+   a política `prestadores_da_obra` casa por `prestador_id` quando o contrato
+   tem o vínculo; só cai para o nome em contratos antigos sem `prestador_id`
+   (`c.prestador_id is null`). O risco só sobra para registros legados sem
+   vínculo — ligar todos pela tela fecha de vez.
+9. **SRI nos scripts de CDN.** `supabase-js`, `xlsx` e `jspdf` vêm de CDN. O
+   CSP já restringe a origem a `cdnjs`/`jsdelivr`; falta fixar o hash (ou
+   empacotar o `supabase-js` no build). Não avaliado nesta rodada — calcular o
+   hash certo exige buscar o arquivo de cada CDN; um hash errado quebra
+   backup/PDF/planilha em produção, então é mais seguro deixar como está do
+   que arriscar um hash não verificado.
+10. **Dependabot + `npm audit` na CI.** `npm audit` aponta 6 avisos (2 críticos)
+    em `vitest`/`vite`/`esbuild` — todos em `devDependencies`, usados só no
+    dev server e nos testes, nunca embarcados no `dist/index.html` publicado
+    (regra do `CLAUDE.md`: zero dependência de execução). Não afeta quem usa o
+    sistema publicado; afeta só quem roda `npm run dev` numa rede não
+    confiável. Corrigir pede `vitest@5` (mudança de versão maior) — não fiz
+    sem combinar, por ser upgrade que pode quebrar a suíte de testes.
+11. **`frame-ancestors` e HSTS de verdade.** Só com header HTTP — num servidor
     próprio (`souztech.com` via proxy/CDN), não no Pages. O `<meta>` cobre o
     resto do CSP; o anti-frame por script cobre o clickjacking.
 
-**Feito nesta rodada:** CSP por `<meta>` no build, `Referrer-Policy: no-referrer`,
-anti-frame por script, `fonteImagem()` em todo `src` de imagem, PKCE na
-autenticação, `redirectTo` limpo no reset de senha, e a migração `0009`.
+**Feito numa rodada anterior:** CSP por `<meta>` no build, `Referrer-Policy:
+no-referrer`, anti-frame por script, `fonteImagem()` em todo `src` de imagem,
+PKCE na autenticação, `redirectTo` limpo no reset de senha, e a migração `0009`.
+
+**Feito nesta rodada (varredura pré-venda):** o antigo item 8 (convite de
+membro + interface por papel) — ver `db/migracoes/0014_convite_por_email.sql`
+e a seção "Equipe" em Configuração da obra. `Store.somenteLeitura()` agora
+considera o papel na obra atual (`SUPA.podeEditarObra()`), então a UI esconde
+Novo/editar/excluir para quem não pode escrever — antes só o banco recusava,
+a tela mostrava os botões do mesmo jeito para qualquer papel.
+
+Também uma varredura de segurança e funcionamento: sem segredo (`service_role`
+ou qualquer chave privada) no repositório ou no histórico do branch;
+amostragem ampla de saída para HTML sem achar `${...}` de campo do usuário
+fora de `esc()`/dos pontos centrais que já escapam (`confirmar()`, `toast()`
+via `textContent`, `campoHTML` nas `<option>`); as 10 tabelas da aplicação com
+RLS confirmada (`0001`+`0004`); 301 testes, lint e build limpos; as 18 telas
+navegadas em claro e escuro sem exceção no console.
 
 ---
 
@@ -176,6 +199,7 @@ autenticação, `redirectTo` limpo no reset de senha, e a migração `0009`.
 | `0006` | **corrige o `UPDATE` do `perfis`**; endurece funções e schema |
 | `0007` | teto de obras por conta (gatilho no banco) |
 | `0009` | **fecha o INSERT/DELETE do `perfis`**; `search_path` no resto das funções |
+| `0014` | convite de membro por e-mail (`security definer`, sem abrir `auth.users`) |
 
 ---
 
