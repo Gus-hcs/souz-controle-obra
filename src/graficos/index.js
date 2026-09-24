@@ -29,8 +29,10 @@ function caminho(pontos) {
 }
 
 /* ------------------------------------------------------------ CURVA S */
-function graficoCurvaS(obra, altura = 300) {
-  const dados = curvaS(obra);
+/* Aceita uma obra (calcula a curva dela) ou a série já calculada — é assim
+   que a curva consolidada da carteira usa o mesmo desenho. */
+function graficoCurvaS(obraOuSerie, altura = 300) {
+  const dados = Array.isArray(obraOuSerie) ? obraOuSerie : curvaS(obraOuSerie);
   if (dados.length < 2) {
     return vazio('Sem curva S ainda', 'Cadastre o cronograma com datas previstas para gerar a curva.');
   }
@@ -88,7 +90,7 @@ function graficoCurvaS(obra, altura = 300) {
       `Físico previsto: ${fmtPct(d.fisicoPrevisto, 0)}`,
       d.fisicoRealizado === null ? null : `Físico realizado: ${fmtPct(d.fisicoRealizado, 0)}`,
       d.financeiroRealizado === null ? null : `Financeiro realizado: ${fmtPct(d.financeiroRealizado, 0)}`,
-      d.financeiroRealizado === null ? null : `Desembolso: ${fmtMoney(d.desembolsoAcumulado, { dec: 0 })}`
+      d.financeiroRealizado === null || d.desembolsoAcumulado === undefined ? null : `Desembolso: ${fmtMoney(d.desembolsoAcumulado, { dec: 0 })}`
     ].filter(Boolean).join('<br>'))
   };
 

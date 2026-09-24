@@ -23,7 +23,7 @@ function dinheiro(v, { cinzaNoZero = false } = {}) {
 }
 
 /* --------------------------------------------------------------- resumo
-   itens: [{ rotulo, valor, nota, tom: ''|'atraso'|'alerta' }]
+   itens: [{ rotulo, valor, nota, tom: ''|'atraso'|'tom-alerta' }]
    O primeiro é o principal: é o número que a pessoa veio ver. */
 function resumo(itens) {
   return `<div class="resumo">${itens

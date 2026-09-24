@@ -706,7 +706,7 @@ textarea:disabled {
 .resumo-val.atraso {
   color: var(--atraso);
 }
-.resumo-val.alerta {
+.resumo-val.tom-alerta {
   color: var(--alerta);
 }
 /* O empurrão que joga o resto do resumo para a direita. */
@@ -846,7 +846,7 @@ table.lista tbody tr[aria-selected='true']:hover td {
 table.lista tbody tr[aria-selected='true'] .atraso,
 table.lista tbody tr[aria-selected='true'] .tinta2,
 table.lista tbody tr[aria-selected='true'] .tinta3,
-table.lista tbody tr[aria-selected='true'] .alerta,
+table.lista tbody tr[aria-selected='true'] .tom-alerta,
 table.lista tbody tr[aria-selected='true'] .cel-dupla span {
   color: var(--sobre-acento);
 }
@@ -903,7 +903,9 @@ table.lista tfoot td.num {
 .atraso {
   color: var(--atraso);
 }
-.alerta {
+/* "tom-alerta" e não "alerta": .alerta é um componente do legado,
+   com padding e flex, e a colisão deslocava o texto. */
+.tom-alerta {
   color: var(--alerta);
 }
 .feito {
@@ -1615,5 +1617,590 @@ tr:focus-within .acoes-linha .btn {
   }
   .filtro-barra > * {
     flex: 0 0 auto;
+  }
+}
+
+/* ================================================================
+   Carteira — faixa de KPIs, saúde, painel de ação, agenda
+   ================================================================ */
+
+/* Cinco KPIs com o mesmo peso. Sem cartão nem sombra: fio entre eles.
+   Cada um é um botão — clicar filtra a lista pelas obras daquele número. */
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border: var(--fio) solid var(--separador);
+  border-radius: var(--r-cartao);
+  margin-bottom: var(--e4);
+  overflow: hidden;
+}
+.kpi-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--e3) var(--e4);
+  background: none;
+  border: 0;
+  border-left: var(--fio) solid var(--separador);
+  color: var(--tinta);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--mov-rapido) var(--curva);
+}
+.kpi-item:first-child {
+  border-left: 0;
+}
+.kpi-item:hover {
+  background: var(--fundo-hover);
+}
+.kpi-item:active {
+  background: var(--fundo-ctrl-ativo);
+  transition: none;
+}
+.kpi-item.ativo {
+  background: var(--acento-fraco);
+  box-shadow: inset 0 -2px 0 var(--acento);
+}
+.kpi-rot {
+  font-size: var(--t-peq);
+  color: var(--tinta2);
+}
+.kpi-item.ativo .kpi-rot {
+  color: var(--acento-texto);
+}
+.kpi-val {
+  font-size: var(--t-grande);
+  font-weight: var(--p-semi);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kpi-comp {
+  font-size: var(--t-peq);
+  color: var(--tinta2);
+  font-variant-numeric: tabular-nums;
+}
+.kpi-ctx {
+  font-size: var(--t-peq);
+  color: var(--tinta3);
+  line-height: 1.35;
+}
+.kpi-val.atraso,
+.kpi-comp.atraso {
+  color: var(--atraso);
+}
+.kpi-val.tom-alerta,
+.kpi-comp.tom-alerta {
+  color: var(--alerta);
+}
+
+.filtro-ativo {
+  display: flex;
+  align-items: baseline;
+  gap: var(--e2);
+  margin: calc(var(--e2) * -1) 0 var(--e3);
+  font-size: var(--t-peq);
+  color: var(--tinta2);
+}
+.btn-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: var(--t-peq);
+  color: var(--acento-texto);
+  cursor: pointer;
+}
+.btn-link:hover {
+  text-decoration: underline;
+}
+
+/* Lista da carteira: duas linhas por obra (nome e, embaixo, cliente e cidade). */
+table.lista-carteira tbody td {
+  height: 40px;
+}
+.cel-obra {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+.cel-obra b {
+  font-weight: var(--p-medio);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cel-obra span,
+.cel-dois span:last-child {
+  font-size: var(--t-peq);
+  color: var(--tinta3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cel-dois {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.cel-completar {
+  font-size: var(--t-peq);
+}
+.cel-completar .btn-link {
+  margin-left: var(--e2);
+}
+
+/* Saúde: ponto + texto curto. O ponto é a cor; o texto diz o porquê. */
+.saude {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.saude i {
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-total);
+  background: var(--tinta3);
+}
+.saude.s-critico i {
+  background: var(--atraso);
+}
+.saude.s-atencao i {
+  background: var(--alerta);
+}
+.saude.s-incompleta i {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--tinta3);
+}
+.saude.s-critico {
+  color: var(--atraso);
+}
+.saude.s-incompleta {
+  color: var(--tinta2);
+}
+
+/* Avanço: realizado preenchido, previsto como marca vertical. */
+.avanco {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+}
+.avanco-barra {
+  position: relative;
+  display: inline-block;
+  width: 40px;
+  height: 4px;
+  border-radius: var(--r-micro);
+  background: var(--separador);
+}
+.avanco-barra i {
+  display: block;
+  height: 100%;
+  border-radius: var(--r-micro);
+  background: var(--acento-texto);
+}
+.avanco-barra.atrasado i {
+  background: var(--alerta);
+}
+.avanco-barra b {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--tinta);
+}
+table.lista tbody tr[aria-selected='true'] .avanco-barra b,
+table.lista tbody tr[aria-selected='true'] .avanco-barra i,
+table.lista tbody tr[aria-selected='true'] .saude i {
+  background: var(--sobre-acento);
+}
+table.lista tbody tr[aria-selected='true'] .avanco-barra {
+  background: rgb(0 0 0 / 0.2);
+}
+table.lista tbody tr[aria-selected='true'] .saude,
+table.lista tbody tr[aria-selected='true'] .cel-obra span,
+table.lista tbody tr[aria-selected='true'] .cel-dois span,
+table.lista tbody tr[aria-selected='true'] .cel-aviso-alerta,
+table.lista tbody tr[aria-selected='true'] .btn-link {
+  color: var(--sobre-acento);
+}
+
+/* ---------------------------------------------- precisa de ação */
+.inspetor-vazio {
+  margin: 0;
+  font-size: var(--t-peq);
+}
+.inspetor-motivos {
+  margin: var(--e1) 0 0;
+  font-size: var(--t-peq);
+}
+.acao-grupo + .acao-grupo {
+  margin-top: var(--e3);
+}
+.acao-grupo-cab {
+  display: flex;
+  align-items: center;
+  gap: var(--e1);
+  width: 100%;
+  padding: var(--e1) 0;
+  background: none;
+  border: 0;
+  color: var(--tinta2);
+  font-size: var(--t-peq);
+  font-weight: var(--p-semi);
+  text-align: left;
+  cursor: pointer;
+}
+.acao-grupo:not(.fechado) .disclosure {
+  transform: rotate(90deg);
+}
+.acao-grupo-n {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.acao-item {
+  display: grid;
+  grid-template-columns: 3px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--e2);
+  padding: var(--e2) 0;
+  border-bottom: var(--fio) solid var(--separador);
+}
+.acao-item:last-child {
+  border-bottom: 0;
+}
+/* Barra lateral pela gravidade: crítico e atenção têm cores diferentes. */
+.acao-sev {
+  align-self: stretch;
+  border-radius: var(--r-micro);
+  background: var(--tinta3);
+}
+.acao-item.s3 .acao-sev {
+  background: var(--atraso);
+}
+.acao-item.s2 .acao-sev {
+  background: var(--alerta);
+}
+.acao-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.35;
+}
+.acao-txt b {
+  font-size: var(--t-peq);
+  font-weight: var(--p-medio);
+}
+.acao-txt span {
+  font-size: var(--t-peq);
+  color: var(--tinta2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A ação aparece com o ponteiro em cima ou com foco de teclado; em tela
+   de toque, sempre. */
+.acao-btn {
+  opacity: 0;
+  transition: opacity var(--mov-rapido) var(--curva);
+}
+.acao-item:hover .acao-btn,
+.acao-item:focus-within .acao-btn {
+  opacity: 1;
+}
+@media (hover: none) {
+  .acao-btn {
+    opacity: 1;
+  }
+}
+
+/* ----------------------------------- curva S e próximos 14 dias */
+.carteira-baixo {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--e6);
+  margin-top: var(--e8);
+}
+.carteira-baixo .secao + .secao {
+  margin-top: 0;
+}
+.agenda {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: var(--fio) solid var(--separador);
+}
+.agenda-item {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: var(--e3);
+  width: 100%;
+  padding: var(--e2) 0;
+  background: none;
+  border: 0;
+  border-bottom: var(--fio) solid var(--separador);
+  color: var(--tinta);
+  text-align: left;
+  cursor: pointer;
+}
+.agenda-item:hover {
+  background: var(--fundo-hover);
+}
+.agenda-data {
+  display: flex;
+  flex-direction: column;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+}
+.agenda-data span,
+.agenda-txt span {
+  font-size: var(--t-peq);
+  color: var(--tinta3);
+}
+.agenda-txt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+.agenda-txt b {
+  font-weight: var(--p-medio);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------- conta, no rodapé */
+.lateral-conta {
+  padding: var(--e2);
+  border-top: var(--fio) solid var(--separador);
+}
+.conta-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  width: 100%;
+  height: var(--alt-ctrl);
+  padding: 0 var(--e2);
+  background: none;
+  border: 0;
+  border-radius: var(--r-btn);
+  color: var(--tinta);
+  font-size: var(--t-corpo);
+  text-align: left;
+  cursor: pointer;
+}
+.conta-btn:hover {
+  background: var(--fundo-hover);
+}
+.conta-btn .ic {
+  margin-left: auto;
+  color: var(--tinta3);
+  transform: rotate(-90deg);
+}
+.conta-avatar {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-total);
+  background: var(--fundo-ctrl-ativo);
+  color: var(--tinta2);
+  font-size: var(--t-peq);
+  font-weight: var(--p-semi);
+}
+.conta-nome {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu-rotulo {
+  padding: var(--e1) var(--e2);
+  font-size: var(--t-peq);
+  color: var(--tinta2);
+}
+/* O status de gravação é texto discreto na toolbar. */
+#topo .status-salvo {
+  color: var(--tinta3);
+}
+
+/* -------------------------------------------------- responsivo */
+@media (max-width: 1280px) {
+  .kpi-item {
+    padding: var(--e3);
+  }
+}
+
+/* Abaixo de 1100px o inspetor não cabe ao lado: desce para baixo da
+   lista, e o conteúdo inteiro rola junto. Antes ele sumia — e com ele o
+   painel "Precisa de ação". */
+@media (max-width: 1100px) {
+  #conteudo.paineis {
+    display: block;
+    overflow-y: auto;
+  }
+  #conteudo.paineis .tela-principal {
+    overflow: visible;
+  }
+  #conteudo.paineis .inspetor {
+    display: block;
+    width: auto;
+    height: auto;
+    border-left: 0;
+    border-top: var(--fio) solid var(--separador);
+    background: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .carteira-baixo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Celular: KPIs viram carrossel de dois por vez; a lista, cartões. */
+@media (max-width: 767px) {
+  .kpis {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: calc((100% - var(--e2)) / 2);
+    gap: var(--e2);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    border: 0;
+    border-radius: 0;
+    scrollbar-width: none;
+  }
+  .kpis::-webkit-scrollbar {
+    display: none;
+  }
+  .kpi-item,
+  .kpi-item:first-child {
+    scroll-snap-align: start;
+    border: var(--fio) solid var(--separador);
+    border-radius: var(--r-cartao);
+  }
+  .lista-cx:has(.lista-carteira) {
+    border: 0;
+    overflow: visible;
+  }
+  table.lista-carteira tbody tr {
+    margin-bottom: var(--e2);
+    border: var(--fio) solid var(--separador);
+    border-radius: var(--r-cartao);
+  }
+  table.lista-carteira tbody td {
+    height: auto;
+  }
+  table.lista-carteira tbody tr > td:nth-child(2) {
+    margin: var(--e1) 0;
+  }
+}
+
+/* ----------------------------------------- ajustes da carteira */
+/* Oito colunas em ~890px: o respiro lateral da célula cai para 8px. */
+table.lista-carteira th,
+table.lista-carteira td {
+  padding-left: var(--e2);
+  padding-right: var(--e2);
+}
+table.lista-carteira th:first-child,
+table.lista-carteira td:first-child {
+  padding-left: var(--e3);
+}
+table.lista-carteira th:last-child,
+table.lista-carteira td:last-child {
+  padding-right: var(--e3);
+}
+/* A saúde pode ocupar as duas alturas da linha em vez de virar reticências. */
+table.lista-carteira td.cel-saude {
+  white-space: normal;
+}
+.cel-saude .saude {
+  align-items: baseline;
+  line-height: 1.25;
+}
+.cel-saude .saude i {
+  transform: translateY(-1px);
+}
+.rotulo-cinza {
+  display: block;
+  white-space: normal;
+  line-height: 1.25;
+  font-size: var(--t-peq);
+  color: var(--tinta3);
+}
+.kpi-item {
+  padding: var(--e3);
+}
+
+/* Painel de ação: o botão aparece por cima do texto ao passar o mouse, em
+   vez de reservar a largura dele o tempo todo e espremer o texto. */
+.acao-item {
+  position: relative;
+  grid-template-columns: 3px minmax(0, 1fr);
+}
+.acao-btn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--fundo-elevado);
+  box-shadow: -12px 0 12px var(--fundo-elevado);
+}
+.acao-txt span {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+@media (hover: none) {
+  .acao-btn {
+    position: static;
+    transform: none;
+    box-shadow: none;
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+/* Mini curva S do inspetor: na largura do painel, os rótulos dos eixos
+   ficam ilegíveis — a forma da curva e a legenda bastam. */
+.inspetor-curva .grafico text {
+  display: none;
+}
+
+/* Toolbar entre ~860 e 1100px: a lateral ainda aparece e sobra pouca
+   largura. Some primeiro o que é apoio (subtítulo, atalho, texto do
+   status), depois o rótulo do botão — o ícone continua. */
+@media (max-width: 1100px) {
+  #topo .titulo span,
+  #topo .busca kbd {
+    display: none;
+  }
+  #topo .busca {
+    width: 150px;
+  }
+  #topo .status-salvo {
+    font-size: 0;
+    gap: 0;
+  }
+}
+@media (max-width: 1000px) {
+  #topo .rotulo-btn {
+    display: none;
+  }
+  #topo .btn.primario {
+    width: var(--alt-ctrl);
+    padding: 0;
   }
 }

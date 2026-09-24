@@ -39,7 +39,23 @@ ACOES['carteira-ordenar'] = (el, d) => {
   const col = COLUNAS.find((c) => c.k === d.col);
   if (!col) return;
   if (tela.ordem.col === d.col) tela.ordem.dir = -tela.ordem.dir;
-  else tela.ordem = { col: d.col, dir: col.num ? -1 : 1 };
+  /* Saúde começa da pior; número começa do maior; texto, de A a Z. */
+  else tela.ordem = { col: d.col, dir: d.col === 'saude' ? 1 : col.num ? -1 : 1 };
+  repintar();
+};
+
+/* KPI clicado filtra a lista pelas obras que compõem aquele número;
+   clicar de novo no mesmo KPI desfaz. */
+ACOES['carteira-kpi'] = (el, d) => {
+  tela.kpi = tela.kpi === d.kpi ? '' : d.kpi;
+  tela.selecao = '';
+  repintar();
+};
+
+/* Grupo do painel "Precisa de ação": abre e fecha. */
+ACOES['carteira-grupo'] = (el, d) => {
+  if (tela.gruposFechados.has(d.grupo)) tela.gruposFechados.delete(d.grupo);
+  else tela.gruposFechados.add(d.grupo);
   repintar();
 };
 

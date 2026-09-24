@@ -2,7 +2,7 @@
  * shell.js — Casca da interface: navegação, componentes reutilizáveis e formulários.
  */
 import { esc, fmtNum, norm, num } from '../nucleo/base.js';
-import { alertasObra, implantacaoObra } from '../dominio/calculos.js';
+import { pendenciasCarteira, pendenciasObra } from '../dominio/calculos.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { VIEWS } from './telas-obra.js';
@@ -143,31 +143,42 @@ const App = {
   renderRail() {
     const obras = Store.estado.obras;
     const obra = this.obra();
-    const alertas = obra ? alertasObra(obra) : [];
-    const criticos = alertas.filter((a) => a.sev === 3).length;
-    const impl = obra ? implantacaoObra(obra) : null;
-    const feitoView = {};
-    if (impl) impl.passos.forEach((p) => { feitoView[p.v] = p.feito; });
+    const naCarteira = this.rota.view === 'carteira';
+
+    /* Os números da lateral são pendências — as MESMAS da carteira e do
+       painel (pendenciasObra/pendenciasCarteira). Na carteira, o escopo é
+       a carteira inteira ("Todas as obras" no seletor); dentro de uma obra,
+       é ela. Número só aparece onde há pendência. */
+    const pend = !obras.length ? null : naCarteira ? pendenciasCarteira(obras) : obra ? pendenciasObra(obra) : null;
+    const porView = {};
+    const critView = {};
+    if (pend) {
+      pend.itens.forEach((a) => {
+        const v = a.ref && a.ref.view;
+        if (!v) return;
+        porView[v] = (porView[v] || 0) + 1;
+        if (a.sev === 3) critView[v] = true;
+      });
+    }
 
     const opcoes = obras.length
-      ? obras.map((o) => `<option value="${o.id}" ${o.id === this.rota.obraId ? 'selected' : ''}>${esc(o.nome)}</option>`).join('')
+      ? `<option value="" ${naCarteira ? 'selected' : ''}>Todas as obras</option>` +
+        obras.map((o) => `<option value="${o.id}" ${!naCarteira && o.id === this.rota.obraId ? 'selected' : ''}>${esc(o.nome)}</option>`).join('')
       : '<option value="">Nenhuma obra cadastrada</option>';
 
     const nav = MENU.map((g) => {
       if (g.obra && !obras.length) return '';
       if (g.soAdmin && !SUPA.ehAdmin) return '';
-      const marcaPasso = g.obra && g.passo < 3;
       const itens = g.itens.filter((it) => SUPA.abaLiberada(it.v)).map((it) => {
         const ativo = this.rota.view === it.v ? ' aria-current="page"' : '';
-        let cont = '';
-        if (it.v === 'alertas' && alertas.length) {
-          cont = `<span class="cont ${criticos ? 'crit' : ''}">${alertas.length}</span>`;
-        }
-        if (it.v === 'carteira' && obras.length) cont = `<span class="cont">${obras.length}</span>`;
-        const ponto = marcaPasso && impl
-          ? `<span class="ponto${feitoView[it.v] ? ' feito' : ''}" aria-hidden="true"></span>`
+        let n = 0;
+        let crit = false;
+        if (it.v === 'alertas' && pend) { n = pend.total; crit = pend.criticas > 0; }
+        else if (porView[it.v]) { n = porView[it.v]; crit = !!critView[it.v]; }
+        const cont = n
+          ? `<span class="cont${crit ? ' crit' : ''}" aria-label="${n} pendência${n > 1 ? 's' : ''}">${n}</span>`
           : '';
-        return `<button data-acao="ir" data-view="${it.v}"${ativo}>${svg(ICO[it.i])}<span>${it.t}</span>${ponto}${cont}</button>`;
+        return `<button data-acao="ir" data-view="${it.v}"${ativo}>${svg(ICO[it.i])}<span>${it.t}</span>${cont}</button>`;
       }).join('');
       if (!itens) return '';
       const cab = g.passo
@@ -175,6 +186,12 @@ const App = {
         : `<div class="grupo">${g.grupo}</div>`;
       return cab + itens;
     }).join('');
+
+    /* Conta: usuário, tema e sair num menu no rodapé da lateral — a toolbar
+       fica só com o que é da tela. */
+    const usuario = Store.backend === 'supabase' && SUPA.usuario
+      ? (SUPA.usuario.email || '').split('@')[0]
+      : 'Este navegador';
 
     document.getElementById('rail').innerHTML = `
       <div class="lateral-marca">
@@ -184,7 +201,14 @@ const App = {
       <div class="lateral-obra">
         <select data-acao="trocar-obra" aria-label="Obra ativa">${opcoes}</select>
       </div>
-      <nav class="lateral-nav">${nav}</nav>`;
+      <nav class="lateral-nav">${nav}</nav>
+      <div class="lateral-conta">
+        <button class="conta-btn" data-acao="conta-menu" aria-haspopup="menu" aria-expanded="false">
+          <span class="conta-avatar" aria-hidden="true">${esc(usuario.charAt(0).toUpperCase())}</span>
+          <span class="conta-nome">${esc(usuario)}</span>
+          ${svg(ICO.seta, 11)}
+        </button>
+      </div>`;
   },
 
   renderTopo() {
@@ -204,16 +228,16 @@ const App = {
       console.error(e);
     }
 
+    /* "salvo 23:11" é texto discreto; o ponto colorido só aparece quando
+       há algo a saber (gravação pendente ou erro). */
     document.getElementById('topo').innerHTML = `
       <button class="btn sutil icone menu-mob" data-acao="menu" aria-label="Abrir menu">${svg(ICO.menu)}</button>
       <div class="titulo"><b>${t}</b><span>${legenda}</span></div>
       <div class="dir">
         ${acoesTela}
-        <span class="status-salvo ${st.tom}" title="${esc(Store.ultimoErro || '')}"><span class="pt"></span>${st.texto}</span>
-        ${Store.backend === 'supabase' && SUPA.usuario ? `
-          <span class="usuario" title="${esc(SUPA.usuario.email || '')}">${esc((SUPA.usuario.email || '').split('@')[0])}</span>
-          <button class="btn sutil" data-acao="auth-sair" title="Sair do sistema" aria-label="Sair">Sair</button>` : ''}
-        <button class="btn sutil icone" data-acao="tema" aria-label="Alternar tema claro/escuro" title="Alternar tema">${svg(ICO.tema, 15)}</button>
+        <span class="status-salvo ${st.tom}" title="${esc(Store.ultimoErro || '')}">${
+          st.tom === 'aviso' || st.tom === 'critico' ? '<span class="pt"></span>' : ''
+        }${st.texto}</span>
       </div>`;
   },
 

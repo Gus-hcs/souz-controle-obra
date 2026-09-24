@@ -209,9 +209,60 @@ ACOES['excluir-obra'] = () => {
 };
 
 ACOES['trocar-obra'] = (el) => {
+  /* "Todas as obras" leva à carteira; a obra ativa continua lembrada
+     para quando se entrar numa tela de obra. */
+  if (!el.value) return App.ir('carteira');
   App.rota.obraId = el.value;
   App.ir(VIEWS_OBRA.has(App.rota.view) ? App.rota.view : 'painel', el.value);
 };
+
+/* ------------------------------------------------------ menu da conta */
+function fecharMenuConta() {
+  const m = document.querySelector('.menu-conta');
+  if (m) m.remove();
+  const b = document.querySelector('[data-acao="conta-menu"]');
+  if (b) b.setAttribute('aria-expanded', 'false');
+}
+
+ACOES['conta-menu'] = (el) => {
+  if (document.querySelector('.menu-conta')) return fecharMenuConta();
+  const html = document.documentElement;
+  const escolhido = html.getAttribute('data-theme');
+  const escuro = escolhido ? escolhido === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const logado = Store.backend === 'supabase' && SUPA.usuario;
+
+  const menu = document.createElement('div');
+  menu.className = 'menu-ctx menu-conta';
+  menu.setAttribute('role', 'menu');
+  menu.innerHTML = `
+    ${logado ? `<div class="menu-rotulo">${esc(SUPA.usuario.email || '')}</div><hr>` : ''}
+    <button role="menuitem" data-acao="tema">Usar tema ${escuro ? 'claro' : 'escuro'}</button>
+    ${logado ? '<hr><button role="menuitem" data-acao="auth-sair">Sair</button>' : ''}`;
+  document.body.appendChild(menu);
+
+  /* Abre para cima, alinhado ao botão — ele fica no rodapé da lateral. */
+  const r = el.getBoundingClientRect();
+  menu.style.left = Math.max(8, r.left) + 'px';
+  menu.style.bottom = window.innerHeight - r.top + 4 + 'px';
+  el.setAttribute('aria-expanded', 'true');
+  const primeiro = menu.querySelector('button');
+  if (primeiro) primeiro.focus();
+};
+
+/* Fecha ao clicar fora, ao escolher um item e com Esc. */
+document.addEventListener('mousedown', (ev) => {
+  if (!ev.target.closest('.menu-conta, [data-acao="conta-menu"]')) fecharMenuConta();
+});
+document.addEventListener(
+  'click',
+  (ev) => {
+    if (ev.target.closest('.menu-conta button')) setTimeout(fecharMenuConta);
+  },
+  true,
+);
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Escape' && document.querySelector('.menu-conta')) fecharMenuConta();
+});
 
 /* ========================================================= CONTRATOS */
 function formContrato(c, novo, aoSalvar) {

@@ -183,7 +183,7 @@ VIEWS.lancamentos = () => {
       {
         rotulo: 'Sem etapa',
         valor: semEtapa.length ? `${semEtapa.length}` : 'nenhum',
-        tom: semEtapa.length ? 'alerta' : '',
+        tom: semEtapa.length ? 'tom-alerta' : '',
         nota: semEtapa.length
           ? `${fmtMoney(
               semEtapa.reduce((s, l) => s + lancamentoTotal(l), 0),
