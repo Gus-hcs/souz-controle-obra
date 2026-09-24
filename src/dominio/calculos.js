@@ -1089,11 +1089,13 @@ function ligadoAoPrestador(p, prestadorId, nomeTexto) {
    - pago: medições pagas desses contratos + lançamentos ligados a ele
      (diária, serviço avulso pago direto). Antes a tela ignorava os
      lançamentos, e quem recebia por diária aparecia com R$ 0.
-   - aPagar: saldo dos contratos — contratado − pago em medições. O que
-     foi pago por lançamento não abate contrato: não passou por medição.
-   - medidoNaoPago: medições já feitas e ainda não quitadas (devido hoje). */
+   - contratado, aPagarAgora e aMedir: a soma de indicadoresContrato dos
+     contratos dele — a MESMA conta da tela de Contratos. aPagarAgora é o
+     já medido e não pago (menos a retenção); aMedir, o que ainda vai virar
+     conta. O que foi pago por lançamento não abate contrato: não passou
+     por medição. */
 function resumoPrestador(estado, p) {
-  let contratado = 0, pagoMedicoes = 0, pagoLancamentos = 0, aPagar = 0, medidoNaoPago = 0;
+  let contratado = 0, pagoMedicoes = 0, pagoLancamentos = 0, aPagarAgora = 0, aMedir = 0;
   let qtdContratos = 0, qtdMedicoesPagas = 0, qtdLancamentos = 0;
   const obras = [];
   const pagamentos = [];
@@ -1102,14 +1104,16 @@ function resumoPrestador(estado, p) {
     const bases = new Set(proprios.map((c) => c.codigoBase || c.codigo).filter(Boolean));
     const doPrestador = o.contratos.filter((c) =>
       proprios.includes(c) || (!c.prestadorId && !String(c.prestador || '').trim() && bases.has(c.codigoBase || c.codigo)));
-    const ctObra = doPrestador.filter((c) => c.status !== 'Cancelado').reduce((s, c) => s + contratoValor(c), 0);
+    const inds = [...bases].map((b) => indicadoresContrato(o, b));
+    const ctObra = inds.reduce((s, i) => s + i.autorizado, 0);
+    const apObra = inds.reduce((s, i) => s + i.aPagarAgora, 0);
+    const amObra = inds.reduce((s, i) => s + i.aMedir, 0);
 
-    let pmObra = 0, abertoObra = 0;
+    let pmObra = 0;
     o.medicoes.forEach((m) => {
       if (!bases.has(m.contratoBase) || m.status === 'Cancelado') return;
       const pg = num(m.valorPago);
       pmObra += pg;
-      abertoObra += medicaoAPagar(o, m);
       if (pg > 0) {
         qtdMedicoesPagas++;
         pagamentos.push({ data: m.dataPagamento || m.data, valor: pg, origem: 'medicao', etapa: '',
@@ -1129,21 +1133,21 @@ function resumoPrestador(estado, p) {
     qtdContratos += doPrestador.filter((c) => c.status !== 'Cancelado').length;
 
     if (doPrestador.length || lancs.length) {
-      const saldoObra = Math.max(0, ctObra - pmObra);
-      obras.push({ obraId: o.id, obraNome: o.nome, contratado: ctObra, pago: pmObra + plObra, aPagar: saldoObra });
+      obras.push({ obraId: o.id, obraNome: o.nome, contratado: ctObra, pago: pmObra + plObra,
+        aPagarAgora: apObra, aMedir: amObra });
       contratado += ctObra;
       pagoMedicoes += pmObra;
       pagoLancamentos += plObra;
-      aPagar += saldoObra;
-      medidoNaoPago += abertoObra;
+      aPagarAgora += apObra;
+      aMedir += amObra;
     }
   });
   pagamentos.sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
   return {
     contratado, pago: pagoMedicoes + pagoLancamentos, pagoMedicoes, pagoLancamentos,
-    aPagar, medidoNaoPago, obras, pagamentos,
+    aPagarAgora: round2(aPagarAgora), aMedir: round2(aMedir), obras, pagamentos,
     qtdContratos, qtdMedicoesPagas, qtdLancamentos,
-    /* Sem contrato, "Contratado R$ 0" e "A pagar R$ 0" seriam falsos: não
+    /* Sem contrato, "Contratado R$ 0" e "A pagar agora R$ 0" seriam falsos: não
        é que não haja nada a pagar, é que não há contrato para comparar. */
     temContrato: qtdContratos > 0,
     /* com qualquer vínculo, só pode ser arquivado — nunca apagado */
@@ -1159,10 +1163,11 @@ function totaisPrestadores(estado, prestadores) {
     const r = resumoPrestador(estado, p);
     t.contratado += r.contratado;
     t.pago += r.pago;
-    t.aPagar += r.aPagar;
+    t.aPagarAgora += r.aPagarAgora;
+    t.aMedir += r.aMedir;
     if (r.temContrato) t.comContrato++;
     return t;
-  }, { contratado: 0, pago: 0, aPagar: 0, comContrato: 0 });
+  }, { contratado: 0, pago: 0, aPagarAgora: 0, aMedir: 0, comContrato: 0 });
 }
 
 /* Prestadores ativos que receberam sem ter contrato ligado — pagos só por

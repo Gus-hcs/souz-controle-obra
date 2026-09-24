@@ -50,6 +50,7 @@ import { Store, mutar } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
 import { App, ICO, abrirModal, botao, fecharModal, svg, toast } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
+import { itensPendentes } from './vinculo.js';
 import { buscaToolbar, dinheiro, lista, vazioTela } from './componentes.js';
 
 /* Estado só de tela. */
@@ -158,25 +159,36 @@ const comDados = (ps) =>
 
 function dados() {
   let ds = comDados(base());
-  if (tela.comSaldo) ds = ds.filter((d) => d.r.aPagar > 0.005);
+  if (tela.comSaldo) ds = ds.filter((d) => d.r.aPagarAgora > 0.005);
   return ds;
 }
 
 /* Colunas. A de Avaliação só existe quando alguém tem avaliação — coluna
-   vazia em todas as linhas é ruído. Contratado e A pagar ficam lado a
-   lado para virar uma célula só, "Sem contrato", quando não há contrato. */
+   vazia em todas as linhas é ruído. Contratado, A pagar agora e A medir
+   ficam lado a lado para virar uma célula só, "Sem contrato", quando não
+   há contrato. A pagar agora e A medir são os mesmos da tela de Contratos
+   (indicadoresContrato, somado em resumoPrestador). */
 function colunas(temAvaliacao) {
   const L = temAvaliacao
     ? {
+        nome: '28%',
+        contato: '15%',
+        obras: '6%',
+        pago: '11%',
+        contratado: '11%',
+        aPagarAgora: '11%',
+        aMedir: '10%',
+        aval: '8%',
+      }
+    : {
         nome: '32%',
         contato: '16%',
         obras: '6%',
         pago: '12%',
         contratado: '12%',
-        aPagar: '12%',
-        aval: '10%',
-      }
-    : { nome: '36%', contato: '17%', obras: '7%', pago: '13%', contratado: '14%', aPagar: '13%' };
+        aPagarAgora: '11%',
+        aMedir: '11%',
+      };
   const totais = (ds) =>
     totaisPrestadores(
       Store.estado,
@@ -238,23 +250,33 @@ function colunas(temAvaliacao) {
       celula: (d) =>
         d.r.temContrato
           ? reais(d.r.contratado)
-          : { span: 2, html: SEM_CONTRATO, classe: 'cel-sem-contrato mostrar-celular' },
+          : { span: 3, html: SEM_CONTRATO, classe: 'cel-sem-contrato mostrar-celular' },
       total: (ds) => {
         const t = totais(ds);
         return t.comContrato
           ? reais(t.contratado)
-          : { span: 2, html: SEM_CONTRATO, classe: 'cel-sem-contrato' };
+          : { span: 3, html: SEM_CONTRATO, classe: 'cel-sem-contrato' };
       },
     },
     {
-      k: 'aPagar',
-      rotulo: 'A pagar',
-      largura: L.aPagar,
+      k: 'aPagarAgora',
+      rotulo: 'A pagar agora',
+      largura: L.aPagarAgora,
       num: true,
       celular: 'some',
-      valor: (d) => (d.r.temContrato ? d.r.aPagar : -1),
-      celula: (d) => reais(d.r.aPagar, { cinzaNoZero: true }),
-      total: (ds) => reais(totais(ds).aPagar),
+      valor: (d) => (d.r.temContrato ? d.r.aPagarAgora : -1),
+      celula: (d) => reais(d.r.aPagarAgora, { cinzaNoZero: true }),
+      total: (ds) => reais(totais(ds).aPagarAgora, { cinzaNoZero: true }),
+    },
+    {
+      k: 'aMedir',
+      rotulo: 'A medir',
+      largura: L.aMedir,
+      num: true,
+      celular: 'some',
+      valor: (d) => (d.r.temContrato ? d.r.aMedir : -1),
+      celula: (d) => reais(d.r.aMedir, { cinzaNoZero: true }),
+      total: (ds) => reais(totais(ds).aMedir, { cinzaNoZero: true }),
     },
   ];
   if (temAvaliacao) {
@@ -275,11 +297,11 @@ function colunas(temAvaliacao) {
   return cols;
 }
 
-/* Filtros em pílula: especialidade abre um menu; "Com saldo a pagar" e
+/* Filtros em pílula: especialidade abre um menu; "A pagar agora" e
    "Arquivados" ligam e desligam. Cada um com a contagem. */
 function barraFiltros() {
   const semEsp = base({ semEspecialidade: true });
-  const comSaldo = comDados(base()).filter((d) => d.r.aPagar > 0.005).length;
+  const comSaldo = comDados(base()).filter((d) => d.r.aPagarAgora > 0.005).length;
   const arquivados = Store.estado.prestadores.filter((p) => p.arquivado).length;
   const sug = somenteLeitura() ? 0 : sugestoes().length;
   return `<div class="filtro-barra nao-imprime">
@@ -291,7 +313,7 @@ function barraFiltros() {
       }</span> ${svg(ICO.seta, 10)}
     </button>
     <button class="pilula${tela.comSaldo ? ' ativa' : ''}" data-acao="prest-com-saldo" aria-pressed="${tela.comSaldo}">
-      Com saldo a pagar <span class="conta">${comSaldo}</span>
+      A pagar agora <span class="conta">${comSaldo}</span>
     </button>
     ${
       arquivados || tela.arquivados
@@ -315,7 +337,11 @@ function faixaSemContrato() {
   if (!n) return '';
   return `<div class="faixa-aviso" role="status">
     <span>${plural(n, 'prestador', 'prestadores')} com pagamentos sem contrato</span>
-    <button class="btn-link" data-acao="ir" data-view="contratos">Vincular contratos</button>
+    ${
+      itensPendentes().length
+        ? '<button class="btn-link" data-acao="vincular-prestadores">Vincular contratos</button>'
+        : '<button class="btn-link" data-acao="ir" data-view="contratos">Cadastrar contrato</button>'
+    }
   </div>`;
 }
 
@@ -435,8 +461,8 @@ function inspetor(p) {
         ${
           r.temContrato
             ? `${linhaNum('Contratado', reais(r.contratado), plural(r.qtdContratos, 'contrato', 'contratos'))}
-             ${linhaNum('A pagar', reais(r.aPagar, { cinzaNoZero: true }))}
-             ${r.medidoNaoPago > 0.005 ? linhaNum('Medido e não pago', reais(r.medidoNaoPago)) : ''}`
+             ${linhaNum('A pagar agora', reais(r.aPagarAgora, { cinzaNoZero: true }), 'já medido e não pago')}
+             ${linhaNum('A medir', reais(r.aMedir, { cinzaNoZero: true }), 'ainda vai virar conta')}`
             : linhaNum('Contratado e a pagar', SEM_CONTRATO)
         }
       </dl></div>

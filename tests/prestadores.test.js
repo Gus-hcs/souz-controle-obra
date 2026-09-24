@@ -19,6 +19,7 @@ import {
   novoPrestador,
 } from '../src/nucleo/base.js';
 import {
+  indicadoresContrato,
   ligadoAoPrestador,
   resumoPrestador,
   sugestaoNomePrestador,
@@ -162,18 +163,30 @@ describe('contratado, pago e a pagar são calculados', () => {
     expect(w.pago).toBe(4000 + 300);
   });
 
-  it('a pagar: saldo dos contratos (contratado − pago em medições)', () => {
-    expect(j.aPagar).toBe(55000 - 26000);
-    expect(w.aPagar).toBe(12000 - 4000);
+  it('a pagar agora: já medido e não pago; a medir: o que ainda vai virar conta', () => {
+    expect(j.aPagarAgora).toBe(30000 - 26000);
+    expect(j.aMedir).toBe(55000 - 30000);
+    expect(w.aPagarAgora).toBe(0); // mediu 4 mil e pagou 4 mil
+    expect(w.aMedir).toBe(12000 - 4000);
   });
 
-  it('medido e não pago: o que já é devido hoje', () => {
-    expect(j.medidoNaoPago).toBe(4000);
+  it('é a mesma conta da tela de Contratos (indicadoresContrato)', () => {
+    const o = est.obras[0];
+    expect(j.aPagarAgora).toBe(indicadoresContrato(o, 'CT-001').aPagarAgora);
+    expect(j.aMedir).toBe(indicadoresContrato(o, 'CT-001').aMedir);
+    expect(j.contratado).toBe(indicadoresContrato(o, 'CT-001').autorizado);
   });
 
   it('obras e pagamentos por obra', () => {
     expect(j.obras).toEqual([
-      { obraId: 'o1', obraNome: 'Casa 12', contratado: 55000, pago: 26900, aPagar: 29000 },
+      {
+        obraId: 'o1',
+        obraNome: 'Casa 12',
+        contratado: 55000,
+        pago: 26900,
+        aPagarAgora: 4000,
+        aMedir: 25000,
+      },
     ]);
     expect(j.pagamentos.map((p) => p.valor)).toEqual([900, 6000, 20000]); // mais recente primeiro
   });
