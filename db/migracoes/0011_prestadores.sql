@@ -16,7 +16,10 @@
 --     55DDDNÚMERO), tem_whatsapp, chave_pix, tipo_pix, forma_contratacao,
 --     valor_referencia, arquivado. `telefone` passa a ser o telefone
 --     alternativo; `documento` é o CPF/CNPJ.
---  3. CHECKs espelhando src/dominio/validacao.js (validarPrestador).
+--  2b. Notas de avaliação do prestador no contrato (aval_prazo,
+--     aval_qualidade, aval_organizacao): 1 a 5, 0 = não avaliado.
+--  3. CHECKs espelhando src/dominio/validacao.js (validarPrestador e
+--     validarContrato).
 --     Especialidade NÃO vira CHECK: a lista é personalizável (é alerta).
 --  4. Liga os registros antigos ao prestador pelo nome, quando o nome
 --     aponta para exatamente UM prestador do dono da obra.
@@ -52,6 +55,12 @@ alter table public.prestadores add column if not exists arquivado         boolea
 
 alter table public.contratos   add column if not exists prestador_id text;
 alter table public.lancamentos add column if not exists prestador_id text;
+
+-- Avaliação do prestador ao concluir o contrato: 1 a 5 em cada critério;
+-- 0 = não avaliado. A média por prestador é calculada (resumo no app).
+alter table public.contratos add column if not exists aval_prazo       smallint default 0;
+alter table public.contratos add column if not exists aval_qualidade   smallint default 0;
+alter table public.contratos add column if not exists aval_organizacao smallint default 0;
 
 -- ON DELETE RESTRICT: é o banco que garante "quem tem vínculo não some".
 do $$
@@ -164,6 +173,12 @@ with problemas as (
   select 'viola regra', 'prestadores', id, nome, 'valor de referência negativo'
     from public.prestadores where coalesce(valor_referencia, 0) < 0
   union all
+  select 'viola regra', 'contratos', id, codigo, 'nota de avaliação fora de 0–5'
+    from public.contratos
+   where coalesce(aval_prazo, 0) not between 0 and 5
+      or coalesce(aval_qualidade, 0) not between 0 and 5
+      or coalesce(aval_organizacao, 0) not between 0 and 5
+  union all
   select 'sem vínculo', 'contratos', c.id, c.codigo,
          'prestador digitado "' || c.prestador || '" não bate com um único cadastro'
     from public.contratos c
@@ -196,7 +211,10 @@ declare
     ['prestadores', 'chk_prest_forma',
       $q$coalesce(forma_contratacao, '') = '' or forma_contratacao in ('empreitada', 'diaria', 'm2', 'etapa')$q$],
     ['prestadores', 'chk_prest_valor_ref',
-      $q$coalesce(valor_referencia, 0) >= 0$q$]
+      $q$coalesce(valor_referencia, 0) >= 0$q$],
+    ['contratos', 'chk_prest_aval',
+      $q$coalesce(aval_prazo, 0) between 0 and 5 and coalesce(aval_qualidade, 0) between 0 and 5
+         and coalesce(aval_organizacao, 0) between 0 and 5$q$]
   ];
 begin
   foreach r slice 1 in array regras

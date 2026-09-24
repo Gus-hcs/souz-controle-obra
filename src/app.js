@@ -29,6 +29,7 @@ import './ui/telas/contratos.js';
 import './ui/telas/medicoes.js';
 import './ui/telas/recebimentos.js';
 import './ui/telas/lancamentos.js';
+import './ui/telas/prestadores.js';
 
 /* ---------------------------------------------------------- eventos */
 document.addEventListener('click', (ev) => {

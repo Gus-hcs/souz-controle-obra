@@ -90,7 +90,33 @@ function linkTelefone(numero) {
   return `tel:+${String(numero ?? '').replace(/\D/g, '')}`;
 }
 
+/**
+ * Mensagens prontas. Cada item da lista (editável em Ajustes) é uma linha
+ * "Título | texto com {nome}, {obra}, {valor} e {data}".
+ */
+function lerModelosMensagem(linhas) {
+  return (linhas || [])
+    .map((l) => String(l))
+    .map((l) => {
+      const i = l.indexOf('|');
+      if (i < 0) return { titulo: l.trim().slice(0, 40), texto: l.trim() };
+      return { titulo: l.slice(0, i).trim(), texto: l.slice(i + 1).trim() };
+    })
+    .filter((m) => m.titulo && m.texto);
+}
+
+/** Troca {nome}, {obra}, {valor} e {data}; variável sem valor some sem deixar chave. */
+function preencherMensagem(texto, vars = {}) {
+  return String(texto || '')
+    .replace(/\{(nome|obra|valor|data)\}/g, (_, k) => (vars[k] == null ? '' : String(vars[k])))
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,.!?])/g, '$1')
+    .trim();
+}
+
 export {
+  lerModelosMensagem,
+  preencherMensagem,
   DDDS,
   motivoTelefoneInvalido,
   normalizarTelefoneBR,

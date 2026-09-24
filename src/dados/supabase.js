@@ -67,6 +67,8 @@ const TABELAS_DB = [
     campos: {
       codigo: 'codigo', codigoBase: 'codigo_base', registro: 'registro', prestador: 'prestador',
       prestadorId: ['prestador_id', 'ref'],
+      avalPrazo: ['aval_prazo', 'num'], avalQualidade: ['aval_qualidade', 'num'],
+      avalOrganizacao: ['aval_organizacao', 'num'],
       escopo: 'escopo', regime: 'regime', quantidade: ['quantidade', 'num'], unidade: 'unidade',
       precoUnitario: ['preco_unitario', 'num'], valorInformado: ['valor_informado', 'num'],
       incluiMaterial: 'inclui_material', inicioPrevisto: ['inicio_previsto', 'data'],

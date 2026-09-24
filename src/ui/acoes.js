@@ -324,9 +324,16 @@ function formContrato(c, novo, aoSalvar) {
       if (!d.codigo) return toast('Informe o código do contrato.', 'aviso');
       if (!d.codigoBase) d.codigoBase = d.codigo;
       d.prestador = nomeDoPrestador(d.prestadorId, c.prestador);
+      const statusAntes = c.status;
       Object.assign(c, d);
       fecharModal();
       aoSalvar(c);
+      /* Concluiu um contrato com prestador e ainda sem nota? Pede a
+         avaliação (opcional) — telas/prestadores.js cuida do resto. */
+      const semNota = !(c.avalPrazo || c.avalQualidade || c.avalOrganizacao);
+      if (c.status === 'Concluído' && statusAntes !== 'Concluído' && c.prestadorId && semNota && ACOES['avaliar-contrato']) {
+        setTimeout(() => ACOES['avaliar-contrato'](null, { obra: o.id, id: c.id }), 60);
+      }
     }
   });
 }

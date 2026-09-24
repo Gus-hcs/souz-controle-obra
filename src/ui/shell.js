@@ -36,6 +36,13 @@ const ICO = {
   lapis: '<path d="M11 2.5 13.5 5 5.5 13H3v-2.5z"/>',
   lixo: '<path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 10h6.6L12 4"/>',
   seta: '<path d="M6 3l5 5-5 5"/>',
+  /* contato — traço fino, monocromático, como os demais */
+  whatsapp: '<path d="M2.6 13.4 3.4 10.9A5.7 5.7 0 1 1 5.2 12.7z"/><path d="M6.2 5.6c-.3 0-.6.3-.5.8.3 1.7 1.8 3.2 3.5 3.6.5.1.8-.2.9-.5l-1.1-.8-.6.5c-.6-.3-1.1-.8-1.4-1.4l.5-.6-.8-1.1z"/>',
+  telefone: '<path d="M3.2 2.2h2.3l1 2.8-1.5 1a7.6 7.6 0 0 0 5 5l1-1.5 2.8 1v2.3c0 .6-.5 1.1-1.1 1.1A11.7 11.7 0 0 1 2.1 3.3c0-.6.5-1.1 1.1-1.1z"/>',
+  copiar: '<rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M3.5 10.5h-.4A1.1 1.1 0 0 1 2 9.4V3.1C2 2.5 2.5 2 3.1 2h6.3c.6 0 1.1.5 1.1 1.1v.4"/>',
+  maisH: '<circle cx="3.5" cy="8" r=".6" fill="currentColor"/><circle cx="8" cy="8" r=".6" fill="currentColor"/><circle cx="12.5" cy="8" r=".6" fill="currentColor"/>',
+  contatos: '<rect x="3" y="1.8" width="10" height="12.4" rx="1.5"/><circle cx="8" cy="6.6" r="1.9"/><path d="M5 11.6c.5-1.4 1.6-2.1 3-2.1s2.5.7 3 2.1"/>',
+  estrela: '<path d="M8 1.9l1.8 3.8 4.1.5-3 2.8.8 4.1L8 11.1 4.3 13.1l.8-4.1-3-2.8 4.1-.5z"/>',
   empresa: '<path d="M2.5 14V4l5.5-2.5V14M8 14V6.5l5.5 2V14"/><path d="M1 14h14"/>'
 };
 

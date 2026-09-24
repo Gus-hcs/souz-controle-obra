@@ -15,8 +15,8 @@ import { App, ICO, botao, svg } from '../shell.js';
 
 /* Vermelho só no negativo: é o único caso em que a cor diz algo que o
    próprio número não diz de imediato. */
-function dinheiro(v, { cinzaNoZero = false } = {}) {
-  const t = fmtMoney(v, { dec: 2 });
+function dinheiro(v, { cinzaNoZero = false, dec = 2 } = {}) {
+  const t = fmtMoney(v, { dec });
   if (v < -0.005) return `<span class="atraso">${t}</span>`;
   if (cinzaNoZero && Math.abs(v) < 0.005) return '<span class="tinta3">—</span>';
   return t;
@@ -104,7 +104,20 @@ function acoesRegistro(tipo, id, nome) {
 */
 const ordens = new Map(); // id da lista -> { col, dir }
 
-function lista({ id, colunas, itens, ordemPadrao, testid, rodapeRotulo, linhaClasse }) {
+/* linhaAttrs(item): atributos extras da <tr> (ex.: data-acao para
+   selecionar a linha e abrir o inspetor). tabelaClasse: classe a mais na
+   <table>, para ajustes de uma tela só. */
+function lista({
+  id,
+  colunas,
+  itens,
+  ordemPadrao,
+  testid,
+  rodapeRotulo,
+  linhaClasse,
+  linhaAttrs,
+  tabelaClasse,
+}) {
   const ordem = ordens.get(id) || ordemPadrao || { col: colunas[0].k, dir: 1 };
   const col = colunas.find((c) => c.k === ordem.col && c.valor);
   const ordenados = col
@@ -146,7 +159,7 @@ function lista({ id, colunas, itens, ordemPadrao, testid, rodapeRotulo, linhaCla
     ? ordenados
         .map(
           (it) =>
-            `<tr${linhaClasse ? ` class="${linhaClasse(it) || ''}"` : ''}>${colunas
+            `<tr${linhaClasse ? ` class="${linhaClasse(it) || ''}"` : ''}${linhaAttrs ? ' ' + linhaAttrs(it) : ''}>${colunas
               .map(
                 (c) =>
                   `<td class="${classeTd(c)}"${c.num && c.celular !== 'some' ? ` data-rotulo="${esc(c.rotulo)}"` : ''}>${c.celula(it)}</td>`,
@@ -173,7 +186,7 @@ function lista({ id, colunas, itens, ordemPadrao, testid, rodapeRotulo, linhaCla
 
   return `<div class="lista-cx">
     <div class="lista-rolagem">
-      <table class="lista" data-testid="${esc(testid || id)}">
+      <table class="lista${tabelaClasse ? ' ' + tabelaClasse : ''}" data-testid="${esc(testid || id)}">
         <colgroup>${colunas.map((c) => `<col style="width:${c.largura}">`).join('')}</colgroup>
         <thead><tr>${cab}</tr></thead>
         <tbody>${corpo}</tbody>

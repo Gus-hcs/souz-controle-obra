@@ -104,6 +104,14 @@ function validarContrato(c) {
   ], (k) => c[k], out);
 
   ordemDatas(c, 'inicioPrevisto', 'fimPrevisto', 'Prazo do contrato', out);
+
+  /* Avaliação do prestador ao concluir: 1 a 5, ou 0 = não avaliado. */
+  for (const [k, rot] of [['avalPrazo', 'prazo'], ['avalQualidade', 'qualidade'], ['avalOrganizacao', 'organização']]) {
+    const v = num(c[k]);
+    if (v !== 0 && !(Number.isInteger(v) && v >= 1 && v <= 5)) {
+      out.push(problema(k, `A nota de ${rot} vai de 1 a 5.`));
+    }
+  }
   return out;
 }
 

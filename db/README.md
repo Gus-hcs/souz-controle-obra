@@ -90,7 +90,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0008_logos.sql` | `perfis.logo` e `clientes.logo` para o cabeçalho do relatório em PDF |
 | `0009_seguranca_perfis.sql` | fecha o INSERT/DELETE de `perfis` (escalada a admin / fuga de bloqueio); trava `search_path` no resto das funções |
 | `0010_revoga_truncate.sql` | revoga `TRUNCATE` de `anon`/`authenticated` (ignora RLS); ajusta o default privilege |
-| `0011_prestadores.sql` | vínculo por id (`prestador_id` em contratos e lançamentos, `ON DELETE RESTRICT`); WhatsApp, PIX, apelido, forma de contratação e `arquivado` no prestador; CHECKs; liga os registros antigos pelo nome |
+| `0011_prestadores.sql` | vínculo por id (`prestador_id` em contratos e lançamentos, `ON DELETE RESTRICT`); WhatsApp, PIX, apelido, forma de contratação e `arquivado` no prestador; notas de avaliação (prazo, qualidade, organização) no contrato; CHECKs; liga os registros antigos pelo nome |
 
 ### 0011 — prestadores
 

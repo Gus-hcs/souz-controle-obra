@@ -174,7 +174,9 @@ VIEWS.ajustes = () => {
   const listasEditaveis = [
     ['etapas', 'Etapas da obra'], ['tiposSaida', 'Tipos de saída'], ['unidades', 'Unidades'],
     ['formasPagamento', 'Formas de pagamento'], ['regimes', 'Regimes de contrato'],
-    ['origensRecebimento', 'Origens de recebimento']
+    ['origensRecebimento', 'Origens de recebimento'], ['especialidades', 'Especialidades de prestador'],
+    ['mensagensWhatsapp', 'Mensagens prontas do WhatsApp',
+      'Uma por linha: "Título | texto". Use {nome}, {obra}, {valor} (último pagamento) e {data} (amanhã).']
   ];
 
   return `<div class="grade" style="gap:16px">
@@ -222,11 +224,11 @@ VIEWS.ajustes = () => {
 
     ${cartao('Listas do sistema', `
       <div class="grade g2">
-        ${listasEditaveis.map(([k, t]) => `
+        ${listasEditaveis.map(([k, t, dica]) => `
           <div class="campo">
-            <label>${t}</label>
-            <textarea data-lista="${k}" rows="5">${esc((e.listas[k] || []).join('\n'))}</textarea>
-            <span class="dica">Um item por linha.</span>
+            <label for="lista_${k}">${t}</label>
+            <textarea id="lista_${k}" data-lista="${k}" rows="5">${esc((e.listas[k] || []).join('\n'))}</textarea>
+            <span class="dica">${esc(dica || 'Um item por linha.')}</span>
           </div>`).join('')}
       </div>`, { acoes: botao('Salvar listas', 'salvar-listas', {}, 'btn primario pequeno') })}
 

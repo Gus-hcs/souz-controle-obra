@@ -987,6 +987,62 @@ function resumoPrestador(estado, p) {
   };
 }
 
+/* Totais de uma lista de prestadores — o rodapé da tela sai daqui. */
+function totaisPrestadores(estado, prestadores) {
+  return prestadores.reduce((t, p) => {
+    const r = resumoPrestador(estado, p);
+    t.contratado += r.contratado;
+    t.pago += r.pago;
+    t.aPagar += r.aPagar;
+    return t;
+  }, { contratado: 0, pago: 0, aPagar: 0 });
+}
+
+/* Avaliação do prestador: notas dadas ao concluir cada contrato dele.
+   Nota do contrato = média dos critérios preenchidos (0 = não avaliado).
+   Média do prestador = média das notas dos contratos avaliados. Sem
+   nenhuma avaliação, a média é null — a tela deixa a célula vazia. */
+const CRITERIOS_AVAL = [['avalPrazo', 'Prazo'], ['avalQualidade', 'Qualidade'], ['avalOrganizacao', 'Organização']];
+
+function avaliacaoPrestador(estado, p) {
+  const notas = [];
+  const porCriterio = { avalPrazo: [], avalQualidade: [], avalOrganizacao: [] };
+  estado.obras.forEach((o) => {
+    o.contratos.forEach((c) => {
+      if (!ligadoAoPrestador(p, c.prestadorId, c.prestador)) return;
+      const dadas = CRITERIOS_AVAL.map(([k]) => num(c[k])).filter((v) => v >= 1 && v <= 5);
+      if (!dadas.length) return;
+      CRITERIOS_AVAL.forEach(([k]) => { const v = num(c[k]); if (v >= 1 && v <= 5) porCriterio[k].push(v); });
+      notas.push({ contratoId: c.id, obraNome: o.nome, codigo: c.codigo, nota: dadas.reduce((s, v) => s + v, 0) / dadas.length });
+    });
+  });
+  const media = (a) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : null);
+  return {
+    media: media(notas.map((n) => n.nota)),
+    avaliacoes: notas.length,
+    criterios: CRITERIOS_AVAL.map(([k, rotulo]) => ({ chave: k, rotulo, media: media(porCriterio[k]) })),
+    notas
+  };
+}
+
+/* Duplicidade no cadastro: mesmo WhatsApp (ou telefone) ou mesmo CPF/CNPJ
+   de outro prestador. É aviso — dois irmãos podem dividir um celular. */
+function duplicadosPrestador(estado, p) {
+  const dig = (v) => String(v || '').replace(/\D/g, '');
+  const tels = [dig(p.whatsapp), dig(p.telefone)].filter((t) => t.length >= 10);
+  const doc = dig(p.documento);
+  return estado.prestadores
+    .filter((x) => x.id !== p.id)
+    .map((x) => {
+      const motivos = [];
+      const deles = [dig(x.whatsapp), dig(x.telefone)].filter((t) => t.length >= 10);
+      if (tels.some((t) => deles.includes(t))) motivos.push('mesmo telefone');
+      if (doc && doc === dig(x.documento)) motivos.push('mesmo CPF/CNPJ');
+      return motivos.length ? { id: x.id, nome: x.nome, arquivado: !!x.arquivado, motivos } : null;
+    })
+    .filter(Boolean);
+}
+
 /* Nomes em caixa alta e apelido misturado no nome ("WESLEY PINTOR").
    Sugere: nome com capitalização de gente ("Wesley"), o nome completo como
    apelido ("Wesley Pintor") e a especialidade reconhecida ("Pintor").
@@ -1082,6 +1138,10 @@ export {
   ORDEM_SAUDE,
   ligadoAoPrestador,
   resumoPrestador,
+  totaisPrestadores,
+  avaliacaoPrestador,
+  duplicadosPrestador,
+  CRITERIOS_AVAL,
   capitalizarNome,
   sugestaoNomePrestador
 };

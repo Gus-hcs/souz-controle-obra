@@ -174,6 +174,13 @@ const LISTAS_PADRAO = {
   especialidades: [
     'Pedreiro', 'Servente', 'Eletricista', 'Encanador', 'Pintor', 'Gesseiro',
     'Carpinteiro', 'Serralheiro', 'Azulejista', 'Empreiteiro geral', 'Outro'
+  ],
+  /* "Título | texto". Variáveis: {nome}, {obra}, {valor}, {data}. */
+  mensagensWhatsapp: [
+    'Chamar | Olá, {nome}! Tudo bem?',
+    'Confirmar serviço amanhã | Olá, {nome}! Confirmando o serviço amanhã, {data}, na obra {obra}. Pode confirmar?',
+    'Aviso de pagamento | Olá, {nome}! O pagamento de {valor} da obra {obra} foi feito. Obrigado!',
+    'Pedir fotos do serviço | Olá, {nome}! Pode me mandar fotos do serviço na obra {obra}?'
   ]
 };
 
@@ -235,7 +242,9 @@ const novoContrato = () => ({
   id: uid('ct'), codigo: '', codigoBase: '', registro: 'Contrato', prestadorId: '', prestador: '',
   escopo: '', regime: 'Preço fechado', quantidade: 0, unidade: 'vb', precoUnitario: 0,
   valorInformado: 0, incluiMaterial: 'Não', inicioPrevisto: '', fimPrevisto: '',
-  status: 'Planejado', observacoes: ''
+  status: 'Planejado', observacoes: '',
+  /* nota do prestador ao concluir: 1–5; 0 = não avaliado */
+  avalPrazo: 0, avalQualidade: 0, avalOrganizacao: 0
 });
 
 const novaMedicao = () => ({
