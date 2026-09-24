@@ -17,6 +17,7 @@ import { basesContratuais, contratoValor } from '../../dominio/calculos.js';
 import { Store } from '../../dados/store.js';
 import { App, ICO, botao, opcoesLista, svg } from '../shell.js';
 import { VIEWS, contratosAbertos, prazoRegistro } from '../telas-obra.js';
+import { seletor } from './componentes.js';
 
 const COLS = 8;
 
@@ -45,20 +46,6 @@ function filtrar(todas) {
     }
     return true;
   });
-}
-
-/* Um select de filtro compacto. Largura pelo conteúdo, não 100%. */
-function seletor(chave, opcoes, rotuloTodos) {
-  const v = App.filtros[chave] || '';
-  return `<select data-filtro="${chave}" aria-label="${esc(rotuloTodos)}">
-    <option value="">${esc(rotuloTodos)}</option>
-    ${opcoes
-      .map((o) => {
-        const [val, txt] = Array.isArray(o) ? o : [o, o];
-        return `<option value="${esc(val)}" ${val === v ? 'selected' : ''}>${esc(txt)}</option>`;
-      })
-      .join('')}
-  </select>`;
 }
 
 /* ------------------------------------------------------------- linhas */

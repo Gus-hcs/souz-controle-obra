@@ -40,6 +40,12 @@ const dia = (i) => {
 function volumoso(n = 200) {
   const e = estadoDemo();
   const o = e.obras[0];
+  /* O molde das outras obras é tirado ANTES de inflar a primeira. Clonar
+     depois fazia 60 obras com 1.200 registros cada — passava da cota de
+     ~5 MB do localStorage, o navegador recusava gravar e o sistema abria
+     vazio. A suíte passou uma rodada inteira testando "200 linhas" num
+     sistema sem nenhuma obra. */
+  const molde = JSON.parse(JSON.stringify(o));
 
   if (o.medicoes.length) {
     o.medicoes = repetir(o.medicoes[0], n, (m, i) => {
@@ -89,7 +95,6 @@ function volumoso(n = 200) {
   }
 
   /* Uma carteira grande também: a lista de obras é uma das telas. */
-  const molde = JSON.parse(JSON.stringify(o));
   for (let i = 1; i < 60; i++) {
     const c = JSON.parse(JSON.stringify(molde));
     c.id = `obra-v-${i}`;

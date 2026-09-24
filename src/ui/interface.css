@@ -1575,3 +1575,45 @@ tr:focus-within .acoes-linha .btn {
     display: none;
   }
 }
+
+/* ------------------------------------------ peças das telas de lista */
+.tela-lista .secao {
+  margin-top: var(--e8);
+}
+.nota-rodape {
+  margin: var(--e3) 0 0;
+  max-width: 88ch;
+  font-size: var(--t-peq);
+  color: var(--tinta2);
+}
+.grade-graficos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  gap: var(--e6);
+}
+.sub-grafico {
+  font-size: var(--t-peq);
+  font-weight: var(--p-medio);
+  color: var(--tinta2);
+  margin-bottom: var(--e2);
+}
+
+/* No celular, cinco filtros empilhados ocupavam três linhas antes do
+   primeiro registro. Ficam numa faixa só, que rola de lado por dentro —
+   a página continua sem rolagem horizontal. */
+@media (max-width: 720px) {
+  .filtro-barra {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-left: calc(var(--e3) * -1);
+    margin-right: calc(var(--e3) * -1);
+    padding: 0 var(--e3) var(--e1);
+    scrollbar-width: none;
+  }
+  .filtro-barra::-webkit-scrollbar {
+    display: none;
+  }
+  .filtro-barra > * {
+    flex: 0 0 auto;
+  }
+}

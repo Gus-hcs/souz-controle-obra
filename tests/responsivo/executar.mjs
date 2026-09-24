@@ -97,13 +97,30 @@ async function abrirContexto({ estado, tema, viewport, escala = 1, movimentoRedu
   });
   await ctx.addInitScript(
     ([json, t]) => {
-      localStorage.setItem('souz_controle_obra_v1', json);
+      /* Se o estado não couber no localStorage, o sistema abre vazio e a
+         suíte testaria o nada. Registra o erro para o executor recusar. */
+      try {
+        localStorage.setItem('souz_controle_obra_v1', json);
+      } catch (e) {
+        window.__fixtureErro = e.message;
+      }
       localStorage.setItem('souz_tema', t);
     },
     [JSON.stringify(estado), tema],
   );
   await ctx.addInitScript(OBSERVADORES);
   return ctx;
+}
+
+/** Recusa seguir se o estado de teste não entrou no navegador. */
+async function conferirFixture(pagina) {
+  const erro = await pagina.evaluate(() => window.__fixtureErro || '');
+  if (erro) {
+    console.error(`
+O estado de teste não coube no localStorage: ${erro}`);
+    console.error('A suíte estaria testando um sistema vazio. Diminua a fixture.');
+    process.exit(2);
+  }
 }
 
 /** Lista as telas que o menu oferece neste estado de dados. */
@@ -145,6 +162,7 @@ async function passada({ rotuloEstado, dados, viewports, temas, estado = null, e
       });
 
       await pagina.goto(`http://127.0.0.1:${PORTA}/`, { waitUntil: 'load' });
+      await conferirFixture(pagina);
       await pagina.waitForTimeout(700);
       if (extras.escala && extras.escala !== 1) {
         await pagina.evaluate((z) => {
@@ -238,6 +256,7 @@ console.log('\n\n4/6  Movimento reduzido');
   });
   const pagina = await ctx.newPage();
   await pagina.goto(`http://127.0.0.1:${PORTA}/`, { waitUntil: 'load' });
+      await conferirFixture(pagina);
   await pagina.waitForTimeout(700);
   for (const view of await telasDisponiveis(pagina)) {
     await irPara(pagina, view);
@@ -284,6 +303,7 @@ if (!SEM_FLUIDEZ) {
       await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
 
       await pagina.goto(`http://127.0.0.1:${PORTA}/`, { waitUntil: 'load' });
+      await conferirFixture(pagina);
       await pagina.waitForTimeout(1600);
 
       for (const view of await telasDisponiveis(pagina)) {
@@ -343,6 +363,7 @@ console.log('\n\n6/6  Folhas de estilo e redimensionamento ao vivo');
   });
   const pagina = await ctx.newPage();
   await pagina.goto(`http://127.0.0.1:${PORTA}/`, { waitUntil: 'load' });
+      await conferirFixture(pagina);
   await pagina.waitForTimeout(700);
   resultado.folhas = await pagina.evaluate(checarFolhasDeEstilo);
 
