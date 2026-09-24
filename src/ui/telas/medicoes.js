@@ -248,9 +248,7 @@ VIEWS.medicoes = () => {
     .map((base) => ({
       rotulo: `${base} · ${prestadorDe(base) || '—'}`,
       valor: round2(
-        ativas
-          .filter((m) => m.contratoBase === base)
-          .reduce((s, m) => s + medicaoAPagar(o, m), 0),
+        ativas.filter((m) => m.contratoBase === base).reduce((s, m) => s + medicaoAPagar(o, m), 0),
       ),
     }))
     .filter((x) => x.valor > 0.005);
