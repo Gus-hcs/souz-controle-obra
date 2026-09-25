@@ -1670,6 +1670,28 @@ function diasUteisEntre(ini, fim) {
   return n;
 }
 
+/* Efetivo do dia: a soma por função, quando informada (0017); senão, o
+   número digitado. */
+function efetivoDiario(d) {
+  const f = Array.isArray(d.efetivoFuncoes) ? d.efetivoFuncoes : [];
+  return f.length ? f.reduce((s, x) => s + num(x && x.qtd), 0) : num(d.efetivo);
+}
+
+/* O diário alimenta o cronograma (0017): o primeiro registro numa etapa
+   ainda sem início real vira o início real; o "% da etapa ao fim do dia"
+   vira o progresso dela; 100% sem fim real fecha a etapa naquele dia.
+   Devolve só o que muda — a tela aplica. */
+function efeitoDiarioNaEtapa(etapa, d) {
+  const mud = {};
+  if (!etapa || !isISO(d.data) || norm(etapa.etapa) !== norm(d.etapa)) return mud;
+  const trabalhou = String(d.atividades || '').trim() || num(d.progressoEtapa) > 0;
+  if (trabalhou && (!isISO(etapa.inicioReal) || d.data < etapa.inicioReal)) mud.inicioReal = d.data;
+  const p = num(d.progressoEtapa);
+  if (p > 0 && Math.abs(p - num(etapa.progresso)) > 1e-9) mud.progresso = Math.min(1, p);
+  if (p >= 1 && !isISO(etapa.fimReal)) mud.fimReal = d.data;
+  return mud;
+}
+
 function diarioIndicadores(obra, hoje = hojeISO()) {
   const registros = (obra.diario || []).filter((d) => isISO(d.data) && d.data <= hoje);
   const datas = [...new Set(registros.map((d) => d.data))].sort();
@@ -1695,7 +1717,10 @@ function diarioIndicadores(obra, hoje = hojeISO()) {
       isISO(d.ocorrenciaPrazo) && d.ocorrenciaPrazo < hoje).length,
     ocorrenciasResolvidas: registros.filter((d) => d.ocorrenciaStatus === 'resolvida').length,
     semRegistroHa: ultimo ? diasEntre(ultimo, hoje) : null,
-    ultimo
+    ultimo,
+    /* 0017: dias que o canteiro disse que empurram o prazo */
+    diasImpactoPrazo: registros.filter((d) => d.impactaPrazo === true).reduce((s, d) => s + num(d.diasImpacto), 0),
+    efetivoMedio: registros.length ? registros.reduce((s, d) => s + efetivoDiario(d), 0) / registros.length : 0
   };
 }
 
@@ -1800,6 +1825,87 @@ function avancoCarteira(obras, hoje = hojeISO()) {
    ===================================================================== */
 const IDP_MINIMO = 0.25; /* abaixo disso a projeção passaria de 4× o prazo: trava */
 
+/* ================================ DEPENDÊNCIAS E CAMINHO CRÍTICO (0017)
+   Fim→início: a etapa só começa depois que as predecessoras terminam.
+   Passagem para a frente, no ritmo atual da obra (IDP, com o mesmo piso
+   do término projetado):
+   - concluída: termina no fim real (ou no previsto, sem real);
+   - em andamento: termina em hoje + o que falta ÷ ritmo;
+   - não começada: começa depois da última predecessora — e nunca antes
+     de hoje nem do início previsto —, dura o previsto ÷ ritmo.
+   Passagem para trás: a folga de cada etapa (quanto pode escorregar sem
+   empurrar o fim da obra). Folga zero = caminho crítico.
+   Dependência em ciclo é ignorada (validarDependencias avisa). */
+function agendaCronograma(obra, hoje = hojeISO(), ritmoObra = null) {
+  const ritmo = Math.min(1.5, Math.max(IDP_MINIMO, ritmoObra == null ? 1 : ritmoObra));
+  const porId = new Map(obra.cronograma.map((e) => [e.id, e]));
+  const preds = (e) => (Array.isArray(e.predecessoras) ? e.predecessoras : []).filter((id) => porId.has(id) && id !== e.id);
+  const agenda = new Map();
+  const visitando = new Set();
+
+  const calcular = (e) => {
+    if (agenda.has(e.id)) return agenda.get(e.id);
+    if (visitando.has(e.id)) return null; /* ciclo */
+    visitando.add(e.id);
+    const c = etapaCalc(e, hoje);
+    const dur = Math.max(1, c.diasPrevistos || 1);
+    const prog = Math.min(1, Math.max(0, num(e.progresso)));
+    let inicio;
+    let fim;
+    if (prog >= 1) {
+      inicio = isISO(e.inicioReal) ? e.inicioReal : e.inicioPrevisto || hoje;
+      fim = isISO(e.fimReal) ? e.fimReal : e.fimPrevisto || hoje;
+    } else if (isISO(e.inicioReal)) {
+      inicio = e.inicioReal;
+      fim = addDias(hoje, Math.max(1, Math.round((dur * (1 - prog)) / ritmo)));
+    } else {
+      inicio = hoje;
+      if (isISO(e.inicioPrevisto) && e.inicioPrevisto > inicio) inicio = e.inicioPrevisto;
+      preds(e).forEach((id) => {
+        const a = calcular(porId.get(id));
+        if (a && addDias(a.fim, 1) > inicio) inicio = addDias(a.fim, 1);
+      });
+      fim = addDias(inicio, Math.max(1, Math.round(dur / ritmo)) - 1);
+    }
+    visitando.delete(e.id);
+    const r = { id: e.id, etapa: e.etapa, inicio, fim, concluida: prog >= 1 };
+    agenda.set(e.id, r);
+    return r;
+  };
+  obra.cronograma.forEach((e) => calcular(e));
+
+  const lista = [...agenda.values()];
+  const termino = lista.reduce((m, a) => (a.fim > m ? a.fim : m), '');
+  /* para trás: o fim mais tarde de cada etapa sem atrasar a obra */
+  const sucessores = new Map(lista.map((a) => [a.id, []]));
+  obra.cronograma.forEach((e) => preds(e).forEach((id) => sucessores.get(id) && sucessores.get(id).push(e.id)));
+  const fimTarde = new Map();
+  const tarde = (id, pilha = new Set()) => {
+    if (fimTarde.has(id)) return fimTarde.get(id);
+    if (pilha.has(id)) return termino;
+    pilha.add(id);
+    let lf = termino;
+    sucessores.get(id).forEach((s) => {
+      const as = agenda.get(s);
+      const dur = diasEntre(as.inicio, as.fim);
+      const ls = addDias(tarde(s, pilha), -dur);
+      const limite = addDias(ls, -1);
+      if (limite < lf) lf = limite;
+    });
+    pilha.delete(id);
+    fimTarde.set(id, lf);
+    return lf;
+  };
+  lista.forEach((a) => {
+    a.folga = a.concluida ? null : Math.max(0, diasEntre(a.fim, tarde(a.id)));
+    a.critica = !a.concluida && a.folga === 0;
+  });
+  return { etapas: lista, termino, critico: lista.filter((a) => a.critica).map((a) => a.id), ritmo };
+}
+
+const temDependencias = (obra) =>
+  obra.cronograma.some((e) => Array.isArray(e.predecessoras) && e.predecessoras.length > 0);
+
 function valorAgregadoObra(obra, hoje = hojeISO()) {
   const k = kpisObra(obra);
   const previsto = avancoPrevistoObra(obra, hoje);
@@ -1827,6 +1933,12 @@ function valorAgregadoObra(obra, hoje = hojeISO()) {
     const dur = Math.max(1, diasEntre(inicio, fimPlano));
     termino = addDiasISO(inicio, Math.round(dur / Math.max(idp, IDP_MINIMO)));
     if (termino < hoje) termino = hoje;
+  }
+  /* com dependências fim→início (0017), o término sai da agenda: a etapa
+     que espera outra não pode acabar antes dela */
+  if (termino && real < 1 - 1e-9 && temDependencias(obra)) {
+    const ag = agendaCronograma(obra, hoje, idp);
+    if (isISO(ag.termino)) termino = ag.termino < hoje ? hoje : ag.termino;
   }
   const atrasoProjetado = isISO(termino) && isISO(contratual) ? diasEntre(contratual, termino) : null;
 
@@ -2560,6 +2672,10 @@ export {
   estouroContratos,
   saudeObra,
   saudeCliente,
+  agendaCronograma,
+  temDependencias,
+  efetivoDiario,
+  efeitoDiarioNaEtapa,
   nomeFinanciador,
   fisicoFinanciador,
   PROCESSO_PARCELA,

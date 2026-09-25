@@ -1,9 +1,9 @@
 /**
  * acoes.js — Ações: tudo que um clique dispara — abrir formulário, salvar, excluir.
  */
-import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, uid } from '../nucleo/base.js';
-import { alertasObra, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, listaProtegida, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa, usoItensLista } from '../dominio/calculos.js';
-import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapasContrato, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
+import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, lerEfetivoFuncoes, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, textoEfetivoFuncoes, uid } from '../nucleo/base.js';
+import { alertasObra, efeitoDiarioNaEtapa, efetivoDiario, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, listaProtegida, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa, usoItensLista } from '../dominio/calculos.js';
+import { apenasErros, validarCliente, validarContrato, validarDependencias, validarDiario, validarEtapasContrato, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, confirmarDigitando, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
@@ -774,6 +774,10 @@ function formEtapa(e, novo, aoSalvar) {
       /* planilha do financiador (0016): PLS/PCI na CAIXA, cronograma físico-financeiro nos outros */
       { k: 'itemFinanciador', label: 'Item na planilha do financiador', tipo: 'texto', col: 3, placeholder: 'ex.: 3.2' },
       { k: 'pesoFinanciador', label: 'Peso na planilha do financiador (%)', tipo: 'pct', col: 3 },
+      /* fim→início (0017): só começa depois que estas terminarem */
+      { k: 'predecessoras', label: 'Começa depois de', tipo: 'multi', col: 12,
+        opcoes: (App.obra() ? App.obra().cronograma : []).filter((x) => x.id !== e.id).map((x) => ({ v: x.id, t: x.etapa || 'sem nome' })),
+        dica: 'as etapas que precisam terminar antes; o término projetado e o caminho crítico saem daqui' },
       { k: 'sit', label: 'Situação', tipo: 'calc', col: 12 }
     ],
     valores: e,
@@ -781,7 +785,12 @@ function formEtapa(e, novo, aoSalvar) {
       const c = etapaCalc(d);
       return { sit: `Situação: <b>${c.situacao}</b> · ${c.diasPrevistos} dia(s) previstos · ${c.diasRealizados} realizado(s)${c.atraso ? ` · <b style="color:var(--critico)">${c.atraso} dia(s) de atraso</b>` : ''}` };
     },
-    validar: (d) => validarEtapa(d),
+    validar: (d) => {
+      const o = App.obra();
+      const simulado = o ? o.cronograma.map((x) => (x.id === e.id ? { ...x, ...d } : x)) : [];
+      if (o && !o.cronograma.includes(e)) simulado.push({ ...e, ...d });
+      return [...validarEtapa(d), ...validarDependencias(simulado)];
+    },
     aoSalvar: (d) => {
       if (!d.etapa) return toast('Informe o nome da etapa.', 'aviso');
       /* unidade vazia: a que a etapa costuma ter, não m² para tudo */
@@ -948,6 +957,16 @@ function formDiario(reg, novo, aoSalvar) {
       { k: 'efetivo', label: 'Pessoas na obra', tipo: 'numero', col: 3, dec: 0 },
       { k: 'etapa', label: 'Etapa', tipo: 'select', opcoes: opcoesEtapas(), col: 3 },
       { k: 'atividades', label: 'Atividades executadas', tipo: 'area', col: 12, linhas: 3 },
+      /* diário de campo (0017): o que o canteiro precisa registrar */
+      { secao: 'Campo' },
+      { k: 'climaManha', label: 'Clima de manhã', tipo: 'select', opcoes: opcoesLista('climas'), col: 3, placeholder: '—' },
+      { k: 'climaTarde', label: 'Clima à tarde', tipo: 'select', opcoes: opcoesLista('climas'), col: 3, placeholder: '—' },
+      { k: 'progressoEtapa', label: '% da etapa ao fim do dia', tipo: 'pct', col: 3, dica: 'atualiza o cronograma' },
+      { k: 'impactaPrazo', label: 'Impacta o prazo?', tipo: 'check', col: 3 },
+      { k: 'efetivoTexto', label: 'Efetivo por função', tipo: 'area', col: 6, linhas: 3,
+        placeholder: 'Pedreiro 3\nServente 2', dica: 'uma função por linha; a soma vira o total de pessoas' },
+      { k: 'equipamentos', label: 'Equipamentos', tipo: 'area', col: 3, linhas: 3, placeholder: 'betoneira, andaime…' },
+      { k: 'diasImpacto', label: 'Dias de impacto', tipo: 'numero', col: 3, dec: 0, dica: 'só se impacta o prazo' },
       { k: 'ocorrencias', label: 'Ocorrências', tipo: 'area', col: 12, linhas: 2 },
       { k: 'autor', label: 'Registrado por', tipo: 'texto', col: 6 },
       /* Ocorrência como pendência (0015): "Piso parou: falta rejunte" com
@@ -964,9 +983,11 @@ function formDiario(reg, novo, aoSalvar) {
         opcoes: (App.obra() ? App.obra().materiais : []).map((m) => ({ v: m.id, t: m.material || 'sem nome' }))
       }
     ],
-    valores: reg,
-    validar: (d) => validarDiario(d),
-    aoSalvar: (d) => {
+    /* o formulário fala texto e Sim/Não; o registro guarda lista e booleano */
+    valores: { ...reg, efetivoTexto: textoEfetivoFuncoes(reg.efetivoFuncoes), impactaPrazo: reg.impactaPrazo ? 'Sim' : 'Não' },
+    validar: (d) => validarDiario(diarioDoForm(d)),
+    aoSalvar: (bruto) => {
+      const d = diarioDoForm(bruto);
       /* data da resolução: carimbada ao marcar "Resolvida", limpa se reabrir */
       const resolvidaEm = d.ocorrenciaStatus === 'resolvida'
         ? reg.ocorrenciaResolvidaEm || (isISO(d.data) && d.data > hojeISO() ? d.data : hojeISO())
@@ -980,13 +1001,18 @@ function formDiario(reg, novo, aoSalvar) {
   const form = document.querySelector('#modal-camada [data-form]');
   const bloco = document.createElement('div');
   bloco.className = 'campo c12';
+  /* câmera direto no celular (capture) e galeria — os dois alimentam a
+     mesma lista */
   bloco.innerHTML = `<label>Fotos</label>
-    <input type="file" accept="image/*" multiple data-fotos="1" style="font-size:12px">
+    <div class="fotos-botoes">
+      <label class="btn pequeno">Tirar foto<input type="file" accept="image/*" capture="environment" data-fotos="1" hidden></label>
+      <label class="btn sutil pequeno">Da galeria<input type="file" accept="image/*" multiple data-fotos="1" hidden></label>
+    </div>
     <span class="dica">As imagens são reduzidas automaticamente para não pesar a base.</span>
     <div class="fotos" id="fotos-cx" style="margin-top:8px"></div>`;
   form.appendChild(bloco);
   render();
-  bloco.querySelector('[data-fotos]').addEventListener('change', async (ev) => {
+  bloco.querySelectorAll('[data-fotos]').forEach((inp) => inp.addEventListener('change', async (ev) => {
     const arquivos = [...ev.target.files];
     for (const f of arquivos) {
       try {
@@ -996,8 +1022,35 @@ function formDiario(reg, novo, aoSalvar) {
     }
     ev.target.value = '';
     render();
-  });
+  }));
 }
+
+/* Formulário → registro do diário: efetivo por função em lista (e o total
+   vira a soma), "impacta o prazo" em booleano, dias zerados sem impacto. */
+function diarioDoForm(d) {
+  const out = { ...d };
+  out.efetivoFuncoes = lerEfetivoFuncoes(d.efetivoTexto);
+  delete out.efetivoTexto;
+  if (out.efetivoFuncoes.length) out.efetivo = efetivoDiario(out);
+  out.impactaPrazo = d.impactaPrazo === 'Sim';
+  if (!out.impactaPrazo) out.diasImpacto = 0;
+  return out;
+}
+
+/* O diário alimenta o cronograma (efeitoDiarioNaEtapa): início real,
+   progresso e fim real da etapa do registro. Chamar dentro do mutar. */
+function aplicarDiarioNoCronograma(o, r) {
+  const etapa = o.cronograma.find((e) => norm(e.etapa) === norm(r.etapa));
+  const mud = efeitoDiarioNaEtapa(etapa, r);
+  if (Object.keys(mud).length) Object.assign(etapa, mud);
+  return mud;
+}
+const avisoCronograma = (mud) =>
+  Object.keys(mud).length ? ' Cronograma atualizado: ' + [
+    mud.inicioReal ? `início real ${fmtData(mud.inicioReal)}` : '',
+    mud.progresso !== undefined ? `${Math.round(mud.progresso * 100)}% da etapa` : '',
+    mud.fimReal ? 'etapa concluída' : '',
+  ].filter(Boolean).join(', ') + '.' : '';
 
 /* Resolver a ocorrência sem abrir o formulário — é o gesto do canteiro. */
 ACOES['resolver-ocorrencia'] = (el, d) => {
@@ -1023,14 +1076,24 @@ ACOES['rm-foto'] = (el, d) => {
 ACOES['novo-diario'] = () => {
   const o = App.obra();
   const r = novoDiario();
-  r.autor = Store.estado.empresa.responsavel || '';
-  formDiario(r, true, () => { mutar(() => { o.diario.push(r); }); toast('Registro salvo no diário.', 'ok'); });
+  /* "registrado por" é quem está logado; sem login, o responsável técnico */
+  const email = SUPA.usuario && SUPA.usuario.email;
+  r.autor = email ? email.split('@')[0] : Store.estado.empresa.responsavel || '';
+  formDiario(r, true, () => {
+    let mud = {};
+    mutar(() => { o.diario.push(r); mud = aplicarDiarioNoCronograma(o, r); });
+    toast('Registro salvo no diário.' + avisoCronograma(mud), 'ok');
+  });
 };
 ACOES['editar-diario'] = (el, d) => {
   const o = App.obra();
   const r = o.diario.find((x) => x.id === d.id);
   if (!r) return;
-  formDiario(r, false, () => { mutar(() => {}); toast('Registro atualizado.', 'ok'); });
+  formDiario(r, false, () => {
+    let mud = {};
+    mutar(() => { mud = aplicarDiarioNoCronograma(o, r); });
+    toast('Registro atualizado.' + avisoCronograma(mud), 'ok');
+  });
   comExcluir('diario', r.id);
 };
 ACOES['excluir-diario'] = (el, d) => {

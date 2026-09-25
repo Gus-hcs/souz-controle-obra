@@ -3,8 +3,8 @@
  */
 import { CFG } from '../config.js';
 import { esc, estadoInicial, isISO, migrar, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, novoTratamento, num } from '../nucleo/base.js';
-import { CHAVE_LOCAL, Store } from './store.js';
-import { App, confirmar, LOGO } from '../ui/shell.js';
+import { CHAVE_BASE_OFFLINE, CHAVE_LOCAL, Store, erroDeRede } from './store.js';
+import { App, confirmar, LOGO, toast } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
 import { carregarScript } from '../io/index.js';
 
@@ -137,7 +137,9 @@ const TABELAS_DB = [
       quantidadeExecutada: ['quantidade_executada', 'num'], unidadeProducao: 'unidade_producao',
       responsavel: 'responsavel', peso: ['peso', 'num'],
       /* exige a migração 0016 */
-      itemFinanciador: 'item_financiador', pesoFinanciador: ['peso_financiador', 'num']
+      itemFinanciador: 'item_financiador', pesoFinanciador: ['peso_financiador', 'num'],
+      /* exige a migração 0017 */
+      predecessoras: ['predecessoras', 'json']
     }
   },
   {
@@ -148,7 +150,11 @@ const TABELAS_DB = [
       /* ocorrência como pendência — exige a migração 0015 (bloco A) aplicada */
       ocorrenciaStatus: 'ocorrencia_status', ocorrenciaResponsavel: 'ocorrencia_responsavel',
       ocorrenciaPrazo: ['ocorrencia_prazo', 'data'], ocorrenciaMaterialId: ['ocorrencia_material_id', 'ref'],
-      ocorrenciaResolvidaEm: ['ocorrencia_resolvida_em', 'data']
+      ocorrenciaResolvidaEm: ['ocorrencia_resolvida_em', 'data'],
+      /* diário de campo — exige a migração 0017 */
+      climaManha: 'clima_manha', climaTarde: 'clima_tarde', efetivoFuncoes: ['efetivo_funcoes', 'json'],
+      equipamentos: 'equipamentos', progressoEtapa: ['progresso_etapa', 'num'],
+      impactaPrazo: ['impacta_prazo', 'bool'], diasImpacto: ['dias_impacto', 'num']
     }
   },
   {
@@ -320,11 +326,32 @@ const SUPA = {
     } catch (e) {
       return { estado: 'erro', mensagem: e.message };
     }
-    const { data, error } = await this.sb.auth.getSession();
-    if (error) return { estado: 'erro', mensagem: error.message };
+    let data;
+    let error;
+    try {
+      ({ data, error } = await this.sb.auth.getSession());
+    } catch (e) {
+      error = e; /* sem rede para renovar o token: o app decide (erroDeRede) */
+    }
+    if (error) return { estado: 'erro', mensagem: error.message || String(error) };
     this.usuario = data && data.session ? data.session.user : null;
     this.pronto = true;
     return { estado: this.usuario ? 'autenticado' : 'anonimo' };
+  },
+
+  /* Sessão guardada pelo supabase-js no aparelho (sb-<ref>-auth-token).
+     Sem rede para renovar o token, é ela que diz quem está usando — o
+     suficiente para abrir offline e carimbar a autoria das linhas. */
+  usuarioGuardado() {
+    try {
+      const k = Object.keys(localStorage).find((x) => /^sb-.*-auth-token$/.test(x));
+      const s = k && JSON.parse(localStorage.getItem(k));
+      const u = s && (s.user || (s.currentSession && s.currentSession.user));
+      if (u) { this.usuario = u; this.pronto = true; }
+      return !!u;
+    } catch (e) {
+      return false;
+    }
   },
 
   async entrar(email, senha) {
@@ -352,7 +379,7 @@ const SUPA = {
   async sair() {
     try { await this.sb.auth.signOut(); } catch (e) {}
     this.usuario = null;
-    try { localStorage.removeItem(CHAVE_LOCAL); } catch (e) {}
+    try { localStorage.removeItem(CHAVE_LOCAL); localStorage.removeItem(CHAVE_BASE_OFFLINE); } catch (e) {}
     location.reload();
   },
 
@@ -856,8 +883,57 @@ function traduzErroAuth(err) {
 }
 
 /* carrega os dados e abre o sistema depois do login */
+/* O que ficou no aparelho sem rede: o estado local e a última versão que
+   o banco confirmou. Com os dois, dá para enviar a diferença. */
+function pendenteOffline() {
+  try {
+    const base = localStorage.getItem(CHAVE_BASE_OFFLINE);
+    const local = localStorage.getItem(CHAVE_LOCAL);
+    if (!base || !local) return null;
+    return { base: migrar(JSON.parse(base)), local: migrar(JSON.parse(local)) };
+  } catch (e) {
+    return null;
+  }
+}
+
+/* Sem rede na abertura: abre com o que está no aparelho. Tudo continua
+   funcionando; o que for gravado fica pendente até a rede voltar. */
+function abrirOffline(pend) {
+  let estado = pend && pend.local;
+  if (!estado) {
+    try { estado = migrar(JSON.parse(localStorage.getItem(CHAVE_LOCAL))); } catch (e) { estado = null; }
+  }
+  if (!estado || !estado.obras || !estado.obras.length) return false;
+  Store.estado = estado;
+  Store.snapshot = pend ? pend.base : JSON.parse(JSON.stringify(estado));
+  try {
+    if (!pend) localStorage.setItem(CHAVE_BASE_OFFLINE, JSON.stringify(Store.snapshot));
+  } catch (e) { /* cota */ }
+  Store.backend = 'supabase';
+  Store.modo = 'banco';
+  Store.status = 'offline';
+  Store.pendente = true;
+  if (!App.rota.obraId && estado.obras.length) App.rota.obraId = estado.obras[0].id;
+  window.addEventListener('online', () => Store.salvar(), { once: true });
+  fecharAcesso();
+  App.render();
+  return true;
+}
+
 async function entrarNoSistema() {
   telaAcesso('<h2>Carregando suas obras…</h2><p class="acesso-sub">Buscando os dados no banco.</p>');
+  /* alteração feita sem rede numa sessão anterior: envia antes de carregar */
+  const pend = pendenteOffline();
+  if (pend) {
+    try {
+      await SUPA.sincronizar(pend.base, pend.local);
+      localStorage.removeItem(CHAVE_BASE_OFFLINE);
+      setTimeout(() => toast('O que foi registrado sem rede já está no banco.', 'ok', 6000), 400);
+    } catch (err) {
+      if (erroDeRede(err) && abrirOffline(pend)) return;
+      /* outro erro: segue a carga; a diferença continua guardada */
+    }
+  }
   try {
     const estado = await SUPA.carregar();
 
@@ -883,6 +959,7 @@ async function entrarNoSistema() {
     App.render();
   } catch (err) {
     const m = String(err.message || err);
+    if (erroDeRede(err) && abrirOffline(pendenteOffline())) return;
     if (/relation .* does not exist|schema cache|Could not find the table/i.test(m)) {
       telaAcesso(`<h2>Banco ainda sem as tabelas</h2>
         <p class="acesso-sub">Abra o <b>SQL Editor</b> do Supabase, cole o conteúdo do arquivo

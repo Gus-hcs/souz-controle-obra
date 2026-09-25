@@ -97,6 +97,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0014_convite_por_email.sql` | `convidar_membro()` e `membros_da_obra()` — convite de engenheiro/cliente por e-mail e listagem da equipe com e-mail (funções `security definer`, sem tabela nova) |
 | `0015_tratamento_alertas_e_ocorrencias.sql` | tabela `alertas_tratamento` (status, responsável, adiar até, nota) com RLS por obra; colunas de ocorrência como pendência em `diario`; CHECKs |
 | `0016_financiador_e_parcelas.sql` | financiador genérico: `obras.financiador`; `% exigido`, vistoria e aprovação da parcela em `recebimentos`; item e peso da planilha do financiador em `cronograma`; `contratos.etapas`; CHECKs |
+| `0017_dependencias_e_diario_de_campo.sql` | `cronograma.predecessoras` (fim→início); diário de campo: clima por turno, efetivo por função, equipamentos, % da etapa, impacto no prazo; CHECKs |
 
 ### 0008 — logos
 
@@ -301,4 +302,23 @@ quando cadastrados; senão, o físico da obra. O passo da parcela (solicitada �
 vistoriada → aprovada → creditada) sai das datas, sem mudar a lista de status.
 `contratos.etapas` liga o contrato às etapas que ele executa; é a base do alerta
 "medido à frente do físico" (mais de 5 p.p.).
+
+### 0017 — dependências do cronograma e diário de campo
+
+Blocos A (colunas novas, nascem nulas), B (diagnóstico — volta vazio), C
+(`CHECK not valid`) e D (valida). Sem tabela nova.
+
+`predecessoras` guarda os ids das etapas que precisam terminar antes (fim→início).
+Com ela cadastrada, o término projetado sai da agenda (`agendaCronograma`), e a
+folga de cada etapa aponta o caminho crítico. Ciclo e predecessora apagada
+dependem do conjunto: são alerta no app, não CHECK.
+
+O diário de campo ganha clima por turno, efetivo por função (lista
+`[{funcao, qtd}]` — o total passa a ser a soma), equipamentos, o % da etapa ao
+fim do dia (que atualiza o cronograma, junto com o início e o fim reais) e se o
+dia impacta o prazo, com quantos dias (`dias_impacto > 0` exige
+`impacta_prazo`).
+
+O sistema abre sem rede (service worker em `public/sw.js`), e o que é gravado
+sem conexão fica no aparelho até a rede voltar. Não depende de migração.
 

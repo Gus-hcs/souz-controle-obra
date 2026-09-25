@@ -20,10 +20,12 @@ import {
   norm,
 } from '../../nucleo/base.js';
 import {
+  agendaCronograma,
   etapaCalc,
   kpisObra,
   nivelIndice,
   prazoObra,
+  temDependencias,
   valorAgregadoObra,
 } from '../../dominio/calculos.js';
 import { graficoGantt } from '../../graficos/index.js';
@@ -133,8 +135,10 @@ ACOES['ir-diario-etapa'] = (el, d) => {
 };
 
 /* -------------------------------------------------------------- tabela */
-function celulaEtapa(e) {
-  const sub = e.responsavel || '';
+function celulaEtapa(e, nomes) {
+  /* "depois de Alvenaria" (0017): a dependência à vista na linha */
+  const depois = (e.predecessoras || []).map((id) => nomes.get(id)).filter(Boolean);
+  const sub = [e.responsavel || '', depois.length ? `depois de ${depois.join(', ')}` : ''].filter(Boolean).join(' · ');
   return `<div class="cel-obra"><b>${esc(e.etapa || '—')}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div>`;
 }
 
@@ -172,13 +176,20 @@ function celulaProgresso(c) {
   </div>`;
 }
 
-function celulaSituacaoEtapa(c) {
+function celulaSituacaoEtapa(c, ag) {
+  /* com dependências, embaixo: crítica (folga zero) ou quanto pode escorregar */
+  const folga = !ag || ag.concluida
+    ? ''
+    : ag.critica
+      ? '<span class="atraso">caminho crítico</span>'
+      : `<span class="tinta3">folga ${ag.folga} d</span>`;
+  const empilhar = (html) => (folga ? `<div class="cel-empilhada">${html}${folga}</div>` : html);
   if (c.atrasoInicio > 0) {
-    return `<span class="situacao-ct atraso"><span class="pt"></span>Início atrasado ${c.atrasoInicio}d</span>`;
+    return empilhar(`<span class="situacao-ct atraso"><span class="pt"></span>Início atrasado ${c.atrasoInicio}d</span>`);
   }
   const tom = TOM_SITUACAO_ETAPA[c.situacao] || '';
   const texto = c.situacao.charAt(0) + c.situacao.slice(1).toLowerCase();
-  return `<span class="situacao-ct ${tom}"><span class="pt"></span>${esc(texto)}</span>`;
+  return empilhar(`<span class="situacao-ct ${tom}"><span class="pt"></span>${esc(texto)}</span>`);
 }
 
 const colunasCronograma = [
@@ -188,7 +199,7 @@ const colunasCronograma = [
     largura: '25%',
     celular: 'principal',
     valor: (d) => (d.e.etapa || '').toLowerCase(),
-    celula: (d) => celulaEtapa(d.e),
+    celula: (d) => celulaEtapa(d.e, d.nomes),
   },
   {
     k: 'previsto',
@@ -218,7 +229,7 @@ const colunasCronograma = [
     rotulo: 'Situação',
     largura: '15%',
     valor: (d) => (atrasadaOuTravada(d.c) ? '0' : '1') + d.e.fimPrevisto,
-    celula: (d) => celulaSituacaoEtapa(d.c),
+    celula: (d) => celulaSituacaoEtapa(d.c, d.ag),
   },
   {
     k: 'acoes',
@@ -247,7 +258,11 @@ VIEWS.cronograma = () => {
   );
 
   const busca = norm(f.busca || '');
-  let itens = o.cronograma.map((e) => ({ e, c: etapaCalc(e) }));
+  /* agenda com dependências (0017): folga e caminho crítico por etapa */
+  const agenda = temDependencias(o) ? agendaCronograma(o, hojeISO(), valorAgregadoObra(o).idp) : null;
+  const porId = new Map(agenda ? agenda.etapas.map((a) => [a.id, a]) : []);
+  const nomes = new Map(o.cronograma.map((e) => [e.id, e.etapa]));
+  let itens = o.cronograma.map((e) => ({ e, c: etapaCalc(e), ag: porId.get(e.id) || null, nomes }));
   if (f.responsavel) itens = itens.filter((d) => d.e.responsavel === f.responsavel);
   if (f.situacao === 'atrasadas') itens = itens.filter((d) => atrasadaOuTravada(d.c));
   if (f.situacao === 'andamento') itens = itens.filter((d) => d.c.situacao === 'EM ANDAMENTO');
@@ -256,6 +271,7 @@ VIEWS.cronograma = () => {
       (d) => d.c.situacao === 'NÃO INICIADO' || d.c.situacao === 'NÃO PLANEJADO',
     );
   if (f.situacao === 'concluidas') itens = itens.filter((d) => d.c.situacao === 'CONCLUÍDO');
+  if (f.situacao === 'criticas') itens = itens.filter((d) => d.ag && d.ag.critica);
   if (f.kpiCrono === 'atrasadas') itens = itens.filter((d) => atrasadaOuTravada(d.c));
   if (busca) itens = itens.filter((d) => norm(`${d.e.etapa} ${d.e.responsavel}`).includes(busca));
 
@@ -270,6 +286,7 @@ VIEWS.cronograma = () => {
           ['andamento', 'Em andamento'],
           ['nao-iniciadas', 'Não iniciadas'],
           ['concluidas', 'Concluídas'],
+          ...(agenda ? [['criticas', 'Caminho crítico']] : []),
         ],
         'Situação: todas',
       ),

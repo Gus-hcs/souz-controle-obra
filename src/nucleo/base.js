@@ -101,6 +101,24 @@ const fmtDataCurta = (iso) => (isISO(iso) ? iso.slice(8, 10) + '/' + iso.slice(5
    ("20/08" sozinho não diz se é deste ano ou do próximo). */
 const fmtDataCurtaAno = (iso) => (isISO(iso) ? fmtDataCurta(iso) + '/' + iso.slice(2, 4) : '—');
 
+/* Efetivo por função (diário de campo, 0017) digitado como texto, uma
+   função por linha — é o jeito rápido no celular: "Pedreiro 3",
+   "3 serventes", "Eletricista: 1". Linha sem número conta 1. */
+function lerEfetivoFuncoes(texto) {
+  return String(texto || '')
+    .split(/\n|;/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const m = l.match(/^(\d+)\s*[x×-]?\s*(.+)$/i) || l.match(/^(.+?)\s*[:=x×-]?\s*(\d+)$/i);
+      if (!m) return { funcao: l.slice(0, 60), qtd: 1 };
+      const [a, b] = /^\d+$/.test(m[1]) ? [m[2], m[1]] : [m[1], m[2]];
+      return { funcao: a.trim().slice(0, 60), qtd: parseInt(b, 10) };
+    });
+}
+const textoEfetivoFuncoes = (lista) =>
+  (Array.isArray(lista) ? lista : []).map((f) => `${f.funcao} ${num(f.qtd)}`).join('\n');
+
 /* Instante (timestamp do banco) em linguagem de gente, no fuso do
    navegador: "hoje, 17:49", "ontem, 09:12", "22/09, 14:03" no mesmo ano,
    "22/09/25, 14:03" em outro. "há 0d" não diz nada a ninguém. */
@@ -523,6 +541,8 @@ function migrar(s) {
 }
 
 export {
+  lerEfetivoFuncoes,
+  textoEfetivoFuncoes,
   SISTEMAS_CONSTRUTIVOS,
   PADROES_ACABAMENTO,
   APP,

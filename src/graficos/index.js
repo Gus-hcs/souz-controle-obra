@@ -2,7 +2,7 @@
  * index.js — Gráficos em SVG puro: curva S, fluxo de caixa, Gantt e barras.
  */
 import { addMeses, competencia, diasEntre, esc, fimDoMes, fmtCompetencia, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtPct, hojeISO, inicioDoMes, isISO, num, round2 } from '../nucleo/base.js';
-import { curvaS, etapaCalc, fluxoCaixa, fluxoCarteira, valorAgregadoObra } from '../dominio/calculos.js';
+import { agendaCronograma, curvaS, etapaCalc, fluxoCaixa, fluxoCarteira, temDependencias, valorAgregadoObra } from '../dominio/calculos.js';
 import { vazio } from '../ui/shell.js';
 
 const GRAFICOS = {};   /* id → { pontos, rotulos, formata } para o hover */
@@ -295,6 +295,9 @@ function graficoGantt(obra) {
 
   const tooltips = [];
   const rotulos = [];
+  /* caminho crítico (0017): só existe com dependências cadastradas */
+  const criticas = new Set(temDependencias(obra)
+    ? agendaCronograma(obra, hojeISO(), valorAgregadoObra(obra).idp).critico : []);
   const linhas = etapas.map((e, i) => {
     const y = mt + i * linhaH;
     const c2 = etapaCalc(e);
@@ -338,7 +341,9 @@ function graficoGantt(obra) {
           <text x="${ml - 13}" y="${y + 13}" text-anchor="middle" fill="var(--sup)" style="font-size:8.5px;font-weight:700">${nFotos}</text>
         </a>`
       : '';
-    rotulos.push(`<text x="8" y="${y + 17}" fill="var(--tinta2)" style="font-size:11.5px">${esc(e.etapa.length > 20 ? e.etapa.slice(0, 19) + '…' : e.etapa)}</text>${selo}`);
+    const critica = criticas.has(e.id);
+    const nomeCurto = e.etapa.length > 20 ? e.etapa.slice(0, 19) + '…' : e.etapa;
+    rotulos.push(`<text x="8" y="${y + 17}" fill="${critica ? 'var(--critico)' : 'var(--tinta2)'}" style="font-size:11.5px${critica ? ';font-weight:600' : ''}">${critica ? '◆ ' : ''}${esc(nomeCurto)}</text>${selo}`);
 
     tooltips.push([
       `<b>${esc(e.etapa)}</b>`,
@@ -351,6 +356,7 @@ function graficoGantt(obra) {
         : null,
       `Progresso: ${fmtPct(c2.progresso, 0)}`,
       c2.atraso > 0 ? `${c2.atraso} dia${c2.atraso === 1 ? '' : 's'} de atraso` : null,
+      criticas.has(e.id) ? 'No caminho crítico: atrasar aqui atrasa a obra' : null,
       nFotos ? `${nFotos} foto${nFotos === 1 ? '' : 's'} no diário — clique no selo para ver` : null,
     ].filter(Boolean).join('<br>'));
 

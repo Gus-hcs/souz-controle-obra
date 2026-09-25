@@ -313,6 +313,75 @@ function validarDiario(d) {
   if (!isISO(d.data)) out.push(problema('data', 'O registro do diário precisa de uma data válida.'));
   if (num(d.efetivo) < 0) out.push(problema('efetivo', 'O efetivo não pode ser negativo.'));
   out.push(...validarOcorrencia(d));
+  out.push(...validarDiarioCampo(d));
+  return out;
+}
+
+/* Diário de campo (0017) — espelha os CHECKs chk_diario_campo_*. */
+function validarDiarioCampo(d) {
+  const out = [];
+  fracao(d, 'progressoEtapa', '% da etapa ao fim do dia', out);
+  const dias = num(d.diasImpacto);
+  if (dias < 0 || dias > 365 || !Number.isInteger(dias)) {
+    out.push(problema('diasImpacto', 'Os dias de impacto no prazo vão de 0 a 365, inteiros.'));
+  }
+  if (dias > 0 && d.impactaPrazo !== true) {
+    out.push(problema('diasImpacto', 'Marque "impacta o prazo" para informar dias de impacto.'));
+  }
+  if (String(d.equipamentos || '').length > 500) {
+    out.push(problema('equipamentos', 'Equipamentos: no máximo 500 caracteres.'));
+  }
+  for (const k of ['climaManha', 'climaTarde']) {
+    if (String(d[k] || '').length > 40) out.push(problema(k, 'Clima: no máximo 40 caracteres.'));
+  }
+  if (d.efetivoFuncoes != null && !Array.isArray(d.efetivoFuncoes)) {
+    out.push(problema('efetivoFuncoes', 'O efetivo por função deve ser uma lista.'));
+    return out;
+  }
+  const funcoes = d.efetivoFuncoes || [];
+  if (funcoes.some((f) => !String((f && f.funcao) || '').trim() || !Number.isInteger(num(f.qtd)) || num(f.qtd) < 0)) {
+    out.push(problema('efetivoFuncoes', 'Cada função precisa de nome e de uma quantidade inteira, zero ou mais.'));
+  }
+  /* efetivo digitado diferente da soma por função: alerta (vale a soma) */
+  const soma = funcoes.reduce((s, f) => s + num(f && f.qtd), 0);
+  if (funcoes.length && num(d.efetivo) > 0 && num(d.efetivo) !== soma) {
+    out.push(problema('efetivo', `O efetivo (${num(d.efetivo)}) não bate com a soma por função (${soma}) — vale a soma.`, 'alerta'));
+  }
+  return out;
+}
+
+/* Dependências do cronograma (0017): predecessora que não existe ou
+   ciclo (A espera B que espera A) — dependem do conjunto, não cabem num
+   CHECK de linha: alerta. A agenda ignora o ciclo. */
+function validarDependencias(cronograma) {
+  const out = [];
+  const lista = cronograma || [];
+  const porId = new Map(lista.map((e) => [e.id, e]));
+  lista.forEach((e) => {
+    if (e.predecessoras != null && !Array.isArray(e.predecessoras)) {
+      out.push(problema('predecessoras', `As predecessoras de "${e.etapa}" devem ser uma lista.`));
+      return;
+    }
+    const soltas = (e.predecessoras || []).filter((id) => !porId.has(id));
+    if (soltas.length) {
+      out.push(problema('predecessoras', `"${e.etapa}" depende de etapa que não existe mais.`, 'alerta'));
+    }
+  });
+  const estado = new Map();
+  let ciclo = '';
+  const visitar = (e) => {
+    if (ciclo) return;
+    estado.set(e.id, 1);
+    (Array.isArray(e.predecessoras) ? e.predecessoras : []).forEach((id) => {
+      const p = porId.get(id);
+      if (!p || ciclo) return;
+      if (estado.get(id) === 1) ciclo = `${p.etapa} ↔ ${e.etapa}`;
+      else if (!estado.has(id)) visitar(p);
+    });
+    estado.set(e.id, 2);
+  };
+  lista.forEach((e) => { if (!estado.has(e.id)) visitar(e); });
+  if (ciclo) out.push(problema('predecessoras', `Dependência em ciclo: ${ciclo}. A agenda ignora o ciclo.`, 'alerta'));
   return out;
 }
 
@@ -525,6 +594,7 @@ function validarObraCompleta(o) {
   (o.materiais || []).forEach((m) => juntar(validarMaterial(m), `Material "${m.material || '?'}"`));
   (o.cronograma || []).forEach((e) => juntar(validarEtapa(e), `Etapa "${e.etapa || '?'}"`));
   juntar(validarPlanilhaFinanciador(o.cronograma), 'Planilha do financiador');
+  juntar(validarDependencias(o.cronograma), 'Dependências do cronograma');
   (o.diario || []).forEach((d) => juntar(validarDiario(d), `Diário de ${d.data || '?'}`));
   (o.tratamentos || []).forEach((t) => juntar(validarTratamento(t), `Tratamento de alerta ${t.chave || '?'}`));
   return out;
@@ -609,6 +679,8 @@ export {
   validarLogo,
   validarEmpresa,
   validarPlanilhaFinanciador,
+  validarDependencias,
+  validarDiarioCampo,
   validarEtapasContrato,
   validarObraCompleta,
   validarEstado,

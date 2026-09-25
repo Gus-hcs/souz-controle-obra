@@ -8,7 +8,7 @@ import './estilo.css';
 import './ui/tokens.css';
 import './ui/interface.css';
 import './ui/legado.css';
-import { Store } from './dados/store.js';
+import { Store, erroDeRede } from './dados/store.js';
 import {
   EXIGE_BANCO,
   SUPA,
@@ -216,7 +216,12 @@ async function iniciar() {
         'Não consegui carregar a biblioteca do Supabase. Verifique a conexão com a internet.',
       );
     }
-    if (r.estado === 'erro') return telaConfigBanco('Erro ao conectar: ' + (r.mensagem || ''));
+    if (r.estado === 'erro') {
+      /* sessão guardada mas sem rede para renovar: segue para a entrada,
+         que abre com o que está no aparelho */
+      if (erroDeRede(r.mensagem) && SUPA.usuarioGuardado()) return entrarNoSistema();
+      return telaConfigBanco('Erro ao conectar: ' + (r.mensagem || ''));
+    }
     Store.aoMudar(() => App.renderTopo());
     if (r.estado === 'autenticado') return entrarNoSistema();
     return telaLogin('entrar');
@@ -248,5 +253,11 @@ async function iniciar() {
 }
 
 iniciar();
+
+/* Service worker (public/sw.js): o sistema abre sem rede no canteiro.
+   Só em HTTPS publicado — em dev e dentro de artefato, não. */
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && location.protocol === 'https:' && !ehArtefato()) {
+  navigator.serviceWorker.register('sw.js').catch((e) => console.warn('service worker não registrado', e));
+}
 
 export { tFiltro, restaurarRota, iniciar };

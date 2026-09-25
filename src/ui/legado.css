@@ -390,3 +390,13 @@ details.tratados > summary {
 .cel-num-nota span.atraso {
   color: var(--atraso);
 }
+
+/* Fotos do diário: câmera e galeria lado a lado. */
+.fotos-botoes {
+  display: flex;
+  gap: var(--e2);
+  flex-wrap: wrap;
+}
+.fotos-botoes .btn {
+  cursor: pointer;
+}

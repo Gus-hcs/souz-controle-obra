@@ -21,7 +21,7 @@ import {
   num,
 } from '../../nucleo/base.js';
 import { linkWhatsApp, normalizarTelefoneBR } from '../../nucleo/contato.js';
-import { diaImpraticavel, diarioIndicadores } from '../../dominio/calculos.js';
+import { diaImpraticavel, diarioIndicadores, efetivoDiario } from '../../dominio/calculos.js';
 import { Store } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
 import { App, botao, ICO, svg, toast } from '../shell.js';
@@ -65,7 +65,10 @@ function kpisDiario(ind, totFotos) {
       'impraticavel',
       'Dias impraticáveis',
       ind.diasImpraticaveis,
-      ind.diasImpraticaveis ? 'base para aditivo de prazo' : 'nenhum registrado',
+      [
+        ind.diasImpraticaveis ? 'base para aditivo de prazo' : 'nenhum registrado',
+        ind.diasImpactoPrazo ? `${ind.diasImpactoPrazo} dia${ind.diasImpactoPrazo === 1 ? '' : 's'} de impacto declarado${ind.diasImpactoPrazo === 1 ? '' : 's'}` : '',
+      ].filter(Boolean).join(' · '),
       '',
       true,
     )}
@@ -160,9 +163,20 @@ function linhaPendencia(d) {
 }
 
 function cartaoRegistro(d) {
-  const meta = [d.clima, d.etapa || null, num(d.efetivo) ? `${fmtNum(d.efetivo, 0)} na obra` : null]
+  /* clima por turno (0017), quando informado; senão, o do dia */
+  const clima = d.climaManha || d.climaTarde
+    ? `manhã ${d.climaManha || '—'} · tarde ${d.climaTarde || '—'}`
+    : d.clima;
+  const efetivo = efetivoDiario(d);
+  const meta = [clima, d.etapa || null, efetivo ? `${fmtNum(efetivo, 0)} na obra` : null]
     .filter(Boolean)
     .join(' · ');
+  const funcoes = (d.efetivoFuncoes || []).map((f) => `${f.funcao} ${f.qtd}`).join(', ');
+  const campo = [
+    funcoes ? `<b>Efetivo</b> — ${esc(funcoes)}` : '',
+    d.equipamentos ? `<b>Equipamentos</b> — ${esc(d.equipamentos)}` : '',
+    num(d.progressoEtapa) > 0 ? `<b>${esc(d.etapa || 'Etapa')}</b> em ${fmtPct(d.progressoEtapa, 0)} ao fim do dia` : '',
+  ].filter(Boolean);
   const fotos =
     d.fotos && d.fotos.length
       ? `<div class="fotos-diario">${d.fotos
@@ -183,6 +197,8 @@ function cartaoRegistro(d) {
     </header>
     <div class="corpo-diario">
       ${d.atividades ? `<p style="margin:0"><b>Atividades</b> — ${esc(d.atividades)}</p>` : ''}
+      ${campo.length ? `<p class="tinta2" style="margin:0;font-size:var(--t-peq)">${campo.join(' · ')}</p>` : ''}
+      ${d.impactaPrazo ? `<p class="atraso" style="margin:0;font-size:var(--t-peq)"><b>Impacta o prazo</b>${num(d.diasImpacto) ? ` — ${num(d.diasImpacto)} dia${num(d.diasImpacto) === 1 ? '' : 's'}` : ''}</p>` : ''}
       ${d.ocorrencias ? `<p class="tom-alerta" style="margin:0"><b>Ocorrências</b> — ${esc(d.ocorrencias)}</p>` : ''}
       ${linhaPendencia(d)}
       ${fotos}
