@@ -29,7 +29,10 @@ import {
   PLANOS,
   SITUACOES_MANUAIS_CONTRATO,
   STATUS_ADITIVO,
+  STATUS_OCORRENCIA,
+  STATUS_TRATAMENTO,
   TIPOS_ADITIVO,
+  hojeISO,
 } from '../nucleo/base.js';
 import { motivoTelefoneInvalido } from '../nucleo/contato.js';
 
@@ -257,6 +260,61 @@ function validarDiario(d) {
   const out = [];
   if (!isISO(d.data)) out.push(problema('data', 'O registro do diário precisa de uma data válida.'));
   if (num(d.efetivo) < 0) out.push(problema('efetivo', 'O efetivo não pode ser negativo.'));
+  out.push(...validarOcorrencia(d));
+  return out;
+}
+
+/* Ocorrência como pendência (migração 0015) — espelha os CHECKs
+   chk_diario_ocorr_*. Status vazio = só registro, nada a validar além. */
+const STATUS_OCORRENCIA_VALIDOS = STATUS_OCORRENCIA.map((x) => x.v);
+function validarOcorrencia(d) {
+  const out = [];
+  const st = d.ocorrenciaStatus || '';
+  if (!st) return out;
+  if (!STATUS_OCORRENCIA_VALIDOS.includes(st)) {
+    out.push(problema('ocorrenciaStatus', `Situação da ocorrência inválida: "${st}".`));
+  }
+  if (!String(d.ocorrencias || '').trim()) {
+    out.push(problema('ocorrencias', 'Descreva a ocorrência para ela virar pendência.'));
+  }
+  if (isISO(d.ocorrenciaPrazo) && isISO(d.data) && d.ocorrenciaPrazo < d.data) {
+    out.push(problema('ocorrenciaPrazo', 'O prazo da ocorrência não pode ser antes do registro.'));
+  }
+  if (isISO(d.ocorrenciaResolvidaEm) && isISO(d.data) && d.ocorrenciaResolvidaEm < d.data) {
+    out.push(problema('ocorrenciaResolvidaEm', 'A ocorrência não pode ser resolvida antes de registrada.'));
+  }
+  if (String(d.ocorrenciaResponsavel || '').length > 120) {
+    out.push(problema('ocorrenciaResponsavel', 'O responsável tem mais de 120 caracteres.'));
+  }
+  /* legítimo, mas ninguém resolve pendência sem dono */
+  if (st === 'aberta' && !String(d.ocorrenciaResponsavel || '').trim()) {
+    out.push(problema('ocorrenciaResponsavel', 'Ocorrência aberta sem responsável: ninguém vai cobrar.', 'alerta'));
+  }
+  return out;
+}
+
+/* ------------------------------------------ TRATAMENTO DE ALERTA (0015)
+   Espelha os CHECKs chk_trat_* de alertas_tratamento. */
+const STATUS_TRATAMENTO_VALIDOS = STATUS_TRATAMENTO.map((x) => x.v);
+function validarTratamento(t, hoje = hojeISO()) {
+  const out = [];
+  if (!String(t.chave || '').trim()) out.push(problema('chave', 'Tratamento sem alerta de referência.'));
+  else if (String(t.chave).length > 200) out.push(problema('chave', 'Chave do alerta longa demais.'));
+  if (!STATUS_TRATAMENTO_VALIDOS.includes(t.status)) {
+    out.push(problema('status', `Situação inválida: "${t.status}".`));
+  }
+  if (t.status === 'adiado' && !isISO(t.adiarAte)) {
+    out.push(problema('adiarAte', 'Para adiar, diga até quando.'));
+  }
+  if (String(t.responsavel || '').length > 120) out.push(problema('responsavel', 'O responsável tem mais de 120 caracteres.'));
+  if (String(t.nota || '').length > 500) out.push(problema('nota', 'A nota tem mais de 500 caracteres.'));
+  const sev = num(t.sevMarcada);
+  if (!(sev >= 1 && sev <= 3)) out.push(problema('sevMarcada', 'Gravidade marcada fora de 1 a 3.'));
+  if (num(t.valorMarcado) < 0) out.push(problema('valorMarcado', 'Valor marcado negativo.'));
+  /* adiar para uma data que já passou não adia nada: o alerta volta na hora */
+  if (t.status === 'adiado' && isISO(t.adiarAte) && t.adiarAte < hoje) {
+    out.push(problema('adiarAte', 'Essa data já passou: o alerta volta imediatamente.', 'alerta'));
+  }
   return out;
 }
 
@@ -400,6 +458,7 @@ function validarObraCompleta(o) {
   (o.materiais || []).forEach((m) => juntar(validarMaterial(m), `Material "${m.material || '?'}"`));
   (o.cronograma || []).forEach((e) => juntar(validarEtapa(e), `Etapa "${e.etapa || '?'}"`));
   (o.diario || []).forEach((d) => juntar(validarDiario(d), `Diário de ${d.data || '?'}`));
+  (o.tratamentos || []).forEach((t) => juntar(validarTratamento(t), `Tratamento de alerta ${t.chave || '?'}`));
   return out;
 }
 
@@ -469,6 +528,8 @@ export {
   validarMaterial,
   validarEtapa,
   validarDiario,
+  validarOcorrencia,
+  validarTratamento,
   validarCliente,
   validarPrestador,
   motivoCpfCnpjInvalido,

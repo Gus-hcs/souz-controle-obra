@@ -2,7 +2,7 @@
  * supabase.js — Banco de dados: mapeamento das tabelas, sincronização e telas de acesso.
  */
 import { CFG } from '../config.js';
-import { esc, estadoInicial, isISO, migrar, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num } from '../nucleo/base.js';
+import { esc, estadoInicial, isISO, migrar, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, novoTratamento, num } from '../nucleo/base.js';
 import { CHAVE_LOCAL, Store } from './store.js';
 import { App, confirmar, LOGO } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
@@ -135,10 +135,33 @@ const TABELAS_DB = [
     nome: 'diario', colecao: 'diario', ordenado: true, novo: () => novoDiario(),
     campos: {
       data: ['data', 'data'], clima: 'clima', efetivo: ['efetivo', 'num'], etapa: 'etapa',
-      atividades: 'atividades', ocorrencias: 'ocorrencias', autor: 'autor', fotos: ['fotos', 'json']
+      atividades: 'atividades', ocorrencias: 'ocorrencias', autor: 'autor', fotos: ['fotos', 'json'],
+      /* ocorrência como pendência — exige a migração 0015 (bloco A) aplicada */
+      ocorrenciaStatus: 'ocorrencia_status', ocorrenciaResponsavel: 'ocorrencia_responsavel',
+      ocorrenciaPrazo: ['ocorrencia_prazo', 'data'], ocorrenciaMaterialId: ['ocorrencia_material_id', 'ref'],
+      ocorrenciaResolvidaEm: ['ocorrencia_resolvida_em', 'data']
+    }
+  },
+  {
+    /* Tratamento de alerta (0015). `opcional`: se a tabela ainda não existe
+       no banco, a carga segue sem ela, o recurso fica indisponível
+       (SUPA.tabelaDisponivel) e a sincronização não tenta gravá-la. */
+    nome: 'alertas_tratamento', colecao: 'tratamentos', opcional: true,
+    novo: () => novoTratamento(),
+    campos: {
+      chave: 'chave', status: 'status', responsavel: 'responsavel',
+      adiarAte: ['adiar_ate', 'data'], nota: 'nota',
+      sevMarcada: ['sev_marcada', 'num'], valorMarcado: ['valor_marcado', 'num'],
+      dataMarcacao: ['data_marcacao', 'data']
     }
   }
 ];
+
+/* Erro de "tabela não existe" — PostgREST devolve PGRST205 (ou 42P01 do
+   Postgres) quando a migração ainda não foi aplicada. */
+const tabelaInexistente = (error) =>
+  !!error && (error.code === 'PGRST205' || error.code === '42P01' ||
+    /could not find the table|does not exist/i.test(error.message || ''));
 
 const pegar = (obj, caminho) =>
   caminho.split('.').reduce((o, k) => (o === null || o === undefined ? undefined : o[k]), obj);
@@ -233,6 +256,13 @@ const SUPA = {
   bloqueado: false,
   abas: {},          // { "<aba>": false } = abas bloqueadas para este usuário
   limiteObras: null, // null = sem limite; número = teto de obras da conta
+  indisponiveis: new Set(), // tabelas `opcional` que ainda não existem no banco
+
+  /* Recurso que depende de tabela opcional (migração ainda não aplicada).
+     Sem banco (modo local), tudo está disponível: grava no navegador. */
+  tabelaDisponivel(nome) {
+    return !this.indisponiveis.has(nome);
+  },
 
   lerConfig() {
     let cfg = { ...SUPABASE_PADRAO };
@@ -523,8 +553,15 @@ const SUPA = {
   /* ------------------------------------------------------------ carga */
   async carregar() {
     const dados = {};
+    this.indisponiveis = new Set();
     for (const tab of TABELAS_DB) {
       const { data, error } = await this.sb.from(tab.nome).select('*').limit(10000);
+      if (error && tab.opcional && tabelaInexistente(error)) {
+        console.warn(`Tabela ${tab.nome} ainda não existe no banco — recurso desligado até aplicar a migração.`);
+        this.indisponiveis.add(tab.nome);
+        dados[tab.nome] = [];
+        continue;
+      }
       if (error) throw error;
       dados[tab.nome] = data || [];
     }
@@ -578,7 +615,9 @@ const SUPA = {
   /* ------------------------------------------------------- gravação */
   async sincronizar(anterior, atual) {
     const mapasA = new Map(), mapasB = new Map();
-    TABELAS_DB.forEach((t) => {
+    /* tabela opcional que não existe no banco fica fora da gravação */
+    const tabelas = TABELAS_DB.filter((t) => !this.indisponiveis.has(t.nome));
+    tabelas.forEach((t) => {
       mapasA.set(t.nome, linhasDoEstado(anterior, t));
       mapasB.set(t.nome, linhasDoEstado(atual, t));
     });
@@ -586,7 +625,7 @@ const SUPA = {
     let enviadas = 0, removidas = 0;
 
     /* inserções e alterações, respeitando as dependências */
-    for (const t of TABELAS_DB) {
+    for (const t of tabelas) {
       const antes = mapasA.get(t.nome), agora = mapasB.get(t.nome);
       const alteradas = [];
       agora.forEach((linha, id) => {
@@ -602,7 +641,7 @@ const SUPA = {
     }
 
     /* exclusões na ordem inversa (filhos antes dos pais) */
-    for (const t of [...TABELAS_DB].reverse()) {
+    for (const t of [...tabelas].reverse()) {
       const antes = mapasA.get(t.nome), agora = mapasB.get(t.nome);
       const ids = [...antes.keys()].filter((id) => !agora.has(id));
       for (let i = 0; i < ids.length; i += 400) {

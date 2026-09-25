@@ -1,7 +1,7 @@
 /**
  * calculos.js — Regras de negócio: todo cálculo do sistema vive aqui, sem tocar em DOM.
  */
-import { addMeses, capitalizarNome, competencia, diasEntre, fimDoMes, fmtData, fmtMoney, fmtNum, fmtPct, hojeISO, inicioDoMes, isISO, norm, num, round2, SITUACOES_MANUAIS_CONTRATO } from '../nucleo/base.js';
+import { addMeses, capitalizarNome, competencia, diasEntre, fimDoMes, fmtData, fmtMoney, fmtNum, fmtPct, hojeISO, inicioDoMes, isISO, norm, novoTratamento, num, round2, SITUACOES_MANUAIS_CONTRATO } from '../nucleo/base.js';
 
 /* ------------------------------------------------------ CONTRATOS  */
 /* Planilha: K = SE(valor informado > 0; valor informado; qtd × preço) */
@@ -583,21 +583,23 @@ function curvaS(obra) {
 function alertasObra(obra) {
   const out = [];
   const hoje = hojeISO();
-  const add = (sev, modulo, titulo, detalhe, acao, ref, extra = {}) =>
+  /* tipo: nome estável do alerta (o título muda todo dia — "há 40 dias",
+     "há 41 dias"); com o id do registro forma a chave do tratamento. */
+  const add = (tipo, sev, modulo, titulo, detalhe, acao, ref, extra = {}) =>
     out.push({
-      sev, modulo, titulo, detalhe, acao, ref, obraId: obra.id, obraNome: obra.nome,
+      tipo, sev, modulo, titulo, detalhe, acao, ref, obraId: obra.id, obraNome: obra.nome,
       valor: 0, dias: 0, raiz: '', principal: false, ...extra
     });
 
   /* Contratos */
   basesContratuais(obra).forEach((b) => {
     if (b.saldo < -0.005) {
-      add(3, 'Contratos', `Contrato ${b.base} ultrapassado`,
+      add('contrato-ultrapassado', 3, 'Contratos', `Contrato ${b.base} ultrapassado`,
         `Pago ${fmtMoney(b.pago)} contra ${fmtMoney(b.autorizado)} autorizados.`,
         'Emitir aditivo ou revisar medições.', { view: 'contratos', id: b.base }, { valor: -b.saldo });
     }
     if (b.medido - b.autorizado > 0.005) {
-      add(2, 'Contratos', `Medições acima do contrato ${b.base}`,
+      add('contrato-medido-acima', 2, 'Contratos', `Medições acima do contrato ${b.base}`,
         `Medido ${fmtMoney(b.medido)} para um autorizado de ${fmtMoney(b.autorizado)}.`,
         'Conferir escopo medido ou formalizar aditivo.', { view: 'contratos', id: b.base },
         { valor: b.medido - b.autorizado });
@@ -608,12 +610,12 @@ function alertasObra(obra) {
   obra.medicoes.forEach((m) => {
     const alerta = medicaoAlerta(obra, m);
     if (alerta === 'PAGO ACIMA DA MEDIÇÃO') {
-      add(3, 'Medições', `Pagamento acima da medição ${m.numero || ''}`.trim(),
+      add('medicao-pago-acima', 3, 'Medições', `Pagamento acima da medição ${m.numero || ''}`.trim(),
         `Pago ${fmtMoney(m.valorPago)} para um líquido medido de ${fmtMoney(medicaoLiquido(m))}.`,
         'Corrigir o valor pago ou a medição.', { view: 'medicoes', id: m.id },
         { valor: num(m.valorPago) - medicaoLiquido(m) });
     } else if (alerta === 'PAGAMENTO INCOMPLETO') {
-      add(2, 'Medições', `Medição ${m.numero || ''} marcada como paga sem quitação`.trim(),
+      add('medicao-incompleta', 2, 'Medições', `Medição ${m.numero || ''} marcada como paga sem quitação`.trim(),
         `Falta ${fmtMoney(medicaoAPagar(obra, m))}.`,
         'Ajustar status para Parcial ou completar o pagamento.', { view: 'medicoes', id: m.id },
         { valor: medicaoAPagar(obra, m) });
@@ -621,7 +623,7 @@ function alertasObra(obra) {
     const pendente = medicaoAPagar(obra, m);
     if (pendente > 0.005 && isISO(m.data) && diasEntre(m.data, hoje) > 15) {
       const dias = diasEntre(m.data, hoje);
-      add(dias > 60 ? 3 : 2, 'Medições', `Medição ${m.numero || ''}${m.contratoBase ? ` do ${m.contratoBase}` : ''} em aberto há ${dias} dias`.replace(/\s+/g, ' '),
+      add('medicao-aberta', dias > 60 ? 3 : 2, 'Medições', `Medição ${m.numero || ''}${m.contratoBase ? ` do ${m.contratoBase}` : ''} em aberto há ${dias} dias`.replace(/\s+/g, ' '),
         `Saldo a pagar de ${fmtMoney(pendente)} para ${m.contratoBase || 'contrato não informado'}.`,
         'Programar o pagamento do prestador.', { view: 'medicoes', id: m.id }, { valor: pendente, dias });
     }
@@ -641,7 +643,7 @@ function alertasObra(obra) {
     const raiz = financiador ? 'financiamento' : 'cliente';
     if (isISO(r.dataPrevista) && r.dataPrevista < hoje) {
       const dias = diasEntre(r.dataPrevista, hoje);
-      add(dias > 15 ? 3 : 2, 'Recebimentos', `Parcela ${r.numeroMedicao || r.etapaPci || ''} sem crédito há ${dias} dias`.replace(/\s+/g, ' '),
+      add('parcela-atrasada', dias > 15 ? 3 : 2, 'Recebimentos', `Parcela ${r.numeroMedicao || r.etapaPci || ''} sem crédito há ${dias} dias`.replace(/\s+/g, ' '),
         `Previsto ${fmtMoney(r.valorPrevisto)} para ${fmtData(r.dataPrevista)}${solicitado ? ` · solicitada em ${fmtData(r.dataSolicitacao)}, ${diasSolic} dias sem retorno` : ' · ainda não solicitada'}.`,
         !financiador
           ? 'Cobrar o cliente ou combinar nova data.'
@@ -650,7 +652,7 @@ function alertasObra(obra) {
             : 'Solicitar a parcela ou revisar a data prevista.',
         { view: 'recebimentos', id: r.id }, { valor, dias, raiz, principal: true });
     } else if (solicitado && diasSolic > 20) {
-      add(2, 'Recebimentos', `Parcela ${r.numeroMedicao || r.etapaPci || ''} solicitada sem retorno`.replace(/\s+/g, ' '),
+      add('parcela-sem-retorno', 2, 'Recebimentos', `Parcela ${r.numeroMedicao || r.etapaPci || ''} solicitada sem retorno`.replace(/\s+/g, ' '),
         `Solicitada em ${fmtData(r.dataSolicitacao)} (${diasSolic} dias).`,
         'Acionar o engenheiro do financiador.', { view: 'recebimentos', id: r.id },
         { valor, dias: diasSolic, raiz, principal: true });
@@ -662,7 +664,7 @@ function alertasObra(obra) {
     const c = materialCalc(obra, m);
     if (c.vencido) {
       /* material que para uma etapa em andamento é crítico; o resto, atenção */
-      add(c.travaFrente ? 3 : 2, 'Materiais',
+      add('material-vencido', c.travaFrente ? 3 : 2, 'Materiais',
         c.travaFrente ? `${m.material || 'Material'} travando ${m.etapa}` : `${m.material || 'Material'} vencido sem compra`,
         `Faltam ${fmtNum(c.saldo, 2)} ${m.unidade} desde ${fmtData(m.dataNecessaria)} (${fmtMoney(c.saldoValor)})${c.travaFrente ? ` — ${m.etapa} está em andamento` : ''}.`,
         c.travaFrente ? 'Comprar hoje: a frente de serviço depende dele.' : 'Comprar ou reprogramar a data.',
@@ -671,7 +673,7 @@ function alertasObra(obra) {
           raiz: c.travaFrente ? `etapa:${norm(m.etapa)}` : '', principal: c.travaFrente });
     } else if (c.saldo > 0 && !c.etapaConcluida && isISO(m.dataNecessaria) && m.dataNecessaria >= hoje &&
       diasEntre(hoje, m.dataNecessaria) <= 7 && m.status !== 'Cancelado') {
-      add(1, 'Materiais', `${m.material || 'Material'} necessário em ${diasEntre(hoje, m.dataNecessaria)} dia(s)`,
+      add('material-proximo', 1, 'Materiais', `${m.material || 'Material'} necessário em ${diasEntre(hoje, m.dataNecessaria)} dia(s)`,
         `Saldo de ${fmtNum(c.saldo, 2)} ${m.unidade} para ${m.etapa || 'etapa não informada'}.`,
         'Programar a compra.', { view: 'materiais', id: m.id });
     }
@@ -684,22 +686,51 @@ function alertasObra(obra) {
        responsável que tem várias etapas atrasadas */
     const raizEtapa = { raiz: `etapa:${norm(e.etapa)}`, responsavel: e.responsavel || '' };
     if (c.situacao === 'ATRASADO') {
-      add(c.atraso > 30 ? 3 : 2, 'Cronograma', `${e.etapa} atrasada em ${c.atraso} dia(s)`,
+      add('etapa-atrasada', c.atraso > 30 ? 3 : 2, 'Cronograma', `${e.etapa} atrasada em ${c.atraso} dia(s)`,
         `Progresso de ${fmtPct(c.progresso, 0)} — fim previsto era ${fmtData(e.fimPrevisto)}.`,
         'Atualizar progresso ou replanejar a etapa.', { view: 'cronograma', id: e.id },
         { dias: c.atraso, ...raizEtapa });
     } else if (c.atrasoInicio > 0) {
-      add(2, 'Cronograma', `${e.etapa} não começou — início previsto há ${c.atrasoInicio} dia(s)`,
+      add('etapa-inicio-atrasado', 2, 'Cronograma', `${e.etapa} não começou — início previsto há ${c.atrasoInicio} dia(s)`,
         `Início previsto em ${fmtData(e.inicioPrevisto)}, ainda em 0%; fim previsto ${fmtData(e.fimPrevisto)}.`,
         `Cobrar o início${e.responsavel ? ` de ${e.responsavel}` : ''} ou replanejar a etapa.`, { view: 'cronograma', id: e.id },
         { dias: c.atrasoInicio, ...raizEtapa });
     }
   });
 
+  /* Diário — ocorrência aberta é pendência com dono e prazo (0015). Ligada
+     a material ou etapa, ela é causa: a etapa atrasada vira sintoma dela
+     (ou do material que falta, se ele também estiver travando a frente). */
+  const materialPorId = new Map(obra.materiais.map((m) => [m.id, m]));
+  (obra.diario || []).forEach((d) => {
+    if (d.ocorrenciaStatus !== 'aberta' || !String(d.ocorrencias || '').trim()) return;
+    const dias = isISO(d.data) ? Math.max(0, diasEntre(d.data, hoje)) : 0;
+    const prazo = d.ocorrenciaPrazo;
+    const vencida = isISO(prazo) && prazo < hoje;
+    const mat = d.ocorrenciaMaterialId ? materialPorId.get(d.ocorrenciaMaterialId) : null;
+    const etapa = (mat && mat.etapa) || d.etapa || '';
+    const resp = String(d.ocorrenciaResponsavel || '').trim();
+    const texto = String(d.ocorrencias).trim().replace(/\s+/g, ' ');
+    add('ocorrencia', vencida || dias > 7 ? 3 : 2, 'Diário',
+      `Ocorrência aberta: ${texto.length > 70 ? texto.slice(0, 69) + '…' : texto}`,
+      [
+        `Registrada em ${fmtData(d.data)} (${dias} dia(s))`,
+        etapa ? `etapa ${etapa}` : '',
+        mat ? `material ${mat.material}` : '',
+        resp ? `com ${resp}` : 'sem responsável',
+        isISO(prazo) ? `prazo ${fmtData(prazo)}${vencida ? ' — vencido' : ''}` : '',
+      ].filter(Boolean).join(' · ') + '.',
+      mat
+        ? `Comprar ${mat.material} e marcar a ocorrência como resolvida.`
+        : `Resolver${resp ? ` com ${resp}` : ''} e marcar a ocorrência como resolvida no diário.`,
+      { view: 'diario', id: d.id },
+      { dias, raiz: etapa ? `etapa:${norm(etapa)}` : '', principal: !!etapa, responsavel: resp });
+  });
+
   /* Financeiro */
   const k = kpisObra(obra);
   if (k.saldoCaixa < 0) {
-    add(3, 'Financeiro', 'Caixa da obra negativo',
+    add('caixa-negativo', 3, 'Financeiro', 'Caixa da obra negativo',
       `Saldo de ${fmtMoney(k.saldoCaixa)} considerando entradas e saídas lançadas.`,
       'Antecipar recebimento ou aportar recursos.', { view: 'fluxo' },
       { valor: -k.saldoCaixa, raiz: 'financiamento' });
@@ -707,18 +738,18 @@ function alertasObra(obra) {
   /* Informativo: o teto é referência de orçamento, não problema de hoje.
      Compara só custo físico — comissão, honorário, taxa e terreno ficam fora. */
   if (num(obra.fin.custoFisicoMaxM2) > 0 && k.custoFisicoPrevistoM2 > num(obra.fin.custoFisicoMaxM2)) {
-    add(1, 'Financeiro', 'Custo físico por m² acima do teto',
+    add('custo-m2', 1, 'Financeiro', 'Custo físico por m² acima do teto',
       `Previsto ${fmtMoney(k.custoFisicoPrevistoM2)}/m² de obra física contra o teto de ${fmtMoney(obra.fin.custoFisicoMaxM2)}/m².`,
       'Conferir o teto com o CUB da região e revisar escopo e compras.', { view: 'obra-config' });
   }
   if (k.margem !== null && k.margem < num(obra.fin.margemDesejada)) {
-    add(2, 'Financeiro', 'Margem abaixo da desejada',
+    add('margem', 2, 'Financeiro', 'Margem abaixo da desejada',
       `Projetada ${fmtPct(k.margem)} contra ${fmtPct(obra.fin.margemDesejada)} desejados.`,
       'Rever custos previstos ou o valor de venda.', { view: 'painel' },
       { valor: Math.max(0, (num(obra.fin.margemDesejada) - k.margem) * k.venda) });
   }
   if (k.etapasTotal > 0 && k.desvioFisicoFinanceiro < -0.1) {
-    add(2, 'Produção', 'Desembolso à frente do avanço físico',
+    add('desembolso', 2, 'Produção', 'Desembolso à frente do avanço físico',
       `Físico ${fmtPct(k.progressoFisico, 0)} contra ${fmtPct(k.progressoFinanceiro, 0)} financeiro.`,
       'Conferir adiantamentos e compras antecipadas.', { view: 'curva' },
       { valor: (k.progressoFinanceiro - k.progressoFisico) * k.custoPrevisto });
@@ -734,7 +765,7 @@ function alertasObra(obra) {
   chave.forEach((ls) => {
     if (ls.length > 1 && lancamentoTotal(ls[0]) > 0) {
       /* pagar duas vezes é dinheiro saindo: atenção, não informativo */
-      add(2, 'Lançamentos', 'Possível lançamento duplicado',
+      add('duplicado', 2, 'Lançamentos', 'Possível lançamento duplicado',
         `${ls.length} lançamentos iguais de ${fmtMoney(lancamentoTotal(ls[0]))} em ${fmtData(ls[0].data)} (${ls[0].fornecedor || 'sem fornecedor'}).`,
         'Conferir e excluir o repetido.', { view: 'lancamentos', id: ls[0].id },
         { valor: lancamentoTotal(ls[0]) * (ls.length - 1), ids: ls.map((l) => l.id) });
@@ -743,17 +774,69 @@ function alertasObra(obra) {
 
   /* Cadastro incompleto */
   if (!obra.cronograma.length) {
-    add(1, 'Cronograma', 'Obra sem cronograma',
+    add('sem-cronograma', 1, 'Cronograma', 'Obra sem cronograma',
       'Sem etapas cadastradas não há curva S nem controle de prazo.',
       'Gerar o cronograma padrão.', { view: 'cronograma' });
   }
   if (!obra.contratos.length) {
-    add(1, 'Contratos', 'Obra sem contrato cadastrado',
+    add('sem-contrato', 1, 'Contratos', 'Obra sem contrato cadastrado',
       'O controle de saldo contratual depende do contrato principal.',
       'Cadastrar a empreitada principal.', { view: 'contratos' });
   }
 
+  /* Tratamento (0015): cada alerta ganha a chave, o tratamento gravado e
+     se está silenciado (adiado no prazo, ou resolvido sem piorar). */
+  const tratamentos = new Map((obra.tratamentos || []).map((t) => [t.chave, t]));
+  out.forEach((a) => {
+    a.chave = chaveAlerta(a);
+    a.tratamento = tratamentos.get(a.chave) || null;
+    const st = situacaoTratamento(a.tratamento, a, hoje);
+    a.silenciado = st.silenciado;
+    a.reaberto = st.reaberto;
+  });
+
   return out.sort((a, b) => b.sev - a.sev || a.modulo.localeCompare(b.modulo));
+}
+
+/* Chave estável de um alerta: tipo + registro. Não usa o título, que muda
+   com os dias. Alerta sem registro (caixa, margem) fica só com o tipo. */
+function chaveAlerta(a) {
+  return `${a.tipo}:${(a.ref && a.ref.id) || ''}`;
+}
+
+/* O que o tratamento gravado faz com o alerta de hoje:
+   - piorou (gravidade subiu, ou valor subiu mais de 10%): reabre, qualquer
+     que seja o status — quem marcou "resolvido" com R$ 1.000 em jogo não
+     decidiu sobre R$ 5.000;
+   - adiado: silencia até a data; depois reabre sozinho;
+   - resolvido: silencia enquanto não piorar;
+   - em tratamento: continua contando — só mostra quem está cuidando. */
+function situacaoTratamento(t, a, hoje = hojeISO()) {
+  if (!t) return { silenciado: false, reaberto: '' };
+  if (a.sev > num(t.sevMarcada)) return { silenciado: false, reaberto: 'ficou mais grave desde a marcação' };
+  if (num(a.valor) > num(t.valorMarcado) * 1.1 + 0.5) return { silenciado: false, reaberto: 'o valor em jogo subiu desde a marcação' };
+  if (t.status === 'adiado') {
+    return isISO(t.adiarAte) && t.adiarAte >= hoje
+      ? { silenciado: true, reaberto: '' }
+      : { silenciado: false, reaberto: 'o adiamento venceu' };
+  }
+  if (t.status === 'resolvido') return { silenciado: true, reaberto: '' };
+  return { silenciado: false, reaberto: '' };
+}
+
+/* Tratamento novo (ou atualizado) para um alerta: grava a gravidade e o
+   valor de agora, que são a régua do "piorou". */
+function tratamentoDoAlerta(obra, a, campos = {}, hoje = hojeISO()) {
+  const atual = (obra.tratamentos || []).find((t) => t.chave === a.chave);
+  return {
+    ...novoTratamento(obra.id, a.chave),
+    ...(atual || {}),
+    ...campos,
+    chave: a.chave,
+    sevMarcada: a.sev,
+    valorMarcado: round2(Math.max(0, num(a.valor))),
+    dataMarcacao: hoje
+  };
 }
 
 /* ------------------------------------------------- CARTEIRA (todas) */
@@ -925,7 +1008,8 @@ const TIPO_PENDENCIA = {
   Contratos: 'contrato', 'Medições': 'contrato',
   Cronograma: 'prazo',
   Materiais: 'material',
-  Recebimentos: 'financeiro', Financeiro: 'financeiro', 'Produção': 'financeiro', 'Lançamentos': 'financeiro'
+  Recebimentos: 'financeiro', Financeiro: 'financeiro', 'Produção': 'financeiro', 'Lançamentos': 'financeiro',
+  'Diário': 'prazo'
 };
 
 /* Pendência = alerta que pede ação: severidade 2 (atenção) ou 3 (crítico).
@@ -934,7 +1018,9 @@ const TIPO_PENDENCIA = {
    carteira porque cada lugar contava um recorte diferente. */
 function pendenciasObra(obra) {
   const todos = alertasObra(obra);
-  const itens = todos
+  /* adiado no prazo ou resolvido sem piorar não é pendência (0015) */
+  const vivos = todos.filter((a) => !a.silenciado);
+  const itens = vivos
     .filter((a) => a.sev >= 2)
     .map((a) => ({ ...a, tipo: TIPO_PENDENCIA[a.modulo] || 'financeiro' }))
     .sort((a, b) => b.sev - a.sev);
@@ -949,7 +1035,8 @@ function pendenciasObra(obra) {
     total: itens.length,
     criticas: itens.filter((a) => a.sev === 3).length,
     atencao: itens.filter((a) => a.sev === 2).length,
-    avisos: todos.length - itens.length,
+    avisos: vivos.length - itens.length,
+    tratados: todos.length - vivos.length,
     porTipo, porView, itens
   };
 }
@@ -969,7 +1056,7 @@ function pendenciasObra(obra) {
    A contagem do menu continua a de pendenciasObra — isto só organiza.
    ===================================================================== */
 function causasRaizObra(obra) {
-  const itens = alertasObra(obra).filter((a) => a.sev >= 2);
+  const itens = alertasObra(obra).filter((a) => a.sev >= 2 && !a.silenciado);
   const comCausa = new Set(itens.filter((a) => a.principal && a.raiz).map((a) => a.raiz));
   const porResp = new Map();
   itens.forEach((a) => {
@@ -1141,6 +1228,10 @@ function diarioIndicadores(obra, hoje = hojeISO()) {
     diasImpraticaveis: impraticaveis.length,
     datasImpraticaveis: impraticaveis.sort(),
     comFoto: registros.filter((d) => d.fotos && d.fotos.length).length,
+    ocorrenciasAbertas: registros.filter((d) => d.ocorrenciaStatus === 'aberta').length,
+    ocorrenciasVencidas: registros.filter((d) => d.ocorrenciaStatus === 'aberta' &&
+      isISO(d.ocorrenciaPrazo) && d.ocorrenciaPrazo < hoje).length,
+    ocorrenciasResolvidas: registros.filter((d) => d.ocorrenciaStatus === 'resolvida').length,
     semRegistroHa: ultimo ? diasEntre(ultimo, hoje) : null,
     ultimo
   };
@@ -1738,6 +1829,9 @@ export {
   custoCarteira,
   pendenciasObra,
   medicoesComPendencia,
+  chaveAlerta,
+  situacaoTratamento,
+  tratamentoDoAlerta,
   causasRaizObra,
   historiaObra,
   historiaCarteira,

@@ -245,3 +245,46 @@ a {
 .alerta.causa .causa-sintomas li.s2::marker {
   color: var(--aviso);
 }
+
+/* Tratamento de alerta (0015): a linha de decisão e os dois botões. */
+.alerta .alerta-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e1);
+  justify-content: flex-end;
+  align-self: flex-start;
+}
+.alerta .trat {
+  display: block;
+  margin-top: var(--e1);
+  font-size: var(--t-peq);
+  color: var(--tinta2);
+}
+.alerta .trat.andamento {
+  color: var(--acento-texto);
+}
+.alerta .trat.reaberto {
+  color: var(--atraso);
+}
+.alerta.silenciado {
+  opacity: 0.7;
+}
+details.tratados {
+  margin-top: var(--e6);
+}
+details.tratados > summary {
+  cursor: pointer;
+  width: fit-content;
+  margin-bottom: var(--e2);
+  font-size: var(--t-corpo);
+}
+
+/* Ocorrência do diário como pendência (0015) */
+.pendencia-diario {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e2);
+  font-size: var(--t-peq);
+  font-weight: var(--p-medio);
+}

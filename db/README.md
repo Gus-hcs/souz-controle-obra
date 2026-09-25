@@ -18,7 +18,8 @@ já calculados para o Power BI.
 | `materiais` | plano de compras |
 | `lancamentos` | compras, taxas e demais saídas |
 | `cronograma` | etapas, prazos e avanço físico |
-| `diario` | diário de obra e fotos |
+| `diario` | diário de obra e fotos; a ocorrência pode virar pendência (status, responsável, prazo, material) |
+| `alertas_tratamento` | a decisão sobre cada alerta calculado: em tratamento, adiado até, resolvido — com responsável e nota |
 | `auditoria` | trilha de alterações de valor financeiro, preenchida por gatilho |
 
 Visões para análise: `vw_contratos`, `vw_posicao_contratual`, `vw_lancamentos`,
@@ -94,6 +95,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0012_prestador_cidade.sql` | coluna `cidade` no prestador (texto livre, opcional) e `CHECK` de até 60 caracteres |
 | `0013_contratos_situacao_e_aditivos.sql` | aditivo com tipo/status/motivo/aprovação/novo prazo; contrato com condição de pagamento, retenção, forma de preço, data de encerramento e documento (Storage); situação manual (só Paralisado/Rescindido) — o resto a tela calcula; CHECKs |
 | `0014_convite_por_email.sql` | `convidar_membro()` e `membros_da_obra()` — convite de engenheiro/cliente por e-mail e listagem da equipe com e-mail (funções `security definer`, sem tabela nova) |
+| `0015_tratamento_alertas_e_ocorrencias.sql` | tabela `alertas_tratamento` (status, responsável, adiar até, nota) com RLS por obra; colunas de ocorrência como pendência em `diario`; CHECKs |
 
 ### 0008 — logos
 
@@ -164,6 +166,29 @@ autorização é checada dentro de cada função:
 
 Depois de aplicar, a tela **Configuração da obra** ganha a seção "Equipe"
 (dono only): lista os membros, convida por e-mail e remove.
+
+### 0015 — tratamento de alerta e ocorrência como pendência
+
+Blocos A (tabela nova com RLS e colunas novas no diário), B (diagnóstico —
+volta vazio), C (`CHECK not valid` no diário) e D (valida). A tabela nova
+nasce vazia, então as restrições dela entram já validadas no `create table`.
+
+Os alertas continuam **calculados pelo app** (`alertasObra`,
+`src/dominio/calculos.js`); `alertas_tratamento` guarda só a decisão sobre
+cada um, pela `chave` (tipo + registro, ex. `etapa-atrasada:cr_x1`). O id da
+linha é determinístico (`trat:<obra>:<chave>`) e há índice único
+`(obra_id, chave)`: no máximo um tratamento por alerta. Adiado no prazo ou
+resolvido sai da contagem de pendências; o app reabre sozinho se o alerta
+ficar mais grave, se o valor em jogo subir mais de 10% ou se o adiamento
+vencer.
+
+**O app tolera `alertas_tratamento` ainda não existir**: a carga segue sem
+ela e o botão "Tratar" some (`SUPA.tabelaDisponivel`). As **colunas novas do
+diário não**: o código que grava `ocorrencia_*` só pode ir ao ar depois do
+bloco A, como nas migrações anteriores.
+
+Registro de diário antigo nasce com `ocorrencia_status` nulo — só registro,
+não vira pendência de repente.
 
 ### 0002 — como aplicar
 

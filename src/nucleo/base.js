@@ -241,6 +241,18 @@ const TIPOS_ADITIVO = [
   { v: 'supressao', t: 'Supressão' },
   { v: 'prazo', t: 'Prazo' }
 ];
+/* Tratamento de alerta (migração 0015). "Novo" é a ausência de tratamento;
+   só estes três ficam gravados. Batem com o CHECK chk_trat_status. */
+const STATUS_TRATAMENTO = [
+  { v: 'em_tratamento', t: 'Em tratamento' },
+  { v: 'adiado', t: 'Adiado' },
+  { v: 'resolvido', t: 'Resolvido' }
+];
+/* Ocorrência do diário como pendência (0015). Vazio = só registro. */
+const STATUS_OCORRENCIA = [
+  { v: 'aberta', t: 'Aberta' },
+  { v: 'resolvida', t: 'Resolvida' }
+];
 const STATUS_ADITIVO = [
   { v: 'proposto', t: 'Proposto' },
   { v: 'aprovado', t: 'Aprovado' },
@@ -296,6 +308,7 @@ const novaObra = (nome = 'Nova obra') => ({
   materiais: [],
   cronograma: [],
   diario: [],
+  tratamentos: [],
   criadaEm: hojeISO()
 });
 
@@ -352,7 +365,19 @@ const novaEtapaCronograma = (etapa = '') => ({
 
 const novoDiario = () => ({
   id: uid('dia'), data: hojeISO(), clima: 'Bom', efetivo: 0, etapa: '',
-  atividades: '', ocorrencias: '', autor: '', fotos: []
+  atividades: '', ocorrencias: '', autor: '', fotos: [],
+  /* ocorrência como pendência (0015): vazio = só registro */
+  ocorrenciaStatus: '', ocorrenciaResponsavel: '', ocorrenciaPrazo: '',
+  ocorrenciaMaterialId: '', ocorrenciaResolvidaEm: ''
+});
+
+/* Tratamento de um alerta (0015). O id é determinístico — uma obra tem no
+   máximo um tratamento por alerta, e "reabrir e tratar de novo" antes da
+   sincronização vira UPDATE da mesma linha, não DELETE + INSERT. */
+const idTratamento = (obraId, chave) => `trat:${obraId}:${chave}`;
+const novoTratamento = (obraId = '', chave = '') => ({
+  id: idTratamento(obraId, chave), chave, status: 'em_tratamento', responsavel: '',
+  adiarAte: '', nota: '', sevMarcada: 2, valorMarcado: 0, dataMarcacao: hojeISO()
 });
 
 const novoCliente = () => ({
@@ -410,10 +435,16 @@ function migrar(s) {
     const nova = novaObra();
     const obra = Object.assign(nova, o);
     obra.fin = Object.assign(nova.fin, o.fin || {});
-    for (const k of ['contratos', 'medicoes', 'recebimentos', 'lancamentos', 'materiais', 'cronograma', 'diario']) {
+    for (const k of ['contratos', 'medicoes', 'recebimentos', 'lancamentos', 'materiais', 'cronograma', 'diario', 'tratamentos']) {
       obra[k] = Array.isArray(o[k]) ? o[k] : [];
     }
-    obra.diario.forEach((d) => { if (!Array.isArray(d.fotos)) d.fotos = []; });
+    obra.diario.forEach((d) => {
+      if (!Array.isArray(d.fotos)) d.fotos = [];
+      for (const k of ['ocorrenciaStatus', 'ocorrenciaResponsavel', 'ocorrenciaPrazo', 'ocorrenciaMaterialId', 'ocorrenciaResolvidaEm']) {
+        if (d[k] == null) d[k] = '';
+      }
+    });
+    obra.tratamentos = obra.tratamentos.map((t) => Object.assign(novoTratamento(obra.id, t.chave || ''), t));
     /* vínculo com o cadastro de prestador — antes era só o nome digitado */
     obra.contratos.forEach((c) => { if (c.prestadorId == null) c.prestadorId = ''; });
     obra.lancamentos.forEach((l) => { if (l.prestadorId == null) l.prestadorId = ''; });
@@ -461,6 +492,10 @@ export {
   FORMAS_CONTRATACAO,
   TIPOS_ADITIVO,
   STATUS_ADITIVO,
+  STATUS_TRATAMENTO,
+  STATUS_OCORRENCIA,
+  novoTratamento,
+  idTratamento,
   CONDICOES_PAGAMENTO,
   FORMAS_PRECO,
   SITUACOES_MANUAIS_CONTRATO,

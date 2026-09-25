@@ -16,6 +16,7 @@ import {
   fmtNum,
   fmtPct,
   hojeISO,
+  isISO,
   norm,
   num,
 } from '../../nucleo/base.js';
@@ -34,7 +35,7 @@ import {
   vazioTela,
 } from './componentes.js';
 
-function kpisDiario(ind, totFotos, comOcorrencia) {
+function kpisDiario(ind, totFotos) {
   const item = (chave, rotulo, valor, contexto, tom = '', filtravel = false) => {
     const ativo = filtravel && App.filtros.kpiDiario === chave;
     return `<div class="kpi-item${ativo ? ' ativo' : ''}"${filtravel ? ` data-acao="diario-kpi" data-kpi="${chave}" role="button" tabindex="0" aria-pressed="${ativo}" title="Filtrar a lista"` : ''}>
@@ -71,10 +72,14 @@ function kpisDiario(ind, totFotos, comOcorrencia) {
     ${item('foto', 'Com foto', totFotos, `${ind.comFoto} de ${ind.registros} registro${ind.registros === 1 ? '' : 's'}`, '', true)}
     ${item(
       'ocorrencia',
-      'Com ocorrência',
-      comOcorrencia.length,
-      comOcorrencia.length ? 'confira antes de fechar a semana' : 'nada registrado',
-      comOcorrencia.length ? 'atraso' : '',
+      'Ocorrências abertas',
+      ind.ocorrenciasAbertas,
+      ind.ocorrenciasVencidas
+        ? `${ind.ocorrenciasVencidas} com prazo vencido`
+        : ind.ocorrenciasResolvidas
+          ? `${ind.ocorrenciasResolvidas} resolvida${ind.ocorrenciasResolvidas === 1 ? '' : 's'}`
+          : 'nenhuma pendência',
+      ind.ocorrenciasVencidas ? 'atraso' : ind.ocorrenciasAbertas ? 'tom-alerta' : '',
       true,
     )}
   </div>`;
@@ -137,6 +142,23 @@ ACOES['whatsapp-diario'] = async (el, d) => {
 };
 
 /* --------------------------------------------------------------- cartão */
+/* Ocorrência como pendência (0015): quem, até quando, e o botão de
+   resolver sem abrir o formulário. */
+function linhaPendencia(d) {
+  if (d.ocorrenciaStatus === 'resolvida') {
+    return `<span class="pendencia-diario feito">Resolvida${isISO(d.ocorrenciaResolvidaEm) ? ` em ${esc(fmtData(d.ocorrenciaResolvidaEm))}` : ''}</span>`;
+  }
+  if (d.ocorrenciaStatus !== 'aberta') return '';
+  const vencida = isISO(d.ocorrenciaPrazo) && d.ocorrenciaPrazo < hojeISO();
+  const partes = [
+    'Pendência aberta',
+    d.ocorrenciaResponsavel ? `com ${esc(d.ocorrenciaResponsavel)}` : 'sem responsável',
+    isISO(d.ocorrenciaPrazo) ? `prazo ${esc(fmtData(d.ocorrenciaPrazo))}${vencida ? ' — vencido' : ''}` : '',
+  ].filter(Boolean);
+  return `<span class="pendencia-diario ${vencida ? 'atraso' : 'tom-alerta'}">${partes.join(' · ')}
+    ${Store.somenteLeitura() ? '' : botao('Marcar resolvida', 'resolver-ocorrencia', { id: d.id }, 'btn sutil pequeno')}</span>`;
+}
+
 function cartaoRegistro(d) {
   const meta = [d.clima, d.etapa || null, num(d.efetivo) ? `${fmtNum(d.efetivo, 0)} na obra` : null]
     .filter(Boolean)
@@ -162,6 +184,7 @@ function cartaoRegistro(d) {
     <div class="corpo-diario">
       ${d.atividades ? `<p style="margin:0"><b>Atividades</b> — ${esc(d.atividades)}</p>` : ''}
       ${d.ocorrencias ? `<p class="tom-alerta" style="margin:0"><b>Ocorrências</b> — ${esc(d.ocorrencias)}</p>` : ''}
+      ${linhaPendencia(d)}
       ${fotos}
       ${d.autor ? `<span class="tinta3" style="font-size:var(--t-peq)">registrado por ${esc(d.autor)}</span>` : ''}
     </div>
@@ -186,7 +209,6 @@ VIEWS.diario = () => {
   const ordenados = todos.slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
   const ind = diarioIndicadores(o);
   const totFotos = todos.reduce((s, d) => s + (d.fotos ? d.fotos.length : 0), 0);
-  const comOcorrencia = todos.filter((d) => d.ocorrencias && d.ocorrencias.trim());
   const etapasUsadas = [...new Set(todos.map((d) => d.etapa).filter(Boolean))].sort((a, b) =>
     a.localeCompare(b, 'pt'),
   );
@@ -201,8 +223,7 @@ VIEWS.diario = () => {
   if (f.situacao === 'chuva') itens = itens.filter((d) => d.clima && d.clima.includes('Chuva'));
   if (f.kpiDiario === 'foto') itens = itens.filter((d) => d.fotos && d.fotos.length);
   if (f.kpiDiario === 'impraticavel') itens = itens.filter(diaImpraticavel);
-  if (f.kpiDiario === 'ocorrencia')
-    itens = itens.filter((d) => d.ocorrencias && d.ocorrencias.trim());
+  if (f.kpiDiario === 'ocorrencia') itens = itens.filter((d) => d.ocorrenciaStatus === 'aberta');
   if (busca)
     itens = itens.filter((d) =>
       norm(`${d.atividades} ${d.ocorrencias} ${d.autor} ${d.etapa}`).includes(busca),
@@ -235,7 +256,7 @@ VIEWS.diario = () => {
             <span class="tinta2">${ind.semRegistroHa === null ? 'Nenhum registro ainda.' : `Último registro há ${ind.semRegistroHa} dia${ind.semRegistroHa === 1 ? '' : 's'}.`}</span></div>`
         : ''
     }
-    ${kpisDiario(ind, totFotos, comOcorrencia)}
+    ${kpisDiario(ind, totFotos)}
     ${barra}
     ${
       itens.length

@@ -8,7 +8,8 @@
  * obra, carteira) já foram todas migradas para ui/telas/*.js, na
  * linguagem visual nova. Este arquivo só guarda o que elas ainda importam.
  */
-import { esc, fmtMoney } from '../nucleo/base.js';
+import { esc, fmtData, fmtMoney } from '../nucleo/base.js';
+import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { App } from './shell.js';
 
@@ -31,6 +32,7 @@ const VERBO_VIEW = {
   curva: 'Ver curva S',
   painel: 'Ver painel',
   'obra-config': 'Ajustar configuração',
+  diario: 'Ver ocorrência',
 };
 function rotuloAcao(a) {
   return VERBO_VIEW[a.ref && a.ref.view] || 'Abrir';
@@ -52,17 +54,45 @@ function pesoAlerta(a) {
     .join(' · ');
 }
 
+/* Tratamento de alerta (migração 0015): só para quem escreve na obra, e só
+   se a tabela já existe no banco — sem ela, o botão some em vez de falhar. */
+function podeTratar() {
+  if (Store.somenteLeitura()) return false;
+  return Store.backend !== 'supabase' || SUPA.tabelaDisponivel('alertas_tratamento');
+}
+
+/* A linha que diz o que já se decidiu sobre o alerta. */
+function linhaTratamento(a) {
+  const t = a.tratamento;
+  if (a.reaberto) return `<span class="trat reaberto">Reaberto: ${esc(a.reaberto)}</span>`;
+  if (!t) return '';
+  const quem = t.responsavel ? ` · com ${esc(t.responsavel)}` : '';
+  const nota = t.nota ? ` · ${esc(t.nota)}` : '';
+  if (a.silenciado && t.status === 'adiado') return `<span class="trat">Adiado até ${fmtData(t.adiarAte)}${quem}${nota}</span>`;
+  if (a.silenciado) return `<span class="trat">Resolvido em ${fmtData(t.dataMarcacao)}${quem}${nota}</span>`;
+  return `<span class="trat andamento">Em tratamento${quem}${nota}</span>`;
+}
+
+/* Botões de decisão: Tratar (ou Reabrir, quando já está silenciado). */
+function botaoTratar(chaves, obraId, silenciado) {
+  if (!podeTratar() || !chaves.length) return '';
+  return silenciado
+    ? `<button class="btn sutil pequeno" data-acao="reabrir-alerta" data-obra="${esc(obraId)}" data-chaves="${esc(chaves.join('|'))}">Reabrir</button>`
+    : `<button class="btn sutil pequeno" data-acao="tratar-alerta" data-obra="${esc(obraId)}" data-chaves="${esc(chaves.join('|'))}">Tratar</button>`;
+}
+
 function alertaHTML(a, mostrarObra = false) {
   const peso = pesoAlerta(a);
-  return `<div class="alerta s${a.sev}">
+  return `<div class="alerta s${a.sev}${a.silenciado ? ' silenciado' : ''}">
     <span class="sev"></span>
     <div class="txt">
       <b>${esc(a.titulo)}</b>
       ${mostrarObra ? `<span class="chip" style="margin-left:6px">${esc(a.obraNome)}</span>` : ''}
       <p>${esc(a.detalhe)}${peso ? ` <span class="tinta3">· ${esc(peso)}</span>` : ''}</p>
       <span class="acao">→ ${esc(a.acao)}</span>
+      ${linhaTratamento(a)}
     </div>
-    ${botaoAcao(a)}
+    <div class="alerta-botoes">${botaoTratar(a.chave ? [a.chave] : [], a.obraId, a.silenciado)}${botaoAcao(a)}</div>
   </div>`;
 }
 
@@ -82,9 +112,14 @@ function causaHTML(c, mostrarObra = false) {
       ${mostrarObra ? `<span class="chip" style="margin-left:6px">${esc(c.obraNome)}</span>` : ''}
       <p>${esc(c.detalhe)}${peso ? ` <span class="tinta3">· ${esc(peso)}</span>` : ''}</p>
       <span class="acao">→ ${esc(c.acao)}</span>
+      ${linhaTratamento(c.principal)}
       ${sint}
     </div>
-    ${botaoAcao(c)}
+    <div class="alerta-botoes">${botaoTratar(
+      [c.principal, ...c.sintomas].map((a) => a.chave).filter(Boolean),
+      c.obraId,
+      false,
+    )}${botaoAcao(c)}</div>
   </div>`;
 }
 

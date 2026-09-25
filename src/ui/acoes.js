@@ -677,7 +677,14 @@ ACOES['excluir-material'] = (el, d) => {
   const o = App.obra();
   const m = o.materiais.find((x) => x.id === d.id);
   confirmar('Excluir item do plano', `Excluir "${m.material}" do plano de materiais?`, () => {
-    mutar(() => { o.materiais = o.materiais.filter((x) => x.id !== d.id); });
+    mutar(() => {
+      o.materiais = o.materiais.filter((x) => x.id !== d.id);
+      /* Quem apontava para o item perde a referência aqui também. No banco a
+         FK faz ON DELETE SET NULL; sem isto o app guardava o id órfão e a
+         próxima gravação daquele lançamento ou diário falhava na FK. */
+      o.lancamentos.forEach((l) => { if (l.materialId === d.id) l.materialId = ''; });
+      o.diario.forEach((r) => { if (r.ocorrenciaMaterialId === d.id) r.ocorrenciaMaterialId = ''; });
+    });
     toast('Item excluído.', 'aviso');
   });
 };
@@ -888,13 +895,30 @@ function formDiario(reg, novo, aoSalvar) {
       { k: 'efetivo', label: 'Pessoas na obra', tipo: 'numero', col: 3, dec: 0 },
       { k: 'etapa', label: 'Etapa', tipo: 'select', opcoes: opcoesEtapas(), col: 3 },
       { k: 'atividades', label: 'Atividades executadas', tipo: 'area', col: 12, linhas: 3 },
-      { k: 'ocorrencias', label: 'Ocorrências / pendências', tipo: 'area', col: 12, linhas: 2 },
-      { k: 'autor', label: 'Registrado por', tipo: 'texto', col: 6 }
+      { k: 'ocorrencias', label: 'Ocorrências', tipo: 'area', col: 12, linhas: 2 },
+      { k: 'autor', label: 'Registrado por', tipo: 'texto', col: 6 },
+      /* Ocorrência como pendência (0015): "Piso parou: falta rejunte" com
+         dono, prazo e o material que falta — vira alerta até resolver. */
+      { secao: 'A ocorrência precisa de ação?' },
+      {
+        k: 'ocorrenciaStatus', label: 'Situação', tipo: 'select', col: 3, placeholder: 'Não — só registro',
+        opcoes: [{ v: 'aberta', t: 'Sim — pendência aberta' }, { v: 'resolvida', t: 'Resolvida' }]
+      },
+      { k: 'ocorrenciaResponsavel', label: 'Responsável', tipo: 'texto', col: 3 },
+      { k: 'ocorrenciaPrazo', label: 'Prazo', tipo: 'data', col: 3 },
+      {
+        k: 'ocorrenciaMaterialId', label: 'Material que falta', tipo: 'select', col: 3,
+        opcoes: (App.obra() ? App.obra().materiais : []).map((m) => ({ v: m.id, t: m.material || 'sem nome' }))
+      }
     ],
     valores: reg,
     validar: (d) => validarDiario(d),
     aoSalvar: (d) => {
-      Object.assign(reg, d, { fotos: window.__fotos });
+      /* data da resolução: carimbada ao marcar "Resolvida", limpa se reabrir */
+      const resolvidaEm = d.ocorrenciaStatus === 'resolvida'
+        ? reg.ocorrenciaResolvidaEm || (isISO(d.data) && d.data > hojeISO() ? d.data : hojeISO())
+        : '';
+      Object.assign(reg, d, { fotos: window.__fotos, ocorrenciaResolvidaEm: resolvidaEm });
       fecharModal();
       aoSalvar(reg);
     }
@@ -921,6 +945,18 @@ function formDiario(reg, novo, aoSalvar) {
     render();
   });
 }
+
+/* Resolver a ocorrência sem abrir o formulário — é o gesto do canteiro. */
+ACOES['resolver-ocorrencia'] = (el, d) => {
+  const o = App.obra();
+  const r = o.diario.find((x) => x.id === d.id);
+  if (!r) return;
+  mutar(() => {
+    r.ocorrenciaStatus = 'resolvida';
+    r.ocorrenciaResolvidaEm = isISO(r.data) && r.data > hojeISO() ? r.data : hojeISO();
+  });
+  toast('Ocorrência resolvida.', 'ok');
+};
 
 ACOES['rm-foto'] = (el, d) => {
   window.__fotos.splice(Number(d.idx), 1);
