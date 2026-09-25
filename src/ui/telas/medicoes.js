@@ -18,7 +18,12 @@ import {
   num,
   round2,
 } from '../../nucleo/base.js';
-import { medicaoAPagar, medicaoAlerta, medicaoLiquido } from '../../dominio/calculos.js';
+import {
+  medicaoAPagar,
+  medicaoAlerta,
+  medicaoLiquido,
+  medicoesComPendencia,
+} from '../../dominio/calculos.js';
 import { graficoBarras } from '../../graficos/index.js';
 import { ACOES } from '../acoes.js';
 import { App, botao, opcoesLista } from '../shell.js';
@@ -109,10 +114,10 @@ VIEWS.medicoes = () => {
   const totMed = ativas.reduce((s, m) => s + medicaoLiquido(m), 0);
   const totPago = ativas.reduce((s, m) => s + num(m.valorPago), 0);
   const emAberto = ativas.filter((m) => medicaoAPagar(o, m) > 0.005);
-  const comAlerta = ativas.filter((m) => {
-    const al = medicaoAlerta(o, m);
-    return al && al !== 'OK';
-  });
+  /* Mesma regra do menu e da tela de Alertas (pendenciasObra): conta também
+     a medição em aberto há muito tempo, não só o erro de valor. */
+  const comPendencia = medicoesComPendencia(o);
+  const comAlerta = ativas.filter((m) => comPendencia.has(m.id));
 
   /* ------------------------------------------------------- filtros */
   const bases = [...new Set(o.contratos.map((c) => c.codigoBase).filter(Boolean))];
@@ -142,7 +147,7 @@ VIEWS.medicoes = () => {
     itens = itens.filter((d) => d.m.status !== 'Cancelado' && d.falta <= 0.005);
   if (f.kpiMed === 'aberto')
     itens = itens.filter((d) => d.m.status !== 'Cancelado' && d.falta > 0.005);
-  if (f.kpiMed === 'alerta') itens = itens.filter((d) => d.alerta && d.alerta !== 'OK');
+  if (f.kpiMed === 'alerta') itens = itens.filter((d) => comPendencia.has(d.m.id));
   if (busca) {
     itens = itens.filter((d) =>
       norm(

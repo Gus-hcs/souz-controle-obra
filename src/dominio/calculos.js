@@ -10,12 +10,14 @@ function contratoValor(c) {
   return vi > 0 ? vi : num(c.quantidade) * num(c.precoUnitario);
 }
 
-/* Planilha: P = SOMASES(K; código-base; base; status; "<>Cancelado") */
+/* Planilha: P = SOMASES(K; código-base; base; status; "<>Cancelado").
+   A planilha não conhece supressão nem aditivo proposto; o sistema conhece,
+   e o autorizado é UM número só em todas as telas: o de indicadoresContrato
+   (supressão subtrai, proposto fica fora). Para a obra da planilha — só
+   contratos e acréscimos aprovados — dá o mesmo valor. */
 function contratoTotalAutorizado(obra, codigoBase) {
   if (!codigoBase) return 0;
-  return obra.contratos
-    .filter((c) => c.codigoBase === codigoBase && c.status !== 'Cancelado')
-    .reduce((s, c) => s + contratoValor(c), 0);
+  return indicadoresContrato(obra, codigoBase).autorizado;
 }
 
 /* Planilha: Q = SOMASES(MEDIÇÕES!K; base; status "<>Cancelado") */
@@ -49,13 +51,17 @@ function basesContratuais(obra) {
     const medido = obra.medicoes
       .filter((m) => m.contratoBase === g.base && m.status !== 'Cancelado')
       .reduce((s, m) => s + medicaoLiquido(m), 0);
+    const comp = composicaoContrato(obra, g.base);
     return {
       ...g,
       prestador: (g.principal || g.registros[0] || {}).prestador || '',
       escopo: (g.principal || g.registros[0] || {}).escopo || '',
       status: (g.principal || g.registros[0] || {}).status || '',
       valorPrincipal: g.principal ? contratoValor(g.principal) : 0,
-      valorAditivos: g.aditivos.filter((a) => a.status !== 'Cancelado').reduce((s, a) => s + contratoValor(a), 0),
+      /* efeito líquido dos aditivos aprovados: acréscimo − supressão */
+      valorAditivos: round2(comp.totalAcrescimos - comp.totalSupressoes),
+      /* aditivo proposto: aparece à parte, nunca no autorizado */
+      pendente: comp.pendentesValor,
       autorizado, pago, medido,
       saldo: autorizado - pago,
       execFinanceira: autorizado > 0 ? pago / autorizado : 0
@@ -90,10 +96,10 @@ function contratoFimVigente(registros) {
 /* Indicadores de um código-base: autorizado, medido, pago, retido,
    a_pagar_agora e a_medir — uma função só, usada aqui, no Painel e em
    Prestadores.
-   autorizado difere de contratoTotalAutorizado (que soma tudo não
-   cancelado — a conta antiga, conferida contra a planilha original em
-   tests/planilha.test.js): aqui só entra aditivo com statusAditivo
-   'aprovado' (o padrão, para não mudar o histórico) e supressão SUBTRAI. */
+   autorizado: só entra aditivo com statusAditivo 'aprovado' (o padrão,
+   para não mudar o histórico) e supressão SUBTRAI. É a fonte única do
+   valor contratado — contratoTotalAutorizado, basesContratuais e
+   kpisObra.contratado leem daqui. */
 function indicadoresContrato(obra, codigoBase) {
   const registros = obra.contratos.filter((c) => (c.codigoBase || c.codigo) === codigoBase);
   const principal = registros.find((c) => c.registro === 'Contrato') || registros[0] || {};
@@ -380,9 +386,29 @@ function fluxoCaixa(obra) {
 }
 
 /* ------------------------------------------------ INDICADORES OBRA */
+/* Dinheiro do próprio cliente não é liberação do financiamento: entra no
+   caixa, mas não no "% liberado" do valor financiado. Origem vazia ou
+   "Outro" conta como financiador (o padrão de recebimento é CAIXA). */
+const ORIGENS_PROPRIAS = new Set(['Cliente', 'Recursos próprios']);
+function recebimentoDoFinanciamento(r) {
+  return !ORIGENS_PROPRIAS.has(r.origem);
+}
+
+/* Saída que não é obra física: entra no resultado, mas não no custo por m²
+   — senão comissão de corretor e taxa de cartório viram "obra cara". */
+const TIPOS_CUSTO_NAO_FISICO = new Set([
+  'Terreno', 'Comissão imobiliária', 'Honorário técnico/gestão', 'Taxa/imposto'
+]);
+function lancamentoCustoFisico(l) {
+  return !TIPOS_CUSTO_NAO_FISICO.has(l.tipo);
+}
+
 function kpisObra(obra) {
   const recebido = obra.recebimentos
     .filter((r) => r.status !== 'Cancelado')
+    .reduce((s, r) => s + num(r.valorRecebido), 0);
+  const recebidoFinanciamento = obra.recebimentos
+    .filter((r) => r.status !== 'Cancelado' && recebimentoDoFinanciamento(r))
     .reduce((s, r) => s + num(r.valorRecebido), 0);
   const pagoMedicoes = obra.medicoes
     .filter((m) => m.status !== 'Cancelado')
@@ -392,9 +418,10 @@ function kpisObra(obra) {
   const saldoInicial = num(obra.fin.saldoInicial);
   const saldoCaixa = saldoInicial + recebido - totalPago;
 
-  const contratado = obra.contratos
-    .filter((c) => c.status !== 'Cancelado')
-    .reduce((s, c) => s + contratoValor(c), 0);
+  /* Mesmo número da tela de Contratos: supressão subtrai, proposto fica fora. */
+  const bases = [...new Set(obra.contratos.map((c) => c.codigoBase || c.codigo).filter(Boolean))];
+  const contratado = bases.reduce((s, b) => s + indicadoresContrato(obra, b).autorizado, 0);
+  const aditivosPendentes = bases.reduce((s, b) => s + composicaoContrato(obra, b).pendentesValor, 0);
   const saldoContratual = contratado - pagoMedicoes;
 
   const area = num(obra.areaConstruida);
@@ -408,6 +435,13 @@ function kpisObra(obra) {
   /* Custo previsto = já pago + saldo contratual + materiais a comprar */
   const custoPrevisto = totalPago + Math.max(0, saldoContratual) + materiaisSaldo;
   const custoPrevistoM2 = area > 0 ? custoPrevisto / area : 0;
+  /* Custo físico: o previsto sem terreno, comissão, honorário e taxas. É o
+     que se compara com o teto de custo por m² e com o CUB. */
+  const custoNaoFisico = obra.lancamentos
+    .filter((l) => !lancamentoCustoFisico(l))
+    .reduce((s, l) => s + lancamentoTotal(l), 0);
+  const custoFisicoPrevisto = custoPrevisto - custoNaoFisico;
+  const custoFisicoPrevistoM2 = area > 0 ? custoFisicoPrevisto / area : 0;
 
   const terrenoLancado = obra.lancamentos
     .filter((l) => l.tipo === 'Terreno')
@@ -437,14 +471,28 @@ function kpisObra(obra) {
   const diasObra = isISO(obra.dataInicio) ? diasEntre(obra.dataInicio, hojeISO()) : 0;
   const diasParaFim = isISO(obra.previsaoConclusao) ? diasEntre(hojeISO(), obra.previsaoConclusao) : null;
 
+  /* Posição no fim da obra: o caixa de hoje, mais o que ainda vai entrar,
+     menos o que ainda vai sair (custo previsto − já pago = saldo dos
+     contratos + materiais a comprar). A pagar das medições já está dentro
+     do saldo dos contratos — não sai duas vezes. */
+  const custoAIncorrer = Math.max(0, custoPrevisto - totalPago);
+  const posicaoProjetada = saldoCaixa + previstoNaoRecebido - custoAIncorrer;
+
+  const financiado = num(obra.fin.valorFinanciado);
   return {
     recebido, pagoMedicoes, pagoLancamentos, totalPago, saldoInicial, saldoCaixa,
-    contratado, saldoContratual, area, custoM2, custoPrevisto, custoPrevistoM2,
+    contratado, aditivosPendentes, saldoContratual, area, custoM2, custoPrevisto, custoPrevistoM2,
+    custoNaoFisico, custoFisicoPrevisto, custoFisicoPrevistoM2,
     materiaisSaldo, terreno, custoComTerreno, venda, margem, resultado,
     progressoFisico, progressoFinanceiro, previstoNaoRecebido, medicoesNaoPagas,
-    financiado: num(obra.fin.valorFinanciado),
+    custoAIncorrer, posicaoProjetada,
+    financiado,
     recursosProprios: num(obra.fin.recursosProprios),
-    aReceber: Math.max(0, num(obra.fin.valorFinanciado) - recebido),
+    recebidoFinanciamento,
+    recebidoProprio: recebido - recebidoFinanciamento,
+    /* fração do financiamento já liberada — só dinheiro do financiador */
+    liberadoFinanciamento: financiado > 0 ? recebidoFinanciamento / financiado : null,
+    aReceber: Math.max(0, financiado - recebidoFinanciamento),
     etapasAtrasadas: etapas.filter((e) => e.situacao === 'ATRASADO').length,
     etapasConcluidas: etapas.filter((e) => e.situacao === 'CONCLUÍDO').length,
     etapasTotal: etapas.length,
@@ -594,10 +642,12 @@ function alertasObra(obra) {
       `Saldo de ${fmtMoney(k.saldoCaixa)} considerando entradas e saídas lançadas.`,
       'Antecipar recebimento ou aportar recursos.', { view: 'fluxo' });
   }
-  if (num(obra.fin.custoFisicoMaxM2) > 0 && k.custoPrevistoM2 > num(obra.fin.custoFisicoMaxM2)) {
-    add(3, 'Financeiro', 'Custo por m² acima do limite',
-      `Previsto ${fmtMoney(k.custoPrevistoM2)}/m² contra o teto de ${fmtMoney(obra.fin.custoFisicoMaxM2)}/m².`,
-      'Revisar escopo, aditivos e compras.', { view: 'painel' });
+  /* Informativo: o teto é referência de orçamento, não problema de hoje.
+     Compara só custo físico — comissão, honorário, taxa e terreno ficam fora. */
+  if (num(obra.fin.custoFisicoMaxM2) > 0 && k.custoFisicoPrevistoM2 > num(obra.fin.custoFisicoMaxM2)) {
+    add(1, 'Financeiro', 'Custo físico por m² acima do teto',
+      `Previsto ${fmtMoney(k.custoFisicoPrevistoM2)}/m² de obra física contra o teto de ${fmtMoney(obra.fin.custoFisicoMaxM2)}/m².`,
+      'Conferir o teto com o CUB da região e revisar escopo e compras.', { view: 'obra-config' });
   }
   if (k.margem !== null && k.margem < num(obra.fin.margemDesejada)) {
     add(2, 'Financeiro', 'Margem abaixo da desejada',
@@ -836,6 +886,18 @@ function pendenciasObra(obra) {
     avisos: todos.length - itens.length,
     porTipo, porView, itens
   };
+}
+
+/* Medições que têm pendência: a mesma regra de pendenciasObra, não um
+   recorte próprio. Antes a tela de Medições contava só o alerta estrutural
+   (pago acima, contrato ultrapassado) e dizia "0" enquanto o menu e a tela
+   de Alertas mostravam medições em aberto há 100 dias. */
+function medicoesComPendencia(obra) {
+  const ids = new Set();
+  pendenciasObra(obra).itens.forEach((a) => {
+    if (a.ref && a.ref.view === 'medicoes' && a.ref.id) ids.add(a.ref.id);
+  });
+  return ids;
 }
 
 function pendenciasCarteira(obras) {
@@ -1345,7 +1407,10 @@ export {
   resultadoCarteira,
   custoCarteira,
   pendenciasObra,
+  medicoesComPendencia,
   pendenciasCarteira,
+  recebimentoDoFinanciamento,
+  lancamentoCustoFisico,
   caixaCarteira,
   avancoPrevistoObra,
   avancoCarteira,

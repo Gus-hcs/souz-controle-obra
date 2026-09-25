@@ -76,11 +76,14 @@ function kpisCronograma(o) {
     )}
     ${item(
       'entrega',
-      'Previsão de entrega',
+      /* É a data do contrato, não uma projeção: a entrega projetada pelo
+         ritmo da obra ainda não é calculada. O atraso ao lado é o da etapa
+         mais atrasada — e diz isso. */
+      'Data contratual',
       prazo.fimPrevisto ? fmtData(prazo.fimPrevisto) : '—',
       prazo.desvioDias > 0
-        ? `${prazo.desvioDias} dia${prazo.desvioDias > 1 ? 's' : ''} de atraso`
-        : 'no prazo',
+        ? `etapa mais atrasada: ${prazo.desvioDias} dia${prazo.desvioDias > 1 ? 's' : ''}`
+        : 'etapas no prazo',
       prazo.desvioDias > 0 ? 'atraso' : '',
     )}
     ${item(

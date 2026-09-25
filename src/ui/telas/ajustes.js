@@ -103,8 +103,13 @@ VIEWS.ajustes = () => {
             <tr><td style="width:220px">Modo de gravação</td><td class="mono">${esc(Store.descricaoModo())}</td></tr>
             ${
               Store.backend === 'supabase'
-                ? `<tr><td>Conta</td><td class="mono">${esc((SUPA.usuario && SUPA.usuario.email) || '')}</td></tr>
+                ? `<tr><td>Conta</td><td class="mono">${esc((SUPA.usuario && SUPA.usuario.email) || '')}</td></tr>${
+                    /* endereço do banco é infraestrutura: só o administrador vê */
+                    SUPA.ehAdmin
+                      ? `
             <tr><td>Projeto do banco</td><td class="mono">${esc(SUPA.cfg.url)}</td></tr>`
+                      : ''
+                  }`
                 : ''
             }
             <tr><td>Última gravação</td><td class="mono">${Store.salvoEm ? fmtData(Store.salvoEm.slice(0, 10)) + ' ' + horaCurta(Store.salvoEm) : '—'}</td></tr>

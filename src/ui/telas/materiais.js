@@ -143,6 +143,11 @@ function celulaPrazo(m, c, hoje) {
     return '<span class="tinta3">—</span>';
   }
   let sub, cls;
+  if (c.saldo <= 0 || m.status === 'Cancelado') {
+    /* Já comprado (ou cancelado): a data é histórico, não prazo. Antes caía
+       em "hoje" laranja, que parecia alerta. */
+    return `<span class="tinta3">${esc(fmtDataCurta(m.dataNecessaria))}</span>`;
+  }
   if (c.vencido) {
     const dias = diasEntre(m.dataNecessaria, hoje);
     sub = `vencido há ${dias} dia${dias === 1 ? '' : 's'}`;

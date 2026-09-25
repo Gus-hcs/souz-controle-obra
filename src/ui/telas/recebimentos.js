@@ -186,9 +186,12 @@ VIEWS.recebimentos = () => {
       {
         rotulo: 'Recebido',
         valor: fmtMoney(k.recebido, { dec: 0 }),
-        nota: k.financiado
-          ? `${fmtPct(k.recebido / k.financiado, 0)} de ${fmtMoney(k.financiado, { dec: 0 })} financiados`
-          : 'financiamento, cliente e próprios',
+        /* O % é só do financiador: dinheiro do cliente entra no caixa, mas
+           não é liberação do financiamento. */
+        nota:
+          k.liberadoFinanciamento !== null
+            ? `financiamento: ${fmtPct(k.liberadoFinanciamento, 1)} de ${fmtMoney(k.financiado, { dec: 0 })} liberados${k.recebidoProprio > 0.005 ? ` · próprios ${fmtMoney(k.recebidoProprio, { dec: 0 })}` : ''}`
+            : 'financiamento, cliente e próprios',
       },
       {
         rotulo: 'A receber',

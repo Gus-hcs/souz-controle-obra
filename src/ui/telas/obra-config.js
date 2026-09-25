@@ -41,7 +41,11 @@ function kpisConfig(o, k) {
         ? `${fmtNum(o.areaConstruida, 2)} m² × ${fmtMoney(o.fin.precoEmpreitadaM2, { dec: 0 })}/m²`
         : 'informe a área construída',
     )}
-    ${item('Custo previsto total', fmtMoney(k.custoPrevisto, { dec: 0 }), 'contratos + materiais + saídas')}
+    ${item(
+      'Custo previsto total',
+      fmtMoney(k.custoPrevisto, { dec: 0 }),
+      `obra física ${fmtMoney(k.custoFisicoPrevisto, { dec: 0 })} · terreno, taxas e comissão ${fmtMoney(k.custoNaoFisico, { dec: 0 })}`,
+    )}
     ${item(
       'Resultado projetado',
       k.resultado === null ? '—' : fmtMoney(k.resultado, { dec: 0 }),
@@ -89,7 +93,7 @@ const SECOES = [
     titulo: 'Prazo',
     campos: () => [
       { k: 'dataInicio', label: 'Data de início', tipo: 'data', col: 3 },
-      { k: 'previsaoConclusao', label: 'Previsão de conclusão', tipo: 'data', col: 3 },
+      { k: 'previsaoConclusao', label: 'Data contratual de entrega', tipo: 'data', col: 3 },
     ],
   },
   {
@@ -105,7 +109,7 @@ const SECOES = [
         label: 'Custo físico máximo/m²',
         tipo: 'dinheiro',
         col: 3,
-        dica: 'gera alerta se ultrapassar',
+        dica: 'só obra física: sem terreno, taxas, honorário e comissão. Referência: CUB do Sinduscon da região',
       },
       { k: 'fin.valorVenda', label: 'Valor de venda/contrato', tipo: 'dinheiro', col: 3 },
       { k: 'fin.margemDesejada', label: 'Margem desejada (%)', tipo: 'pct', col: 3 },

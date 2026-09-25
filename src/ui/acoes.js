@@ -99,7 +99,7 @@ function formObra(obra, aoConcluir) {
       { k: 'areaConstruida', label: 'Área construída (m²)', tipo: 'numero', col: 3 },
       { k: 'precoEmpreitadaM2', label: 'Preço empreitada/m²', tipo: 'dinheiro', col: 3 },
       { k: 'dataInicio', label: 'Início', tipo: 'data', col: 3 },
-      { k: 'previsaoConclusao', label: 'Previsão de conclusão', tipo: 'data', col: 3 },
+      { k: 'previsaoConclusao', label: 'Data contratual de entrega', tipo: 'data', col: 3 },
       { k: 'valorFinanciado', label: 'Financiado para obra', tipo: 'dinheiro', col: 4 },
       { k: 'valorVenda', label: 'Valor de venda', tipo: 'dinheiro', col: 4 },
       { k: 'saldoInicial', label: 'Saldo inicial em caixa', tipo: 'dinheiro', col: 4 },

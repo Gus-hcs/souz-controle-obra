@@ -2,7 +2,7 @@
  * telas-cadastros.js — Telas de cadastro: clientes, prestadores, relatórios e ajustes.
  */
 import { esc, fmtData, fmtDataCurta, fmtMoney, fmtPct, fonteImagem, hojeISO, norm, PLANOS } from '../nucleo/base.js';
-import { alertasObra, basesContratuais, etapaCalc, kpisObra } from '../dominio/calculos.js';
+import { etapaCalc, kpisObra } from '../dominio/calculos.js';
 import { apenasErros, validarPerfilAdmin, validarSenhaForte, validarUsuarioNovo } from '../dominio/validacao.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
@@ -14,8 +14,6 @@ import { ACOES } from './acoes.js';
 VIEWS.relatorio = () => {
   const o = App.obra();
   const k = kpisObra(o);
-  const al = alertasObra(o);
-  const bases = basesContratuais(o);
   const hoje = fmtData(hojeISO());
   const MAX_ETAPAS = 6;
 
@@ -46,13 +44,7 @@ VIEWS.relatorio = () => {
           <td class="num mono">${fmtPct(c.progresso, 0)}</td><td>${chip(c.situacao, tomSituacao(c.situacao))}</td></tr>`;
       }).join('') || '<tr><td colspan="4">Cronograma não cadastrado.</td></tr>'}</tbody></table>
     ${o.cronograma.length > MAX_ETAPAS ? `<p style="margin:6px 0 0;font-size:12px;color:var(--mudo)">+ ${o.cronograma.length - MAX_ETAPAS} etapa(s) no documento completo</p>` : ''}
-    <h3 style="margin:16px 0 6px">Contratos</h3>
-    <table class="tab"><thead><tr><th>Contrato</th><th>Prestador</th><th class="num">Autorizado</th><th class="num">Pago</th><th class="num">Saldo</th></tr></thead>
-      <tbody>${bases.map((b) => `<tr><td class="mono">${esc(b.base)}</td><td>${esc(b.prestador)}</td>
-        <td class="num mono">${fmtMoney(b.autorizado)}</td><td class="num mono">${fmtMoney(b.pago)}</td>
-        <td class="num mono ${b.saldo < 0 ? 'neg' : ''}">${fmtMoney(b.saldo)}</td></tr>`).join('') || '<tr><td colspan="5">Sem contratos.</td></tr>'}</tbody></table>
-    ${al.length ? `<h3 style="margin:16px 0 6px">Pendências</h3>
-      <ul style="margin:0;padding-left:18px;font-size:13px">${al.slice(0, 8).map((a) => `<li><b>${esc(a.titulo)}</b> — ${a.detalhe}</li>`).join('')}</ul>` : ''}
+    <p style="margin:14px 0 0;font-size:13px">Obra <b>${fmtPct(k.progressoFisico, 0)}</b> concluída · data contratual de entrega <b>${fmtData(o.previsaoConclusao)}</b>${k.liberadoFinanciamento !== null ? ` · financiamento <b>${fmtPct(k.liberadoFinanciamento, 0)}</b> liberado` : ''}.</p>
   </div>`;
 
   const docCard = (acao, titulo, texto) => `
@@ -70,7 +62,7 @@ VIEWS.relatorio = () => {
       ${kpi('Avanço físico', fmtPct(k.progressoFisico, 0),
         `${k.etapasConcluidas} de ${k.etapasTotal} etapas concluídas`, { destaque: true })}
       ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }),
-        k.financiado ? `${fmtPct(k.recebido / k.financiado, 0)} de ${fmtMoney(k.financiado, { dec: 0 })} financiados` : `pago ${fmtMoney(k.totalPago, { dec: 0 })}`,
+        k.liberadoFinanciamento !== null ? `financiamento ${fmtPct(k.liberadoFinanciamento, 1)} liberado de ${fmtMoney(k.financiado, { dec: 0 })}` : `pago ${fmtMoney(k.totalPago, { dec: 0 })}`,
         { destaque: true })}
       ${kpi('Saldo em caixa', fmtMoney(k.saldoCaixa, { dec: 0 }),
         'recebido − pago', { destaque: true, tom: k.saldoCaixa < 0 ? 'critico' : 'ok' })}
@@ -78,8 +70,10 @@ VIEWS.relatorio = () => {
 
     ${cartao('Gerar documento', `
       <div class="grade g-cartoes">
-        ${docCard('pdf-status', 'Relatório de status da obra',
-          'Avanço físico, financeiro, contratos, cronograma e pendências. Para enviar ao cliente ou arquivar.')}
+        ${docCard('pdf-status', 'Relatório de status para o cliente',
+          'Avanço, data de entrega, etapas e parcelas. Sem caixa, custos, margem nem valores de prestadores.')}
+        ${docCard('pdf-interno', 'Relatório interno da obra',
+          'Caixa, custo, contratos com valores e pendências. Uso da construtora — não enviar ao cliente.')}
         ${docCard('pdf-prestacao', 'Prestação de contas',
           'Todas as entradas e saídas lançadas, medição a medição e nota a nota, com saldo final.')}
         ${docCard('pdf-medicao', 'Memória de medição',

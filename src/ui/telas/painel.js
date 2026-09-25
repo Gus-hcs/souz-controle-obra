@@ -8,13 +8,13 @@
  */
 import { esc, fmtData, fmtMoney, fmtMoneyCurto, fmtPct, num } from '../../nucleo/base.js';
 import {
-  alertasObra,
   basesContratuais,
   implantacaoObra,
   kpisObra,
   lancamentoTotal,
   materialCalc,
-  medicaoLiquido,
+  medicaoAPagar,
+  pendenciasObra,
 } from '../../dominio/calculos.js';
 import { graficoBarras, graficoCurvaS, graficoFluxo } from '../../graficos/index.js';
 import { App, botao } from '../shell.js';
@@ -49,18 +49,23 @@ function kpisPainel(o, k) {
     ${item(
       'Avanço físico',
       fmtPct(k.progressoFisico, 0),
-      `financeiro ${fmtPct(k.progressoFinanceiro, 0)}${k.desvioFisicoFinanceiro < -0.1 ? ' — desembolso à frente' : ''}`,
+      `orçamento consumido ${fmtPct(k.progressoFinanceiro, 0)}${k.desvioFisicoFinanceiro < -0.1 ? ' — desembolso à frente' : ''}`,
       k.desvioFisicoFinanceiro < -0.1 ? 'tom-alerta' : '',
     )}
-    ${item('Saldo contratual', fmtMoney(k.saldoContratual, { dec: 0 }), `de ${fmtMoneyCurto(k.contratado)} contratados`, k.saldoContratual < 0 ? 'atraso' : '')}
     ${item(
-      'Custo previsto/m²',
-      o.areaConstruida ? fmtMoney(k.custoPrevistoM2, { dec: 0 }) : '—',
+      'Saldo contratual',
+      fmtMoney(k.saldoContratual, { dec: 0 }),
+      `de ${fmtMoneyCurto(k.contratado)} contratados${k.aditivosPendentes ? ` · ${fmtMoneyCurto(k.aditivosPendentes)} em aditivo pendente` : ''}`,
+      k.saldoContratual < 0 ? 'atraso' : '',
+    )}
+    ${item(
+      'Custo físico/m²',
+      o.areaConstruida ? fmtMoney(k.custoFisicoPrevistoM2, { dec: 0 }) : '—',
       num(o.fin.custoFisicoMaxM2) > 0
-        ? `teto ${fmtMoney(o.fin.custoFisicoMaxM2, { dec: 0 })}/m²`
-        : 'defina o teto na configuração',
-      num(o.fin.custoFisicoMaxM2) > 0 && k.custoPrevistoM2 > num(o.fin.custoFisicoMaxM2)
-        ? 'atraso'
+        ? `previsto · teto ${fmtMoney(o.fin.custoFisicoMaxM2, { dec: 0 })}/m²`
+        : 'previsto, sem terreno, taxas e comissão',
+      num(o.fin.custoFisicoMaxM2) > 0 && k.custoFisicoPrevistoM2 > num(o.fin.custoFisicoMaxM2)
+        ? 'tom-alerta'
         : '',
     )}
   </div>`;
@@ -72,12 +77,14 @@ function situacaoObra(texto, tom = '') {
 }
 
 function faixaContexto(o, k, criticos, atencao) {
+  /* A base do número vai escrita: é a data CONTRATUAL. A etapa mais
+     atrasada (Cronograma, Carteira) é outra conta e tem outro rótulo. */
   const prazoTxt =
     k.diasParaFim === null
-      ? 'sem previsão'
+      ? 'sem data contratual'
       : k.diasParaFim < 0
-        ? `${-k.diasParaFim} dias em atraso`
-        : `${k.diasParaFim} dias restantes`;
+        ? `data contratual vencida há ${-k.diasParaFim} dias`
+        : `${k.diasParaFim} dias até a data contratual`;
 
   const pendencias = criticos.length
     ? situacaoObra(
@@ -152,14 +159,13 @@ function cartaoImplantacao(o) {
 }
 
 /* -------------------------------------------------------- o que fazer */
-function caixaAcao(o, k, criticos, atencao, al) {
+function caixaAcao(o, k, criticos, atencao, pend) {
   const matSaldo = o.materiais
     .filter((m) => m.status !== 'Cancelado')
     .map((m) => materialCalc(o, m));
   const vencidos = matSaldo.filter((c) => c.vencido);
-  const medPend = o.medicoes.filter(
-    (m) => m.status !== 'Cancelado' && medicaoLiquido(m) - num(m.valorPago) > 0.005,
-  );
+  /* mesma regra do valor ao lado (k.medicoesNaoPagas): já desconta a retenção */
+  const medPend = o.medicoes.filter((m) => medicaoAPagar(o, m) > 0.005);
   const recPend = o.recebimentos.filter((r) => r.status !== 'Recebido' && r.status !== 'Cancelado');
   const basesNeg = basesContratuais(o).filter((b) => b.saldo < -0.005);
 
@@ -195,7 +201,7 @@ function caixaAcao(o, k, criticos, atencao, al) {
     ],
   ];
 
-  const tabela = `<table class="tab">
+  const tabela = `<table class="tab sem-fixo">
     <thead><tr><th>Indicador</th><th class="num">Qtde</th><th class="num">Valor</th><th></th></tr></thead>
     <tbody>${linhas
       .map(
@@ -213,7 +219,7 @@ function caixaAcao(o, k, criticos, atencao, al) {
     return `<div class="caixa">
       <div class="caixa-cab">
         <h3>Precisa de atenção</h3>
-        <div class="dir">${botao(`Ver ${al.length} alertas`, 'ir', { view: 'alertas' }, 'btn sutil pequeno')}</div>
+        <div class="dir">${botao(`Ver ${pend.total} alerta${pend.total === 1 ? '' : 's'}`, 'ir', { view: 'alertas' }, 'btn sutil pequeno')}</div>
       </div>
       ${(criticos.length ? criticos : atencao)
         .slice(0, 4)
@@ -246,18 +252,19 @@ function caixaAndamento(o, k) {
           <b style="font-size:19px" class="${k.etapasAtrasadas ? 'atraso' : ''}">${k.etapasAtrasadas}</b></div>
         <div><span class="tinta2" style="font-size:var(--t-peq)">Dias de obra</span><br>
           <b style="font-size:19px">${k.diasObra || '—'}</b></div>
-        <div><span class="tinta2" style="font-size:var(--t-peq)">Previsão de entrega</span><br>
+        <div><span class="tinta2" style="font-size:var(--t-peq)">Data contratual</span><br>
           <b>${fmtData(o.previsaoConclusao)}</b></div>
-        <div><span class="tinta2" style="font-size:var(--t-peq)">Prazo restante</span><br>
-          <b class="${k.diasParaFim !== null && k.diasParaFim < 0 ? 'atraso' : ''}">${k.diasParaFim === null ? '—' : k.diasParaFim + ' dias'}</b></div>
+        <div><span class="tinta2" style="font-size:var(--t-peq)">Até a data contratual</span><br>
+          <b class="${k.diasParaFim !== null && k.diasParaFim < 0 ? 'atraso' : ''}">${k.diasParaFim === null ? '—' : k.diasParaFim < 0 ? `vencida há ${-k.diasParaFim} dias` : k.diasParaFim + ' dias'}</b></div>
       </div>
       <div style="border-top:var(--fio) solid var(--separador);padding-top:10px">
-        <span class="tinta2" style="font-size:var(--t-peq)">Financiamento da obra</span>
+        <span class="tinta2" style="font-size:var(--t-peq)">Liberado pelo financiamento</span>
         <div style="display:flex;justify-content:space-between;font-size:var(--t-peq);margin:4px 0">
-          <span>${fmtMoney(k.recebido, { dec: 0 })} de ${fmtMoney(k.financiado, { dec: 0 })}</span>
-          <b class="mono">${k.financiado ? fmtPct(k.recebido / k.financiado, 0) : '—'}</b>
+          <span>${fmtMoney(k.recebidoFinanciamento, { dec: 0 })} de ${fmtMoney(k.financiado, { dec: 0 })}</span>
+          <b class="mono">${k.liberadoFinanciamento === null ? '—' : fmtPct(k.liberadoFinanciamento, 1)}</b>
         </div>
-        <span class="trilha" style="display:block;flex:none;width:100%"><i class="medido" style="width:${(k.financiado ? (k.recebido / k.financiado) * 100 : 0).toFixed(1)}%"></i></span>
+        <span class="trilha" style="display:block;flex:none;width:100%"><i class="medido" style="width:${(Math.min(1, k.liberadoFinanciamento || 0) * 100).toFixed(1)}%"></i></span>
+        ${k.recebidoProprio > 0.005 ? `<span class="tinta3" style="font-size:var(--t-peq)">+ ${fmtMoney(k.recebidoProprio, { dec: 0 })} de recursos próprios do cliente</span>` : ''}
       </div>
     </div>
   </div>`;
@@ -267,9 +274,10 @@ function caixaAndamento(o, k) {
 VIEWS.painel = () => {
   const o = App.obra();
   const k = kpisObra(o);
-  const al = alertasObra(o);
-  const criticos = al.filter((a) => a.sev === 3);
-  const atencao = al.filter((a) => a.sev === 2);
+  /* a mesma contagem do menu, da carteira e da tela de Alertas */
+  const pend = pendenciasObra(o);
+  const criticos = pend.itens.filter((a) => a.sev === 3);
+  const atencao = pend.itens.filter((a) => a.sev === 2);
 
   const custoPorEtapa = {};
   o.lancamentos.forEach((l) => {
@@ -288,7 +296,7 @@ VIEWS.painel = () => {
     ${faixaContexto(o, k, criticos, atencao)}
     ${kpisPainel(o, k)}
     ${cartaoImplantacao(o)}
-    ${caixaAcao(o, k, criticos, atencao, al)}
+    ${caixaAcao(o, k, criticos, atencao, pend)}
 
     <div class="grade g-2-1" style="align-items:start">
       <div class="caixa">

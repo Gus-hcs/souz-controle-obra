@@ -33,7 +33,7 @@ import {
   vazioTela,
 } from './componentes.js';
 
-function kpisDiario(todos, semRegistro, ultimo, totFotos, chuvosos, comOcorrencia) {
+function kpisDiario(todos, semRegistro, ultimo, totFotos, comFoto, comOcorrencia) {
   const noMes = todos.filter((d) => competencia(d.data) === competencia(hojeISO())).length;
   const item = (chave, rotulo, valor, contexto, tom = '', filtravel = false) => {
     const ativo = filtravel && App.filtros.kpiDiario === chave;
@@ -53,7 +53,7 @@ function kpisDiario(todos, semRegistro, ultimo, totFotos, chuvosos, comOcorrenci
       semRegistro === null ? 'nenhuma visita registrada' : `último em ${fmtDataCurta(ultimo.data)}`,
       semRegistro !== null && semRegistro > 7 ? 'tom-alerta' : '',
     )}
-    ${item('foto', 'Com foto', totFotos, chuvosos.length ? `${chuvosos.length} dia${chuvosos.length === 1 ? '' : 's'} de chuva` : 'nenhum dia de chuva', '', true)}
+    ${item('foto', 'Com foto', totFotos, `${comFoto} de ${todos.length} registro${todos.length === 1 ? '' : 's'}`, '', true)}
     ${item(
       'ocorrencia',
       'Com ocorrência',
@@ -172,7 +172,7 @@ VIEWS.diario = () => {
   const ultimo = ordenados[0];
   const semRegistro = ultimo && isISO(ultimo.data) ? diasEntre(ultimo.data, hojeISO()) : null;
   const totFotos = todos.reduce((s, d) => s + (d.fotos ? d.fotos.length : 0), 0);
-  const chuvosos = todos.filter((d) => d.clima && d.clima.includes('Chuva'));
+  const comFoto = todos.filter((d) => d.fotos && d.fotos.length).length;
   const comOcorrencia = todos.filter((d) => d.ocorrencias && d.ocorrencias.trim());
   const etapasUsadas = [...new Set(todos.map((d) => d.etapa).filter(Boolean))].sort((a, b) =>
     a.localeCompare(b, 'pt'),
@@ -212,7 +212,7 @@ VIEWS.diario = () => {
   });
 
   return `<div class="tela-lista">
-    ${kpisDiario(todos, semRegistro, ultimo, totFotos, chuvosos, comOcorrencia)}
+    ${kpisDiario(todos, semRegistro, ultimo, totFotos, comFoto, comOcorrencia)}
     ${barra}
     ${
       itens.length

@@ -8,7 +8,7 @@
  * KPIs já fazem esse corte.
  */
 import { esc, norm } from '../../nucleo/base.js';
-import { alertasObra } from '../../dominio/calculos.js';
+import { alertasObra, pendenciasObra } from '../../dominio/calculos.js';
 import { ACOES } from '../acoes.js';
 import { App } from '../shell.js';
 import { VIEWS, alertaHTML } from '../telas-obra.js';
@@ -28,7 +28,7 @@ function kpisAlertas(nCrit, nAten, nInfo) {
   return `<div class="kpis" role="group" aria-label="Indicadores de alertas">
     ${item('3', 'Críticos', nCrit, nCrit ? 'exigem ação imediata' : 'nada crítico', nCrit ? 'atraso' : '')}
     ${item('2', 'Atenção', nAten, nAten ? 'resolver nos próximos dias' : 'nada pendente', nAten ? 'tom-alerta' : '')}
-    ${item('1', 'Informativos', nInfo, 'acompanhar')}
+    ${item('1', 'Informativos', nInfo, nInfo ? 'fora da contagem de alertas' : 'nenhum')}
   </div>`;
 }
 
@@ -51,9 +51,12 @@ VIEWS.alertas = () => {
     </div>`;
   }
 
-  const nCrit = todos.filter((a) => a.sev === 3).length;
-  const nAten = todos.filter((a) => a.sev === 2).length;
-  const nInfo = todos.filter((a) => a.sev === 1).length;
+  /* Críticos + Atenção = o número do menu, da carteira e do Painel
+     (pendenciasObra). Informativo aparece, mas não soma. */
+  const pend = pendenciasObra(o);
+  const nCrit = pend.criticas;
+  const nAten = pend.atencao;
+  const nInfo = pend.avisos;
   const modulos = [...new Set(todos.map((a) => a.modulo).filter(Boolean))].sort((a, b) =>
     a.localeCompare(b, 'pt'),
   );

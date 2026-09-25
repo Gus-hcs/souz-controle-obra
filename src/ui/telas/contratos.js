@@ -77,7 +77,13 @@ const tela = { selecao: '' };
 const SIT_PILULAS = [
   { chave: 'atraso', rotulo: 'Atrasados', pertence: (l) => PROBLEMA_PRAZO.has(l.sit.chave) },
   { chave: 'apagar', rotulo: 'A pagar agora', pertence: (l) => l.ind.aPagarAgora > 0.005 },
-  { chave: 'andamento', rotulo: 'Em andamento', pertence: (l) => l.sit.chave === 'em-andamento' },
+  /* Contrato atrasado também está em andamento: a pílula não pode dizer 0
+     com um contrato rodando fora do prazo. */
+  {
+    chave: 'andamento',
+    rotulo: 'Em andamento',
+    pertence: (l) => l.sit.chave === 'em-andamento' || l.sit.chave === 'atrasado',
+  },
   {
     chave: 'nao-iniciado',
     rotulo: 'Não iniciados',

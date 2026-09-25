@@ -223,3 +223,10 @@ a {
 #conteudo .impl-lead {
   max-width: 88ch;
 }
+
+/* Tabela curta dentro de caixa (Painel): o cabeçalho fixo grudava no topo
+   da janela e flutuava por cima das linhas ao rolar. Poucas linhas não
+   precisam de cabeçalho fixo. */
+table.tab.sem-fixo th {
+  position: static;
+}

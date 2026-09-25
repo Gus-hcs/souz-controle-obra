@@ -18,7 +18,7 @@ import { App } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
 import { barraFiltros, dinheiro, lista, secao, seletor } from './componentes.js';
 
-function kpisFluxo(k, tot, posicao) {
+function kpisFluxo(k, tot) {
   const item = (rotulo, valor, contexto, tom = '') => `<div class="kpi-item">
     <span class="kpi-rot">${esc(rotulo)}</span>
     <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
@@ -34,7 +34,12 @@ function kpisFluxo(k, tot, posicao) {
     )}
     ${item('A receber', fmtMoney(k.previstoNaoRecebido, { dec: 0 }), 'parcelas previstas não creditadas')}
     ${item('A pagar', fmtMoney(k.medicoesNaoPagas, { dec: 0 }), 'medições em aberto', k.medicoesNaoPagas > 0.005 ? 'tom-alerta' : '')}
-    ${item('Posição projetada', fmtMoney(posicao, { dec: 0 }), 'saldo + a receber − a pagar', posicao < 0 ? 'atraso' : '')}
+    ${item(
+      'Posição no fim da obra',
+      fmtMoney(k.posicaoProjetada, { dec: 0 }),
+      `saldo + a receber − ${fmtMoneyCurto(k.custoAIncorrer)} ainda a gastar`,
+      k.posicaoProjetada < 0 ? 'atraso' : '',
+    )}
   </div>`;
 }
 
@@ -55,7 +60,6 @@ VIEWS.fluxo = () => {
     }),
     { e: 0, m: 0, ou: 0, s: 0 },
   );
-  const posicao = k.saldoCaixa + k.previstoNaoRecebido - k.medicoesNaoPagas;
 
   let itens = dados;
   if (f.situacao === 'movimento') itens = itens.filter((d) => d.entradas || d.saidas);
@@ -149,7 +153,7 @@ VIEWS.fluxo = () => {
   ];
 
   return `<div class="tela-lista">
-    ${kpisFluxo(k, tot, posicao)}
+    ${kpisFluxo(k, tot)}
     ${secao('Movimento mensal', graficoFluxo(o, 280))}
     ${barraFiltros({
       mostrar: dados.length > 1,

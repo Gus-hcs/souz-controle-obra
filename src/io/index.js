@@ -2,7 +2,7 @@
  * index.js — Entrada e saída: importação de planilha MCMV, exportação CSV e PDF.
  */
 import { addDias, competencia, fmtData, fmtDataCurta, fmtMoney, fmtNum, fmtPct, hojeISO, migrar, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, slug } from '../nucleo/base.js';
-import { alertasObra, basesContratuais, etapaCalc, kpisObra, lancamentoTotal, medicaoAPagar, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
+import { basesContratuais, etapaCalc, kpisObra, lancamentoTotal, medicaoAPagar, medicaoAlerta, medicaoLiquido, pendenciasObra, pesosCronograma, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
 import { apenasErros, validarObraCompleta } from '../dominio/validacao.js';
 import { linkWhatsApp, normalizarTelefoneBR } from '../nucleo/contato.js';
 import { Store, mutar } from '../dados/store.js';
@@ -479,17 +479,30 @@ async function salvarPDF(doc, nome) {
 /* ------------------------------------------- 1. status da obra
    Extraído de ACOES['pdf-status'] para virar o mesmo doc que
    ACOES['whatsapp-status'] compartilha — sem duplicar a montagem. */
-async function montarPdfStatus(o) {
-  const doc = await novoPDF(o, 'Relatório de status');
+/* Duas versões, porque o leitor é outro:
+   - cliente (padrão, é o que vai pelo WhatsApp): avanço, data contratual,
+     etapas e as parcelas do financiamento. NUNCA caixa da obra, custo, custo
+     por m², margem, valores de subcontrato nem alertas internos — isso é
+     informação da construtora.
+   - interno: tudo, para o dono e o arquivo. */
+async function montarPdfStatus(o, { interno = false } = {}) {
+  const doc = await novoPDF(o, interno ? 'Relatório interno da obra' : 'Relatório de status');
   if (!doc) return null;
   const k = kpisObra(o);
   let y = doc.__startY;
-  y = pdfKPIs(doc, y, [
-    ['Avanço físico', fmtPct(k.progressoFisico, 0), `${k.etapasConcluidas}/${k.etapasTotal} etapas`],
-    ['Recebido', fmtMoney(k.recebido, { dec: 0 }), `de ${fmtMoney(k.financiado, { dec: 0 })}`],
-    ['Pago', fmtMoney(k.totalPago, { dec: 0 }), k.area ? `${fmtMoney(k.custoM2, { dec: 0 })}/m²` : ''],
-    ['Saldo em caixa', fmtMoney(k.saldoCaixa, { dec: 0 }), `previsto ${fmtMoney(k.custoPrevisto, { dec: 0 })}`]
-  ]);
+  const liberado = k.liberadoFinanciamento === null ? '—' : fmtPct(k.liberadoFinanciamento, 0);
+  y = pdfKPIs(doc, y, interno
+    ? [
+      ['Avanço físico', fmtPct(k.progressoFisico, 0), `${k.etapasConcluidas}/${k.etapasTotal} etapas`],
+      ['Financiamento liberado', liberado, `${fmtMoney(k.recebidoFinanciamento, { dec: 0 })} de ${fmtMoney(k.financiado, { dec: 0 })}`],
+      ['Pago', fmtMoney(k.totalPago, { dec: 0 }), k.area ? `físico previsto ${fmtMoney(k.custoFisicoPrevistoM2, { dec: 0 })}/m²` : ''],
+      ['Saldo em caixa', fmtMoney(k.saldoCaixa, { dec: 0 }), `previsto ${fmtMoney(k.custoPrevisto, { dec: 0 })}`]
+    ]
+    : [
+      ['Obra concluída', fmtPct(k.progressoFisico, 0), `${k.etapasConcluidas} de ${k.etapasTotal} etapas`],
+      ['Data contratual', fmtData(o.previsaoConclusao), 'prazo de entrega do contrato'],
+      ['Financiamento liberado', liberado, `de ${fmtMoney(k.financiado, { dec: 0 })}`]
+    ]);
 
   y = pdfTabela(doc, y, 'Cronograma e progresso',
     ['Etapa', 'Previsto', 'Real', 'Progresso', 'Situação'],
@@ -498,6 +511,17 @@ async function montarPdfStatus(o) {
       return [e.etapa, `${fmtDataCurta(e.inicioPrevisto)} a ${fmtDataCurta(e.fimPrevisto)}`,
         `${fmtDataCurta(e.inicioReal)} a ${fmtDataCurta(e.fimReal)}`, fmtPct(c.progresso, 0), c.situacao];
     }), { colunas: { 3: { halign: 'right' } } });
+
+  if (!interno) {
+    /* parcelas: pagas e próximas — sem tarifa, sem diferença, sem caixa */
+    y = pdfTabela(doc, y, 'Parcelas',
+      ['Origem', 'Etapa', 'Previsto p/', 'Recebido em', 'Situação'],
+      o.recebimentos.filter((r) => r.status !== 'Cancelado').map((r) => [r.origem,
+        r.etapaPci || (r.numeroMedicao ? `Medição ${r.numeroMedicao}` : ''),
+        fmtDataCurta(r.dataPrevista), fmtDataCurta(r.dataRecebimento), r.status]));
+    pdfRodape(doc);
+    return doc;
+  }
 
   const bases = basesContratuais(o);
   y = pdfTabela(doc, y, 'Contratos e aditivos',
@@ -515,11 +539,11 @@ async function montarPdfStatus(o) {
       fmtMoney(r.valorPrevisto), fmtDataCurta(r.dataRecebimento), fmtMoney(r.valorRecebido), r.status]),
     { colunas: { 3: { halign: 'right' }, 5: { halign: 'right' } } });
 
-  const al = alertasObra(o);
-  if (al.length) {
+  const pend = pendenciasObra(o);
+  if (pend.itens.length) {
     pdfTabela(doc, y, 'Pendências',
       ['Nível', 'Módulo', 'Situação', 'Ação recomendada'],
-      al.slice(0, 18).map((a) => [a.sev === 3 ? 'Crítico' : a.sev === 2 ? 'Atenção' : 'Info',
+      pend.itens.slice(0, 18).map((a) => [a.sev === 3 ? 'Crítico' : 'Atenção',
         a.modulo, a.titulo, a.acao]), { colunas: { 0: { cellWidth: 16 }, 1: { cellWidth: 24 } } });
   }
   pdfRodape(doc);
@@ -531,6 +555,13 @@ ACOES['pdf-status'] = async () => {
   const doc = await montarPdfStatus(o);
   if (!doc) return;
   await salvarPDF(doc, `status-${slug(o.nome)}-${hojeISO()}.pdf`);
+};
+
+ACOES['pdf-interno'] = async () => {
+  const o = App.obra();
+  const doc = await montarPdfStatus(o, { interno: true });
+  if (!doc) return;
+  await salvarPDF(doc, `interno-${slug(o.nome)}-${hojeISO()}.pdf`);
 };
 
 /* ---------------------------------- compartilhar o status por WhatsApp
@@ -626,12 +657,13 @@ ACOES['pdf-medicao'] = async () => {
   if (!doc) return;
   const k = kpisObra(o);
   const pesos = pesosCronograma(o);
-  const aSolicitar = Math.max(0, k.progressoFisico * k.financiado - k.recebido);
+  /* só o que o financiador já liberou abate — entrada do cliente não conta */
+  const aSolicitar = Math.max(0, k.progressoFisico * k.financiado - k.recebidoFinanciamento);
   let y = doc.__startY;
   y = pdfKPIs(doc, y, [
     ['Avanço físico', fmtPct(k.progressoFisico, 1), 'ponderado pelas etapas'],
     ['Contrato CAIXA', o.fin.contratoCaixa || '—', fmtMoney(k.financiado, { dec: 0 })],
-    ['Já recebido', fmtMoney(k.recebido, { dec: 0 }), fmtPct(k.financiado ? k.recebido / k.financiado : 0, 0)],
+    ['Já liberado', fmtMoney(k.recebidoFinanciamento, { dec: 0 }), k.liberadoFinanciamento === null ? '—' : fmtPct(k.liberadoFinanciamento, 1)],
     ['A solicitar', fmtMoney(aSolicitar, { dec: 0 }), 'pelo avanço apurado']
   ]);
 
