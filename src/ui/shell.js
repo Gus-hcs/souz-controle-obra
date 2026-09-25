@@ -32,6 +32,7 @@ const ICO = {
   tema: '<circle cx="8" cy="8" r="5.6"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor" stroke="none"/>',
   x: '<path d="M4 4l8 8M12 4l-8 8"/>',
   baixar: '<path d="M8 2v8M4.5 7 8 10.5 11.5 7M2.5 13.5h11"/>',
+  clipe: '<path d="M11.5 7.5 7 12a2.5 2.5 0 0 1-3.5-3.5L9 3a1.7 1.7 0 0 1 2.4 2.4L6 10.8a.8.8 0 0 1-1.1-1.1L9.5 5"/>',
   lapis: '<path d="M11 2.5 13.5 5 5.5 13H3v-2.5z"/>',
   lixo: '<path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 10h6.6L12 4"/>',
   seta: '<path d="M6 3l5 5-5 5"/>',

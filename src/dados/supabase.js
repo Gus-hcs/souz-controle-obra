@@ -130,7 +130,9 @@ const TABELAS_DB = [
       prestadorId: ['prestador_id', 'ref'],
       quantidade: ['quantidade', 'num'], unidade: 'unidade', precoUnitario: ['preco_unitario', 'num'],
       desconto: ['desconto', 'num'], frete: ['frete', 'num'], formaPagamento: 'forma_pagamento',
-      observacoes: 'observacoes'
+      observacoes: 'observacoes',
+      /* exige a migração 0019 */
+      anexoNf: 'anexo_nf'
     }
   },
   {
@@ -252,10 +254,31 @@ function paraApp(linha, tab) {
     else definir(item, caminho, v === null || v === undefined ? '' : String(v));
   });
   if (linha.usuario_id) item.usuarioId = linha.usuario_id;
+  /* versão da linha no banco (carimbo de concorrência): o sincronizar só
+     altera ou apaga se o banco ainda estiver nesta versão */
+  if (linha.atualizado_em) item.versao = String(linha.atualizado_em);
   return item;
 }
 
 /* todas as linhas de uma tabela a partir do estado, indexadas por id */
+/* id → item do estado, para devolver a versão nova depois de gravar */
+function itensDoEstado(estado, tab) {
+  const mapa = new Map();
+  if (tab.raiz) (estado[tab.raiz] || []).forEach((item) => mapa.set(item.id, item));
+  else (estado.obras || []).forEach((o) => (o[tab.colecao] || []).forEach((item) => mapa.set(item.id, item)));
+  return mapa;
+}
+
+/* Conflito de concorrência: outra pessoa gravou a linha depois que este
+   aparelho a carregou. O Store recarrega do banco e avisa. */
+class ConflitoSync extends Error {
+  constructor(conflitos) {
+    super(`${conflitos.length} registro(s) alterado(s) por outra pessoa`);
+    this.codigo = 'conflito';
+    this.conflitos = conflitos;
+  }
+}
+
 function linhasDoEstado(estado, tab) {
   const mapa = new Map();
   if (tab.raiz) {
@@ -673,32 +696,74 @@ const SUPA = {
     });
 
     let enviadas = 0, removidas = 0;
+    const conflitos = [];
+    const versaoAntes = (t, id) => {
+      const it = itensDoEstado(anterior, t).get(id);
+      return it && it.versao ? it.versao : '';
+    };
 
-    /* inserções e alterações, respeitando as dependências */
+    /* inserções e alterações, respeitando as dependências.
+       Linha nova: upsert em lote. Linha que já existia e tem versão
+       conhecida: UPDATE condicional à versão — se outra pessoa gravou
+       depois, nenhuma linha casa e vira conflito (nada é sobrescrito). */
     for (const t of tabelas) {
       const antes = mapasA.get(t.nome), agora = mapasB.get(t.nome);
+      const itens = itensDoEstado(atual, t);
+      const versoesAntes = itensDoEstado(anterior, t);
+      const novas = [];
       const alteradas = [];
       agora.forEach((linha, id) => {
         const anteriorLinha = antes.get(id);
-        if (!anteriorLinha || JSON.stringify(anteriorLinha) !== JSON.stringify(linha)) alteradas.push(linha);
+        if (!anteriorLinha) novas.push(linha);
+        else if (JSON.stringify(anteriorLinha) !== JSON.stringify(linha)) alteradas.push(linha);
       });
-      for (let i = 0; i < alteradas.length; i += 400) {
-        const lote = alteradas.slice(i, i + 400);
-        const { error } = await this.sb.from(t.nome).upsert(lote, { onConflict: 'id' });
+      for (let i = 0; i < novas.length; i += 400) {
+        const lote = novas.slice(i, i + 400);
+        const { data, error } = await this.sb.from(t.nome).upsert(lote, { onConflict: 'id' }).select('id, atualizado_em');
         if (error) throw new Error(`${t.nome}: ${error.message}`);
+        (data || []).forEach((r) => { const it = itens.get(r.id); if (it) it.versao = String(r.atualizado_em); });
         enviadas += lote.length;
+      }
+      for (const linha of alteradas) {
+        const prev = versoesAntes.get(linha.id);
+        const versao = prev && prev.versao;
+        let q = this.sb.from(t.nome).update(linha).eq('id', linha.id);
+        if (versao) q = q.eq('atualizado_em', versao);
+        const { data, error } = await q.select('id, atualizado_em');
+        if (error) throw new Error(`${t.nome}: ${error.message}`);
+        if (!data || !data.length) {
+          conflitos.push({ tabela: t.nome, id: linha.id, tipo: 'alterado' });
+          continue;
+        }
+        const it = itens.get(linha.id);
+        if (it) it.versao = String(data[0].atualizado_em);
+        enviadas++;
       }
     }
 
-    /* exclusões na ordem inversa (filhos antes dos pais) */
+    /* exclusões na ordem inversa (filhos antes dos pais). Com versão
+       conhecida, só apaga se ninguém mexeu; se a linha ainda existe com
+       outra versão, é conflito (não apaga o trabalho de outra pessoa). */
     for (const t of [...tabelas].reverse()) {
       const antes = mapasA.get(t.nome), agora = mapasB.get(t.nome);
       const ids = [...antes.keys()].filter((id) => !agora.has(id));
-      for (let i = 0; i < ids.length; i += 400) {
-        const lote = ids.slice(i, i + 400);
+      const comVersao = ids.filter((id) => versaoAntes(t, id));
+      const semVersao = ids.filter((id) => !versaoAntes(t, id));
+      for (let i = 0; i < semVersao.length; i += 400) {
+        const lote = semVersao.slice(i, i + 400);
         const { error } = await this.sb.from(t.nome).delete().in('id', lote);
         if (error) throw new Error(`${t.nome}: ${error.message}`);
         removidas += lote.length;
+      }
+      for (const id of comVersao) {
+        const { data, error } = await this.sb.from(t.nome).delete()
+          .eq('id', id).eq('atualizado_em', versaoAntes(t, id)).select('id');
+        if (error) throw new Error(`${t.nome}: ${error.message}`);
+        if (data && data.length) { removidas++; continue; }
+        /* não apagou: ou já tinha sido apagada (tudo certo) ou mudou */
+        const { data: ainda, error: e2 } = await this.sb.from(t.nome).select('id').eq('id', id);
+        if (e2) throw new Error(`${t.nome}: ${e2.message}`);
+        if (ainda && ainda.length) conflitos.push({ tabela: t.nome, id, tipo: 'excluido' });
       }
     }
 
@@ -718,6 +783,7 @@ const SUPA = {
       }).eq('id', this.usuario.id);
       if (error) throw new Error('perfis: ' + error.message);
     }
+    if (conflitos.length) throw new ConflitoSync(conflitos);
     return { enviadas, removidas };
   }
 };

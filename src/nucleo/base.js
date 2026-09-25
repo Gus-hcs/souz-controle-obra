@@ -408,7 +408,9 @@ const novoLancamento = () => ({
   id: uid('lan'), data: hojeISO(), tipo: 'Material', etapa: '', categoria: '',
   descricao: '', fornecedor: '', prestadorId: '', documento: '', quantidade: 1, unidade: 'un',
   precoUnitario: 0, desconto: 0, frete: 0, formaPagamento: 'PIX',
-  materialId: '', observacoes: ''
+  materialId: '', observacoes: '',
+  /* foto da nota fiscal/recibo (0019), imagem reduzida em data URI */
+  anexoNf: ''
 });
 
 const novoMaterial = () => ({
@@ -548,7 +550,10 @@ function migrar(s) {
       e.pesoFinanciador = num(e.pesoFinanciador);
       if (!Array.isArray(e.predecessoras)) e.predecessoras = [];
     });
-    obra.lancamentos.forEach((l) => { if (l.prestadorId == null) l.prestadorId = ''; });
+    obra.lancamentos.forEach((l) => {
+      if (l.prestadorId == null) l.prestadorId = '';
+      if (l.anexoNf == null) l.anexoNf = '';
+    });
     /* numeração sempre como texto: a planilha traz número, o banco guarda texto */
     obra.medicoes.forEach((m) => { m.numero = m.numero == null ? '' : String(m.numero); });
     obra.recebimentos.forEach((r) => {

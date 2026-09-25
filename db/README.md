@@ -99,6 +99,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0016_financiador_e_parcelas.sql` | financiador genérico: `obras.financiador`; `% exigido`, vistoria e aprovação da parcela em `recebimentos`; item e peso da planilha do financiador em `cronograma`; `contratos.etapas`; CHECKs |
 | `0017_dependencias_e_diario_de_campo.sql` | `cronograma.predecessoras` (fim→início); diário de campo: clima por turno, efetivo por função, equipamentos, % da etapa, impacto no prazo; CHECKs |
 | `0018_cliente_e_fornecedor.sql` | tabela `pendencias_cliente` (o que o cliente deve à obra, com prazo) com RLS por obra; `obras.status_enviado_em`; `prestadores.tipo` (serviço × fornecedor); CHECKs |
+| `0019_anexo_nf_e_funcoes_fechadas.sql` | `lancamentos.anexo_nf` (foto da nota, CHECK de imagem ≤ 1,5 MB); `EXECUTE` revogado de `anon` em todas as `SECURITY DEFINER` e de todos nas funções de gatilho |
 
 ### 0008 — logos
 
@@ -336,4 +337,20 @@ decisão". Opcional na carga, como `alertas_tratamento`: sem a tabela, o recurso
 some e o resto funciona. `status_enviado_em` é carimbado pelo app ao gerar o
 PDF de status do cliente ou compartilhá-lo pelo WhatsApp; mais de 14 dias sem
 envio numa obra em andamento vira aviso informativo.
+
+### 0019 — foto da NF e funções fechadas
+
+Blocos A (coluna nova e permissões), B (diagnóstico), C/D (`CHECK` do anexo).
+O verificador de segurança do Supabase apontava funções `SECURITY DEFINER`
+executáveis sem login. Agora: `anon` não executa nenhuma; `authenticated`
+executa as que o app chama por RPC (`admin_consumo`, `admin_definir_perfil`,
+`membros_da_obra`, `convidar_membro`) e as que a RLS usa (`pode_ler_obra`,
+`pode_escrever_obra`, `eh_dono_obra`, `pode_admin`); as de gatilho, ninguém — o
+Postgres só confere `EXECUTE` de gatilho ao criá-lo, então eles continuam
+disparando (conferido em produção com uma transação desfeita).
+
+### Aplicadas em produção
+
+0015–0019 aplicadas em 25/09/2026, bloco a bloco, com o diagnóstico de cada uma
+vazio antes das restrições.
 

@@ -650,16 +650,61 @@ function formLancamento(l, novo, aoSalvar) {
       total: `Total: <b>${fmtMoney(Math.max(0, num(d.quantidade) * num(d.precoUnitario) - num(d.desconto) + num(d.frete)))}</b>
         &nbsp;(${fmtNum(d.quantidade, 2)} × ${fmtMoney(d.precoUnitario)} − ${fmtMoney(d.desconto)} + ${fmtMoney(d.frete)})`
     }),
-    validar: (d) => validarLancamento(d),
+    validar: (d) => validarLancamento({ ...d, anexoNf: window.__nf || '' }),
     aoSalvar: (d) => {
       if (!d.descricao) return toast('Informe a descrição do lançamento.', 'aviso');
       if (d.prestadorId && !d.fornecedor) d.fornecedor = nomeDoPrestador(d.prestadorId, '');
-      Object.assign(l, d);
+      Object.assign(l, d, { anexoNf: window.__nf || '' });
       fecharModal();
       aoSalvar(l);
     }
   });
+  anexarNfAoForm(l);
 }
+
+/* Foto da nota fiscal (0019): câmera direto no celular ou galeria. Só o
+   anexo — sem leitura automática. Reduzida como as fotos do diário. */
+function anexarNfAoForm(l) {
+  window.__nf = l.anexoNf || '';
+  const form = document.querySelector('#modal-camada [data-form]');
+  if (!form) return;
+  const bloco = document.createElement('div');
+  bloco.className = 'campo c12';
+  const desenhar = () => {
+    bloco.innerHTML = `<label>Foto da nota fiscal</label>
+      ${window.__nf
+        ? `<div class="nf-anexo"><img src="${fonteImagem(window.__nf)}" alt="Nota fiscal"><button type="button" class="btn sutil pequeno" data-nf-remover="1">Remover</button></div>`
+        : `<div class="fotos-botoes">
+            <label class="btn pequeno">Fotografar a nota<input type="file" accept="image/*" capture="environment" data-nf="1" hidden></label>
+            <label class="btn sutil pequeno">Da galeria<input type="file" accept="image/*" data-nf="1" hidden></label>
+          </div>
+          <span class="dica">comprovante preso ao lançamento — a imagem é reduzida para não pesar a base</span>`}`;
+    bloco.querySelectorAll('[data-nf]').forEach((inp) => inp.addEventListener('change', async (ev) => {
+      const f = ev.target.files && ev.target.files[0];
+      if (!f) return;
+      try {
+        window.__nf = await comprimirImagem(f, 1600, 0.7);
+      } catch (e) {
+        toast('Não foi possível ler a imagem da nota.', 'critico');
+      }
+      desenhar();
+    }));
+    const rm = bloco.querySelector('[data-nf-remover]');
+    if (rm) rm.addEventListener('click', () => { window.__nf = ''; desenhar(); });
+  };
+  desenhar();
+  form.appendChild(bloco);
+}
+
+ACOES['ver-nf'] = (el, d) => {
+  const l = App.obra().lancamentos.find((x) => x.id === d.id);
+  if (!l || !l.anexoNf) return;
+  abrirModal({
+    titulo: `Nota — ${l.descricao || 'lançamento'}${l.documento ? ` · ${l.documento}` : ''}`,
+    largura: 'largo',
+    corpo: `<img src="${fonteImagem(l.anexoNf)}" alt="Nota fiscal de ${esc(l.descricao || '')}" style="width:100%;border-radius:4px">`,
+  });
+};
 
 ACOES['novo-lancamento'] = () => {
   const o = App.obra();

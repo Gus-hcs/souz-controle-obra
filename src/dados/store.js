@@ -161,6 +161,12 @@ const Store = {
           this.notificar();
           return;
         }
+        if (err && err.codigo === 'conflito') {
+          /* outra pessoa gravou antes: o resto já foi; recarrega a versão
+             do banco para não sobrescrever o trabalho dela */
+          await this.recarregarDoBanco(err.conflitos.length);
+          return;
+        }
         this.pendente = false;
         this.status = 'erro';
         this.ultimoErro = String((err && err.message) || err);
@@ -168,6 +174,25 @@ const Store = {
       }
       this.notificar();
     }
+  },
+
+  /* Recarrega o estado do banco depois de um conflito de concorrência. */
+  async recarregarDoBanco(n) {
+    try {
+      const novo = migrar(await SUPA.carregar());
+      this.estado = novo;
+      this.snapshot = JSON.parse(JSON.stringify(novo));
+      this.pendente = false;
+      this.status = 'ok';
+      this.gravarLocal(JSON.stringify(novo));
+      toast(`${n === 1 ? 'Um registro foi alterado' : `${n} registros foram alterados`} por outra pessoa enquanto você editava. Ficou a versão dela — confira e refaça sua alteração, se ainda precisar.`, 'aviso', 9000);
+      App.render();
+    } catch (e) {
+      this.status = 'erro';
+      this.ultimoErro = String((e && e.message) || e);
+      toast('Houve conflito com outra pessoa e não consegui recarregar: ' + this.ultimoErro, 'critico', 9000);
+    }
+    this.notificar();
   },
 
   async salvarSemBanco(json) {

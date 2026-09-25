@@ -422,3 +422,21 @@ details.tratados > summary {
   display: inline-flex;
   gap: var(--e1);
 }
+
+/* Foto da nota fiscal (0019). */
+.nf-anexo {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--e3);
+}
+.nf-anexo img {
+  max-width: 180px;
+  max-height: 180px;
+  border-radius: var(--r-campo);
+  border: 1px solid var(--separador);
+}
+.marca-nf {
+  margin-left: var(--e1);
+  vertical-align: -1px;
+  color: var(--acento-texto);
+}

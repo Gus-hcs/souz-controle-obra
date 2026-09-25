@@ -244,6 +244,11 @@ function validarLancamento(l) {
     ['desconto', 'Desconto'],
     ['frete', 'Frete / acréscimo'],
   ], (k) => l[k], out);
+  /* foto da NF (0019) — espelha o CHECK chk_lanc_anexo_nf */
+  const nf = String(l.anexoNf || '');
+  if (nf && (!/^data:image\//.test(nf) || nf.length > 1500000)) {
+    out.push(problema('anexoNf', 'A foto da nota precisa ser uma imagem de até 1,5 MB.'));
+  }
   return out;
 }
 

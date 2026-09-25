@@ -127,7 +127,11 @@ VIEWS.lancamentos = () => {
         const marca = dup
           ? `<span class="marca-duplicado" title="${dup} lançamentos iguais: mesma data, fornecedor e valor" aria-label="possível duplicado">${svg(ICO.alerta, 12)}</span>`
           : '';
-        return `<div class="cel-dupla"><b>${marca}${esc(d.l.descricao || '—')}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div>`;
+        /* clipe da NF (0019): abre a foto da nota */
+        const nf = d.l.anexoNf
+          ? `<button class="btn-link marca-nf" data-acao="ver-nf" data-id="${esc(d.l.id)}" title="Ver a foto da nota" aria-label="Ver a foto da nota de ${esc(d.l.descricao || '')}">${svg(ICO.clipe, 12)}</button>`
+          : '';
+        return `<div class="cel-dupla"><b>${marca}${esc(d.l.descricao || '—')}${nf}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div>`;
       },
     },
     {

@@ -134,11 +134,11 @@ Um termo para cada coisa, em todas as telas, PDFs e alertas:
   engenheiro/cliente. O banco recusa a escrita indevida (RLS); a tela ainda não.
 - **Offline é por aparelho.** Sem rede, o que é gravado fica no localStorage e
   vai ao banco quando a rede volta (`Store`, `public/sw.js`). Com a
-  sincronização last-write-wins (abaixo), duas pessoas editando a mesma linha
-  offline: vale a última a reconectar.
-- **Sincronização e concorrência.** Ver [docs/SINCRONIZACAO.md](docs/SINCRONIZACAO.md):
-  `SUPA.sincronizar()` é last-write-wins por linha inteira. Some com um usuário
-  por obra; quebra com dois. Decisão pendente.
+  carimbo de versão (abaixo), duas pessoas editando a mesma linha offline:
+  quem reconecta depois recebe o aviso de conflito e a versão da outra.
+- **Concorrência** resolvida por carimbo de versão (`atualizado_em`): ver
+  [docs/SINCRONIZACAO.md](docs/SINCRONIZACAO.md). Conflito recarrega do banco e
+  avisa; nada é sobrescrito em silêncio.
 
 ## Comandos
 
