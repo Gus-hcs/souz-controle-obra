@@ -1,8 +1,8 @@
 /**
  * index.js — Entrada e saída: importação de planilha MCMV, exportação CSV e PDF.
  */
-import { addDias, competencia, fmtData, fmtDataCurta, fmtMoney, fmtNum, fmtPct, hojeISO, migrar, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, slug } from '../nucleo/base.js';
-import { alertasObra, basesContratuais, etapaCalc, kpisObra, lancamentoTotal, medicaoAPagar, medicaoAlerta, medicaoLiquido, pesosCronograma, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
+import { addDias, competencia, fmtData, fmtDataCurta, fmtMoney, fmtNum, fmtPct, hojeISO, migrar, norm, novaEtapaCronograma, novaMedicao, novaObra, novaPendenciaCliente, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, slug } from '../nucleo/base.js';
+import { basesContratuais, etapaCalc, fotosDaSemana, kpisObra, memoriaMedicao, pendenciasDoCliente, valorAgregadoObra, lancamentoTotal, medicaoAPagar, medicaoAlerta, medicaoLiquido, pendenciasObra, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
 import { apenasErros, validarObraCompleta } from '../dominio/validacao.js';
 import { linkWhatsApp, normalizarTelefoneBR } from '../nucleo/contato.js';
 import { Store, mutar } from '../dados/store.js';
@@ -461,6 +461,35 @@ function pdfTabela(doc, y, titulo, cabecalho, corpo, opcoes = {}) {
   return doc.lastAutoTable.finalY + 8;
 }
 
+/* Grade de fotos, 3 por linha, com data e etapa embaixo. Foto que o
+   jsPDF não consegue ler é pulada — o relatório sai assim mesmo. */
+function pdfFotos(doc, y, fotos) {
+  if (!fotos.length) return y;
+  const larg = (196 - 14 - 2 * 4) / 3;
+  const alt = 44;
+  if (y + 8 + alt > 280) { doc.addPage(); y = 20; }
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(20, 24, 26);
+  doc.text('Fotos da semana', 14, y);
+  y += 4;
+  let col = 0;
+  fotos.forEach((f) => {
+    if (col === 3) { col = 0; y += alt + 10; }
+    if (y + alt > 280) { doc.addPage(); y = 20; col = 0; }
+    const x = 14 + col * (larg + 4);
+    try {
+      const p = doc.getImageProperties(f.dados);
+      const escala = Math.min(larg / p.width, alt / p.height);
+      const w = p.width * escala, h = p.height * escala;
+      doc.addImage(f.dados, /png/i.test(f.dados.slice(0, 20)) ? 'PNG' : 'JPEG', x + (larg - w) / 2, y, w, h);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...CINZA);
+      doc.text(`${fmtDataCurta(f.data)}${f.etapa ? ' · ' + f.etapa : ''}`.slice(0, 48), x, y + alt + 4);
+      doc.setTextColor(20, 24, 26);
+      col++;
+    } catch (e) { /* foto ilegível: pula */ }
+  });
+  return y + alt + 12;
+}
+
 function pdfRodape(doc) {
   const total = doc.internal.getNumberOfPages();
   for (let i = 1; i <= total; i++) {
@@ -479,17 +508,33 @@ async function salvarPDF(doc, nome) {
 /* ------------------------------------------- 1. status da obra
    Extraído de ACOES['pdf-status'] para virar o mesmo doc que
    ACOES['whatsapp-status'] compartilha — sem duplicar a montagem. */
-async function montarPdfStatus(o) {
-  const doc = await novoPDF(o, 'Relatório de status');
+/* Duas versões, porque o leitor é outro:
+   - cliente (padrão, é o que vai pelo WhatsApp): avanço, data contratual,
+     etapas e as parcelas do financiamento. NUNCA caixa da obra, custo, custo
+     por m², margem, valores de subcontrato nem alertas internos — isso é
+     informação da construtora.
+   - interno: tudo, para o dono e o arquivo. */
+async function montarPdfStatus(o, { interno = false } = {}) {
+  const doc = await novoPDF(o, interno ? 'Relatório interno da obra' : 'Relatório de status');
   if (!doc) return null;
   const k = kpisObra(o);
+  const va = valorAgregadoObra(o);
   let y = doc.__startY;
-  y = pdfKPIs(doc, y, [
-    ['Avanço físico', fmtPct(k.progressoFisico, 0), `${k.etapasConcluidas}/${k.etapasTotal} etapas`],
-    ['Recebido', fmtMoney(k.recebido, { dec: 0 }), `de ${fmtMoney(k.financiado, { dec: 0 })}`],
-    ['Pago', fmtMoney(k.totalPago, { dec: 0 }), k.area ? `${fmtMoney(k.custoM2, { dec: 0 })}/m²` : ''],
-    ['Saldo em caixa', fmtMoney(k.saldoCaixa, { dec: 0 }), `previsto ${fmtMoney(k.custoPrevisto, { dec: 0 })}`]
-  ]);
+  const liberado = k.liberadoFinanciamento === null ? '—' : fmtPct(k.liberadoFinanciamento, 0);
+  y = pdfKPIs(doc, y, interno
+    ? [
+      ['Avanço físico', fmtPct(k.progressoFisico, 0), `${k.etapasConcluidas}/${k.etapasTotal} etapas`],
+      ['Financiamento liberado', liberado, `${fmtMoney(k.recebidoFinanciamento, { dec: 0 })} de ${fmtMoney(k.financiado, { dec: 0 })}`],
+      ['Pago', fmtMoney(k.totalPago, { dec: 0 }), k.area ? `físico previsto ${fmtMoney(k.custoFisicoPrevistoM2, { dec: 0 })}/m²` : ''],
+      ['Caixa hoje', fmtMoney(k.saldoCaixa, { dec: 0 }), `previsto ${fmtMoney(k.custoPrevisto, { dec: 0 })}`]
+    ]
+    : [
+      ['Obra concluída', fmtPct(k.progressoFisico, 0), `${k.etapasConcluidas} de ${k.etapasTotal} etapas`],
+      ['Data contratual', fmtData(o.previsaoConclusao), 'prazo de entrega do contrato'],
+      /* no ritmo de hoje (valorAgregadoObra) — o cliente pergunta isso */
+      ['Entrega projetada', va.termino ? fmtData(va.termino) : '—', 'no ritmo atual da obra'],
+      ['Financiamento liberado', liberado, `de ${fmtMoney(k.financiado, { dec: 0 })}`]
+    ]);
 
   y = pdfTabela(doc, y, 'Cronograma e progresso',
     ['Etapa', 'Previsto', 'Real', 'Progresso', 'Situação'],
@@ -498,6 +543,23 @@ async function montarPdfStatus(o) {
       return [e.etapa, `${fmtDataCurta(e.inicioPrevisto)} a ${fmtDataCurta(e.fimPrevisto)}`,
         `${fmtDataCurta(e.inicioReal)} a ${fmtDataCurta(e.fimReal)}`, fmtPct(c.progresso, 0), c.situacao];
     }), { colunas: { 3: { halign: 'right' } } });
+
+  if (!interno) {
+    /* parcelas: pagas e próximas — sem tarifa, sem diferença, sem caixa */
+    y = pdfTabela(doc, y, 'Parcelas',
+      ['Origem', 'Etapa', 'Previsto p/', 'Recebido em', 'Situação'],
+      o.recebimentos.filter((r) => r.status !== 'Cancelado').map((r) => [r.origem,
+        r.etapaPci || (r.numeroMedicao ? `Medição ${r.numeroMedicao}` : ''),
+        fmtDataCurta(r.dataPrevista), fmtDataCurta(r.dataRecebimento), r.status]));
+    /* o que depende do cliente (0018): aparece para ele, com o prazo */
+    y = pdfTabela(doc, y, 'Aguardando sua decisão',
+      ['O quê', 'Até'],
+      pendenciasDoCliente(o).abertas.map((p) => [p.descricao, p.prazo ? fmtData(p.prazo) : '—']),
+      { colunas: { 1: { cellWidth: 30 } } });
+    pdfFotos(doc, y, fotosDaSemana(o));
+    pdfRodape(doc);
+    return doc;
+  }
 
   const bases = basesContratuais(o);
   y = pdfTabela(doc, y, 'Contratos e aditivos',
@@ -515,15 +577,22 @@ async function montarPdfStatus(o) {
       fmtMoney(r.valorPrevisto), fmtDataCurta(r.dataRecebimento), fmtMoney(r.valorRecebido), r.status]),
     { colunas: { 3: { halign: 'right' }, 5: { halign: 'right' } } });
 
-  const al = alertasObra(o);
-  if (al.length) {
+  const pend = pendenciasObra(o);
+  if (pend.itens.length) {
     pdfTabela(doc, y, 'Pendências',
       ['Nível', 'Módulo', 'Situação', 'Ação recomendada'],
-      al.slice(0, 18).map((a) => [a.sev === 3 ? 'Crítico' : a.sev === 2 ? 'Atenção' : 'Info',
+      pend.itens.slice(0, 18).map((a) => [a.sev === 3 ? 'Crítico' : 'Atenção',
         a.modulo, a.titulo, a.acao]), { colunas: { 0: { cellWidth: 16 }, 1: { cellWidth: 24 } } });
   }
   pdfRodape(doc);
   return doc;
+}
+
+/* status enviado ao cliente (0018): a data do último envio alimenta
+   "Cliente sem notícia há N dias" e a coluna Último status em Clientes */
+function marcarStatusEnviado(o) {
+  if (o.statusEnviadoEm === hojeISO()) return;
+  mutar(() => { o.statusEnviadoEm = hojeISO(); });
 }
 
 ACOES['pdf-status'] = async () => {
@@ -531,6 +600,14 @@ ACOES['pdf-status'] = async () => {
   const doc = await montarPdfStatus(o);
   if (!doc) return;
   await salvarPDF(doc, `status-${slug(o.nome)}-${hojeISO()}.pdf`);
+  marcarStatusEnviado(o);
+};
+
+ACOES['pdf-interno'] = async () => {
+  const o = App.obra();
+  const doc = await montarPdfStatus(o, { interno: true });
+  if (!doc) return;
+  await salvarPDF(doc, `interno-${slug(o.nome)}-${hojeISO()}.pdf`);
 };
 
 /* ---------------------------------- compartilhar o status por WhatsApp
@@ -555,6 +632,7 @@ ACOES['whatsapp-status'] = async () => {
   if (arquivo && navigator.canShare && navigator.canShare({ files: [arquivo] })) {
     try {
       await navigator.share({ files: [arquivo], title: nomeArquivo, text: texto });
+      marcarStatusEnviado(o);
       return;
     } catch (e) {
       if (e && e.name === 'AbortError') return;
@@ -565,6 +643,7 @@ ACOES['whatsapp-status'] = async () => {
   await salvarPDF(doc, nomeArquivo);
   const msg = `${texto} Anexe o arquivo "${nomeArquivo}" que acabou de baixar.`;
   window.open(linkWhatsApp(numero || '', msg), '_blank', 'noopener');
+  marcarStatusEnviado(o);
   if (!numero) {
     toast('PDF baixado. Abra o WhatsApp e escolha o contato — não achei um telefone válido para o cliente.', 'aviso');
   }
@@ -579,7 +658,7 @@ ACOES['pdf-prestacao'] = async () => {
   let y = doc.__startY;
   y = pdfKPIs(doc, y, [
     ['Saldo inicial', fmtMoney(k.saldoInicial, { dec: 0 }), ''],
-    ['Entradas', fmtMoney(k.recebido, { dec: 0 }), 'CAIXA, cliente e aportes'],
+    ['Entradas', fmtMoney(k.recebido, { dec: 0 }), 'financiador, cliente e aportes'],
     ['Saídas', fmtMoney(k.totalPago, { dec: 0 }), 'medições e compras'],
     ['Saldo final', fmtMoney(k.saldoCaixa, { dec: 0 }), '']
   ]);
@@ -619,32 +698,33 @@ ACOES['pdf-prestacao'] = async () => {
   await salvarPDF(doc, `prestacao-contas-${slug(o.nome)}-${hojeISO()}.pdf`);
 };
 
-/* --------------------------------- 3. memória de medição CAIXA */
+/* ------------------------ 3. memória de medição (qualquer financiador)
+   Layout da planilha do financiador — PLS/PCI na CAIXA, cronograma
+   físico-financeiro nos outros bancos. Os números são de memoriaMedicao. */
 ACOES['pdf-medicao'] = async () => {
   const o = App.obra();
   const doc = await novoPDF(o, 'Memória de medição');
   if (!doc) return;
+  const mm = memoriaMedicao(o);
   const k = kpisObra(o);
-  const pesos = pesosCronograma(o);
-  const aSolicitar = Math.max(0, k.progressoFisico * k.financiado - k.recebido);
   let y = doc.__startY;
   y = pdfKPIs(doc, y, [
-    ['Avanço físico', fmtPct(k.progressoFisico, 1), 'ponderado pelas etapas'],
-    ['Contrato CAIXA', o.fin.contratoCaixa || '—', fmtMoney(k.financiado, { dec: 0 })],
-    ['Já recebido', fmtMoney(k.recebido, { dec: 0 }), fmtPct(k.financiado ? k.recebido / k.financiado : 0, 0)],
-    ['A solicitar', fmtMoney(aSolicitar, { dec: 0 }), 'pelo avanço apurado']
+    ['Avanço físico', fmtPct(mm.fisico, 1), mm.porPlanilha ? 'pela planilha do financiador' : 'ponderado pelas etapas'],
+    ['Contrato ' + mm.financiador, o.fin.contratoCaixa || '—', fmtMoney(mm.financiado, { dec: 0 })],
+    ['Já liberado', fmtMoney(mm.liberado, { dec: 0 }), k.liberadoFinanciamento === null ? '—' : fmtPct(k.liberadoFinanciamento, 1)],
+    ['A solicitar', fmtMoney(mm.aSolicitar, { dec: 0 }), 'pelo avanço apurado']
   ]);
 
-  y = pdfTabela(doc, y, 'Percentual executado por etapa',
-    ['Etapa', 'Peso', 'Executado', 'Contribuição', 'Situação'],
-    o.cronograma.map((e) => {
-      const c = etapaCalc(e);
-      const p = pesos.get(e.id) || 0;
-      return [e.etapa, fmtPct(p, 1), fmtPct(c.progresso, 0), fmtPct(p * c.progresso, 1), c.situacao];
-    }),
+  const temItem = mm.linhas.some((l) => l.item);
+  y = pdfTabela(doc, y, 'Percentual executado por item',
+    [...(temItem ? ['Item'] : []), 'Serviço', 'Peso', 'Executado', 'Contribuição', 'Situação'],
+    mm.linhas.map((l) => [...(temItem ? [l.item] : []), l.etapa, fmtPct(l.peso, 2), fmtPct(l.executado, 0),
+      fmtPct(l.contribuicao, 2), l.situacao]),
     {
-      colunas: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
-      rodape: ['Total', '100,0%', '', fmtPct(k.progressoFisico, 1), '']
+      colunas: temItem
+        ? { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
+        : { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
+      rodape: [...(temItem ? [''] : []), 'Total', '100,00%', '', fmtPct(mm.fisico, 2), '']
     });
 
   doc.setFontSize(9);
@@ -675,7 +755,10 @@ ACOES.exemplo = () => {
         Object.assign(p1, { nome: 'Marcos Empreitada', especialidade: 'Empreiteiro geral', telefone: '(62) 98888-1111', avaliacao: 4 });
         const p2 = novoPrestador();
         Object.assign(p2, { nome: 'Pintura Silva', especialidade: 'Pintura', telefone: '(62) 97777-2222', avaliacao: 5 });
-        e.prestadores.push(p1, p2);
+        /* quem vende material é fornecedor, não prestador (0018) */
+        const p3 = novoPrestador();
+        Object.assign(p3, { nome: 'Depósito Central', tipo: 'fornecedor', especialidade: 'Material de construção', telefone: '(62) 3333-4444' });
+        e.prestadores.push(p1, p2, p3);
 
         const o = novaObra('Casa 12 — Residencial Aurora');
         Object.assign(o, {
@@ -687,8 +770,10 @@ ACOES.exemplo = () => {
         Object.assign(o.fin, {
           saldoInicial: 5000, valorTerreno: 45000, valorFinanciado: 180000, recursosProprios: 20000,
           precoEmpreitadaM2: 700, custoFisicoMaxM2: 1200, valorVenda: 260000, margemDesejada: 0.15,
-          contratoCaixa: '8.1234.5678901-2', dataAssinatura: addDias(hojeISO(), -190)
+          contratoCaixa: '8.1234.5678901-2', dataAssinatura: addDias(hojeISO(), -190),
+          financiador: 'CAIXA'
         });
+        o.statusEnviadoEm = addDias(hojeISO(), -18);
         const d = (n) => addDias(hojeISO(), n);
 
         const ct = novoContrato();
@@ -709,6 +794,10 @@ ACOES.exemplo = () => {
           escopo: 'Pintura geral', regime: 'Preço fechado', valorInformado: 4200,
           inicioPrevisto: d(-8), fimPrevisto: d(17), status: 'Planejado'
         });
+        /* etapas que cada contrato executa (0016): base do medido × físico */
+        ct.etapas = ['Serviços preliminares', 'Fundação', 'Estrutura', 'Fechamento/alvenaria', 'Cobertura',
+          'Reboco e requadros', 'Instalações hidrossanitárias', 'Eletrodutos e caixas', 'Pisos e revestimentos', 'Muro', 'Calçada'];
+        ct2.etapas = ['Pintura'];
         o.contratos.push(ct, ad, ct2);
 
         [[1, -161, 'Fundação e baldrame', 0.20, 12000, 500, -159, 11500, 'Pago'],
@@ -735,7 +824,10 @@ ACOES.exemplo = () => {
           Object.assign(r, {
             origem: or, numeroMedicao: n, etapaPci: et, dataPrevista: d(dp), valorPrevisto: vp,
             dataSolicitacao: ds ? d(ds) : '', percentObra: po, valorAprovado: va, descontos: de,
-            dataRecebimento: dr ? d(dr) : '', valorRecebido: vr, status: st
+            dataRecebimento: dr ? d(dr) : '', valorRecebido: vr, status: st,
+            /* parcela por marco físico (0016): % exigido e o processo */
+            percentExigido: or === 'Cliente' ? 0 : po,
+            dataVistoria: dr && or !== 'Cliente' ? d(ds + 2) : '', dataAprovacao: dr && or !== 'Cliente' ? d(ds + 4) : ''
           });
           o.recebimentos.push(r);
         });
@@ -791,9 +883,21 @@ ACOES.exemplo = () => {
           Object.assign(e2, {
             inicioPrevisto: d(ip), fimPrevisto: d(fp),
             inicioReal: ir ? d(ir) : '', fimReal: fr ? d(fr) : '',
-            progresso: pg, quantidadeExecutada: qtd, unidadeProducao: 'm²'
+            progresso: pg, quantidadeExecutada: qtd, unidadeProducao: 'm²',
+            responsavel: etapa === 'Pintura' ? 'Pintura Silva' : 'Marcos Empreitada'
           });
           o.cronograma.push(e2);
+        });
+        /* dependências fim→início (0017): o que espera o quê */
+        const idEtapa = (nome) => (o.cronograma.find((x) => x.etapa === nome) || {}).id;
+        [['Forro/gesso', ['Pisos e revestimentos']],
+         ['Instalação elétrica final', ['Forro/gesso']],
+         ['Pintura', ['Forro/gesso', 'Instalação elétrica final']],
+         ['Louças e metais', ['Pintura']],
+         ['Calçada', ['Muro']]
+        ].forEach(([etapa, antes]) => {
+          const x = o.cronograma.find((c) => c.etapa === etapa);
+          if (x) x.predecessoras = antes.map(idEtapa).filter(Boolean);
         });
 
         [[-7, 'Bom', 5, 'Pisos e revestimentos', 'Assentamento de porcelanato nas áreas sociais e quartos.', 'Falta rejunte — material chega quinta.'],
@@ -803,6 +907,22 @@ ACOES.exemplo = () => {
           Object.assign(r, { data: d(dd), clima, efetivo: ef, etapa, atividades: at, ocorrencias: oc, autor: 'Júlio César' });
           o.diario.push(r);
         });
+        /* diário de campo (0017) e ocorrência como pendência (0015) */
+        Object.assign(o.diario[0], {
+          climaManha: 'Bom', climaTarde: 'Bom', equipamentos: 'Cortadora de piso, betoneira',
+          efetivoFuncoes: [{ funcao: 'Pedreiro', qtd: 2 }, { funcao: 'Servente', qtd: 2 }, { funcao: 'Azulejista', qtd: 1 }],
+          progressoEtapa: 0.6, ocorrenciaStatus: 'aberta', ocorrenciaResponsavel: 'Marcos Empreitada', ocorrenciaPrazo: d(1)
+        });
+        Object.assign(o.diario[1], {
+          climaManha: 'Chuva fraca', climaTarde: 'Nublado', impactaPrazo: true, diasImpacto: 1,
+          efetivoFuncoes: [{ funcao: 'Gesseiro', qtd: 2 }, { funcao: 'Ajudante', qtd: 1 }], progressoEtapa: 0.4
+        });
+
+        /* o que o cliente deve à obra (0018) */
+        o.pendenciasCliente.push(
+          Object.assign(novaPendenciaCliente(), { descricao: 'Escolher a cor da fachada', prazo: d(-2), criadaEm: d(-12) }),
+          Object.assign(novaPendenciaCliente(), { descricao: 'Aprovar o layout da cozinha', prazo: d(6), criadaEm: d(-3) }),
+        );
 
         e.obras.push(o);
         App.rota.obraId = o.id;

@@ -4,10 +4,28 @@
  * O formulário longo (20+ campos numa página só) vira três seções
  * recolhíveis — Identificação, Prazo, Financeiro e contrato — com
  * <details>/<summary> nativos, o mesmo recurso já usado no escopo MCMV
- * desta tela. Sem JS novo, sem estado de aba pra guardar.
+ * desta tela. Sem JS novo, sem estado de aba pra guardar. Prazo e
+ * Financeiro vêm abertos: são o que mais se confere.
+ *
+ * No topo, as incoerências (incoerenciasObra): teto abaixo da
+ * empreitada, entrega antes do fim do cronograma, fontes que não cobrem
+ * o custo, situação marcada diferente da calculada.
  */
-import { esc, fmtMoney, fmtNum, fmtPct, num } from '../../nucleo/base.js';
-import { kpisObra } from '../../dominio/calculos.js';
+import {
+  esc,
+  fmtMoney,
+  fmtNum,
+  fmtPct,
+  num,
+  PADROES_ACABAMENTO,
+  SISTEMAS_CONSTRUTIVOS,
+} from '../../nucleo/base.js';
+import {
+  empreitadaPrincipal,
+  incoerenciasObra,
+  kpisObra,
+  situacaoObraCalculada,
+} from '../../dominio/calculos.js';
 import {
   App,
   abrirForm,
@@ -16,11 +34,13 @@ import {
   confirmar,
   fecharModal,
   ICO,
+  lerForm,
   opcoesLista,
   svg,
   toast,
 } from '../shell.js';
-import { Store } from '../../dados/store.js';
+import { Store, mutar } from '../../dados/store.js';
+import { apenasErros, validarObra } from '../../dominio/validacao.js';
 import { SUPA } from '../../dados/supabase.js';
 import { ACOES } from '../acoes.js';
 import { VIEWS } from '../telas-obra.js';
@@ -36,12 +56,16 @@ function kpisConfig(o, k) {
   return `<div class="kpis" role="group" aria-label="Indicadores da configuração">
     ${item(
       'Empreitada principal',
-      fmtMoney(num(o.areaConstruida) * num(o.fin.precoEmpreitadaM2), { dec: 0 }),
+      fmtMoney(empreitadaPrincipal(o), { dec: 0 }),
       num(o.areaConstruida)
         ? `${fmtNum(o.areaConstruida, 2)} m² × ${fmtMoney(o.fin.precoEmpreitadaM2, { dec: 0 })}/m²`
         : 'informe a área construída',
     )}
-    ${item('Custo previsto total', fmtMoney(k.custoPrevisto, { dec: 0 }), 'contratos + materiais + saídas')}
+    ${item(
+      'Custo previsto total',
+      fmtMoney(k.custoPrevisto, { dec: 0 }),
+      `obra física ${fmtMoney(k.custoFisicoPrevisto, { dec: 0 })} · terreno, taxas e comissão ${fmtMoney(k.custoNaoFisico, { dec: 0 })}`,
+    )}
     ${item(
       'Resultado projetado',
       k.resultado === null ? '—' : fmtMoney(k.resultado, { dec: 0 }),
@@ -74,26 +98,29 @@ const SECOES = [
         opcoes: opcoesLista('statusObra'),
         col: 3,
         vazio: false,
+        dica: `pelos dados: ${situacaoObraCalculada(App.obra())} — marque à mão só "Paralisada"`,
       },
       { k: 'cidade', label: 'Cidade/UF', tipo: 'texto', col: 4 },
       { k: 'endereco', label: 'Endereço', tipo: 'texto', col: 8 },
       { k: 'areaConstruida', label: 'Área construída (m²)', tipo: 'numero', col: 3 },
       { k: 'areaMuro', label: 'Área de muro (m²)', tipo: 'numero', col: 3 },
-      { k: 'sistema', label: 'Sistema construtivo', tipo: 'texto', col: 3 },
-      { k: 'padrao', label: 'Padrão de acabamento', tipo: 'texto', col: 3 },
+      { k: 'sistema', label: 'Sistema construtivo', tipo: 'lista', opcoes: SISTEMAS_CONSTRUTIVOS, col: 3 },
+      { k: 'padrao', label: 'Padrão de acabamento', tipo: 'lista', opcoes: PADROES_ACABAMENTO, col: 3 },
       { k: 'responsavel', label: 'Responsável técnico', tipo: 'texto', col: 6 },
       { k: 'observacoes', label: 'Observações', tipo: 'area', col: 12 },
     ],
   },
   {
     titulo: 'Prazo',
+    aberta: true,
     campos: () => [
       { k: 'dataInicio', label: 'Data de início', tipo: 'data', col: 3 },
-      { k: 'previsaoConclusao', label: 'Previsão de conclusão', tipo: 'data', col: 3 },
+      { k: 'previsaoConclusao', label: 'Data contratual de entrega', tipo: 'data', col: 3 },
     ],
   },
   {
     titulo: 'Financeiro e contrato',
+    aberta: true,
     campos: () => [
       { k: 'fin.saldoInicial', label: 'Saldo inicial da obra', tipo: 'dinheiro', col: 3 },
       { k: 'fin.valorTerreno', label: 'Valor do terreno', tipo: 'dinheiro', col: 3 },
@@ -105,10 +132,14 @@ const SECOES = [
         label: 'Custo físico máximo/m²',
         tipo: 'dinheiro',
         col: 3,
-        dica: 'gera alerta se ultrapassar',
+        dica: 'só obra física: sem terreno, taxas, honorário e comissão. Referência: CUB do Sinduscon da região',
       },
       { k: 'fin.valorVenda', label: 'Valor de venda/contrato', tipo: 'dinheiro', col: 3 },
       { k: 'fin.margemDesejada', label: 'Margem desejada (%)', tipo: 'pct', col: 3 },
+      /* qualquer financiador (0016) — as telas usam este nome */
+      { k: 'fin.financiador', label: 'Financiador', tipo: 'lista', col: 4,
+        opcoes: ['CAIXA', 'Banco do Brasil', 'Itaú', 'Bradesco', 'Santander', 'Consórcio', 'Cliente (por marco)'],
+        dica: 'quem libera o dinheiro por avanço de obra' },
       { k: 'fin.contratoCaixa', label: 'Nº do contrato de financiamento', tipo: 'texto', col: 4 },
       { k: 'fin.dataAssinatura', label: 'Data da assinatura', tipo: 'data', col: 4 },
     ],
@@ -281,8 +312,16 @@ VIEWS['obra-config'] = () => {
     </details>`,
   ).join('');
 
+  const incoerencias = incoerenciasObra(o);
+
   return `<div class="tela-lista">
     ${kpisConfig(o, k)}
+    ${
+      incoerencias.length
+        ? `<div class="aviso-linha" role="status" style="margin-bottom:var(--e3)"><b>Confira:</b>
+            <ul style="margin:var(--e1) 0 0;padding-left:var(--e5)">${incoerencias.map((x) => `<li>${esc(x.texto)}</li>`).join('')}</ul></div>`
+        : ''
+    }
     <form data-form="1" onsubmit="return false" style="display:flex;flex-direction:column;gap:var(--e3)">
       ${secoesHtml}
     </form>
@@ -334,6 +373,34 @@ VIEWS['obra-config'] = () => {
     }
   </div>`;
 };
+
+/* Salvamento automático (auditoria): ao sair de um campo alterado, grava
+   — se a configuração estiver válida — sem redesenhar a tela, para não
+   tirar o foco do próximo campo. O botão "Salvar alterações" continua:
+   ele redesenha os KPIs e as incoerências. Com erro, não grava e diz. */
+let timerAutoConfig = null;
+document.addEventListener('change', (ev) => {
+  if (App.rota.view !== 'obra-config' || Store.somenteLeitura()) return;
+  if (!ev.target.closest || !ev.target.closest('.tela-lista form[data-form]')) return;
+  if (document.querySelector('#modal-camada [data-form]')) return;
+  clearTimeout(timerAutoConfig);
+  timerAutoConfig = setTimeout(() => {
+    const d = lerForm();
+    const o = App.obra();
+    if (!o) return;
+    const erros = apenasErros(validarObra(d));
+    if (erros.length) {
+      toast(`Não salvou: ${erros[0].mensagem}`, 'aviso', 4500);
+      return;
+    }
+    mutar(() => {
+      Object.keys(d).forEach((k) => {
+        if (k.startsWith('fin.')) o.fin[k.slice(4)] = d[k];
+        else o[k] = d[k];
+      });
+    }, { render: false });
+  }, 350);
+});
 
 VIEWS['obra-config'].toolbar = () => {
   const o = App.obra();

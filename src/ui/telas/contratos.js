@@ -29,6 +29,7 @@ import {
   indicadoresContrato,
   medicaoAPagar,
   medicaoLiquido,
+  medidoFisicoContrato,
 } from '../../dominio/calculos.js';
 import { Store, mutar } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
@@ -77,7 +78,13 @@ const tela = { selecao: '' };
 const SIT_PILULAS = [
   { chave: 'atraso', rotulo: 'Atrasados', pertence: (l) => PROBLEMA_PRAZO.has(l.sit.chave) },
   { chave: 'apagar', rotulo: 'A pagar agora', pertence: (l) => l.ind.aPagarAgora > 0.005 },
-  { chave: 'andamento', rotulo: 'Em andamento', pertence: (l) => l.sit.chave === 'em-andamento' },
+  /* Contrato atrasado também está em andamento: a pílula não pode dizer 0
+     com um contrato rodando fora do prazo. */
+  {
+    chave: 'andamento',
+    rotulo: 'Em andamento',
+    pertence: (l) => l.sit.chave === 'em-andamento' || l.sit.chave === 'atrasado',
+  },
   {
     chave: 'nao-iniciado',
     rotulo: 'Não iniciados',
@@ -131,6 +138,8 @@ function linhaDados(o, b) {
     ),
   ].join('\n');
   return {
+    /* medido × físico (0016): null quando não há com o que comparar */
+    mf: medidoFisicoContrato(o, b.base),
     base: b.base,
     registros,
     principal,
@@ -273,7 +282,17 @@ function celulaPrazo(l) {
   return `<div style="display:flex;flex-direction:column;line-height:1.3;gap:2px">
     <span class="tinta2">${temData ? esc(`${ini} → ${fim}`) : '<span class="tinta3">—</span>'}</span>
     ${problema ? `<span class="${TOM_SITUACAO[l.sit.chave]}" style="font-size:var(--t-peq)">${esc(l.sit.texto)}</span>` : ''}
+    ${problema && l.sit.referencia ? `<span class="tinta3" style="font-size:var(--t-peq)">${esc(baseAtraso(l.sit, false))}</span>` : ''}
   </div>`;
+}
+
+/* A base do atraso por extenso: o do contrato não é o do cronograma.
+   Na célula, sem a data (ela já está na linha de cima). */
+function baseAtraso(sit, comData = true) {
+  const r = sit.referencia;
+  if (!r || !isISO(r.data)) return '';
+  const txt = r.tipo === 'inicio' ? 'vs. início do contrato' : 'vs. prazo do contrato';
+  return comData ? `${txt} (${fmtDataCurta(r.data)})` : txt;
 }
 
 /* "37.440 + 1 aditivo − 1.500 (supressão)": o sinal de cada aditivo
@@ -299,12 +318,22 @@ function celulaProgresso(l) {
   const base = l.ind.autorizado > 0 ? l.ind.autorizado : 0;
   const pctMedido = base > 0 ? Math.min(1, l.ind.medido / base) : 0;
   const pctPago = base > 0 ? Math.min(1, l.ind.pago / base) : 0;
-  return `<div class="barra-dupla">
+  /* marca do físico na barra: medir à frente dela é pagar serviço que
+     ainda não está na obra (medidoFisicoContrato, alerta acima de 5 p.p.) */
+  const mf = l.mf;
+  const marca = mf
+    ? `<b class="marca-fisico${mf.alerta ? ' acima' : ''}" style="left:${(Math.min(1, mf.fisico) * 100).toFixed(1)}%"></b>`
+    : '';
+  const titulo = mf
+    ? `físico ${fmtPct(mf.fisico, 0)}${mf.pelaObra ? ' (da obra)' : ' (das etapas do contrato)'}${mf.alerta ? ` — medido à frente: ${fmtMoney(mf.adiantado, { dec: 0 })} adiantados` : ''}`
+    : '';
+  return `<div class="barra-dupla"${titulo ? ` title="${esc(titulo)}"` : ''}>
     <span class="trilha">
       <i class="medido" style="width:${(pctMedido * 100).toFixed(1)}%"></i>
       <i class="pago" style="width:${(pctPago * 100).toFixed(1)}%"></i>
+      ${marca}
     </span>
-    <span class="txt">Medido ${fmtPct(pctMedido, 0)} · Pago ${fmtPct(pctPago, 0)}</span>
+    <span class="txt${mf && mf.alerta ? ' atraso' : ''}">Medido ${fmtPct(pctMedido, 0)} · Pago ${fmtPct(pctPago, 0)}</span>
   </div>`;
 }
 
@@ -479,10 +508,20 @@ function inspetorContrato(o, l) {
       <div class="inspetor-secao">
         <span class="situacao-ct ${tomSit}"><span class="pt"></span>${esc(l.sit.texto)}</span>
         ${l.sit.motivo ? `<p class="linha-cinza">${esc(l.sit.motivo)}</p>` : ''}
+        ${l.sit.referencia ? `<p class="linha-cinza">${esc(baseAtraso(l.sit))}</p>` : ''}
       </div>
       <div class="inspetor-secao"><h3>Números</h3><dl class="pares">
         ${linhaNum('Autorizado', fmtMoney(ind.autorizado, { dec: 0 }))}
         ${linhaNum('Medido', fmtMoney(ind.medido, { dec: 0 }))}
+        ${
+          l.mf
+            ? linhaNum(
+                'Medido × físico',
+                `${fmtPct(l.mf.medido, 0)} × ${fmtPct(l.mf.fisico, 0)}${l.mf.pelaObra ? ' (obra)' : ''}${l.mf.alerta ? ` — ${fmtMoney(l.mf.adiantado, { dec: 0 })} adiantados` : ''}`,
+                l.mf.alerta ? 'atraso' : '',
+              )
+            : ''
+        }
         ${linhaNum('Pago', fmtMoney(ind.pago, { dec: 0 }))}
         ${ind.retido > 0.005 ? linhaNum('Retido', fmtMoney(ind.retido, { dec: 0 })) : ''}
         ${linhaNum('A pagar agora', fmtMoney(ind.aPagarAgora, { dec: 0 }), ind.aPagarAgora > 0.005 ? 'tom-alerta' : '')}

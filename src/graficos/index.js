@@ -2,7 +2,7 @@
  * index.js — Gráficos em SVG puro: curva S, fluxo de caixa, Gantt e barras.
  */
 import { addMeses, competencia, diasEntre, esc, fimDoMes, fmtCompetencia, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtPct, hojeISO, inicioDoMes, isISO, num, round2 } from '../nucleo/base.js';
-import { curvaS, etapaCalc, fluxoCaixa, fluxoCarteira } from '../dominio/calculos.js';
+import { agendaCronograma, curvaS, etapaCalc, fluxoCaixa, fluxoCarteira, temDependencias, valorAgregadoObra } from '../dominio/calculos.js';
 import { vazio } from '../ui/shell.js';
 
 const GRAFICOS = {};   /* id → { pontos, rotulos, formata } para o hover */
@@ -30,9 +30,13 @@ function caminho(pontos) {
 
 /* ------------------------------------------------------------ CURVA S */
 /* Aceita uma obra (calcula a curva dela) ou a série já calculada — é assim
-   que a curva consolidada da carteira usa o mesmo desenho. */
+   que a curva consolidada da carteira usa o mesmo desenho.
+   Com a obra, desenha também a tendência: do físico realizado de hoje
+   até 100% no término projetado (valorAgregadoObra), tracejada.
+   Financeiro realizado em índigo (--s3): o âmbar é da cor de alerta. */
 function graficoCurvaS(obraOuSerie, altura = 300) {
-  const dados = Array.isArray(obraOuSerie) ? obraOuSerie : curvaS(obraOuSerie);
+  const ehObra = !Array.isArray(obraOuSerie);
+  const dados = ehObra ? curvaS(obraOuSerie) : obraOuSerie;
   if (dados.length < 2) {
     return vazio('Sem curva S ainda', 'Cadastre o cronograma com datas previstas para gerar a curva.');
   }
@@ -50,6 +54,9 @@ function graficoCurvaS(obraOuSerie, altura = 300) {
   const sFisPrev = serie('fisicoPrevisto');
   const sFisReal = serie('fisicoRealizado');
   const sFinReal = serie('financeiroRealizado');
+  /* liberado acumulado pelo financiador (0016): abaixo do físico = a
+     construtora está bancando a diferença */
+  const sLib = serie('liberadoFinanciador');
 
   const areaReal = sFisReal.length > 1
     ? `<path d="${caminho(sFisReal)} L ${sFisReal[sFisReal.length - 1][0].toFixed(1)} ${y0} L ${sFisReal[0][0].toFixed(1)} ${y0} Z" fill="url(#gradS)"/>` : '';
@@ -57,13 +64,25 @@ function graficoCurvaS(obraOuSerie, altura = 300) {
   const linha = (pts, cor, tracejada, larg = 2) => pts.length > 1
     ? `<path d="${caminho(pts)}" fill="none" stroke="${cor}" stroke-width="${larg}" stroke-linejoin="round" stroke-linecap="round" ${tracejada ? 'stroke-dasharray="6 4"' : ''}/>` : '';
 
-  const fim = (pts, cor, texto) => {
+  /* lado: 'acima' | 'abaixo' | '' (automático). Quando os dois pontos
+     finais estão perto, um rótulo vai para cima e o outro para baixo —
+     antes "76%" e "79%" saíam um em cima do outro. */
+  const fim = (pts, cor, texto, lado = '') => {
     if (!pts.length) return '';
     const [fx, fy] = pts[pts.length - 1];
-    const acima = fy > y1 + 22;
+    const acima = lado ? lado === 'acima' && fy > y1 + 12 : fy > y1 + 22;
     return `<circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="4" fill="${cor}" stroke="var(--sup)" stroke-width="2"/>
       ${texto ? `<text x="${fx.toFixed(1)}" y="${(fy + (acima ? -9 : 15)).toFixed(1)}" text-anchor="end" fill="${cor}" style="font-size:11px;font-weight:600">${texto}</text>` : ''}`;
   };
+  let ladoFis = '', ladoFin = '';
+  if (sFisReal.length && sFinReal.length) {
+    const yFis = sFisReal[sFisReal.length - 1][1];
+    const yFin = sFinReal[sFinReal.length - 1][1];
+    if (Math.abs(yFis - yFin) < 18) {
+      ladoFis = yFis <= yFin ? 'acima' : 'abaixo';
+      ladoFin = ladoFis === 'acima' ? 'abaixo' : 'acima';
+    }
+  }
 
   const passo = Math.max(1, Math.ceil(n / 12));
   const rotulosX = dados.map((d, i) => (i % passo === 0 || i === n - 1)
@@ -90,6 +109,7 @@ function graficoCurvaS(obraOuSerie, altura = 300) {
       `Físico previsto: ${fmtPct(d.fisicoPrevisto, 0)}`,
       d.fisicoRealizado === null ? null : `Físico realizado: ${fmtPct(d.fisicoRealizado, 0)}`,
       d.financeiroRealizado === null ? null : `Financeiro realizado: ${fmtPct(d.financeiroRealizado, 0)}`,
+      d.liberadoFinanciador == null ? null : `Liberado pelo financiador: ${fmtPct(d.liberadoFinanciador, 0)}`,
       d.financeiroRealizado === null || d.desembolsoAcumulado === undefined ? null : `Desembolso: ${fmtMoney(d.desembolsoAcumulado, { dec: 0 })}`
     ].filter(Boolean).join('<br>'))
   };
@@ -97,11 +117,44 @@ function graficoCurvaS(obraOuSerie, altura = 300) {
   const ultReal = dados.filter((d) => d.fisicoRealizado !== null).pop();
   const ultFin = dados.filter((d) => d.financeiroRealizado !== null).pop();
 
+  /* Tendência: do último físico realizado até 100% no término projetado.
+     Término além do último mês do gráfico: a linha sai pela borda na
+     inclinação certa (extrapola a largura de um mês). */
+  let tendencia = '';
+  let legendaTendencia = '';
+  const va = ehObra && ultReal && ultReal.fisicoRealizado < 1 ? valorAgregadoObra(obraOuSerie) : null;
+  if (va && isISO(va.termino) && sFisReal.length) {
+    const [ax, ay] = sFisReal[sFisReal.length - 1];
+    const larguraMes = (x1 - x0) / Math.max(1, n - 1);
+    const ymT = competencia(va.termino);
+    const iUlt = n - 1;
+    let mesesDepois = 0;
+    let c = dados[iUlt].ym;
+    while (c < ymT && mesesDepois < 120) { c = addMeses(c, 1); mesesDepois++; }
+    const iT = dados.findIndex((d) => d.ym === ymT);
+    const diasMes = diasEntre(inicioDoMes(ymT), fimDoMes(ymT)) + 1;
+    const fracao = (diasEntre(inicioDoMes(ymT), va.termino) + 1) / diasMes;
+    const xT = (iT >= 0 ? px(iT) : x1 + mesesDepois * larguraMes) + fracao * larguraMes;
+    const yT = py(1);
+    if (xT > ax + 1) {
+      let bx = xT, by = yT;
+      if (xT > x1) {
+        bx = x1;
+        by = ay + (yT - ay) * ((x1 - ax) / (xT - ax));
+      }
+      tendencia = `<path d="M${ax.toFixed(1)} ${ay.toFixed(1)} L${bx.toFixed(1)} ${by.toFixed(1)}" fill="none" stroke="var(--s1)" stroke-width="1.5" stroke-dasharray="2 4" stroke-linecap="round" opacity=".8"/>
+        ${xT <= x1 ? `<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="3" fill="none" stroke="var(--s1)" stroke-width="1.5"/>` : ''}`;
+      legendaTendencia = `<span style="color:var(--s1)"><i class="traco pontilhado"></i>Tendência · termina ${fmtDataCurta(va.termino)}</span>`;
+    }
+  }
+
   return `
   <div class="legenda" style="margin-bottom:10px">
     <span style="color:var(--s1)"><i style="background:var(--s1)"></i>Físico realizado</span>
     <span style="color:var(--s1)"><i class="traco"></i>Físico previsto</span>
-    <span style="color:var(--s2)"><i style="background:var(--s2)"></i>Financeiro realizado</span>
+    <span style="color:var(--s3)"><i style="background:var(--s3)"></i>Financeiro realizado</span>
+    ${sLib.length > 1 ? '<span style="color:var(--serie4)"><i style="background:var(--serie4)"></i>Liberado pelo financiador</span>' : ''}
+    ${legendaTendencia}
   </div>
   <div class="grafico-cx" data-grafico="${id}" style="position:relative">
     <svg class="grafico" viewBox="0 0 ${W} ${H}" role="img" aria-label="Curva S de avanço físico e financeiro">
@@ -113,10 +166,12 @@ function graficoCurvaS(obraOuSerie, altura = 300) {
       ${marcaHoje}
       ${areaReal}
       ${linha(sFisPrev, 'var(--s1)', true)}
-      ${linha(sFinReal, 'var(--s2)', false)}
+      ${tendencia}
+      ${linha(sLib, 'var(--serie4)', false, 1.6)}
+      ${linha(sFinReal, 'var(--s3)', false)}
       ${linha(sFisReal, 'var(--s1)', false, 2.4)}
-      ${fim(sFisReal, 'var(--s1)', ultReal ? fmtPct(ultReal.fisicoRealizado, 0) : '')}
-      ${fim(sFinReal, 'var(--s2)', ultFin ? fmtPct(ultFin.financeiroRealizado, 0) : '')}
+      ${fim(sFisReal, 'var(--s1)', ultReal ? fmtPct(ultReal.fisicoRealizado, 0) : '', ladoFis)}
+      ${fim(sFinReal, 'var(--s3)', ultFin ? fmtPct(ultFin.financeiroRealizado, 0) : '', ladoFin)}
       <line class="eixo" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y0}"/>
       ${rotulosX}
       <line class="cursor" x1="0" y1="${y1}" x2="0" y2="${y0}" stroke="var(--linha-forte)" stroke-width="1" style="display:none"/>
@@ -240,10 +295,16 @@ function graficoGantt(obra) {
 
   const tooltips = [];
   const rotulos = [];
+  /* caminho crítico (0017): só existe com dependências cadastradas */
+  const criticas = new Set(temDependencias(obra)
+    ? agendaCronograma(obra, hojeISO(), valorAgregadoObra(obra).idp).critico : []);
   const linhas = etapas.map((e, i) => {
     const y = mt + i * linhaH;
     const c2 = etapaCalc(e);
-    const cor = c2.situacao === 'ATRASADO' ? 'var(--critico)' : c2.situacao === 'CONCLUÍDO' ? 'var(--ok)' : 'var(--s1)';
+    /* A barra é da cor do andamento; só o trecho depois do fim previsto é
+       vermelho. Antes a etapa inteira ficava vermelha com um dia de atraso
+       — e parecia que nada ali tinha andado no prazo. */
+    const cor = c2.situacao === 'CONCLUÍDO' ? 'var(--ok)' : 'var(--s1)';
     let prev = '', real = '';
     if (isISO(e.inicioPrevisto) && isISO(e.fimPrevisto)) {
       const a = px(e.inicioPrevisto), b = Math.max(px(e.fimPrevisto), a + 3);
@@ -260,6 +321,20 @@ function graficoGantt(obra) {
       if (p > 0 && p < 1) {
         real += `<rect x="${a.toFixed(1)}" y="${y + 13}" width="${((b - a) * p).toFixed(1)}" height="8" rx="3" fill="${cor}"/>`;
       }
+      /* trecho além do fim previsto: vermelho translúcido, e cheio na parte
+         já executada — mesma leitura do resto da barra */
+      if (isISO(e.fimPrevisto)) {
+        const lim = Math.max(a, px(e.fimPrevisto));
+        if (b - lim > 0.5) {
+          const feito = p >= 1 ? b : a + (b - a) * p;
+          /* etapa já concluída: o atraso é histórico — vermelho mais leve
+             que o do atraso que ainda está acontecendo */
+          real += `<rect x="${lim.toFixed(1)}" y="${y + 13}" width="${(b - lim).toFixed(1)}" height="8" rx="3" fill="var(--critico)" opacity="${p >= 1 ? 0.45 : 0.35}"/>`;
+          if (p < 1 && feito > lim + 0.5) {
+            real += `<rect x="${lim.toFixed(1)}" y="${y + 13}" width="${(feito - lim).toFixed(1)}" height="8" rx="3" fill="var(--critico)"/>`;
+          }
+        }
+      }
     }
     const nFotos = fotosPorEtapa.get(e.etapa) || 0;
     const selo = nFotos
@@ -268,7 +343,9 @@ function graficoGantt(obra) {
           <text x="${ml - 13}" y="${y + 13}" text-anchor="middle" fill="var(--sup)" style="font-size:8.5px;font-weight:700">${nFotos}</text>
         </a>`
       : '';
-    rotulos.push(`<text x="8" y="${y + 17}" fill="var(--tinta2)" style="font-size:11.5px">${esc(e.etapa.length > 20 ? e.etapa.slice(0, 19) + '…' : e.etapa)}</text>${selo}`);
+    const critica = criticas.has(e.id);
+    const nomeCurto = e.etapa.length > 20 ? e.etapa.slice(0, 19) + '…' : e.etapa;
+    rotulos.push(`<text x="8" y="${y + 17}" fill="${critica ? 'var(--critico)' : 'var(--tinta2)'}" style="font-size:11.5px${critica ? ';font-weight:600' : ''}">${critica ? '◆ ' : ''}${esc(nomeCurto)}</text>${selo}`);
 
     tooltips.push([
       `<b>${esc(e.etapa)}</b>`,
@@ -281,6 +358,7 @@ function graficoGantt(obra) {
         : null,
       `Progresso: ${fmtPct(c2.progresso, 0)}`,
       c2.atraso > 0 ? `${c2.atraso} dia${c2.atraso === 1 ? '' : 's'} de atraso` : null,
+      criticas.has(e.id) ? 'No caminho crítico: atrasar aqui atrasa a obra' : null,
       nFotos ? `${nFotos} foto${nFotos === 1 ? '' : 's'} no diário — clique no selo para ver` : null,
     ].filter(Boolean).join('<br>'));
 
@@ -296,13 +374,13 @@ function graficoGantt(obra) {
       <span style="color:var(--mudo)"><i style="background:var(--linha-forte)"></i>Previsto</span>
       <span style="color:var(--s1)"><i style="background:var(--s1)"></i>Em andamento</span>
       <span style="color:var(--ok)"><i style="background:var(--ok)"></i>Concluído</span>
-      <span style="color:var(--critico)"><i style="background:var(--critico)"></i>Atrasado · linha de hoje</span>
+      <span style="color:var(--critico)"><i style="background:var(--critico)"></i>Além do fim previsto · linha de hoje</span>
     </div>
     <div class="gantt-flex">
       <svg class="grafico" viewBox="0 0 ${ml} ${H}" style="width:${ml}px;height:${H}px;flex:none" aria-hidden="true">
         ${rotulos.join('')}
       </svg>
-      <div class="tab-rolagem" style="flex:1;min-width:0"><div class="grafico-cx" data-grafico="${id}" style="position:relative">
+      <div class="tab-rolagem" style="flex:1;min-width:0" data-rolar-para="${px(hojeISO()).toFixed(0)}"><div class="grafico-cx" data-grafico="${id}" style="position:relative">
         <svg class="grafico" viewBox="0 0 ${WT} ${H}" style="width:${WT}px;height:${H}px" role="img" aria-label="Cronograma da obra, interativo">
           ${gradeMes}${linhas}${hoje}
         </svg>
@@ -315,7 +393,8 @@ function graficoGantt(obra) {
 function graficoBarras(itens, opcoes = {}) {
   const { formata = (v) => fmtMoney(v), cor = 'var(--s1)', max: maxForcado, manterZeros = false } = opcoes;
   const base = manterZeros ? itens.slice() : itens.filter((i) => num(i.valor) !== 0);
-  const lista = base.sort((a, b) => b.valor - a.valor).slice(0, opcoes.limite || 12);
+  /* manterOrdem: série no tempo (mês a mês) não se reordena por valor */
+  const lista = (opcoes.manterOrdem ? base : base.sort((a, b) => b.valor - a.valor)).slice(0, opcoes.limite || 12);
   if (!lista.length) return `<p style="color:var(--mudo);margin:0">Sem dados para exibir.</p>`;
   const max = maxForcado || Math.max(...lista.map((i) => Math.abs(i.valor))) || 1;
   return `<div style="display:flex;flex-direction:column;gap:9px">${lista.map((i) => `

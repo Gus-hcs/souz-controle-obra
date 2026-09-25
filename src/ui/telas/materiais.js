@@ -25,7 +25,7 @@ import {
   isISO,
   norm,
 } from '../../nucleo/base.js';
-import { materialCalc } from '../../dominio/calculos.js';
+import { coberturaPlanoMateriais, materialCalc } from '../../dominio/calculos.js';
 import { graficoBarras } from '../../graficos/index.js';
 import { Store } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
@@ -44,12 +44,13 @@ import {
 } from './componentes.js';
 
 /* --------------------------------------------------------------- KPIs */
-function kpisMateriais(todos) {
+function kpisMateriais(todos, cobertura) {
   const orcTotal = todos.reduce((s, x) => s + x.c.orcamento, 0);
   const compradoTotal = todos.reduce((s, x) => s + x.c.valorComprado, 0);
   const saldoTotal = todos.reduce((s, x) => s + x.c.saldoValor, 0);
   const comSaldo = todos.filter((x) => x.c.saldo > 0.005 && x.m.status !== 'Cancelado');
   const vencidos = todos.filter((x) => x.c.vencido);
+  const travando = vencidos.filter((x) => x.c.travaFrente);
   const comCompra = todos.filter((x) => x.c.compras > 0);
   const desvioTotal = comCompra.reduce((s, x) => s + x.c.desvio, 0);
 
@@ -75,12 +76,14 @@ function kpisMateriais(todos) {
       'vencidos',
       'Vencidos sem compra',
       vencidos.length,
-      vencidos.length
-        ? `${fmtMoney(
-            vencidos.reduce((s, x) => s + x.c.saldoValor, 0),
-            { dec: 0 },
-          )} — comprar já`
-        : 'nada em atraso',
+      travando.length
+        ? `${travando.length} travando etapa em andamento`
+        : vencidos.length
+          ? `${fmtMoney(
+              vencidos.reduce((s, x) => s + x.c.saldoValor, 0),
+              { dec: 0 },
+            )} — comprar já`
+          : 'nada em atraso',
       vencidos.length ? 'atraso' : '',
     )}
     ${item(
@@ -97,13 +100,17 @@ function kpisMateriais(todos) {
       comCompra.length
         ? `${desvioTotal >= 0 ? '+' : '−'}${fmtMoney(Math.abs(desvioTotal), { dec: 0 })}`
         : '—',
-      !comCompra.length
+      (!comCompra.length
         ? 'sem compras ainda'
         : desvioTotal > 0.5
           ? 'acima do previsto'
           : desvioTotal < -0.5
             ? 'abaixo do previsto'
-            : 'dentro do previsto',
+            : 'dentro do previsto') +
+        /* o desvio só mede o que está no plano: diz quanto isso é */
+        (cobertura.fracao === null
+          ? ''
+          : ` · plano cobre ${fmtPct(cobertura.fracao, 0)} das compras`),
       desvioTotal > 0.5 ? 'atraso' : '',
     )}
   </div>`;
@@ -143,6 +150,11 @@ function celulaPrazo(m, c, hoje) {
     return '<span class="tinta3">—</span>';
   }
   let sub, cls;
+  if (c.saldo <= 0 || m.status === 'Cancelado' || c.etapaConcluida) {
+    /* Já comprado (ou cancelado): a data é histórico, não prazo. Antes caía
+       em "hoje" laranja, que parecia alerta. */
+    return `<span class="tinta3">${esc(fmtDataCurta(m.dataNecessaria))}</span>`;
+  }
   if (c.vencido) {
     const dias = diasEntre(m.dataNecessaria, hoje);
     sub = `vencido há ${dias} dia${dias === 1 ? '' : 's'}`;
@@ -160,14 +172,23 @@ function celulaPrazo(m, c, hoje) {
 
 function situacaoMaterial(m, c) {
   if (m.status === 'Cancelado') return { texto: 'Cancelado', tom: 'tinta3' };
+  /* o diário registrou que a falta dele parou o serviço */
+  if (c.ocorrencias.length) return { texto: 'Parou a frente (diário)', tom: 'atraso', diario: c.ocorrencias[0] };
+  if (c.travaFrente) return { texto: 'Travando a etapa', tom: 'atraso' };
   if (c.vencido) return { texto: 'Vencido', tom: 'atraso' };
+  if (c.excesso > 0.005) return { texto: `Comprado +${fmtNum(c.excesso, 0)} ${m.unidade || ''}`.trim(), tom: 'tom-alerta' };
   if (c.saldo <= 0.005) return { texto: 'Comprado', tom: 'feito' };
+  /* sobra do plano numa etapa que já acabou: não é pendência */
+  if (c.etapaConcluida) return { texto: 'Etapa concluída', tom: 'tinta3' };
   return { texto: m.status || 'Planejar', tom: m.status === 'Comprado parcial' ? '' : 'tinta3' };
 }
 
 function celulaSituacao(m, c) {
   const s = situacaoMaterial(m, c);
-  return `<span class="situacao-ct ${s.tom}"><span class="pt"></span>${esc(s.texto)}</span>`;
+  const txt = `<span class="situacao-ct ${s.tom}"><span class="pt"></span>${esc(s.texto)}</span>`;
+  if (!s.diario) return txt;
+  const texto = String(s.diario.ocorrencias || '').trim();
+  return `<button class="btn-link" data-acao="ir" data-view="diario" title="${esc(texto || 'Ver no diário')}">${txt}</button>`;
 }
 
 const colunasMateriais = (hoje) => [
@@ -229,12 +250,14 @@ const colunasMateriais = (hoje) => [
     k: 'acoes',
     rotulo: '',
     largura: '15%',
+    /* "Comprar" separado do lápis e da lixeira: no celular, o dedo que
+       ia comprar não pode cair no excluir */
     celula: (d) =>
-      `${
+      `<span class="acoes-material">${
         !Store.somenteLeitura() && d.c.saldo > 0.005 && d.m.status !== 'Cancelado'
           ? `<button class="btn sutil pequeno" data-acao="comprar-material" data-id="${esc(d.m.id)}">Comprar</button>`
           : ''
-      }${acoesRegistro('material', d.m.id, d.m.material)}`,
+      }<span class="acoes-registro">${acoesRegistro('material', d.m.id, d.m.material)}</span></span>`,
   },
 ];
 
@@ -297,7 +320,7 @@ VIEWS.materiais = () => {
   ).map(([rotulo, valor]) => ({ rotulo, valor: Math.round(valor * 100) / 100 }));
 
   return `<div class="tela-lista">
-    ${kpisMateriais(todos)}
+    ${kpisMateriais(todos, coberturaPlanoMateriais(o))}
     ${barra}
     ${lista({
       id: 'materiais',
@@ -307,7 +330,7 @@ VIEWS.materiais = () => {
       ordemPadrao: { col: 'prazo', dir: 1 },
       rodapeRotulo: (n) => `${n} itens`,
     })}
-    ${faltaPorEtapa.length > 1 ? secao('Falta comprar por etapa', graficoBarras(faltaPorEtapa, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--alerta)' })) : ''}
+    ${faltaPorEtapa.length > 1 ? secao('Falta comprar por etapa', graficoBarras(faltaPorEtapa, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--serie2)' })) : ''}
   </div>`;
 };
 

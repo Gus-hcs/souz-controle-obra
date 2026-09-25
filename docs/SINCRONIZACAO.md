@@ -1,6 +1,24 @@
-# Sincronização com o banco — decisão pendente
+# Sincronização com o banco
 
-**Status:** aberto. Precisa da decisão do dono do projeto antes de virar código.
+**Status:** decidido e implementado em 25/09/2026 — **opção 2**, com o
+`atualizado_em` que todas as tabelas já têm (gatilho `marcar_atualizacao`), sem
+coluna nova.
+
+## Como ficou
+
+- `paraApp` guarda a versão da linha (`item.versao = atualizado_em`).
+- `SUPA.sincronizar`: linha nova vai em `upsert` em lote; linha que já existia
+  vai em `UPDATE ... WHERE id = ? AND atualizado_em = <versão carregada>`; a
+  exclusão também só apaga na versão carregada. Nenhuma linha casou → outra
+  pessoa gravou antes → **conflito** (nada é sobrescrito, nada ressuscita). As
+  outras linhas gravam normalmente; a versão nova volta para o item.
+- `Store` trata o conflito recarregando o estado do banco e avisando quantos
+  registros ficaram com a versão da outra pessoa.
+- Sem rede, a diferença fica no aparelho (base guardada) e o conflito é
+  conferido quando a rede volta.
+- Provado em `tests/concorrencia.test.js` contra um banco falso em memória.
+
+O texto abaixo é o registro da decisão.
 
 ## O problema
 

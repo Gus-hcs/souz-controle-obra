@@ -97,6 +97,45 @@ const addDias = (iso, n) => {
 
 const fmtData = (iso) => (isISO(iso) ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '—');
 const fmtDataCurta = (iso) => (isISO(iso) ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '—');
+/* dd/mm/aa — para coluna estreita onde a obra pode acabar em outro ano
+   ("20/08" sozinho não diz se é deste ano ou do próximo). */
+const fmtDataCurtaAno = (iso) => (isISO(iso) ? fmtDataCurta(iso) + '/' + iso.slice(2, 4) : '—');
+
+/* Efetivo por função (diário de campo, 0017) digitado como texto, uma
+   função por linha — é o jeito rápido no celular: "Pedreiro 3",
+   "3 serventes", "Eletricista: 1". Linha sem número conta 1. */
+function lerEfetivoFuncoes(texto) {
+  return String(texto || '')
+    .split(/\n|;/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => {
+      const m = l.match(/^(\d+)\s*[x×-]?\s*(.+)$/i) || l.match(/^(.+?)\s*[:=x×-]?\s*(\d+)$/i);
+      if (!m) return { funcao: l.slice(0, 60), qtd: 1 };
+      const [a, b] = /^\d+$/.test(m[1]) ? [m[2], m[1]] : [m[1], m[2]];
+      return { funcao: a.trim().slice(0, 60), qtd: parseInt(b, 10) };
+    });
+}
+const textoEfetivoFuncoes = (lista) =>
+  (Array.isArray(lista) ? lista : []).map((f) => `${f.funcao} ${num(f.qtd)}`).join('\n');
+
+/* Instante (timestamp do banco) em linguagem de gente, no fuso do
+   navegador: "hoje, 17:49", "ontem, 09:12", "22/09, 14:03" no mesmo ano,
+   "22/09/25, 14:03" em outro. "há 0d" não diz nada a ninguém. */
+function fmtQuando(instante, agora = new Date()) {
+  const d = new Date(instante);
+  if (!instante || Number.isNaN(d.getTime())) return '—';
+  const p2 = (n) => String(n).padStart(2, '0');
+  const hora = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  const dia = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const dif = Math.round((dia(agora) - dia(d)) / 86400000);
+  if (dif === 0) return `hoje, ${hora}`;
+  if (dif === 1) return `ontem, ${hora}`;
+  const dm = `${p2(d.getDate())}/${p2(d.getMonth() + 1)}`;
+  return d.getFullYear() === agora.getFullYear()
+    ? `${dm}, ${hora}`
+    : `${dm}/${String(d.getFullYear()).slice(2)}, ${hora}`;
+}
 
 const competencia = (iso) => (isISO(iso) ? iso.slice(0, 7) : '');
 
@@ -180,6 +219,14 @@ const dataUriParaArquivo = (dataUri, nome) => {
 
 /* -------------------------------------------------------------- listas */
 
+/* Sugestões dos campos de texto da Configuração: lista para escolher,
+   sem proibir o que o usuário escrever. */
+const SISTEMAS_CONSTRUTIVOS = [
+  'Alvenaria convencional', 'Alvenaria estrutural', 'Parede de concreto', 'Steel frame',
+  'Wood frame', 'Pré-moldado',
+];
+const PADROES_ACABAMENTO = ['MCMV / popular', 'Baixo', 'Normal', 'Alto'];
+
 const LISTAS_PADRAO = {
   etapas: [
     'Serviços preliminares', 'Fundação', 'Estrutura', 'Fechamento/alvenaria', 'Cobertura',
@@ -199,7 +246,9 @@ const LISTAS_PADRAO = {
   statusContrato: ['Planejado', 'Em andamento', 'Concluído', 'Suspenso', 'Cancelado'],
   statusMaterial: ['Planejar', 'Comprar', 'Comprado parcial', 'Comprado', 'Cancelado'],
   statusRecebimento: ['Previsto', 'Solicitado', 'Aprovado', 'Recebido parcial', 'Recebido', 'Cancelado'],
-  origensRecebimento: ['CAIXA', 'Cliente', 'Recursos próprios', 'Outro'],
+  /* quem paga por avanço de obra varia: CAIXA, outro banco, consórcio,
+     o cliente. 'Cliente' e 'Recursos próprios' não são financiador. */
+  origensRecebimento: ['CAIXA', 'Banco', 'Consórcio', 'Cliente', 'Recursos próprios', 'Outro'],
   prioridades: ['Alta', 'Média', 'Baixa'],
   statusObra: ['Planejada', 'Em andamento', 'Paralisada', 'Concluída'],
   climas: ['Bom', 'Nublado', 'Chuva fraca', 'Chuva forte', 'Impraticável'],
@@ -237,6 +286,18 @@ const TIPOS_ADITIVO = [
   { v: 'acrescimo', t: 'Acréscimo' },
   { v: 'supressao', t: 'Supressão' },
   { v: 'prazo', t: 'Prazo' }
+];
+/* Tratamento de alerta (migração 0015). "Novo" é a ausência de tratamento;
+   só estes três ficam gravados. Batem com o CHECK chk_trat_status. */
+const STATUS_TRATAMENTO = [
+  { v: 'em_tratamento', t: 'Em tratamento' },
+  { v: 'adiado', t: 'Adiado' },
+  { v: 'resolvido', t: 'Resolvido' }
+];
+/* Ocorrência do diário como pendência (0015). Vazio = só registro. */
+const STATUS_OCORRENCIA = [
+  { v: 'aberta', t: 'Aberta' },
+  { v: 'resolvida', t: 'Resolvida' }
 ];
 const STATUS_ADITIVO = [
   { v: 'proposto', t: 'Proposto' },
@@ -284,8 +345,13 @@ const novaObra = (nome = 'Nova obra') => ({
     valorVenda: 0,
     margemDesejada: 0.15,
     contratoCaixa: '',
-    dataAssinatura: ''
+    dataAssinatura: '',
+    /* quem libera o dinheiro por avanço de obra: CAIXA, outro banco, o
+       próprio cliente… (0016). Vazio = sem financiador. */
+    financiador: ''
   },
+  /* último relatório de status enviado ao cliente (0018) */
+  statusEnviadoEm: '',
   contratos: [],
   medicoes: [],
   recebimentos: [],
@@ -293,6 +359,8 @@ const novaObra = (nome = 'Nova obra') => ({
   materiais: [],
   cronograma: [],
   diario: [],
+  tratamentos: [],
+  pendenciasCliente: [],
   criadaEm: hojeISO()
 });
 
@@ -301,6 +369,9 @@ const novoContrato = () => ({
   escopo: '', regime: 'Preço fechado', quantidade: 0, unidade: 'vb', precoUnitario: 0,
   valorInformado: 0, incluiMaterial: 'Não', inicioPrevisto: '', fimPrevisto: '',
   status: 'Planejado', observacoes: '',
+  /* etapas do cronograma que este contrato executa (0016): base do
+     "medido × físico" do contrato. Vazio = compara com a obra toda. */
+  etapas: [],
   /* nota do prestador ao concluir: 1–5; 0 = não avaliado */
   avalPrazo: 0, avalQualidade: 0, avalOrganizacao: 0,
   /* aditivo (só quando registro === 'Aditivo'): tipo, status e o que ele muda.
@@ -326,14 +397,20 @@ const novaMedicao = () => ({
 const novoRecebimento = () => ({
   id: uid('rec'), origem: 'CAIXA', numeroMedicao: '', etapaPci: '', dataPrevista: '',
   valorPrevisto: 0, dataSolicitacao: '', percentObra: 0, valorAprovado: 0,
-  descontos: 0, dataRecebimento: '', valorRecebido: 0, status: 'Previsto', observacoes: ''
+  descontos: 0, dataRecebimento: '', valorRecebido: 0, status: 'Previsto', observacoes: '',
+  /* parcela por marco físico (0016): o % de obra que o financiador exige
+     para liberar, e as datas do processo (solicitada → vistoriada →
+     aprovada → creditada). */
+  percentExigido: 0, dataVistoria: '', dataAprovacao: ''
 });
 
 const novoLancamento = () => ({
   id: uid('lan'), data: hojeISO(), tipo: 'Material', etapa: '', categoria: '',
   descricao: '', fornecedor: '', prestadorId: '', documento: '', quantidade: 1, unidade: 'un',
   precoUnitario: 0, desconto: 0, frete: 0, formaPagamento: 'PIX',
-  materialId: '', observacoes: ''
+  materialId: '', observacoes: '',
+  /* foto da nota fiscal/recibo (0019), imagem reduzida em data URI */
+  anexoNf: ''
 });
 
 const novoMaterial = () => ({
@@ -344,12 +421,33 @@ const novoMaterial = () => ({
 
 const novaEtapaCronograma = (etapa = '') => ({
   id: uid('cr'), etapa, inicioPrevisto: '', fimPrevisto: '', inicioReal: '', fimReal: '',
-  progresso: 0, quantidadeExecutada: 0, unidadeProducao: '', responsavel: '', peso: 0
+  progresso: 0, quantidadeExecutada: 0, unidadeProducao: '', responsavel: '', peso: 0,
+  /* item e peso na planilha do financiador (0016) — PLS/PCI na CAIXA,
+     cronograma físico-financeiro em outro banco */
+  itemFinanciador: '', pesoFinanciador: 0,
+  /* ids das etapas que precisam terminar antes desta começar (0017) */
+  predecessoras: []
 });
 
 const novoDiario = () => ({
   id: uid('dia'), data: hojeISO(), clima: 'Bom', efetivo: 0, etapa: '',
-  atividades: '', ocorrencias: '', autor: '', fotos: []
+  atividades: '', ocorrencias: '', autor: '', fotos: [],
+  /* ocorrência como pendência (0015): vazio = só registro */
+  ocorrenciaStatus: '', ocorrenciaResponsavel: '', ocorrenciaPrazo: '',
+  ocorrenciaMaterialId: '', ocorrenciaResolvidaEm: '',
+  /* diário de campo (0017): clima por turno, efetivo por função,
+     equipamentos, o % da etapa ao fim do dia e se o dia afeta o prazo */
+  climaManha: '', climaTarde: '', efetivoFuncoes: [], equipamentos: '',
+  progressoEtapa: 0, impactaPrazo: false, diasImpacto: 0
+});
+
+/* Tratamento de um alerta (0015). O id é determinístico — uma obra tem no
+   máximo um tratamento por alerta, e "reabrir e tratar de novo" antes da
+   sincronização vira UPDATE da mesma linha, não DELETE + INSERT. */
+const idTratamento = (obraId, chave) => `trat:${obraId}:${chave}`;
+const novoTratamento = (obraId = '', chave = '') => ({
+  id: idTratamento(obraId, chave), chave, status: 'em_tratamento', responsavel: '',
+  adiarAte: '', nota: '', sevMarcada: 2, valorMarcado: 0, dataMarcacao: hojeISO()
 });
 
 const novoCliente = () => ({
@@ -360,8 +458,25 @@ const novoCliente = () => ({
 /* whatsapp e telefone ficam só em dígitos, no formato 55DDDNNNNNNNNN
    (normalizarTelefoneBR, nucleo/contato.js). `documento` é o CPF/CNPJ.
    `arquivado` substitui a exclusão: quem tem pagamento vinculado não some. */
+/* Quem vende material não é quem presta serviço (0018): o fornecedor
+   entra nas listas de compra; o prestador, em contratos e medições. */
+const TIPOS_PRESTADOR = [
+  { v: 'servico', t: 'Prestador de serviço' },
+  { v: 'fornecedor', t: 'Fornecedor' },
+];
+
+/* O que o cliente deve à obra (0018): aprovação, escolha de acabamento,
+   documento. Com prazo — vencida, trava a obra e vira pendência. */
+const STATUS_PENDENCIA_CLIENTE = [
+  { v: 'aberta', t: 'Aguardando o cliente' },
+  { v: 'resolvida', t: 'Resolvida' },
+];
+const novaPendenciaCliente = () => ({
+  id: uid('pcli'), descricao: '', prazo: '', status: 'aberta', resolvidaEm: '', criadaEm: hojeISO()
+});
+
 const novoPrestador = () => ({
-  id: uid('prest'), nome: '', apelido: '', especialidade: '', cidade: '',
+  id: uid('prest'), tipo: 'servico', nome: '', apelido: '', especialidade: '', cidade: '',
   whatsapp: '', temWhatsapp: true, telefone: '', documento: '',
   chavePix: '', tipoPix: '', formaContratacao: '', valorReferencia: 0,
   avaliacao: 0, observacoes: '', arquivado: false
@@ -399,6 +514,7 @@ function migrar(s) {
   out.clientes = (Array.isArray(s.clientes) ? s.clientes : []).map((c) => Object.assign(novoCliente(), c));
   out.prestadores = (Array.isArray(s.prestadores) ? s.prestadores : []).map((p) => {
     const n = Object.assign(novoPrestador(), p);
+    if (n.tipo !== 'fornecedor') n.tipo = 'servico';
     n.arquivado = n.arquivado === true;
     n.temWhatsapp = n.temWhatsapp !== false;
     return n;
@@ -407,16 +523,45 @@ function migrar(s) {
     const nova = novaObra();
     const obra = Object.assign(nova, o);
     obra.fin = Object.assign(nova.fin, o.fin || {});
-    for (const k of ['contratos', 'medicoes', 'recebimentos', 'lancamentos', 'materiais', 'cronograma', 'diario']) {
+    for (const k of ['contratos', 'medicoes', 'recebimentos', 'lancamentos', 'materiais', 'cronograma', 'diario', 'tratamentos', 'pendenciasCliente']) {
       obra[k] = Array.isArray(o[k]) ? o[k] : [];
     }
-    obra.diario.forEach((d) => { if (!Array.isArray(d.fotos)) d.fotos = []; });
+    obra.diario.forEach((d) => {
+      if (!Array.isArray(d.fotos)) d.fotos = [];
+      if (!Array.isArray(d.efetivoFuncoes)) d.efetivoFuncoes = [];
+      for (const k of ['climaManha', 'climaTarde', 'equipamentos']) if (d[k] == null) d[k] = '';
+      d.progressoEtapa = num(d.progressoEtapa);
+      d.diasImpacto = num(d.diasImpacto);
+      d.impactaPrazo = d.impactaPrazo === true;
+      for (const k of ['ocorrenciaStatus', 'ocorrenciaResponsavel', 'ocorrenciaPrazo', 'ocorrenciaMaterialId', 'ocorrenciaResolvidaEm']) {
+        if (d[k] == null) d[k] = '';
+      }
+    });
+    obra.tratamentos = obra.tratamentos.map((t) => Object.assign(novoTratamento(obra.id, t.chave || ''), t));
+    obra.pendenciasCliente = obra.pendenciasCliente.map((p) => Object.assign(novaPendenciaCliente(), p));
+    if (obra.statusEnviadoEm == null) obra.statusEnviadoEm = '';
     /* vínculo com o cadastro de prestador — antes era só o nome digitado */
-    obra.contratos.forEach((c) => { if (c.prestadorId == null) c.prestadorId = ''; });
-    obra.lancamentos.forEach((l) => { if (l.prestadorId == null) l.prestadorId = ''; });
+    obra.contratos.forEach((c) => {
+      if (c.prestadorId == null) c.prestadorId = '';
+      if (!Array.isArray(c.etapas)) c.etapas = [];
+    });
+    obra.cronograma.forEach((e) => {
+      if (e.itemFinanciador == null) e.itemFinanciador = '';
+      e.pesoFinanciador = num(e.pesoFinanciador);
+      if (!Array.isArray(e.predecessoras)) e.predecessoras = [];
+    });
+    obra.lancamentos.forEach((l) => {
+      if (l.prestadorId == null) l.prestadorId = '';
+      if (l.anexoNf == null) l.anexoNf = '';
+    });
     /* numeração sempre como texto: a planilha traz número, o banco guarda texto */
     obra.medicoes.forEach((m) => { m.numero = m.numero == null ? '' : String(m.numero); });
-    obra.recebimentos.forEach((r) => { r.numeroMedicao = r.numeroMedicao == null ? '' : String(r.numeroMedicao); });
+    obra.recebimentos.forEach((r) => {
+      r.numeroMedicao = r.numeroMedicao == null ? '' : String(r.numeroMedicao);
+      r.percentExigido = num(r.percentExigido);
+      if (r.dataVistoria == null) r.dataVistoria = '';
+      if (r.dataAprovacao == null) r.dataAprovacao = '';
+    });
     return obra;
   });
   out.meta.schema = APP.schema;
@@ -424,6 +569,13 @@ function migrar(s) {
 }
 
 export {
+  TIPOS_PRESTADOR,
+  STATUS_PENDENCIA_CLIENTE,
+  novaPendenciaCliente,
+  lerEfetivoFuncoes,
+  textoEfetivoFuncoes,
+  SISTEMAS_CONSTRUTIVOS,
+  PADROES_ACABAMENTO,
   APP,
   uid,
   num,
@@ -439,6 +591,8 @@ export {
   addDias,
   fmtData,
   fmtDataCurta,
+  fmtDataCurtaAno,
+  fmtQuando,
   competencia,
   MESES,
   fmtCompetencia,
@@ -457,6 +611,10 @@ export {
   FORMAS_CONTRATACAO,
   TIPOS_ADITIVO,
   STATUS_ADITIVO,
+  STATUS_TRATAMENTO,
+  STATUS_OCORRENCIA,
+  novoTratamento,
+  idTratamento,
   CONDICOES_PAGAMENTO,
   FORMAS_PRECO,
   SITUACOES_MANUAIS_CONTRATO,

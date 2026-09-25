@@ -1,18 +1,35 @@
 /**
  * acoes.js — Ações: tudo que um clique dispara — abrir formulário, salvar, excluir.
  */
-import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, uid } from '../nucleo/base.js';
-import { alertasObra, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, materialCalc, medicaoAlerta, resumoPrestador } from '../dominio/calculos.js';
-import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
+import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, lerEfetivoFuncoes, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, textoEfetivoFuncoes, uid } from '../nucleo/base.js';
+import { alertasObra, efeitoDiarioNaEtapa, efetivoDiario, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, listaProtegida, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa, usoItensLista } from '../dominio/calculos.js';
+import { apenasErros, validarCliente, validarContrato, validarDependencias, validarDiario, validarEtapasContrato, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
-import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
+import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, confirmarDigitando, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
 import { carregarAuditoria, implExpandida } from './telas-obra.js';
 
 const ACOES = {};
 
 /* ------------------------------------------------------- navegação */
-ACOES.ir = (el, d) => App.ir(d.view, d.obra);
+/* Na carteira ("Todas as obras"), uma tela de obra sem obra escolhida
+   abre o seletor em vez de cair, calada, na última obra lembrada; a
+   escolha leva à tela pedida. */
+let viewPendente = '';
+ACOES.ir = (el, d) => {
+  if (
+    App.rota.view === 'carteira' && !d.obra && VIEWS_OBRA.has(d.view) &&
+    Store.estado.obras.length > 1 && el && el.closest && el.closest('#rail')
+  ) {
+    const botaoObra = document.querySelector('[data-acao="obra-menu"]');
+    if (botaoObra) {
+      viewPendente = d.view;
+      ACOES['obra-menu'](botaoObra);
+      return;
+    }
+  }
+  App.ir(d.view, d.obra);
+};
 
 /* ---------------------------------- cartão de implantação (Painel) */
 ACOES['impl-toggle'] = (el, d) => {
@@ -60,6 +77,21 @@ ACOES['confirmar-ok'] = () => {
   if (fn) fn();
 };
 
+/* Só confirma se o texto digitado bate (sem diferença de maiúscula,
+   acento ou espaço nas pontas). */
+ACOES['confirmar-digitado'] = () => {
+  const campo = document.getElementById('f_confirma');
+  if (!campo) return;
+  if (norm(campo.value.trim()) !== norm(campo.dataset.confirma.trim())) {
+    campo.focus();
+    toast('O texto digitado não confere.', 'aviso');
+    return;
+  }
+  const fn = modalAoSalvar;
+  fecharModal();
+  if (fn) fn();
+};
+
 ACOES['salvar-form'] = () => {
   const dados = lerForm();
   const fn = modalAoSalvar;
@@ -99,7 +131,7 @@ function formObra(obra, aoConcluir) {
       { k: 'areaConstruida', label: 'Área construída (m²)', tipo: 'numero', col: 3 },
       { k: 'precoEmpreitadaM2', label: 'Preço empreitada/m²', tipo: 'dinheiro', col: 3 },
       { k: 'dataInicio', label: 'Início', tipo: 'data', col: 3 },
-      { k: 'previsaoConclusao', label: 'Previsão de conclusão', tipo: 'data', col: 3 },
+      { k: 'previsaoConclusao', label: 'Data contratual de entrega', tipo: 'data', col: 3 },
       { k: 'valorFinanciado', label: 'Financiado para obra', tipo: 'dinheiro', col: 4 },
       { k: 'valorVenda', label: 'Valor de venda', tipo: 'dinheiro', col: 4 },
       { k: 'saldoInicial', label: 'Saldo inicial em caixa', tipo: 'dinheiro', col: 4 },
@@ -199,6 +231,7 @@ ACOES['excluir-obra'] = () => {
 
 /* Menu do seletor de obra: cada obra em duas linhas, como no botão. */
 function fecharMenuObra() {
+  viewPendente = '';
   const m = document.querySelector('.menu-obra');
   if (m) m.remove();
   const b = document.querySelector('[data-acao="obra-menu"]');
@@ -230,7 +263,9 @@ ACOES['obra-menu'] = (el) => {
   if (atual) atual.focus();
 };
 ACOES['trocar-obra-id'] = (el, d) => {
+  const pedida = viewPendente;
   fecharMenuObra();
+  viewPendente = pedida;
   ACOES['trocar-obra']({ value: d.obra || '' });
 };
 document.addEventListener('mousedown', (ev) => {
@@ -243,9 +278,11 @@ document.addEventListener('keydown', (ev) => {
 ACOES['trocar-obra'] = (el) => {
   /* "Todas as obras" leva à carteira; a obra ativa continua lembrada
      para quando se entrar numa tela de obra. */
+  const pedida = viewPendente;
+  viewPendente = '';
   if (!el.value) return App.ir('carteira');
   App.rota.obraId = el.value;
-  App.ir(VIEWS_OBRA.has(App.rota.view) ? App.rota.view : 'painel', el.value);
+  App.ir(pedida || (VIEWS_OBRA.has(App.rota.view) ? App.rota.view : 'painel'), el.value);
 };
 
 /* ------------------------------------------------------ menu da conta */
@@ -341,6 +378,10 @@ function formContrato(c, novo, aoSalvar) {
       { secao: 'Prazo' },
       { k: 'inicioPrevisto', label: 'Início previsto', tipo: 'data', col: 3 },
       { k: 'fimPrevisto', label: 'Fim previsto', tipo: 'data', col: 3 },
+      /* etapas que ele executa (0016): o físico do contrato sai delas */
+      { k: 'etapas', label: 'Etapas que este contrato executa', tipo: 'multi', col: 12,
+        opcoes: [...new Set(o.cronograma.map((e) => e.etapa).filter(Boolean))],
+        dica: 'base do "medido × físico": medir mais de 5 p.p. à frente do físico vira pendência' },
       { secao: 'Observações' },
       { k: 'observacoes', label: 'Observações', tipo: 'area', col: 12 }
     ],
@@ -355,7 +396,7 @@ function formContrato(c, novo, aoSalvar) {
           · já pago em medições: ${fmtMoney(pago)} · saldo: <b>${fmtMoney(outros + v - pago)}</b>`
       };
     },
-    validar: (d) => validarContrato(d),
+    validar: (d) => [...validarContrato(d), ...validarEtapasContrato(d, o.cronograma)],
     aoSalvar: (d) => {
       if (!d.codigo) return toast('Informe o código do contrato.', 'aviso');
       if (!d.codigoBase) d.codigoBase = d.codigo;
@@ -408,10 +449,22 @@ ACOES['novo-aditivo'] = (el, d) => {
   formContrato(c, true, () => { mutar(() => { o.contratos.push(c); }); toast('Aditivo cadastrado.', 'ok'); });
 };
 
+/* Excluir mora DENTRO da edição: a lixeira ao lado do lápis, na linha, era
+   um toque errado de distância (luva, dedo sujo, sol). Na tela de toque a
+   lixeira da linha some (interface.css) e este botão é o caminho. */
+function comExcluir(tipo, id) {
+  if (Store.somenteLeitura()) return;
+  const esq = document.querySelector('#modal-camada footer .esq');
+  if (!esq) return;
+  esq.innerHTML = `<button class="btn perigo" data-acao="excluir-${tipo}" data-id="${esc(id)}">Excluir</button>`;
+}
+
 ACOES['editar-contrato'] = (el, d) => {
   const o = App.obra();
   const c = o.contratos.find((x) => x.id === d.id);
-  if (c) formContrato(c, false, () => { mutar(() => {}); toast('Contrato atualizado.', 'ok'); });
+  if (!c) return;
+  formContrato(c, false, () => { mutar(() => {}); toast('Contrato atualizado.', 'ok'); });
+  comExcluir('contrato', c.id);
 };
 
 ACOES['excluir-contrato'] = (el, d) => {
@@ -483,7 +536,9 @@ ACOES['nova-medicao'] = (el, d) => {
 ACOES['editar-medicao'] = (el, d) => {
   const o = App.obra();
   const m = o.medicoes.find((x) => x.id === d.id);
-  if (m) formMedicao(m, false, () => { mutar(() => {}); toast('Medição atualizada.', 'ok'); });
+  if (!m) return;
+  formMedicao(m, false, () => { mutar(() => {}); toast('Medição atualizada.', 'ok'); });
+  comExcluir('medicao', m.id);
 };
 
 ACOES['excluir-medicao'] = (el, d) => {
@@ -508,6 +563,10 @@ function formRecebimento(r, novo, aoSalvar) {
       { k: 'valorPrevisto', label: 'Valor previsto', tipo: 'dinheiro', col: 3 },
       { k: 'dataSolicitacao', label: 'Data da solicitação', tipo: 'data', col: 3 },
       { k: 'percentObra', label: '% obra informado', tipo: 'pct', col: 3 },
+      /* parcela por marco físico (0016) — qualquer financiador */
+      { k: 'percentExigido', label: '% de obra exigido', tipo: 'pct', col: 3, dica: 'o que o financiador exige para liberar' },
+      { k: 'dataVistoria', label: 'Data da vistoria', tipo: 'data', col: 3 },
+      { k: 'dataAprovacao', label: 'Data da aprovação', tipo: 'data', col: 3 },
       { k: 'valorAprovado', label: 'Valor aprovado', tipo: 'dinheiro', col: 3 },
       { k: 'descontos', label: 'Descontos / tarifas', tipo: 'dinheiro', col: 3 },
       { k: 'dataRecebimento', label: 'Data do recebimento', tipo: 'data', col: 3 },
@@ -533,13 +592,18 @@ function formRecebimento(r, novo, aoSalvar) {
 ACOES['novo-recebimento'] = () => {
   const o = App.obra();
   const r = novoRecebimento();
-  r.numeroMedicao = String(o.recebimentos.filter((x) => x.origem === 'CAIXA').length + 1);
+  /* próxima parcela do financiador, seja ele quem for */
+  r.numeroMedicao = String(o.recebimentos.filter((x) => recebimentoDoFinanciamento(x)).length + 1);
+  const fin = String(o.fin.financiador || '').trim();
+  if (fin && opcoesLista('origensRecebimento').includes(fin)) r.origem = fin;
   formRecebimento(r, true, () => { mutar(() => { o.recebimentos.push(r); }); toast('Parcela cadastrada.', 'ok'); });
 };
 ACOES['editar-recebimento'] = (el, d) => {
   const o = App.obra();
   const r = o.recebimentos.find((x) => x.id === d.id);
-  if (r) formRecebimento(r, false, () => { mutar(() => {}); toast('Recebimento atualizado.', 'ok'); });
+  if (!r) return;
+  formRecebimento(r, false, () => { mutar(() => {}); toast('Recebimento atualizado.', 'ok'); });
+  comExcluir('recebimento', r.id);
 };
 ACOES['excluir-recebimento'] = (el, d) => {
   const o = App.obra();
@@ -553,7 +617,11 @@ ACOES['excluir-recebimento'] = (el, d) => {
 function formLancamento(l, novo, aoSalvar) {
   const o = App.obra();
   const planos = o.materiais.map((m) => ({ v: m.id, t: `${m.material} (${m.etapa})` }));
-  const fornecedores = [...new Set(o.lancamentos.map((x) => x.fornecedor).filter(Boolean))];
+  /* sugestões: fornecedores do cadastro (0018) + os já digitados */
+  const fornecedores = [...new Set([
+    ...Store.estado.prestadores.filter((p) => p.tipo === 'fornecedor' && !p.arquivado).map((p) => p.nome),
+    ...o.lancamentos.map((x) => x.fornecedor),
+  ].filter(Boolean))];
   abrirForm({
     titulo: novo ? 'Novo lançamento' : 'Editar lançamento',
     largura: 'largo',
@@ -582,16 +650,61 @@ function formLancamento(l, novo, aoSalvar) {
       total: `Total: <b>${fmtMoney(Math.max(0, num(d.quantidade) * num(d.precoUnitario) - num(d.desconto) + num(d.frete)))}</b>
         &nbsp;(${fmtNum(d.quantidade, 2)} × ${fmtMoney(d.precoUnitario)} − ${fmtMoney(d.desconto)} + ${fmtMoney(d.frete)})`
     }),
-    validar: (d) => validarLancamento(d),
+    validar: (d) => validarLancamento({ ...d, anexoNf: window.__nf || '' }),
     aoSalvar: (d) => {
       if (!d.descricao) return toast('Informe a descrição do lançamento.', 'aviso');
       if (d.prestadorId && !d.fornecedor) d.fornecedor = nomeDoPrestador(d.prestadorId, '');
-      Object.assign(l, d);
+      Object.assign(l, d, { anexoNf: window.__nf || '' });
       fecharModal();
       aoSalvar(l);
     }
   });
+  anexarNfAoForm(l);
 }
+
+/* Foto da nota fiscal (0019): câmera direto no celular ou galeria. Só o
+   anexo — sem leitura automática. Reduzida como as fotos do diário. */
+function anexarNfAoForm(l) {
+  window.__nf = l.anexoNf || '';
+  const form = document.querySelector('#modal-camada [data-form]');
+  if (!form) return;
+  const bloco = document.createElement('div');
+  bloco.className = 'campo c12';
+  const desenhar = () => {
+    bloco.innerHTML = `<label>Foto da nota fiscal</label>
+      ${window.__nf
+        ? `<div class="nf-anexo"><img src="${fonteImagem(window.__nf)}" alt="Nota fiscal"><button type="button" class="btn sutil pequeno" data-nf-remover="1">Remover</button></div>`
+        : `<div class="fotos-botoes">
+            <label class="btn pequeno">Fotografar a nota<input type="file" accept="image/*" capture="environment" data-nf="1" hidden></label>
+            <label class="btn sutil pequeno">Da galeria<input type="file" accept="image/*" data-nf="1" hidden></label>
+          </div>
+          <span class="dica">comprovante preso ao lançamento — a imagem é reduzida para não pesar a base</span>`}`;
+    bloco.querySelectorAll('[data-nf]').forEach((inp) => inp.addEventListener('change', async (ev) => {
+      const f = ev.target.files && ev.target.files[0];
+      if (!f) return;
+      try {
+        window.__nf = await comprimirImagem(f, 1600, 0.7);
+      } catch (e) {
+        toast('Não foi possível ler a imagem da nota.', 'critico');
+      }
+      desenhar();
+    }));
+    const rm = bloco.querySelector('[data-nf-remover]');
+    if (rm) rm.addEventListener('click', () => { window.__nf = ''; desenhar(); });
+  };
+  desenhar();
+  form.appendChild(bloco);
+}
+
+ACOES['ver-nf'] = (el, d) => {
+  const l = App.obra().lancamentos.find((x) => x.id === d.id);
+  if (!l || !l.anexoNf) return;
+  abrirModal({
+    titulo: `Nota — ${l.descricao || 'lançamento'}${l.documento ? ` · ${l.documento}` : ''}`,
+    largura: 'largo',
+    corpo: `<img src="${fonteImagem(l.anexoNf)}" alt="Nota fiscal de ${esc(l.descricao || '')}" style="width:100%;border-radius:4px">`,
+  });
+};
 
 ACOES['novo-lancamento'] = () => {
   const o = App.obra();
@@ -601,7 +714,9 @@ ACOES['novo-lancamento'] = () => {
 ACOES['editar-lancamento'] = (el, d) => {
   const o = App.obra();
   const l = o.lancamentos.find((x) => x.id === d.id);
-  if (l) formLancamento(l, false, () => { mutar(() => {}); toast('Lançamento atualizado.', 'ok'); });
+  if (!l) return;
+  formLancamento(l, false, () => { mutar(() => {}); toast('Lançamento atualizado.', 'ok'); });
+  comExcluir('lancamento', l.id);
 };
 ACOES['excluir-lancamento'] = (el, d) => {
   const o = App.obra();
@@ -651,13 +766,22 @@ ACOES['novo-material'] = () => {
 ACOES['editar-material'] = (el, d) => {
   const o = App.obra();
   const m = o.materiais.find((x) => x.id === d.id);
-  if (m) formMaterial(m, false, () => { mutar(() => {}); toast('Item atualizado.', 'ok'); });
+  if (!m) return;
+  formMaterial(m, false, () => { mutar(() => {}); toast('Item atualizado.', 'ok'); });
+  comExcluir('material', m.id);
 };
 ACOES['excluir-material'] = (el, d) => {
   const o = App.obra();
   const m = o.materiais.find((x) => x.id === d.id);
   confirmar('Excluir item do plano', `Excluir "${m.material}" do plano de materiais?`, () => {
-    mutar(() => { o.materiais = o.materiais.filter((x) => x.id !== d.id); });
+    mutar(() => {
+      o.materiais = o.materiais.filter((x) => x.id !== d.id);
+      /* Quem apontava para o item perde a referência aqui também. No banco a
+         FK faz ON DELETE SET NULL; sem isto o app guardava o id órfão e a
+         próxima gravação daquele lançamento ou diário falhava na FK. */
+      o.lancamentos.forEach((l) => { if (l.materialId === d.id) l.materialId = ''; });
+      o.diario.forEach((r) => { if (r.ocorrenciaMaterialId === d.id) r.ocorrenciaMaterialId = ''; });
+    });
     toast('Item excluído.', 'aviso');
   });
 };
@@ -696,6 +820,13 @@ function formEtapa(e, novo, aoSalvar) {
       { k: 'quantidadeExecutada', label: 'Quantidade executada', tipo: 'numero', col: 3 },
       { k: 'unidadeProducao', label: 'Unidade de produção', tipo: 'select', opcoes: opcoesLista('unidades'), col: 3 },
       { k: 'peso', label: 'Peso na curva S (%)', tipo: 'pct', col: 3, dica: 'vazio = pela duração' },
+      /* planilha do financiador (0016): PLS/PCI na CAIXA, cronograma físico-financeiro nos outros */
+      { k: 'itemFinanciador', label: 'Item na planilha do financiador', tipo: 'texto', col: 3, placeholder: 'ex.: 3.2' },
+      { k: 'pesoFinanciador', label: 'Peso na planilha do financiador (%)', tipo: 'pct', col: 3 },
+      /* fim→início (0017): só começa depois que estas terminarem */
+      { k: 'predecessoras', label: 'Começa depois de', tipo: 'multi', col: 12,
+        opcoes: (App.obra() ? App.obra().cronograma : []).filter((x) => x.id !== e.id).map((x) => ({ v: x.id, t: x.etapa || 'sem nome' })),
+        dica: 'as etapas que precisam terminar antes; o término projetado e o caminho crítico saem daqui' },
       { k: 'sit', label: 'Situação', tipo: 'calc', col: 12 }
     ],
     valores: e,
@@ -703,9 +834,16 @@ function formEtapa(e, novo, aoSalvar) {
       const c = etapaCalc(d);
       return { sit: `Situação: <b>${c.situacao}</b> · ${c.diasPrevistos} dia(s) previstos · ${c.diasRealizados} realizado(s)${c.atraso ? ` · <b style="color:var(--critico)">${c.atraso} dia(s) de atraso</b>` : ''}` };
     },
-    validar: (d) => validarEtapa(d),
+    validar: (d) => {
+      const o = App.obra();
+      const simulado = o ? o.cronograma.map((x) => (x.id === e.id ? { ...x, ...d } : x)) : [];
+      if (o && !o.cronograma.includes(e)) simulado.push({ ...e, ...d });
+      return [...validarEtapa(d), ...validarDependencias(simulado)];
+    },
     aoSalvar: (d) => {
       if (!d.etapa) return toast('Informe o nome da etapa.', 'aviso');
+      /* unidade vazia: a que a etapa costuma ter, não m² para tudo */
+      if (!d.unidadeProducao) d.unidadeProducao = unidadeSugeridaEtapa(d.etapa);
       Object.assign(e, d);
       fecharModal();
       aoSalvar(e);
@@ -721,7 +859,9 @@ ACOES['nova-etapa'] = () => {
 ACOES['editar-etapa'] = (el, d) => {
   const o = App.obra();
   const e = o.cronograma.find((x) => x.id === d.id);
-  if (e) formEtapa(e, false, () => { mutar(() => {}); toast('Etapa atualizada.', 'ok'); });
+  if (!e) return;
+  formEtapa(e, false, () => { mutar(() => {}); toast('Etapa atualizada.', 'ok'); });
+  comExcluir('etapa', e.id);
 };
 ACOES['excluir-etapa'] = (el, d) => {
   const o = App.obra();
@@ -866,13 +1006,42 @@ function formDiario(reg, novo, aoSalvar) {
       { k: 'efetivo', label: 'Pessoas na obra', tipo: 'numero', col: 3, dec: 0 },
       { k: 'etapa', label: 'Etapa', tipo: 'select', opcoes: opcoesEtapas(), col: 3 },
       { k: 'atividades', label: 'Atividades executadas', tipo: 'area', col: 12, linhas: 3 },
-      { k: 'ocorrencias', label: 'Ocorrências / pendências', tipo: 'area', col: 12, linhas: 2 },
-      { k: 'autor', label: 'Registrado por', tipo: 'texto', col: 6 }
+      /* diário de campo (0017): o que o canteiro precisa registrar */
+      { secao: 'Campo' },
+      { k: 'climaManha', label: 'Clima de manhã', tipo: 'select', opcoes: opcoesLista('climas'), col: 3, placeholder: '—' },
+      { k: 'climaTarde', label: 'Clima à tarde', tipo: 'select', opcoes: opcoesLista('climas'), col: 3, placeholder: '—' },
+      { k: 'progressoEtapa', label: '% da etapa ao fim do dia', tipo: 'pct', col: 3, dica: 'atualiza o cronograma' },
+      { k: 'impactaPrazo', label: 'Impacta o prazo?', tipo: 'check', col: 3 },
+      { k: 'efetivoTexto', label: 'Efetivo por função', tipo: 'area', col: 6, linhas: 3,
+        placeholder: 'Pedreiro 3\nServente 2', dica: 'uma função por linha; a soma vira o total de pessoas' },
+      { k: 'equipamentos', label: 'Equipamentos', tipo: 'area', col: 3, linhas: 3, placeholder: 'betoneira, andaime…' },
+      { k: 'diasImpacto', label: 'Dias de impacto', tipo: 'numero', col: 3, dec: 0, dica: 'só se impacta o prazo' },
+      { k: 'ocorrencias', label: 'Ocorrências', tipo: 'area', col: 12, linhas: 2 },
+      { k: 'autor', label: 'Registrado por', tipo: 'texto', col: 6 },
+      /* Ocorrência como pendência (0015): "Piso parou: falta rejunte" com
+         dono, prazo e o material que falta — vira alerta até resolver. */
+      { secao: 'A ocorrência precisa de ação?' },
+      {
+        k: 'ocorrenciaStatus', label: 'Situação', tipo: 'select', col: 3, placeholder: 'Não — só registro',
+        opcoes: [{ v: 'aberta', t: 'Sim — pendência aberta' }, { v: 'resolvida', t: 'Resolvida' }]
+      },
+      { k: 'ocorrenciaResponsavel', label: 'Responsável', tipo: 'texto', col: 3 },
+      { k: 'ocorrenciaPrazo', label: 'Prazo', tipo: 'data', col: 3 },
+      {
+        k: 'ocorrenciaMaterialId', label: 'Material que falta', tipo: 'select', col: 3,
+        opcoes: (App.obra() ? App.obra().materiais : []).map((m) => ({ v: m.id, t: m.material || 'sem nome' }))
+      }
     ],
-    valores: reg,
-    validar: (d) => validarDiario(d),
-    aoSalvar: (d) => {
-      Object.assign(reg, d, { fotos: window.__fotos });
+    /* o formulário fala texto e Sim/Não; o registro guarda lista e booleano */
+    valores: { ...reg, efetivoTexto: textoEfetivoFuncoes(reg.efetivoFuncoes), impactaPrazo: reg.impactaPrazo ? 'Sim' : 'Não' },
+    validar: (d) => validarDiario(diarioDoForm(d)),
+    aoSalvar: (bruto) => {
+      const d = diarioDoForm(bruto);
+      /* data da resolução: carimbada ao marcar "Resolvida", limpa se reabrir */
+      const resolvidaEm = d.ocorrenciaStatus === 'resolvida'
+        ? reg.ocorrenciaResolvidaEm || (isISO(d.data) && d.data > hojeISO() ? d.data : hojeISO())
+        : '';
+      Object.assign(reg, d, { fotos: window.__fotos, ocorrenciaResolvidaEm: resolvidaEm });
       fecharModal();
       aoSalvar(reg);
     }
@@ -881,13 +1050,18 @@ function formDiario(reg, novo, aoSalvar) {
   const form = document.querySelector('#modal-camada [data-form]');
   const bloco = document.createElement('div');
   bloco.className = 'campo c12';
+  /* câmera direto no celular (capture) e galeria — os dois alimentam a
+     mesma lista */
   bloco.innerHTML = `<label>Fotos</label>
-    <input type="file" accept="image/*" multiple data-fotos="1" style="font-size:12px">
+    <div class="fotos-botoes">
+      <label class="btn pequeno">Tirar foto<input type="file" accept="image/*" capture="environment" data-fotos="1" hidden></label>
+      <label class="btn sutil pequeno">Da galeria<input type="file" accept="image/*" multiple data-fotos="1" hidden></label>
+    </div>
     <span class="dica">As imagens são reduzidas automaticamente para não pesar a base.</span>
     <div class="fotos" id="fotos-cx" style="margin-top:8px"></div>`;
   form.appendChild(bloco);
   render();
-  bloco.querySelector('[data-fotos]').addEventListener('change', async (ev) => {
+  bloco.querySelectorAll('[data-fotos]').forEach((inp) => inp.addEventListener('change', async (ev) => {
     const arquivos = [...ev.target.files];
     for (const f of arquivos) {
       try {
@@ -897,8 +1071,47 @@ function formDiario(reg, novo, aoSalvar) {
     }
     ev.target.value = '';
     render();
-  });
+  }));
 }
+
+/* Formulário → registro do diário: efetivo por função em lista (e o total
+   vira a soma), "impacta o prazo" em booleano, dias zerados sem impacto. */
+function diarioDoForm(d) {
+  const out = { ...d };
+  out.efetivoFuncoes = lerEfetivoFuncoes(d.efetivoTexto);
+  delete out.efetivoTexto;
+  if (out.efetivoFuncoes.length) out.efetivo = efetivoDiario(out);
+  out.impactaPrazo = d.impactaPrazo === 'Sim';
+  if (!out.impactaPrazo) out.diasImpacto = 0;
+  return out;
+}
+
+/* O diário alimenta o cronograma (efeitoDiarioNaEtapa): início real,
+   progresso e fim real da etapa do registro. Chamar dentro do mutar. */
+function aplicarDiarioNoCronograma(o, r) {
+  const etapa = o.cronograma.find((e) => norm(e.etapa) === norm(r.etapa));
+  const mud = efeitoDiarioNaEtapa(etapa, r);
+  if (Object.keys(mud).length) Object.assign(etapa, mud);
+  return mud;
+}
+const avisoCronograma = (mud) =>
+  Object.keys(mud).length ? ' Cronograma atualizado: ' + [
+    mud.inicioReal ? `início real ${fmtData(mud.inicioReal)}` : '',
+    mud.progresso !== undefined ? `${Math.round(mud.progresso * 100)}% da etapa` : '',
+    mud.fimReal ? 'etapa concluída' : '',
+  ].filter(Boolean).join(', ') + '.' : '';
+
+/* Resolver a ocorrência sem abrir o formulário — é o gesto do canteiro. */
+ACOES['resolver-ocorrencia'] = (el, d) => {
+  const o = App.obra();
+  const r = o.diario.find((x) => x.id === d.id);
+  if (!r) return;
+  mutar(() => {
+    r.ocorrenciaStatus = 'resolvida';
+    r.ocorrenciaResolvidaEm = isISO(r.data) && r.data > hojeISO() ? r.data : hojeISO();
+  });
+  toast('Ocorrência resolvida.', 'ok');
+};
 
 ACOES['rm-foto'] = (el, d) => {
   window.__fotos.splice(Number(d.idx), 1);
@@ -912,13 +1125,25 @@ ACOES['rm-foto'] = (el, d) => {
 ACOES['novo-diario'] = () => {
   const o = App.obra();
   const r = novoDiario();
-  r.autor = Store.estado.empresa.responsavel || '';
-  formDiario(r, true, () => { mutar(() => { o.diario.push(r); }); toast('Registro salvo no diário.', 'ok'); });
+  /* "registrado por" é quem está logado; sem login, o responsável técnico */
+  const email = SUPA.usuario && SUPA.usuario.email;
+  r.autor = email ? email.split('@')[0] : Store.estado.empresa.responsavel || '';
+  formDiario(r, true, () => {
+    let mud = {};
+    mutar(() => { o.diario.push(r); mud = aplicarDiarioNoCronograma(o, r); });
+    toast('Registro salvo no diário.' + avisoCronograma(mud), 'ok');
+  });
 };
 ACOES['editar-diario'] = (el, d) => {
   const o = App.obra();
   const r = o.diario.find((x) => x.id === d.id);
-  if (r) formDiario(r, false, () => { mutar(() => {}); toast('Registro atualizado.', 'ok'); });
+  if (!r) return;
+  formDiario(r, false, () => {
+    let mud = {};
+    mutar(() => { mud = aplicarDiarioNoCronograma(o, r); });
+    toast('Registro atualizado.' + avisoCronograma(mud), 'ok');
+  });
+  comExcluir('diario', r.id);
 };
 ACOES['excluir-diario'] = (el, d) => {
   const o = App.obra();
@@ -1038,19 +1263,32 @@ ACOES['salvar-empresa'] = () => {
   toast('Dados da empresa salvos.', 'ok');
 };
 
+/* Item em uso não sai da lista (usoItensLista): volta para o fim, e o
+   aviso diz quantos registros o usam. */
 ACOES['salvar-listas'] = () => {
   const campos = document.querySelectorAll('[data-lista]');
+  const uso = usoItensLista(Store.estado);
+  const mantidos = [];
   mutar((e) => {
     campos.forEach((c) => {
       const itens = c.value.split('\n').map((s) => s.trim()).filter(Boolean);
-      if (itens.length) e.listas[c.dataset.lista] = itens;
+      if (!itens.length) return;
+      const k = c.dataset.lista;
+      const r = listaProtegida(uso[k], e.listas[k] || [], itens);
+      e.listas[k] = r.lista;
+      mantidos.push(...r.mantidos);
     });
   });
-  toast('Listas atualizadas.', 'ok');
+  if (mantidos.length) {
+    const txt = mantidos.map((m) => `"${m.item}" (${m.registros} registro${m.registros === 1 ? '' : 's'})`).join(', ');
+    toast(`Listas atualizadas. Continuam por estarem em uso: ${txt}.`, 'aviso');
+    App.renderConteudo();
+  } else toast('Listas atualizadas.', 'ok');
 };
 
 ACOES.zerar = () => {
-  confirmar('Apagar todos os dados', 'Isso remove obras, contratos, medições, lançamentos e cadastros. Baixe um backup antes.', () => {
+  const palavra = String(Store.estado.empresa.nome || '').trim() || 'APAGAR';
+  confirmarDigitando('Apagar todos os dados', 'Isso remove obras, contratos, medições, lançamentos e cadastros. Não há como desfazer. Baixe um backup antes.', palavra, () => {
     mutar((e) => {
       e.obras = []; e.clientes = []; e.prestadores = [];
     });

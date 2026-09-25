@@ -32,6 +32,7 @@ const ICO = {
   tema: '<circle cx="8" cy="8" r="5.6"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor" stroke="none"/>',
   x: '<path d="M4 4l8 8M12 4l-8 8"/>',
   baixar: '<path d="M8 2v8M4.5 7 8 10.5 11.5 7M2.5 13.5h11"/>',
+  clipe: '<path d="M11.5 7.5 7 12a2.5 2.5 0 0 1-3.5-3.5L9 3a1.7 1.7 0 0 1 2.4 2.4L6 10.8a.8.8 0 0 1-1.1-1.1L9.5 5"/>',
   lapis: '<path d="M11 2.5 13.5 5 5.5 13H3v-2.5z"/>',
   lixo: '<path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 10h6.6L12 4"/>',
   seta: '<path d="M6 3l5 5-5 5"/>',
@@ -83,17 +84,19 @@ const MENU = [
   ] },
   { grupo: 'Acompanhar', obra: true, passo: 3, nota: 'sempre à vista', itens: [
     { v: 'painel', t: 'Painel', i: 'painel' },
-    { v: 'curva', t: 'Controle Financeiro', i: 'curva' },
+    { v: 'curva', t: 'Físico × financeiro', i: 'curva' },
     { v: 'fluxo', t: 'Fluxo de caixa', i: 'fluxo' },
-    { v: 'alertas', t: 'Alertas', i: 'alerta' },
-    { v: 'relatorio', t: 'Relatórios', i: 'relatorio' },
-    { v: 'auditoria', t: 'Trilha de auditoria', i: 'auditoria' }
+    { v: 'alertas', t: 'Pendências', i: 'alerta' },
+    { v: 'relatorio', t: 'Relatórios', i: 'relatorio' }
   ] },
+  /* A trilha é por obra (`obra: true` no item), mas é consulta de
+     controle, não rotina — mora com os ajustes. */
   { grupo: 'Sistema', itens: [
+    { v: 'auditoria', t: 'Trilha de auditoria', i: 'auditoria', obra: true },
     { v: 'ajustes', t: 'Ajustes e dados', i: 'config' }
   ] },
   { grupo: 'Administração', soAdmin: true, itens: [
-    { v: 'admin', t: 'Clientes e acessos', i: 'admin' }
+    { v: 'admin', t: 'Contas e acessos', i: 'admin' }
   ] }
 ];
 
@@ -108,18 +111,35 @@ const TITULOS = {
   lancamentos: ['Lançamentos', 'Compras, taxas e demais saídas'],
   materiais: ['Plano de materiais', 'O que comprar, quando e quanto falta'],
   cronograma: ['Cronograma da obra', 'Etapas, prazos e progresso real'],
-  curva: ['Controle Financeiro', 'Curva S — avanço físico x financeiro e desvio'],
+  curva: ['Físico × financeiro', 'Curva S: o que foi feito contra o que foi gasto, e a tendência'],
   diario: ['Diário de obra', 'Registro de visitas, ocorrências e fotos'],
   fluxo: ['Fluxo de caixa', 'Entradas e saídas mês a mês'],
-  alertas: ['Alertas', 'Pendências que exigem ação'],
+  alertas: ['Pendências', 'O que precisa de ação, agrupado pela causa'],
   relatorio: ['Relatórios', 'Documentos para cliente, financiador e arquivo'],
   auditoria: ['Trilha de auditoria', 'Quem alterou cada valor financeiro e quando'],
   'obra-config': ['Configuração da obra', 'Identificação, financiamento e contrato'],
   ajustes: ['Ajustes e dados', 'Empresa, listas, backup e importação'],
-  admin: ['Administração', 'Consumo por cliente e liberação de acesso por aba']
+  admin: ['Contas e acessos', 'Uso por conta e liberação de acesso por aba']
 };
 
-const VIEWS_OBRA = new Set(MENU.filter((g) => g.obra).flatMap((g) => g.itens.map((i) => i.v)));
+/* Papel na obra (0004/0014). O cliente acompanha: cronograma, diário
+   com fotos e o relatório de status. Caixa, custo, margem, contratos e
+   prestadores são da construtora. Engenheiro vê tudo da obra (o que ele
+   não pode — equipe, excluir obra — a própria tela já esconde). O banco
+   é quem garante (RLS); a tela só concorda com ele. */
+const VIEWS_CLIENTE = new Set(['cronograma', 'diario', 'relatorio']);
+const papelAtual = (obraId) =>
+  Store.backend === 'supabase' && obraId ? SUPA.papelNaObra(obraId) : 'dono';
+const ehClienteDaObra = (obraId) => papelAtual(obraId) === 'cliente';
+function viewPermitida(view, obraId) {
+  return !ehClienteDaObra(obraId) || VIEWS_CLIENTE.has(view);
+}
+/* obras que entram nos números da construtora (Carteira) */
+const obrasDaConstrutora = () => Store.estado.obras.filter((o) => !ehClienteDaObra(o.id));
+
+const VIEWS_OBRA = new Set(
+  MENU.flatMap((g) => g.itens.filter((i) => g.obra || i.obra).map((i) => i.v)),
+);
 
 /* "Casa 12 — Residencial Aurora" → ['Casa 12', 'Residencial Aurora'].
    Sem separador, a cidade vai na segunda linha. */
@@ -148,6 +168,8 @@ const App = {
       if (!primeira) { toast('Cadastre uma obra primeiro.', 'aviso'); view = 'carteira'; }
       else this.rota.obraId = primeira.id;
     }
+    /* cliente só vê o que é dele */
+    if (VIEWS_OBRA.has(view) && !viewPermitida(view, this.rota.obraId)) view = 'cronograma';
     this.rota.view = view;
     this.filtros = {};
     document.body.classList.remove('menu-aberto');
@@ -157,6 +179,9 @@ const App = {
   },
 
   render() {
+    if (VIEWS_OBRA.has(this.rota.view) && !viewPermitida(this.rota.view, this.rota.obraId)) {
+      this.rota.view = 'cronograma';
+    }
     this.renderRail();
     this.renderTopo();
     this.renderConteudo();
@@ -200,7 +225,10 @@ const App = {
     const nav = MENU.map((g) => {
       if (g.obra && !obras.length) return '';
       if (g.soAdmin && !SUPA.ehAdmin) return '';
-      const itens = g.itens.filter((it) => SUPA.abaLiberada(it.v)).map((it) => {
+      const itens = g.itens.filter((it) => SUPA.abaLiberada(it.v))
+        /* numa obra em que a pessoa é cliente, o menu mostra só o dela */
+        .filter((it) => !((g.obra || it.obra) && obra && !viewPermitida(it.v, obra.id)))
+        .map((it) => {
         const ativo = this.rota.view === it.v ? ' aria-current="page"' : '';
         let n = 0;
         let crit = false;
@@ -303,6 +331,12 @@ const App = {
     }
     prepararTabelas(alvo);
     desenharGraficosPendentes();
+    /* Linha do tempo que não cabe (Gantt no celular): abre rolada até hoje,
+       com um terço da largura de passado à esquerda — antes abria no
+       primeiro mês da obra e a linha de hoje ficava fora da tela. */
+    alvo.querySelectorAll('[data-rolar-para]').forEach((el) => {
+      el.scrollLeft = Math.max(0, Number(el.dataset.rolarPara) - el.clientWidth / 3);
+    });
   }
 };
 
@@ -453,12 +487,6 @@ function botao(texto, acao, dados = {}, classe = 'btn', icone = '') {
   return `<button class="${classe}" data-acao="${acao}" ${attrs}>${icone ? svg(ICO[icone], 14) : ''}${texto}</button>`;
 }
 
-function acoesLinha(tipo, id) {
-  if (Store.somenteLeitura()) return '';
-  return `<button class="btn sutil pequeno" data-acao="editar-${tipo}" data-id="${id}" title="Editar" aria-label="Editar">${svg(ICO.lapis, 13)}</button>
-          <button class="btn sutil pequeno" data-acao="excluir-${tipo}" data-id="${id}" title="Excluir" aria-label="Excluir">${svg(ICO.lixo, 13)}</button>`;
-}
-
 /* ------------------------------------------------------------- modal */
 let modalAoSalvar = null;
 let modalValidar = null;
@@ -519,6 +547,21 @@ function confirmar(titulo, texto, aoConfirmar, rotulo = 'Excluir') {
   modalAoSalvar = aoConfirmar;
 }
 
+/* Confirmação forte: para ação sem volta, digitar a palavra (o nome da
+   empresa, o e-mail da conta) antes de o botão funcionar. Um clique
+   distraído num "Excluir" não apaga a base. */
+function confirmarDigitando(titulo, texto, palavra, aoConfirmar, rotulo = 'Excluir') {
+  abrirModal({
+    titulo, largura: 'estreito',
+    corpo: `<p style="margin:0 0 var(--e3)">${esc(texto)}</p>
+      <div class="campo"><label for="f_confirma">Digite <b>${esc(palavra)}</b> para confirmar</label>
+      <input type="text" id="f_confirma" data-confirma="${esc(palavra)}" autocomplete="off" spellcheck="false"></div>`,
+    rodape: `<button class="btn" data-acao="fechar-modal">Cancelar</button>
+             <button class="btn perigo" data-acao="confirmar-digitado">${esc(rotulo)}</button>`
+  });
+  modalAoSalvar = aoConfirmar;
+}
+
 /* --------------------------------------------------- formulário genérico
    campos: { k, label, tipo, col, opcoes, dica, secao, ro, placeholder }
    tipos: texto | numero | dinheiro | pct | data | select | area | check | lista
@@ -559,6 +602,17 @@ function campoHTML(c, valores) {
         <option value="Não" ${v === 'Não' ? 'selected' : ''}>Não</option>
         <option value="Sim" ${v === 'Sim' ? 'selected' : ''}>Sim</option></select>`;
       break;
+    case 'multi': {
+      /* várias escolhas de uma lista: vira um array em lerForm */
+      const marcados = new Set(Array.isArray(v) ? v : []);
+      campo = `<div class="multi-opcoes" id="${id}" data-campo="${c.k}" data-tipo="multi" role="group" aria-label="${esc(c.label)}">${
+        (c.opcoes || []).map((o) => {
+          const [val, txt] = typeof o === 'object' ? [o.v, o.t] : [o, o];
+          return `<label class="multi-opcao"><input type="checkbox" value="${esc(val)}" ${marcados.has(val) ? 'checked' : ''}> ${esc(txt)}</label>`;
+        }).join('') || '<span class="tinta3">nada para escolher</span>'
+      }</div>`;
+      break;
+    }
     case 'lista':
       campo = `<input type="text" id="${id}" data-campo="${c.k}" data-tipo="texto" list="dl_${c.k}" value="${esc(v || '')}" ${req}>
         <datalist id="dl_${c.k}">${(c.opcoes || []).map((o) => `<option value="${esc(o)}"></option>`).join('')}</datalist>`;
@@ -602,7 +656,8 @@ function lerForm() {
   f.querySelectorAll('[data-campo]').forEach((el) => {
     const k = el.dataset.campo;
     const t = el.dataset.tipo;
-    if (t === 'numero' || t === 'dinheiro') out[k] = num(el.value);
+    if (t === 'multi') out[k] = [...el.querySelectorAll('input:checked')].map((i) => i.value);
+    else if (t === 'numero' || t === 'dinheiro') out[k] = num(el.value);
     else if (t === 'pct') out[k] = num(el.value) / 100;
     else out[k] = el.value.trim ? el.value.trim() : el.value;
   });
@@ -667,6 +722,11 @@ function selectFiltro(id, opcoes, rotulo) {
 }
 
 export {
+  VIEWS_CLIENTE,
+  papelAtual,
+  ehClienteDaObra,
+  viewPermitida,
+  obrasDaConstrutora,
   partesNomeObra,
   ICO,
   svg,
@@ -684,13 +744,13 @@ export {
   vazio,
   cartao,
   botao,
-  acoesLinha,
   modalAoSalvar,
   modalValidar,
   mostrarAvisosForm,
   fecharModal,
   abrirModal,
   confirmar,
+  confirmarDigitando,
   campoHTML,
   abrirForm,
   lerForm,

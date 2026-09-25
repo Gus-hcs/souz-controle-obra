@@ -6,10 +6,16 @@
  * carregarAuditoria) mora em telas-obra.js — acoes.js também usa
  * carregarAuditoria, e este módulo não pode, porque importa componentes.js,
  * que importa acoes.js, fechando um ciclo.
+ *
+ * Abre nas alterações sensíveis (alteracaoSensivel: pago, recebido,
+ * aprovado, exclusão); "Todas as alterações" mostra o resto. Clicar no
+ * registro mostra só o histórico dele.
  */
-import { esc, fmtMoney, fmtNum, norm, num } from '../../nucleo/base.js';
+import { esc, fmtMoney, fmtNum, fmtQuando, norm, num } from '../../nucleo/base.js';
+import { alteracaoSensivel } from '../../dominio/calculos.js';
 import { Store } from '../../dados/store.js';
 import { SUPA } from '../../dados/supabase.js';
+import { ACOES } from '../acoes.js';
 import { App, botao } from '../shell.js';
 import { Auditoria, carregarAuditoria, VIEWS } from '../telas-obra.js';
 import { barraFiltros, buscaToolbar, lista, seletor, vazioTela } from './componentes.js';
@@ -58,19 +64,28 @@ function audRegistro(o, tabela, id) {
   return AUD_TABELAS[tabela] || tabela;
 }
 
+/* "hoje, 17:49" na tela; a data e hora completas ficam no title. */
 function audDataHora(iso) {
+  let completa = String(iso || '');
   try {
-    return new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    completa = new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
   } catch (e) {
-    return esc(String(iso || ''));
+    /* data inválida: fica o texto cru no title */
   }
+  return `<span title="${esc(completa)}">${esc(fmtQuando(iso))}</span>`;
 }
+
+const chaveRegistro = (l) => `${l.tabela}:${l.registro_id}`;
+
+ACOES['aud-registro'] = (el, d) => {
+  App.filtros.audRegistro = App.filtros.audRegistro === d.chave ? '' : d.chave;
+  App.renderConteudo();
+};
 
 const OP_TOM = { INSERT: '', UPDATE: '', DELETE: 'atraso' };
 const OP_TEXTO = { INSERT: 'criado', UPDATE: 'alterado', DELETE: 'excluído' };
 
-function kpisAuditoria(linhas, recentes, ultima) {
-  const agora = Date.now();
+function kpisAuditoria(linhas, recentes, ultima, sensiveis) {
   const item = (rotulo, valor, contexto) => `<div class="kpi-item">
     <span class="kpi-rot">${esc(rotulo)}</span>
     <span class="kpi-val">${valor}</span>
@@ -78,14 +93,16 @@ function kpisAuditoria(linhas, recentes, ultima) {
   </div>`;
 
   return `<div class="kpis" role="group" aria-label="Indicadores da trilha de auditoria">
-    ${item('Alterações registradas', linhas.length, linhas.length >= 500 ? 'as 500 mais recentes' : 'nesta obra')}
+    ${item(
+      'Alterações registradas',
+      linhas.length,
+      `${sensiveis} sensíve${sensiveis === 1 ? 'l' : 'is'}${linhas.length >= 500 ? ' · as 500 mais recentes' : ''}`,
+    )}
     ${item('Nos últimos 7 dias', recentes, recentes ? 'movimentação recente' : 'sem alterações na semana')}
     ${item(
       'Última alteração',
-      ultima
-        ? `há ${Math.max(0, Math.floor((agora - new Date(ultima.criado_em).getTime()) / 86400000))}d`
-        : '—',
-      ultima ? `${audQuem(ultima.usuario_id)} · ${audDataHora(ultima.criado_em)}` : 'nenhuma',
+      ultima ? esc(fmtQuando(ultima.criado_em)) : '—',
+      ultima ? `${audQuem(ultima.usuario_id)} · ${audRegistro(App.obra(), ultima.tabela, ultima.registro_id)}` : 'nenhuma',
     )}
   </div>`;
 }
@@ -149,8 +166,15 @@ VIEWS.auditoria = () => {
   ).length;
   const ultima = linhas[0];
 
+  /* Escopo padrão: só o sensível. Sem nenhuma alteração sensível, o
+     seletor some e a lista mostra tudo. */
+  const sensiveis = linhas.filter(alteracaoSensivel);
+  const soSensiveis = sensiveis.length > 0 && f.escopo !== 'todas' && !f.audRegistro;
+  const base = soSensiveis ? sensiveis : linhas;
+
   const busca = norm(f.busca || '');
-  let itens = linhas;
+  let itens = base;
+  if (f.audRegistro) itens = itens.filter((l) => chaveRegistro(l) === f.audRegistro);
   if (f.operacao) itens = itens.filter((l) => l.operacao === f.operacao);
   if (f.modulo) itens = itens.filter((l) => l.tabela === f.modulo);
   if (f.campo) itens = itens.filter((l) => l.campo === f.campo);
@@ -169,7 +193,7 @@ VIEWS.auditoria = () => {
       largura: '16%',
       celular: 'some',
       valor: (l) => l.criado_em,
-      celula: (l) => `<span class="tinta2">${esc(audDataHora(l.criado_em))}</span>`,
+      celula: (l) => `<span class="tinta2">${audDataHora(l.criado_em)}</span>`,
     },
     {
       k: 'quem',
@@ -186,7 +210,8 @@ VIEWS.auditoria = () => {
       celular: 'principal',
       valor: (l) => audRegistro(o, l.tabela, l.registro_id),
       celula: (l) =>
-        `<div class="cel-obra"><b>${audRegistro(o, l.tabela, l.registro_id)}</b><span>${esc(audDataHora(l.criado_em))}</span></div>`,
+        `<div class="cel-obra"><button class="btn-link" data-acao="aud-registro" data-chave="${esc(chaveRegistro(l))}"
+          title="${f.audRegistro ? 'Voltar à lista' : 'Ver só o histórico deste registro'}"><b>${audRegistro(o, l.tabela, l.registro_id)}</b></button><span>${audDataHora(l.criado_em)}</span></div>`,
     },
     {
       k: 'alteracao',
@@ -218,6 +243,13 @@ VIEWS.auditoria = () => {
   const barra = barraFiltros({
     mostrar: linhas.length > 1,
     controles: [
+      sensiveis.length && !f.audRegistro
+        ? seletor('escopo', [['todas', 'Todas as alterações']], 'Alterações sensíveis')
+        : '',
+      f.audRegistro
+        ? `<span class="tinta2">Histórico de <b>${audRegistro(o, ...f.audRegistro.split(':'))}</b></span>
+           <button class="btn sutil pequeno" data-acao="aud-registro" data-chave="${esc(f.audRegistro)}">Ver todos</button>`
+        : '',
       seletor(
         'operacao',
         [
@@ -243,11 +275,11 @@ VIEWS.auditoria = () => {
         : '',
     ],
     filtrados: itens.length,
-    total: linhas.length,
+    total: f.audRegistro ? linhas.length : base.length,
   });
 
   return `<div class="tela-lista">
-    ${kpisAuditoria(linhas, recentes, ultima)}
+    ${kpisAuditoria(linhas, recentes, ultima, sensiveis.length)}
     ${barra}
     ${lista({
       id: 'auditoria',

@@ -82,14 +82,16 @@
   --inspetor-w: 300px; /* painel inspetor à direita */
   --leitura-max: 1080px; /* telas de leitura e formulário: Configuração, Ajustes, Relatório */
 
-  /* ------------------------------------------------ barras pretas
-     A lateral esquerda e a barra de cima são pretas nos DOIS temas — a
-     moldura da marca. Dentro delas vale esta paleta escura (interface.css
+  /* ------------------------------------------------ barras petróleo
+     A lateral esquerda e a barra de cima são petróleo escuro nos DOIS
+     temas — a moldura da marca. Escuro o bastante para os três tons de
+     texto passarem 4,5:1 (tests/contraste.test.js); o #096a61 deixava o
+     cinza em 2,9:1. Dentro delas vale esta paleta escura (interface.css
      remapeia os tokens de texto e controle no #rail e no #topo). */
-  --barra-fundo: #000000;
+  --barra-fundo: #053f3a;
   --barra-tinta: #e8e8e8; /* Névoa */
   --barra-tinta2: #adadad; /* Cinza */
-  --barra-tinta3: #8a9894;
+  --barra-tinta3: #97a8a5; /* 4,8:1 sobre o petróleo */
   --barra-acento-texto: #2fd4c4; /* Ciano Claro */
   --barra-ctrl: #0e1a17; /* Grafite: busca, seletor de obra, segmentado */
   --barra-ctrl-ativo: #173934;
@@ -151,14 +153,17 @@
   --neutro-feito: var(--tinta3); /* concluído, pago, encerrado */
 
   /* ------------------------------------------------ séries de gráfico
-     Ordem pensada para daltonismo. A 1ª é o acento; as demais não
-     competem com ele. */
-  --serie1: #0b7d72;
-  --serie2: #a35f0c;
-  --serie3: #5b6abf;
-  --serie4: #4a7c2f;
-  --serie5: #9a4e8f;
-  --serie6: #5f6c75;
+     Ordem pensada para daltonismo. A 1ª é o acento; as demais são da
+     mesma família — saturação e luminosidade parecidas com o ciano, tons
+     frios e abafados — para o gráfico conversar com a interface. Nenhuma
+     é âmbar nem vermelha: essas cores são de alerta e atraso, e dinheiro
+     a pagar não é problema. */
+  --serie1: #0b7d72; /* ciano — entradas, físico */
+  --serie2: #3b6e8f; /* azul-aço — saídas, a pagar */
+  --serie3: #5e62a8; /* índigo — financeiro realizado */
+  --serie4: #5b7a3a; /* oliva — liberado pelo financiador */
+  --serie5: #8a5a82; /* ameixa */
+  --serie6: #6b7775; /* ardósia */
   --grade-grafico: rgba(11, 125, 114, 0.1);
 
   /* ------------------------------------------------------- sombra
@@ -231,10 +236,10 @@
     --neutro-feito: var(--tinta3);
 
     --serie1: #2fd4c4;
-    --serie2: #e0a44a;
-    --serie3: #8b93f8;
-    --serie4: #8cc63f;
-    --serie5: #d18bcb;
+    --serie2: #7fb0cf;
+    --serie3: #9a9ee6;
+    --serie4: #a3c47a;
+    --serie5: #cc97c3;
     --serie6: #9aa7ad;
     --grade-grafico: rgba(47, 212, 196, 0.1);
 
@@ -286,10 +291,10 @@
   --neutro-feito: var(--tinta3);
 
   --serie1: #2fd4c4;
-  --serie2: #e0a44a;
-  --serie3: #8b93f8;
-  --serie4: #8cc63f;
-  --serie5: #d18bcb;
+  --serie2: #7fb0cf;
+  --serie3: #9a9ee6;
+  --serie4: #a3c47a;
+  --serie5: #cc97c3;
   --serie6: #9aa7ad;
   --grade-grafico: rgba(47, 212, 196, 0.1);
 

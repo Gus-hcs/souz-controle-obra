@@ -18,7 +18,8 @@ já calculados para o Power BI.
 | `materiais` | plano de compras |
 | `lancamentos` | compras, taxas e demais saídas |
 | `cronograma` | etapas, prazos e avanço físico |
-| `diario` | diário de obra e fotos |
+| `diario` | diário de obra e fotos; a ocorrência pode virar pendência (status, responsável, prazo, material) |
+| `alertas_tratamento` | a decisão sobre cada alerta calculado: em tratamento, adiado até, resolvido — com responsável e nota |
 | `auditoria` | trilha de alterações de valor financeiro, preenchida por gatilho |
 
 Visões para análise: `vw_contratos`, `vw_posicao_contratual`, `vw_lancamentos`,
@@ -94,6 +95,11 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0012_prestador_cidade.sql` | coluna `cidade` no prestador (texto livre, opcional) e `CHECK` de até 60 caracteres |
 | `0013_contratos_situacao_e_aditivos.sql` | aditivo com tipo/status/motivo/aprovação/novo prazo; contrato com condição de pagamento, retenção, forma de preço, data de encerramento e documento (Storage); situação manual (só Paralisado/Rescindido) — o resto a tela calcula; CHECKs |
 | `0014_convite_por_email.sql` | `convidar_membro()` e `membros_da_obra()` — convite de engenheiro/cliente por e-mail e listagem da equipe com e-mail (funções `security definer`, sem tabela nova) |
+| `0015_tratamento_alertas_e_ocorrencias.sql` | tabela `alertas_tratamento` (status, responsável, adiar até, nota) com RLS por obra; colunas de ocorrência como pendência em `diario`; CHECKs |
+| `0016_financiador_e_parcelas.sql` | financiador genérico: `obras.financiador`; `% exigido`, vistoria e aprovação da parcela em `recebimentos`; item e peso da planilha do financiador em `cronograma`; `contratos.etapas`; CHECKs |
+| `0017_dependencias_e_diario_de_campo.sql` | `cronograma.predecessoras` (fim→início); diário de campo: clima por turno, efetivo por função, equipamentos, % da etapa, impacto no prazo; CHECKs |
+| `0018_cliente_e_fornecedor.sql` | tabela `pendencias_cliente` (o que o cliente deve à obra, com prazo) com RLS por obra; `obras.status_enviado_em`; `prestadores.tipo` (serviço × fornecedor); CHECKs |
+| `0019_anexo_nf_e_funcoes_fechadas.sql` | `lancamentos.anexo_nf` (foto da nota, CHECK de imagem ≤ 1,5 MB); `EXECUTE` revogado de `anon` em todas as `SECURITY DEFINER` e de todos nas funções de gatilho |
 
 ### 0008 — logos
 
@@ -164,6 +170,29 @@ autorização é checada dentro de cada função:
 
 Depois de aplicar, a tela **Configuração da obra** ganha a seção "Equipe"
 (dono only): lista os membros, convida por e-mail e remove.
+
+### 0015 — tratamento de alerta e ocorrência como pendência
+
+Blocos A (tabela nova com RLS e colunas novas no diário), B (diagnóstico —
+volta vazio), C (`CHECK not valid` no diário) e D (valida). A tabela nova
+nasce vazia, então as restrições dela entram já validadas no `create table`.
+
+Os alertas continuam **calculados pelo app** (`alertasObra`,
+`src/dominio/calculos.js`); `alertas_tratamento` guarda só a decisão sobre
+cada um, pela `chave` (tipo + registro, ex. `etapa-atrasada:cr_x1`). O id da
+linha é determinístico (`trat:<obra>:<chave>`) e há índice único
+`(obra_id, chave)`: no máximo um tratamento por alerta. Adiado no prazo ou
+resolvido sai da contagem de pendências; o app reabre sozinho se o alerta
+ficar mais grave, se o valor em jogo subir mais de 10% ou se o adiamento
+vencer.
+
+**O app tolera `alertas_tratamento` ainda não existir**: a carga segue sem
+ela e o botão "Tratar" some (`SUPA.tabelaDisponivel`). As **colunas novas do
+diário não**: o código que grava `ocorrencia_*` só pode ir ao ar depois do
+bloco A, como nas migrações anteriores.
+
+Registro de diário antigo nasce com `ocorrencia_status` nulo — só registro,
+não vira pendência de repente.
 
 ### 0002 — como aplicar
 
@@ -260,3 +289,68 @@ Como usar:
 Os telefones `(62) 9000-01xx` não existem, então o WhatsApp não chama ninguém de
 verdade. CPFs e CNPJs são fictícios, mas passam na conferência de dígitos.
 E-mails usam `@exemplo.com`.
+
+### 0016 — financiador genérico e parcelas por marco físico
+
+Blocos A (colunas novas, nascem nulas), B (diagnóstico — volta vazio), C
+(`CHECK not valid`) e D (valida). Nenhuma tabela nova: a RLS das tabelas da obra
+(0004) já cobre as colunas.
+
+Serve a qualquer financiador, não só à CAIXA: `obras.financiador` é o nome
+("CAIXA", "Banco do Brasil", "Cliente"…), e as telas dizem "financiador" quando
+ele está vazio. O % de obra que a parcela exige (`percent_exigido`) é comparado
+com o físico **pela planilha do financiador** — os pesos de `peso_financiador`,
+quando cadastrados; senão, o físico da obra. O passo da parcela (solicitada →
+vistoriada → aprovada → creditada) sai das datas, sem mudar a lista de status.
+`contratos.etapas` liga o contrato às etapas que ele executa; é a base do alerta
+"medido à frente do físico" (mais de 5 p.p.).
+
+### 0017 — dependências do cronograma e diário de campo
+
+Blocos A (colunas novas, nascem nulas), B (diagnóstico — volta vazio), C
+(`CHECK not valid`) e D (valida). Sem tabela nova.
+
+`predecessoras` guarda os ids das etapas que precisam terminar antes (fim→início).
+Com ela cadastrada, o término projetado sai da agenda (`agendaCronograma`), e a
+folga de cada etapa aponta o caminho crítico. Ciclo e predecessora apagada
+dependem do conjunto: são alerta no app, não CHECK.
+
+O diário de campo ganha clima por turno, efetivo por função (lista
+`[{funcao, qtd}]` — o total passa a ser a soma), equipamentos, o % da etapa ao
+fim do dia (que atualiza o cronograma, junto com o início e o fim reais) e se o
+dia impacta o prazo, com quantos dias (`dias_impacto > 0` exige
+`impacta_prazo`).
+
+O sistema abre sem rede (service worker em `public/sw.js`), e o que é gravado
+sem conexão fica no aparelho até a rede voltar. Não depende de migração.
+
+### 0018 — pendências do cliente, último status e fornecedor
+
+Blocos A (tabela nova com RLS e colunas novas), B (diagnóstico — volta vazio), C
+(`CHECK not valid` em `prestadores.tipo`) e D (valida). A tabela nova nasce
+vazia, então as restrições dela entram já validadas no `create table`.
+
+`pendencias_cliente` guarda o que o **cliente** deve à obra — aprovação,
+escolha de acabamento, documento — com prazo. Vencida, vira pendência da obra
+(causa "decisão do cliente") e aparece no PDF do cliente como "Aguardando sua
+decisão". Opcional na carga, como `alertas_tratamento`: sem a tabela, o recurso
+some e o resto funciona. `status_enviado_em` é carimbado pelo app ao gerar o
+PDF de status do cliente ou compartilhá-lo pelo WhatsApp; mais de 14 dias sem
+envio numa obra em andamento vira aviso informativo.
+
+### 0019 — foto da NF e funções fechadas
+
+Blocos A (coluna nova e permissões), B (diagnóstico), C/D (`CHECK` do anexo).
+O verificador de segurança do Supabase apontava funções `SECURITY DEFINER`
+executáveis sem login. Agora: `anon` não executa nenhuma; `authenticated`
+executa as que o app chama por RPC (`admin_consumo`, `admin_definir_perfil`,
+`membros_da_obra`, `convidar_membro`) e as que a RLS usa (`pode_ler_obra`,
+`pode_escrever_obra`, `eh_dono_obra`, `pode_admin`); as de gatilho, ninguém — o
+Postgres só confere `EXECUTE` de gatilho ao criá-lo, então eles continuam
+disparando (conferido em produção com uma transação desfeita).
+
+### Aplicadas em produção
+
+0015–0019 aplicadas em 25/09/2026, bloco a bloco, com o diagnóstico de cada uma
+vazio antes das restrições.
+

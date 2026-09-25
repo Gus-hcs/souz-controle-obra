@@ -2,13 +2,17 @@
  * telas/ajustes.js — Ajustes e dados, na linguagem nova.
  *
  * Tela de sistema, não de obra: dados da empresa, backup, listas editáveis
- * e a zona de risco. Sem cálculo de domínio — só lê e grava Store.estado.
+ * e a zona de risco. Lê e grava Store.estado; o aviso de RT/CREA vem de
+ * validarEmpresa e o "em uso" das listas de usoItensLista.
  */
 import { esc, fmtData, fonteImagem } from '../../nucleo/base.js';
+import { usoItensLista } from '../../dominio/calculos.js';
+import { validarEmpresa } from '../../dominio/validacao.js';
 import { Store, horaCurta } from '../../dados/store.js';
 import { SUPA } from '../../dados/supabase.js';
 import { botao, campoHTML } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
+import { sugestoesNomesPrestador } from './prestadores.js';
 
 const LISTAS_EDITAVEIS = [
   ['etapas', 'Etapas da obra'],
@@ -61,6 +65,16 @@ VIEWS.ajustes = () => {
   const e = Store.estado;
   const emp = e.empresa;
   const tamanho = (JSON.stringify(e).length / 1024).toFixed(0);
+  const avisosEmpresa = validarEmpresa(emp);
+  const nomesCaixaAlta = Store.somenteLeitura() ? 0 : sugestoesNomesPrestador().length;
+  const uso = usoItensLista(e);
+  /* "12 em uso" embaixo de cada lista: quem apaga um item sabe antes */
+  const dicaUso = (k) => {
+    const m = uso[k];
+    if (!m || !m.size) return '';
+    const n = [...m.keys()].filter((i) => (e.listas[k] || []).includes(i)).length;
+    return n ? ` ${n} ${n === 1 ? 'item está' : 'itens estão'} em uso e não saem da lista.` : '';
+  };
 
   return `<div class="tela-lista">
     ${kpisAjustes(e, tamanho)}
@@ -70,6 +84,11 @@ VIEWS.ajustes = () => {
         <h3>Empresa</h3>
         <div class="dir">${botao('Salvar', 'salvar-empresa', {}, 'btn primario pequeno')}</div>
       </div>
+      ${
+        avisosEmpresa.length
+          ? `<p class="aviso-linha" role="status" style="margin:0 0 var(--e3)">${avisosEmpresa.map((p) => esc(p.mensagem)).join(' ')}</p>`
+          : ''
+      }
       <form class="form-grade" data-form="1" onsubmit="return false">
         ${campoHTML({ k: 'nome', label: 'Nome da empresa', tipo: 'texto', col: 6 }, emp)}
         ${campoHTML({ k: 'responsavel', label: 'Responsável técnico', tipo: 'texto', col: 6 }, emp)}
@@ -96,15 +115,24 @@ VIEWS.ajustes = () => {
           ${botao('Baixar backup (JSON)', 'backup-json', {}, 'btn', 'baixar')}
           ${botao('Restaurar backup', 'restaurar-json', {}, 'btn')}
           ${botao('Importar planilha (modelo MCMV)', 'importar-xlsx', {}, 'btn')}
-          ${botao('Carregar dados de exemplo', 'exemplo', {}, 'btn sutil')}
+          ${
+            /* exemplo só em conta vazia: numa conta com obra ele mistura
+               dado fictício com dado real */
+            e.obras.length ? '' : botao('Carregar dados de exemplo', 'exemplo', {}, 'btn sutil')
+          }
         </div>
         <table class="tab">
           <tbody>
             <tr><td style="width:220px">Modo de gravação</td><td class="mono">${esc(Store.descricaoModo())}</td></tr>
             ${
               Store.backend === 'supabase'
-                ? `<tr><td>Conta</td><td class="mono">${esc((SUPA.usuario && SUPA.usuario.email) || '')}</td></tr>
+                ? `<tr><td>Conta</td><td class="mono">${esc((SUPA.usuario && SUPA.usuario.email) || '')}</td></tr>${
+                    /* endereço do banco é infraestrutura: só o administrador vê */
+                    SUPA.ehAdmin
+                      ? `
             <tr><td>Projeto do banco</td><td class="mono">${esc(SUPA.cfg.url)}</td></tr>`
+                      : ''
+                  }`
                 : ''
             }
             <tr><td>Última gravação</td><td class="mono">${Store.salvoEm ? fmtData(Store.salvoEm.slice(0, 10)) + ' ' + horaCurta(Store.salvoEm) : '—'}</td></tr>
@@ -117,6 +145,14 @@ VIEWS.ajustes = () => {
       </div>
     </div>
 
+    ${
+      /* arrumação de cadastro: morava na barra de Prestadores */
+      nomesCaixaAlta
+        ? `<div class="aviso-linha" role="status">${nomesCaixaAlta} ${nomesCaixaAlta === 1 ? 'nome de prestador está' : 'nomes de prestadores estão'} em caixa alta ou com a especialidade junto ao nome.
+            <button class="btn-link" data-acao="prest-revisar-nomes">Revisar nomes</button></div>`
+        : ''
+    }
+
     <div class="caixa">
       <div class="caixa-cab">
         <h3>Listas do sistema</h3>
@@ -128,7 +164,7 @@ VIEWS.ajustes = () => {
           <div class="campo">
             <label for="lista_${k}">${esc(t)}</label>
             <textarea id="lista_${k}" data-lista="${k}" rows="5">${esc((e.listas[k] || []).join('\n'))}</textarea>
-            <span class="dica">${esc(dica || 'Um item por linha.')}</span>
+            <span class="dica">${esc((dica || 'Um item por linha.') + dicaUso(k))}</span>
           </div>`,
         ).join('')}
       </div>
@@ -136,7 +172,7 @@ VIEWS.ajustes = () => {
 
     <div class="caixa">
       <div class="caixa-cab"><h3>Zona de risco</h3></div>
-      <p style="margin:0 0 var(--e3);font-size:var(--t-corpo)">Apaga toda a base do sistema. Baixe um backup antes.</p>
+      <p style="margin:0 0 var(--e3);font-size:var(--t-corpo)">Apaga toda a base do sistema. Baixe um backup antes. Para confirmar, será preciso digitar o nome da empresa.</p>
       ${botao('Apagar todos os dados', 'zerar', {}, 'btn perigo', 'lixo')}
     </div>
   </div>`;

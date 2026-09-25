@@ -6,7 +6,7 @@
  * o preenchimento eram a mesma cor sólida, ver graficos/index.js). Fases 2 a
  * 4 (Gantt interativo, fotos do diário, progresso rápido, mobile) vêm depois.
  *
- * Nada aqui calcula: etapaCalc, avancoPrevistoObra e prazoObra vêm de
+ * Nada aqui calcula: etapaCalc, valorAgregadoObra e prazoObra vêm de
  * dominio/calculos.js.
  */
 import {
@@ -19,7 +19,15 @@ import {
   isISO,
   norm,
 } from '../../nucleo/base.js';
-import { avancoPrevistoObra, etapaCalc, kpisObra, prazoObra } from '../../dominio/calculos.js';
+import {
+  agendaCronograma,
+  etapaCalc,
+  kpisObra,
+  nivelIndice,
+  prazoObra,
+  temDependencias,
+  valorAgregadoObra,
+} from '../../dominio/calculos.js';
 import { graficoGantt } from '../../graficos/index.js';
 import { ACOES } from '../acoes.js';
 import { App, botao } from '../shell.js';
@@ -29,9 +37,11 @@ import {
   barraFiltros,
   botaoNovo,
   buscaToolbar,
+  fmtIndice,
   lista,
   secao,
   seletor,
+  tomNivel,
   vazioTela,
 } from './componentes.js';
 
@@ -43,17 +53,22 @@ const TOM_SITUACAO_ETAPA = {
 };
 
 /* --------------------------------------------------------------- KPIs
-   Só "Etapas atrasadas" filtra a lista — os outros três são informativos
-   (data de entrega, próxima etapa a vencer), como em telas/carteira.js. */
+   Primeiro a resposta: quando a obra acaba no ritmo de hoje (término
+   projetado, valorAgregadoObra) contra a data do contrato. Depois o que
+   está travado — fim vencido E início vencido. "Próxima entrega" é a
+   próxima etapa com fim no futuro; as vencidas já estão no KPI 2. */
+const atrasadaOuTravada = (c) => c.situacao === 'ATRASADO' || c.atrasoInicio > 0;
+
 function kpisCronograma(o) {
   const k = kpisObra(o);
-  const previstoHoje = avancoPrevistoObra(o);
+  const va = valorAgregadoObra(o);
   const prazo = prazoObra(o);
+  const hoje = hojeISO();
   const abertas = o.cronograma
-    .filter((e) => etapaCalc(e).progresso < 1 && isISO(e.fimPrevisto))
+    .filter((e) => etapaCalc(e).progresso < 1 && isISO(e.fimPrevisto) && e.fimPrevisto >= hoje)
     .sort((a, b) => a.fimPrevisto.localeCompare(b.fimPrevisto));
   const proxima = abertas[0];
-  const proximaAtrasada = proxima && proxima.fimPrevisto < hojeISO();
+  const nTravadas = k.etapasAtrasadas + k.etapasInicioAtrasado;
 
   const item = (chave, rotulo, valor, contexto, tom = '', filtravel = false) => {
     const ativo = filtravel && App.filtros.kpiCrono === chave;
@@ -63,34 +78,45 @@ function kpisCronograma(o) {
       <span class="kpi-ctx">${contexto}</span>
     </div>`;
   };
+  const atraso = va.atrasoProjetado;
 
   return `<div class="kpis" role="group" aria-label="Indicadores do cronograma">
-    ${item('fisico', 'Avanço físico', fmtPct(k.progressoFisico, 0), `previsto ${fmtPct(previstoHoje, 0)} para hoje`)}
+    ${item(
+      'entrega',
+      'Término projetado',
+      va.termino ? fmtData(va.termino) : '—',
+      `${prazo.fimPrevisto ? `contrato ${fmtDataCurta(prazo.fimPrevisto)}` : 'sem data contratual'}${
+        atraso > 0 ? ` · +${atraso} d` : ''
+      }`,
+      atraso > 0 ? (atraso >= 30 ? 'atraso' : 'tom-alerta') : '',
+    )}
+    ${item(
+      'fisico',
+      'Avanço físico',
+      fmtPct(k.progressoFisico, 0),
+      `previsto ${fmtPct(va.previsto, 0)} · IDP ${fmtIndice(va.idp)}`,
+      tomNivel(nivelIndice(va.idp, 'idp')),
+    )}
     ${item(
       'atrasadas',
       'Etapas atrasadas',
-      k.etapasAtrasadas,
-      k.etapasAtrasadas ? 'fim previsto já passou' : 'tudo no prazo',
-      k.etapasAtrasadas ? 'atraso' : '',
+      nTravadas,
+      nTravadas
+        ? [
+            k.etapasAtrasadas ? `${k.etapasAtrasadas} com fim vencido` : '',
+            k.etapasInicioAtrasado ? `${k.etapasInicioAtrasado} sem começar` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ')
+        : 'tudo no prazo',
+      nTravadas ? 'atraso' : '',
       true,
-    )}
-    ${item(
-      'entrega',
-      'Previsão de entrega',
-      prazo.fimPrevisto ? fmtData(prazo.fimPrevisto) : '—',
-      prazo.desvioDias > 0
-        ? `${prazo.desvioDias} dia${prazo.desvioDias > 1 ? 's' : ''} de atraso`
-        : 'no prazo',
-      prazo.desvioDias > 0 ? 'atraso' : '',
     )}
     ${item(
       'proxima',
       'Próxima entrega',
       proxima ? esc(proxima.etapa || '—') : '—',
-      proxima
-        ? `${fmtDataCurta(proxima.fimPrevisto)}${proximaAtrasada ? ' · atrasada' : ''}`
-        : 'nada pendente',
-      proximaAtrasada ? 'atraso' : '',
+      proxima ? fmtDataCurta(proxima.fimPrevisto) : 'nada com fim à frente',
     )}
   </div>`;
 }
@@ -109,8 +135,10 @@ ACOES['ir-diario-etapa'] = (el, d) => {
 };
 
 /* -------------------------------------------------------------- tabela */
-function celulaEtapa(e) {
-  const sub = e.responsavel || '';
+function celulaEtapa(e, nomes) {
+  /* "depois de Alvenaria" (0017): a dependência à vista na linha */
+  const depois = (e.predecessoras || []).map((id) => nomes.get(id)).filter(Boolean);
+  const sub = [e.responsavel || '', depois.length ? `depois de ${depois.join(', ')}` : ''].filter(Boolean).join(' · ');
   return `<div class="cel-obra"><b>${esc(e.etapa || '—')}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div>`;
 }
 
@@ -133,7 +161,7 @@ function celulaReal(e, c) {
     c.atraso > 0
       ? `${c.atraso} dia${c.atraso === 1 ? '' : 's'} de atraso`
       : e.quantidadeExecutada
-        ? `${fmtNum(e.quantidadeExecutada, 1)} ${e.unidadeProducao || ''}${c.produtividade ? ` · ${fmtNum(c.produtividade, 1)}/dia` : ''}`
+        ? `${fmtNum(e.quantidadeExecutada, 1)} ${e.unidadeProducao || ''}${c.produtividade ? ` · ${fmtNum(c.produtividade, 1)} ${e.unidadeProducao ? e.unidadeProducao + '/' : 'por '}dia` : ''}`
         : '';
   return `<div style="display:flex;flex-direction:column;line-height:1.3;gap:2px">
     <span class="${c.atraso > 0 ? 'atraso' : 'tinta2'}">${txt ? esc(txt) : '<span class="tinta3">—</span>'}</span>
@@ -148,10 +176,20 @@ function celulaProgresso(c) {
   </div>`;
 }
 
-function celulaSituacaoEtapa(c) {
+function celulaSituacaoEtapa(c, ag) {
+  /* com dependências, embaixo: crítica (folga zero) ou quanto pode escorregar */
+  const folga = !ag || ag.concluida
+    ? ''
+    : ag.critica
+      ? '<span class="atraso">caminho crítico</span>'
+      : `<span class="tinta3">folga ${ag.folga} d</span>`;
+  const empilhar = (html) => (folga ? `<div class="cel-empilhada">${html}${folga}</div>` : html);
+  if (c.atrasoInicio > 0) {
+    return empilhar(`<span class="situacao-ct atraso"><span class="pt"></span>Início atrasado ${c.atrasoInicio}d</span>`);
+  }
   const tom = TOM_SITUACAO_ETAPA[c.situacao] || '';
   const texto = c.situacao.charAt(0) + c.situacao.slice(1).toLowerCase();
-  return `<span class="situacao-ct ${tom}"><span class="pt"></span>${esc(texto)}</span>`;
+  return empilhar(`<span class="situacao-ct ${tom}"><span class="pt"></span>${esc(texto)}</span>`);
 }
 
 const colunasCronograma = [
@@ -161,7 +199,7 @@ const colunasCronograma = [
     largura: '25%',
     celular: 'principal',
     valor: (d) => (d.e.etapa || '').toLowerCase(),
-    celula: (d) => celulaEtapa(d.e),
+    celula: (d) => celulaEtapa(d.e, d.nomes),
   },
   {
     k: 'previsto',
@@ -190,8 +228,8 @@ const colunasCronograma = [
     k: 'situacao',
     rotulo: 'Situação',
     largura: '15%',
-    valor: (d) => (d.c.situacao === 'ATRASADO' ? '0' : '1') + d.e.fimPrevisto,
-    celula: (d) => celulaSituacaoEtapa(d.c),
+    valor: (d) => (atrasadaOuTravada(d.c) ? '0' : '1') + d.e.fimPrevisto,
+    celula: (d) => celulaSituacaoEtapa(d.c, d.ag),
   },
   {
     k: 'acoes',
@@ -220,16 +258,21 @@ VIEWS.cronograma = () => {
   );
 
   const busca = norm(f.busca || '');
-  let itens = o.cronograma.map((e) => ({ e, c: etapaCalc(e) }));
+  /* agenda com dependências (0017): folga e caminho crítico por etapa */
+  const agenda = temDependencias(o) ? agendaCronograma(o, hojeISO(), valorAgregadoObra(o).idp) : null;
+  const porId = new Map(agenda ? agenda.etapas.map((a) => [a.id, a]) : []);
+  const nomes = new Map(o.cronograma.map((e) => [e.id, e.etapa]));
+  let itens = o.cronograma.map((e) => ({ e, c: etapaCalc(e), ag: porId.get(e.id) || null, nomes }));
   if (f.responsavel) itens = itens.filter((d) => d.e.responsavel === f.responsavel);
-  if (f.situacao === 'atrasadas') itens = itens.filter((d) => d.c.situacao === 'ATRASADO');
+  if (f.situacao === 'atrasadas') itens = itens.filter((d) => atrasadaOuTravada(d.c));
   if (f.situacao === 'andamento') itens = itens.filter((d) => d.c.situacao === 'EM ANDAMENTO');
   if (f.situacao === 'nao-iniciadas')
     itens = itens.filter(
       (d) => d.c.situacao === 'NÃO INICIADO' || d.c.situacao === 'NÃO PLANEJADO',
     );
   if (f.situacao === 'concluidas') itens = itens.filter((d) => d.c.situacao === 'CONCLUÍDO');
-  if (f.kpiCrono === 'atrasadas') itens = itens.filter((d) => d.c.situacao === 'ATRASADO');
+  if (f.situacao === 'criticas') itens = itens.filter((d) => d.ag && d.ag.critica);
+  if (f.kpiCrono === 'atrasadas') itens = itens.filter((d) => atrasadaOuTravada(d.c));
   if (busca) itens = itens.filter((d) => norm(`${d.e.etapa} ${d.e.responsavel}`).includes(busca));
 
   const barra = barraFiltros({
@@ -243,6 +286,7 @@ VIEWS.cronograma = () => {
           ['andamento', 'Em andamento'],
           ['nao-iniciadas', 'Não iniciadas'],
           ['concluidas', 'Concluídas'],
+          ...(agenda ? [['criticas', 'Caminho crítico']] : []),
         ],
         'Situação: todas',
       ),

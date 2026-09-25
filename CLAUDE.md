@@ -9,10 +9,16 @@ Fale, escreva e comente **em português** — código, commits, respostas.
 ## O que o sistema faz hoje
 
 Carteira de obras com painel consolidado · contratos e aditivos por código-base ·
-medições · recebimentos da CAIXA · lançamentos · plano de materiais · cronograma
-com avanço físico ponderado · curva S · fluxo de caixa · diário de obra com fotos
-· alertas automáticos · relatório em PDF · importação de planilha MCMV · exportação
-CSV · acesso do Power BI ao PostgreSQL.
+medições · recebimentos por marco físico de **qualquer financiador** (CAIXA, outro
+banco, consórcio ou o próprio cliente) · lançamentos · plano de materiais ·
+cronograma com avanço físico ponderado, dependências e caminho crítico · curva S
+com liberado × executado · fluxo de caixa projetado com vale de caixa · diário de
+obra de campo com fotos, que funciona sem rede · pendências com tratamento e causa
+raiz · pendências do cliente · relatório em PDF · importação de planilha MCMV ·
+exportação CSV · acesso do Power BI ao PostgreSQL.
+
+O sistema atende qualquer construtora: nada na tela assume a CAIXA. O nome do
+financiador vem de `obras.financiador`; vazio, a tela diz "financiador".
 
 17 telas. JavaScript modular puro, sem framework, montado pelo Vite em um único
 `index.html`.
@@ -110,14 +116,29 @@ Todos são escritos para rodar de novo sem quebrar (`if not exists`,
   o que o banco já garante (`SUPA.abaLiberada`, filtro no menu, guarda no
   `App.ir`).
 
+## Vocabulário
+
+Um termo para cada coisa, em todas as telas, PDFs e alertas:
+
+| Use | Não use | O que é |
+|---|---|---|
+| **Pendências** | Alertas, Precisa de ação, Precisa de atenção | alerta de gravidade ≥ 2 (`pendenciasObra`); a tela `alertas` se chama Pendências |
+| **Caixa hoje** | Saldo em caixa, Saldo | `kpisObra().saldoCaixa` |
+| **Financeiro realizado** | Avanço financeiro | desembolso ÷ custo previsto, em % (curva S) |
+| **Desembolso** | — | o mesmo, em R$ acumulados |
+
 ## Pendências conhecidas
 
-- **UI cega a papel.** `SUPA.papelNaObra()` / `SUPA.podeEditarObra()` existem,
-  mas nenhuma tela ramifica por papel ainda, e não há tela para convidar
-  engenheiro/cliente. O banco recusa a escrita indevida (RLS); a tela ainda não.
-- **Sincronização e concorrência.** Ver [docs/SINCRONIZACAO.md](docs/SINCRONIZACAO.md):
-  `SUPA.sincronizar()` é last-write-wins por linha inteira. Some com um usuário
-  por obra; quebra com dois. Decisão pendente.
+- **Papel na tela.** O cliente vê só cronograma, diário e o relatório de status
+  (`viewPermitida`, `VIEWS_CLIENTE` em `ui/shell.js`); obra em que a pessoa é
+  cliente não entra na Carteira. O banco continua sendo quem garante (RLS).
+- **Offline é por aparelho.** Sem rede, o que é gravado fica no localStorage e
+  vai ao banco quando a rede volta (`Store`, `public/sw.js`). Com a
+  carimbo de versão (abaixo), duas pessoas editando a mesma linha offline:
+  quem reconecta depois recebe o aviso de conflito e a versão da outra.
+- **Concorrência** resolvida por carimbo de versão (`atualizado_em`): ver
+  [docs/SINCRONIZACAO.md](docs/SINCRONIZACAO.md). Conflito recarrega do banco e
+  avisa; nada é sobrescrito em silêncio.
 
 ## Comandos
 

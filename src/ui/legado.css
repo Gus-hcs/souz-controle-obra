@@ -223,3 +223,220 @@ a {
 #conteudo .impl-lead {
   max-width: 88ch;
 }
+
+/* Causa-raiz (telas-obra.js causaHTML): os sintomas ficam recolhidos
+   embaixo da causa, com o pontinho da severidade de cada um. */
+.alerta.causa .causa-sintomas {
+  margin-top: var(--e1);
+  font-size: var(--t-peq);
+  color: var(--tinta2);
+}
+.alerta.causa .causa-sintomas summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.alerta.causa .causa-sintomas ul {
+  margin: var(--e1) 0 0;
+  padding-left: var(--e4);
+}
+.alerta.causa .causa-sintomas li.s3::marker {
+  color: var(--critico);
+}
+.alerta.causa .causa-sintomas li.s2::marker {
+  color: var(--aviso);
+}
+
+/* Tratamento de alerta (0015): a linha de decisão e os dois botões. */
+.alerta .alerta-botoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e1);
+  justify-content: flex-end;
+  align-self: flex-start;
+}
+.alerta .trat {
+  display: block;
+  margin-top: var(--e1);
+  font-size: var(--t-peq);
+  color: var(--tinta2);
+}
+.alerta .trat.andamento {
+  color: var(--acento-texto);
+}
+.alerta .trat.reaberto {
+  color: var(--atraso);
+}
+.alerta.silenciado {
+  opacity: 0.7;
+}
+details.tratados {
+  margin-top: var(--e6);
+}
+details.tratados > summary {
+  cursor: pointer;
+  width: fit-content;
+  margin-bottom: var(--e2);
+  font-size: var(--t-corpo);
+}
+
+/* Ocorrência do diário como pendência (0015) */
+.pendencia-diario {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e2);
+  font-size: var(--t-peq);
+  font-weight: var(--p-medio);
+}
+
+/* Lançamento possivelmente duplicado: ícone antes da descrição. */
+.marca-duplicado {
+  display: inline-flex;
+  vertical-align: -1px;
+  margin-right: var(--e1);
+  color: var(--alerta);
+}
+
+/* Materiais: "Comprar" afastado de editar/excluir. */
+.acoes-material {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e3);
+}
+.acoes-material .acoes-registro {
+  display: inline-flex;
+  gap: var(--e1);
+}
+@media (max-width: 720px) {
+  .acoes-material {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+/* Campo de várias escolhas (etapas do contrato). */
+.multi-opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e1) var(--e3);
+  padding: var(--e2);
+  border: 1px solid var(--linha);
+  border-radius: var(--r-campo);
+  max-height: 9.5em;
+  overflow-y: auto;
+}
+.multi-opcao {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+  font-size: var(--t-peq);
+  white-space: nowrap;
+}
+.multi-opcao input {
+  width: auto;
+  height: auto;
+}
+
+/* Card do financiador no Painel (0016). */
+.caixa-financiador .linha-fin {
+  margin: 0 0 var(--e2);
+  font-size: var(--t-corpo);
+}
+.caixa-financiador .decisao-fin {
+  margin: var(--e2) 0;
+  font-size: var(--t-corpo);
+}
+.barra-exigido {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e1);
+  font-size: var(--t-peq);
+  margin-bottom: var(--e2);
+}
+.barra-exigido .trilha {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--linha);
+}
+.barra-exigido .trilha i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--s1);
+}
+.barra-exigido .marca-exigido {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: 16px;
+  margin-left: -1px;
+  background: var(--tinta);
+}
+
+/* Duas linhas numa célula, uma embaixo da outra (situação + passo). */
+.cel-empilhada {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+  gap: 1px;
+}
+.cel-empilhada > span + span {
+  font-size: var(--t-peq);
+}
+
+/* medido à frente do físico (0016): o vermelho vence a cor da célula */
+.barra-dupla .txt.atraso,
+.cel-num-nota span.atraso {
+  color: var(--atraso);
+}
+
+/* Fotos do diário: câmera e galeria lado a lado. */
+.fotos-botoes {
+  display: flex;
+  gap: var(--e2);
+  flex-wrap: wrap;
+}
+.fotos-botoes .btn {
+  cursor: pointer;
+}
+
+/* Aguardando o cliente (0018). */
+.lista-pcli {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+}
+.lista-pcli li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--e3);
+  flex-wrap: wrap;
+  font-size: var(--t-corpo);
+}
+.lista-pcli .acoes-pcli {
+  display: inline-flex;
+  gap: var(--e1);
+}
+
+/* Foto da nota fiscal (0019). */
+.nf-anexo {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--e3);
+}
+.nf-anexo img {
+  max-width: 180px;
+  max-height: 180px;
+  border-radius: var(--r-campo);
+  border: 1px solid var(--separador);
+}
+.marca-nf {
+  margin-left: var(--e1);
+  vertical-align: -1px;
+  color: var(--acento-texto);
+}

@@ -29,7 +29,10 @@ import {
   PLANOS,
   SITUACOES_MANUAIS_CONTRATO,
   STATUS_ADITIVO,
+  STATUS_OCORRENCIA,
+  STATUS_TRATAMENTO,
   TIPOS_ADITIVO,
+  hojeISO,
 } from '../nucleo/base.js';
 import { motivoTelefoneInvalido } from '../nucleo/contato.js';
 
@@ -99,6 +102,11 @@ function validarObra(o) {
   }
 
   ordemDatas(o, 'dataInicio', 'previsaoConclusao', 'Prazo da obra', out);
+
+  /* financiador (0016): nome livre, curto — CHECK chk_obra_financiador */
+  if (String(campoFin(o, 'financiador') || '').length > 80) {
+    out.push(problema('financiador', 'O nome do financiador tem no máximo 80 caracteres.'));
+  }
   return out;
 }
 
@@ -204,6 +212,19 @@ function validarRecebimento(r) {
   ], (k) => r[k], out);
 
   fracao(r, 'percentObra', 'Percentual de obra informado', out);
+  /* parcela por marco físico (0016) — CHECKs chk_receb_exigido e
+     chk_receb_processo */
+  fracao(r, 'percentExigido', 'Percentual de obra exigido', out);
+  if (isISO(r.dataVistoria) && isISO(r.dataSolicitacao) && r.dataVistoria < r.dataSolicitacao) {
+    out.push(problema('dataVistoria', 'A vistoria não pode ser antes da solicitação.'));
+  }
+  if (isISO(r.dataAprovacao) && isISO(r.dataVistoria) && r.dataAprovacao < r.dataVistoria) {
+    out.push(problema('dataAprovacao', 'A aprovação não pode ser antes da vistoria.'));
+  }
+  /* crédito antes da aprovação acontece (adiantamento): só alerta */
+  if (isISO(r.dataRecebimento) && isISO(r.dataAprovacao) && r.dataRecebimento < r.dataAprovacao) {
+    out.push(problema('dataRecebimento', 'O crédito ficou antes da aprovação — confira as datas.', 'alerta'));
+  }
 
   if (num(r.valorAprovado) > 0 && num(r.descontos) > num(r.valorAprovado)) {
     out.push(problema('descontos', 'Os descontos passam do valor aprovado.', 'alerta'));
@@ -223,6 +244,11 @@ function validarLancamento(l) {
     ['desconto', 'Desconto'],
     ['frete', 'Frete / acréscimo'],
   ], (k) => l[k], out);
+  /* foto da NF (0019) — espelha o CHECK chk_lanc_anexo_nf */
+  const nf = String(l.anexoNf || '');
+  if (nf && (!/^data:image\//.test(nf) || nf.length > 1500000)) {
+    out.push(problema('anexoNf', 'A foto da nota precisa ser uma imagem de até 1,5 MB.'));
+  }
   return out;
 }
 
@@ -247,8 +273,59 @@ function validarEtapa(e) {
     out.push(problema('quantidadeExecutada', 'A quantidade executada não pode ser negativa.'));
   }
   if (num(e.peso) < 0) out.push(problema('peso', 'O peso na curva S não pode ser negativo.'));
+  /* planilha do financiador (0016) — CHECKs chk_crono_peso_fin e chk_crono_item_fin */
+  fracao(e, 'pesoFinanciador', 'Peso na planilha do financiador', out);
+  if (String(e.itemFinanciador || '').length > 40) {
+    out.push(problema('itemFinanciador', 'O item do financiador tem no máximo 40 caracteres.'));
+  }
   ordemDatas(e, 'inicioPrevisto', 'fimPrevisto', 'Prazo previsto da etapa', out);
   ordemDatas(e, 'inicioReal', 'fimReal', 'Prazo real da etapa', out);
+  return out;
+}
+
+/* A planilha do financiador como um todo: os pesos precisam somar 100%
+   para o "% pelo financiador" fazer sentido. Depende do conjunto de
+   etapas (não cabe num CHECK de linha): alerta. */
+function validarPlanilhaFinanciador(cronograma) {
+  const out = [];
+  const soma = (cronograma || []).reduce((s, e) => s + num(e.pesoFinanciador), 0);
+  if (soma > 0 && Math.abs(soma - 1) > 0.005) {
+    out.push(problema('pesoFinanciador',
+      `Os pesos da planilha do financiador somam ${(soma * 100).toFixed(1)}%, não 100%.`, 'alerta'));
+  }
+  return out;
+}
+
+/* Etapas do contrato (0016): nomes que não existem no cronograma não
+   entram no físico do contrato. Lista personalizável: alerta. */
+function validarEtapasContrato(c, cronograma) {
+  const out = [];
+  if (c.etapas != null && !Array.isArray(c.etapas)) {
+    out.push(problema('etapas', 'As etapas do contrato devem ser uma lista.'));
+    return out;
+  }
+  const nomes = new Set((cronograma || []).map((e) => String(e.etapa || '').trim()));
+  const soltas = (c.etapas || []).filter((n) => !nomes.has(String(n).trim()));
+  if (soltas.length) {
+    out.push(problema('etapas', `Etapa fora do cronograma: ${soltas.join(', ')}.`, 'alerta'));
+  }
+  return out;
+}
+
+/* Pendência do cliente (0018) — espelha os CHECKs chk_pcli_*. */
+const STATUS_PCLI = ['aberta', 'resolvida'];
+function validarPendenciaCliente(p) {
+  const out = [];
+  const desc = String(p.descricao || '').trim();
+  if (!desc) out.push(problema('descricao', 'Descreva o que o cliente precisa decidir ou entregar.'));
+  if (desc.length > 200) out.push(problema('descricao', 'No máximo 200 caracteres.'));
+  if (!STATUS_PCLI.includes(p.status)) out.push(problema('status', `Situação inválida: "${p.status}".`));
+  if (p.status === 'resolvida' && !isISO(p.resolvidaEm)) {
+    out.push(problema('resolvidaEm', 'Pendência resolvida precisa da data em que foi resolvida.'));
+  }
+  if (isISO(p.prazo) && isISO(p.criadaEm) && p.prazo < p.criadaEm) {
+    out.push(problema('prazo', 'O prazo ficou antes da criação — confira a data.', 'alerta'));
+  }
   return out;
 }
 
@@ -257,6 +334,144 @@ function validarDiario(d) {
   const out = [];
   if (!isISO(d.data)) out.push(problema('data', 'O registro do diário precisa de uma data válida.'));
   if (num(d.efetivo) < 0) out.push(problema('efetivo', 'O efetivo não pode ser negativo.'));
+  out.push(...validarOcorrencia(d));
+  out.push(...validarDiarioCampo(d));
+  return out;
+}
+
+/* Diário de campo (0017) — espelha os CHECKs chk_diario_campo_*. */
+function validarDiarioCampo(d) {
+  const out = [];
+  fracao(d, 'progressoEtapa', '% da etapa ao fim do dia', out);
+  const dias = num(d.diasImpacto);
+  if (dias < 0 || dias > 365 || !Number.isInteger(dias)) {
+    out.push(problema('diasImpacto', 'Os dias de impacto no prazo vão de 0 a 365, inteiros.'));
+  }
+  if (dias > 0 && d.impactaPrazo !== true) {
+    out.push(problema('diasImpacto', 'Marque "impacta o prazo" para informar dias de impacto.'));
+  }
+  if (String(d.equipamentos || '').length > 500) {
+    out.push(problema('equipamentos', 'Equipamentos: no máximo 500 caracteres.'));
+  }
+  for (const k of ['climaManha', 'climaTarde']) {
+    if (String(d[k] || '').length > 40) out.push(problema(k, 'Clima: no máximo 40 caracteres.'));
+  }
+  if (d.efetivoFuncoes != null && !Array.isArray(d.efetivoFuncoes)) {
+    out.push(problema('efetivoFuncoes', 'O efetivo por função deve ser uma lista.'));
+    return out;
+  }
+  const funcoes = d.efetivoFuncoes || [];
+  if (funcoes.some((f) => !String((f && f.funcao) || '').trim() || !Number.isInteger(num(f.qtd)) || num(f.qtd) < 0)) {
+    out.push(problema('efetivoFuncoes', 'Cada função precisa de nome e de uma quantidade inteira, zero ou mais.'));
+  }
+  /* efetivo digitado diferente da soma por função: alerta (vale a soma) */
+  const soma = funcoes.reduce((s, f) => s + num(f && f.qtd), 0);
+  if (funcoes.length && num(d.efetivo) > 0 && num(d.efetivo) !== soma) {
+    out.push(problema('efetivo', `O efetivo (${num(d.efetivo)}) não bate com a soma por função (${soma}) — vale a soma.`, 'alerta'));
+  }
+  return out;
+}
+
+/* Dependências do cronograma (0017): predecessora que não existe ou
+   ciclo (A espera B que espera A) — dependem do conjunto, não cabem num
+   CHECK de linha: alerta. A agenda ignora o ciclo. */
+function validarDependencias(cronograma) {
+  const out = [];
+  const lista = cronograma || [];
+  const porId = new Map(lista.map((e) => [e.id, e]));
+  lista.forEach((e) => {
+    if (e.predecessoras != null && !Array.isArray(e.predecessoras)) {
+      out.push(problema('predecessoras', `As predecessoras de "${e.etapa}" devem ser uma lista.`));
+      return;
+    }
+    const soltas = (e.predecessoras || []).filter((id) => !porId.has(id));
+    if (soltas.length) {
+      out.push(problema('predecessoras', `"${e.etapa}" depende de etapa que não existe mais.`, 'alerta'));
+    }
+  });
+  const estado = new Map();
+  let ciclo = '';
+  const visitar = (e) => {
+    if (ciclo) return;
+    estado.set(e.id, 1);
+    (Array.isArray(e.predecessoras) ? e.predecessoras : []).forEach((id) => {
+      const p = porId.get(id);
+      if (!p || ciclo) return;
+      if (estado.get(id) === 1) ciclo = `${p.etapa} ↔ ${e.etapa}`;
+      else if (!estado.has(id)) visitar(p);
+    });
+    estado.set(e.id, 2);
+  };
+  lista.forEach((e) => { if (!estado.has(e.id)) visitar(e); });
+  if (ciclo) out.push(problema('predecessoras', `Dependência em ciclo: ${ciclo}. A agenda ignora o ciclo.`, 'alerta'));
+  return out;
+}
+
+/* Ocorrência como pendência (migração 0015) — espelha os CHECKs
+   chk_diario_ocorr_*. Status vazio = só registro, nada a validar além. */
+const STATUS_OCORRENCIA_VALIDOS = STATUS_OCORRENCIA.map((x) => x.v);
+function validarOcorrencia(d) {
+  const out = [];
+  const st = d.ocorrenciaStatus || '';
+  if (!st) return out;
+  if (!STATUS_OCORRENCIA_VALIDOS.includes(st)) {
+    out.push(problema('ocorrenciaStatus', `Situação da ocorrência inválida: "${st}".`));
+  }
+  if (!String(d.ocorrencias || '').trim()) {
+    out.push(problema('ocorrencias', 'Descreva a ocorrência para ela virar pendência.'));
+  }
+  if (isISO(d.ocorrenciaPrazo) && isISO(d.data) && d.ocorrenciaPrazo < d.data) {
+    out.push(problema('ocorrenciaPrazo', 'O prazo da ocorrência não pode ser antes do registro.'));
+  }
+  if (isISO(d.ocorrenciaResolvidaEm) && isISO(d.data) && d.ocorrenciaResolvidaEm < d.data) {
+    out.push(problema('ocorrenciaResolvidaEm', 'A ocorrência não pode ser resolvida antes de registrada.'));
+  }
+  if (String(d.ocorrenciaResponsavel || '').length > 120) {
+    out.push(problema('ocorrenciaResponsavel', 'O responsável tem mais de 120 caracteres.'));
+  }
+  /* legítimo, mas ninguém resolve pendência sem dono */
+  if (st === 'aberta' && !String(d.ocorrenciaResponsavel || '').trim()) {
+    out.push(problema('ocorrenciaResponsavel', 'Ocorrência aberta sem responsável: ninguém vai cobrar.', 'alerta'));
+  }
+  return out;
+}
+
+/* ------------------------------------------ TRATAMENTO DE ALERTA (0015)
+   Espelha os CHECKs chk_trat_* de alertas_tratamento. */
+const STATUS_TRATAMENTO_VALIDOS = STATUS_TRATAMENTO.map((x) => x.v);
+function validarTratamento(t, hoje = hojeISO()) {
+  const out = [];
+  if (!String(t.chave || '').trim()) out.push(problema('chave', 'Tratamento sem alerta de referência.'));
+  else if (String(t.chave).length > 200) out.push(problema('chave', 'Chave do alerta longa demais.'));
+  if (!STATUS_TRATAMENTO_VALIDOS.includes(t.status)) {
+    out.push(problema('status', `Situação inválida: "${t.status}".`));
+  }
+  if (t.status === 'adiado' && !isISO(t.adiarAte)) {
+    out.push(problema('adiarAte', 'Para adiar, diga até quando.'));
+  }
+  if (String(t.responsavel || '').length > 120) out.push(problema('responsavel', 'O responsável tem mais de 120 caracteres.'));
+  if (String(t.nota || '').length > 500) out.push(problema('nota', 'A nota tem mais de 500 caracteres.'));
+  const sev = num(t.sevMarcada);
+  if (!(sev >= 1 && sev <= 3)) out.push(problema('sevMarcada', 'Gravidade marcada fora de 1 a 3.'));
+  if (num(t.valorMarcado) < 0) out.push(problema('valorMarcado', 'Valor marcado negativo.'));
+  /* adiar para uma data que já passou não adia nada: o alerta volta na hora */
+  if (t.status === 'adiado' && isISO(t.adiarAte) && t.adiarAte < hoje) {
+    out.push(problema('adiarAte', 'Essa data já passou: o alerta volta imediatamente.', 'alerta'));
+  }
+  return out;
+}
+
+/* ------------------------------------------------------------- EMPRESA */
+/* Responsável técnico e CREA/CAU: o relatório para cliente e financiador
+   sai assinado por eles. Faltar é alerta, não erro — a conta nova ainda
+   não tem, e não pode ser impedida de salvar o nome da empresa. */
+function validarEmpresa(emp) {
+  const out = [];
+  const e = emp || {};
+  if (!String(e.responsavel || '').trim())
+    out.push(problema('responsavel', 'Sem responsável técnico: o relatório em PDF sai sem RT.', 'alerta'));
+  if (!String(e.creaCau || '').trim())
+    out.push(problema('creaCau', 'Sem CREA/CAU: o relatório em PDF sai sem o registro do RT.', 'alerta'));
   return out;
 }
 
@@ -324,6 +539,10 @@ const CIDADE_MAX = 60;
 
 function validarPrestador(p, listas = null) {
   const out = [];
+  /* serviço ou fornecedor (0018) — CHECK chk_prestador_tipo */
+  if (p.tipo != null && p.tipo !== '' && !['servico', 'fornecedor'].includes(p.tipo)) {
+    out.push(problema('tipo', 'Tipo inválido: use prestador de serviço ou fornecedor.'));
+  }
   if (!String(p.nome || '').trim()) out.push(problema('nome', 'O prestador precisa de um nome.'));
 
   const a = num(p.avaliacao);
@@ -392,14 +611,19 @@ function validarObraCompleta(o) {
   const juntar = (lista, contexto) => lista.forEach((x) => out.push({ ...x, contexto }));
 
   juntar(validarObra(o), `Obra "${o.nome || 'sem nome'}"`);
-  (o.contratos || []).forEach((c) => juntar(validarContrato(c), `Contrato ${c.codigo || '?'}`));
+  (o.contratos || []).forEach((c) => juntar(
+    [...validarContrato(c), ...validarEtapasContrato(c, o.cronograma)], `Contrato ${c.codigo || '?'}`));
   (o.medicoes || []).forEach((m, i) => juntar(validarMedicao(m), `Medição ${m.numero || i + 1}`));
   (o.recebimentos || []).forEach((r, i) =>
     juntar(validarRecebimento(r), `Recebimento ${r.numeroMedicao || r.etapaPci || i + 1}`));
   (o.lancamentos || []).forEach((l) => juntar(validarLancamento(l), `Lançamento "${l.descricao || '?'}"`));
   (o.materiais || []).forEach((m) => juntar(validarMaterial(m), `Material "${m.material || '?'}"`));
   (o.cronograma || []).forEach((e) => juntar(validarEtapa(e), `Etapa "${e.etapa || '?'}"`));
+  juntar(validarPlanilhaFinanciador(o.cronograma), 'Planilha do financiador');
+  juntar(validarDependencias(o.cronograma), 'Dependências do cronograma');
   (o.diario || []).forEach((d) => juntar(validarDiario(d), `Diário de ${d.data || '?'}`));
+  (o.tratamentos || []).forEach((t) => juntar(validarTratamento(t), `Tratamento de alerta ${t.chave || '?'}`));
+  (o.pendenciasCliente || []).forEach((p) => juntar(validarPendenciaCliente(p), `Pendência do cliente "${p.descricao || '?'}"`));
   return out;
 }
 
@@ -469,6 +693,8 @@ export {
   validarMaterial,
   validarEtapa,
   validarDiario,
+  validarOcorrencia,
+  validarTratamento,
   validarCliente,
   validarPrestador,
   motivoCpfCnpjInvalido,
@@ -478,6 +704,12 @@ export {
   validarUsuarioNovo,
   validarSenhaForte,
   validarLogo,
+  validarEmpresa,
+  validarPlanilhaFinanciador,
+  validarPendenciaCliente,
+  validarDependencias,
+  validarDiarioCampo,
+  validarEtapasContrato,
   validarObraCompleta,
   validarEstado,
   apenasErros,

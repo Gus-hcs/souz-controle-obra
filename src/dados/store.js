@@ -7,6 +7,16 @@ import { App, toast } from '../ui/shell.js';
 
 const ARQUIVO_DADOS = 'dados/estado.json';
 const CHAVE_LOCAL = 'souz_controle_obra_v1';
+/* Sem rede (canteiro), a gravação no banco fica pendente no aparelho: o
+   estado vai para CHAVE_LOCAL como sempre, e a última versão que o banco
+   confirmou vai para CHAVE_BASE_OFFLINE. Quando a rede volta — nesta
+   sessão ou numa próxima abertura — sincronizar(base, estado) envia a
+   diferença. */
+const CHAVE_BASE_OFFLINE = 'souz_base_offline';
+
+const erroDeRede = (err) =>
+  (typeof navigator !== 'undefined' && navigator.onLine === false) ||
+  /Failed to fetch|NetworkError|Load failed|network|fetch failed|ERR_INTERNET/i.test(String((err && err.message) || err));
 
 const Store = {
   estado: estadoInicial(),
@@ -103,6 +113,26 @@ const Store = {
 
     /* ---- banco de dados online ---- */
     if (this.backend === 'supabase') {
+      /* uma sincronização por vez: pedido que chega no meio (rede que
+         volta, novo registro) roda de novo quando esta terminar */
+      if (this.sincronizando) { this.deNovo = true; return; }
+      this.sincronizando = true;
+      try {
+        await this.sincronizarBanco();
+      } finally {
+        this.sincronizando = false;
+        if (this.deNovo) {
+          this.deNovo = false;
+          if (this.pendente) await this.salvar();
+        }
+      }
+      return;
+    }
+    return this.salvarSemBanco(json);
+  },
+
+  async sincronizarBanco() {
+    {
       try {
         const anterior = this.snapshot || estadoInicial();
         await SUPA.sincronizar(anterior, this.estado);
@@ -110,16 +140,62 @@ const Store = {
         this.pendente = false;
         this.status = 'ok';
         this.salvoEm = this.estado.meta.savedAt;
+        try { localStorage.removeItem(CHAVE_BASE_OFFLINE); } catch (e) { /* sem storage */ }
       } catch (err) {
+        if (erroDeRede(err)) {
+          /* sem rede: fica no aparelho e tenta de novo quando a rede voltar */
+          this.status = 'offline';
+          this.pendente = true;
+          try {
+            if (!localStorage.getItem(CHAVE_BASE_OFFLINE) && this.snapshot) {
+              localStorage.setItem(CHAVE_BASE_OFFLINE, JSON.stringify(this.snapshot));
+            }
+          } catch (e) { /* cota cheia: a diferença ainda está em memória nesta sessão */ }
+          if (!this.esperandoRede && typeof window !== 'undefined') {
+            this.esperandoRede = true;
+            window.addEventListener('online', () => {
+              this.esperandoRede = false;
+              this.salvar();
+            }, { once: true });
+          }
+          this.notificar();
+          return;
+        }
+        if (err && err.codigo === 'conflito') {
+          /* outra pessoa gravou antes: o resto já foi; recarrega a versão
+             do banco para não sobrescrever o trabalho dela */
+          await this.recarregarDoBanco(err.conflitos.length);
+          return;
+        }
         this.pendente = false;
         this.status = 'erro';
         this.ultimoErro = String((err && err.message) || err);
         toast('Não foi possível gravar no banco: ' + this.ultimoErro, 'critico', 7000);
       }
       this.notificar();
-      return;
     }
+  },
 
+  /* Recarrega o estado do banco depois de um conflito de concorrência. */
+  async recarregarDoBanco(n) {
+    try {
+      const novo = migrar(await SUPA.carregar());
+      this.estado = novo;
+      this.snapshot = JSON.parse(JSON.stringify(novo));
+      this.pendente = false;
+      this.status = 'ok';
+      this.gravarLocal(JSON.stringify(novo));
+      toast(`${n === 1 ? 'Um registro foi alterado' : `${n} registros foram alterados`} por outra pessoa enquanto você editava. Ficou a versão dela — confira e refaça sua alteração, se ainda precisar.`, 'aviso', 9000);
+      App.render();
+    } catch (e) {
+      this.status = 'erro';
+      this.ultimoErro = String((e && e.message) || e);
+      toast('Houve conflito com outra pessoa e não consegui recarregar: ' + this.ultimoErro, 'critico', 9000);
+    }
+    this.notificar();
+  },
+
+  async salvarSemBanco(json) {
     if (!this.api) {
       this.pendente = false;
       this.modo = 'local';
@@ -204,6 +280,7 @@ const Store = {
       case 'leitura': return { texto: 'somente leitura', tom: 'neutro' };
       case 'conflito': return { texto: 'atualizando…', tom: 'aviso' };
       case 'local': return { texto: 'salvo neste navegador', tom: 'aviso' };
+      case 'offline': return { texto: 'sem rede · salvo no aparelho', tom: 'aviso' };
       case 'erro': return { texto: 'falha ao salvar', tom: 'critico' };
       default:
         return {
@@ -264,6 +341,8 @@ function mutar(fn, opts = {}) {
 export {
   ARQUIVO_DADOS,
   CHAVE_LOCAL,
+  CHAVE_BASE_OFFLINE,
+  erroDeRede,
   Store,
   horaCurta,
   mutar

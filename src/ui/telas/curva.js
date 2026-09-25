@@ -5,34 +5,69 @@
  * em português que interpreta o gráfico é o melhor texto da tela — não
  * mudou uma vírgula.
  */
-import { esc, fmtCompetencia, fmtMoney, fmtPct } from '../../nucleo/base.js';
-import { curvaS, kpisObra } from '../../dominio/calculos.js';
+import { esc, fmtCompetencia, fmtData, fmtMoney, fmtNum, fmtPct } from '../../nucleo/base.js';
+import { curvaS, kpisObra, nivelIndice, valorAgregadoObra } from '../../dominio/calculos.js';
 import { graficoCurvaS } from '../../graficos/index.js';
 import { App, botao } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
-import { barraFiltros, dinheiro, lista, secao, seletor, vazioTela } from './componentes.js';
+import {
+  barraFiltros,
+  dinheiro,
+  fmtIndice,
+  lista,
+  secao,
+  seletor,
+  tomNivel,
+  vazioTela,
+} from './componentes.js';
 
-function kpisCurva(k, previstoHoje, desvio, desvioFinFis) {
+/* Primeiro a resposta (quando acaba, quanto vai custar), depois os
+   índices que a explicam, por último os percentuais crus. */
+function kpisCurva(k, va, desvio, desvioFinFis) {
   const item = (rotulo, valor, contexto, tom = '') => `<div class="kpi-item">
     <span class="kpi-rot">${esc(rotulo)}</span>
     <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
     <span class="kpi-ctx">${contexto}</span>
   </div>`;
+  const atraso = va.atrasoProjetado;
 
   return `<div class="kpis" role="group" aria-label="Indicadores da curva S">
-    ${item('Avanço físico', fmtPct(k.progressoFisico, 1), `previsto ${fmtPct(previstoHoje, 1)} para hoje`)}
     ${item(
-      'Desvio de prazo',
-      (desvio >= 0 ? '+' : '') + fmtPct(desvio, 1),
-      desvio < -0.01
-        ? 'obra atrás do planejado'
-        : desvio > 0.01
-          ? 'obra adiantada'
-          : 'no cronograma',
-      desvio < -0.05 ? 'atraso' : desvio < -0.01 ? 'tom-alerta' : '',
+      'Término projetado',
+      va.termino ? fmtData(va.termino) : '—',
+      atraso === null
+        ? 'sem data contratual'
+        : atraso > 0
+          ? `${atraso} dia${atraso === 1 ? '' : 's'} depois da data contratual`
+          : atraso < 0
+            ? `${-atraso} dia${atraso === -1 ? '' : 's'} antes da data contratual`
+            : 'na data contratual',
+      atraso > 0 ? tomNivel(nivelIndice(va.idp, 'idp')) || 'tom-alerta' : '',
     )}
     ${item(
-      'Avanço financeiro',
+      'IDP · prazo',
+      fmtIndice(va.idp),
+      va.idp === null
+        ? 'obra ainda sem previsto'
+        : `ritmo de ${fmtPct(va.idp, 0)} do planejado${va.idpTravado ? ' · projeção limitada' : ''}`,
+      tomNivel(nivelIndice(va.idp, 'idp')),
+    )}
+    ${item(
+      'IDC · custo',
+      fmtIndice(va.idc),
+      va.idc === null
+        ? 'sem gasto físico ainda'
+        : `a cada R$ 1 gasto, entregou R$ ${fmtNum(va.idc, 2)} · término ${fmtMoney(va.eac, { dec: 0 })}`,
+      tomNivel(nivelIndice(va.idc, 'idc')),
+    )}
+    ${item(
+      'Avanço físico',
+      fmtPct(k.progressoFisico, 1),
+      `previsto ${fmtPct(va.previsto, 1)} · ${(desvio >= 0 ? '+' : '−') + fmtNum(Math.abs(desvio) * 100, 1)} p.p.`,
+      desvio < -0.1 ? 'atraso' : desvio < -0.05 ? 'tom-alerta' : '',
+    )}
+    ${item(
+      'Orçamento consumido',
       fmtPct(k.progressoFinanceiro, 1),
       `${fmtMoney(k.totalPago, { dec: 0 })} de ${fmtMoney(k.custoPrevisto, { dec: 0 })} previstos`,
       desvioFinFis > 0.1 ? 'tom-alerta' : '',
@@ -56,22 +91,24 @@ VIEWS.curva = () => {
   }
 
   const atual = dados.filter((d) => d.fisicoRealizado !== null).pop();
-  const previstoHoje = atual ? atual.fisicoPrevisto : 0;
   const desvio = atual ? atual.fisicoRealizado - atual.fisicoPrevisto : 0;
   const desvioFinFis = k.progressoFinanceiro - k.progressoFisico;
+  const va = valorAgregadoObra(o);
 
+  const pp = (v) => `${fmtNum(Math.abs(v) * 100, 1)} p.p.`;
   const fraseFisica =
     Math.abs(desvio) < 0.01
       ? 'A obra está <b>no ritmo do cronograma</b>.'
       : desvio < 0
-        ? `A obra está <b>${fmtPct(-desvio, 1)} atrás</b> do cronograma físico.`
-        : `A obra está <b>${fmtPct(desvio, 1)} à frente</b> do cronograma físico.`;
+        ? `A obra está <b>${pp(desvio)} atrás</b> do cronograma físico.`
+        : `A obra está <b>${pp(desvio)} à frente</b> do cronograma físico.`;
+  /* Diz o número sempre que houver diferença — "acompanha" escondia 2,4 p.p. */
   const fraseFin =
-    Math.abs(desvioFinFis) < 0.04
-      ? 'O desembolso acompanha o avanço.'
+    Math.abs(desvioFinFis) < 0.01
+      ? 'O gasto acompanha o avanço físico.'
       : desvioFinFis > 0
-        ? `O desembolso está <b>${fmtPct(desvioFinFis, 1)} à frente</b> do avanço físico — atenção ao caixa.`
-        : `O desembolso está <b>${fmtPct(-desvioFinFis, 1)} atrás</b> do avanço físico.`;
+        ? `O gasto está <b>${pp(desvioFinFis)} à frente</b> do avanço físico${desvioFinFis >= 0.04 ? ' — atenção ao caixa' : ''}.`
+        : `O gasto está <b>${pp(desvioFinFis)} atrás</b> do avanço físico.`;
 
   let itens = dados;
   if (f.situacao === 'realizado') itens = itens.filter((d) => !d.futuro);
@@ -144,8 +181,8 @@ VIEWS.curva = () => {
   ];
 
   return `<div class="tela-lista">
-    ${kpisCurva(k, previstoHoje, desvio, desvioFinFis)}
-    ${secao('Curva S', `<p class="tinta2" style="margin:0 0 var(--e3)">${fraseFisica} ${fraseFin}</p>${graficoCurvaS(o, 320)}`)}
+    ${kpisCurva(k, va, desvio, desvioFinFis)}
+    ${secao('Curva S', `<p class="tinta2" style="margin:0 0 var(--e3)">${fraseFisica} ${fraseFin}</p><div class="nao-celular">${graficoCurvaS(o, 320)}</div>`)}
     ${barraFiltros({
       mostrar: dados.length > 1,
       controles: [

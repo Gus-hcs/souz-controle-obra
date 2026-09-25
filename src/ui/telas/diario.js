@@ -1,25 +1,27 @@
 /**
  * telas/diario.js — Diário de obra, na linguagem nova.
  *
- * Os cartões (data, clima, atividades, fotos) já eram bons — só a casca
- * (hero/kpi/chip) era antiga. Nada muda na regra: o diário continua sendo
- * texto livre por dia, sem cálculo de domínio.
+ * Os cartões (data, clima, atividades, fotos) já eram bons. Os números do
+ * topo saem de diarioIndicadores (dominio/calculos.js): cobertura — dias
+ * úteis com registro sobre dias úteis de obra — e dias impraticáveis, o
+ * argumento concreto para aditivo de prazo.
  */
 import {
   competencia,
   dataUriParaArquivo,
-  diasEntre,
   esc,
   fmtCompetencia,
   fmtData,
   fmtDataCurta,
   fmtNum,
+  fmtPct,
   hojeISO,
   isISO,
   norm,
   num,
 } from '../../nucleo/base.js';
 import { linkWhatsApp, normalizarTelefoneBR } from '../../nucleo/contato.js';
+import { diaImpraticavel, diarioIndicadores, efetivoDiario } from '../../dominio/calculos.js';
 import { Store } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
 import { App, botao, ICO, svg, toast } from '../shell.js';
@@ -33,8 +35,7 @@ import {
   vazioTela,
 } from './componentes.js';
 
-function kpisDiario(todos, semRegistro, ultimo, totFotos, chuvosos, comOcorrencia) {
-  const noMes = todos.filter((d) => competencia(d.data) === competencia(hojeISO())).length;
+function kpisDiario(ind, totFotos) {
   const item = (chave, rotulo, valor, contexto, tom = '', filtravel = false) => {
     const ativo = filtravel && App.filtros.kpiDiario === chave;
     return `<div class="kpi-item${ativo ? ' ativo' : ''}"${filtravel ? ` data-acao="diario-kpi" data-kpi="${chave}" role="button" tabindex="0" aria-pressed="${ativo}" title="Filtrar a lista"` : ''}>
@@ -43,23 +44,47 @@ function kpisDiario(todos, semRegistro, ultimo, totFotos, chuvosos, comOcorrenci
       <span class="kpi-ctx">${contexto}</span>
     </div>`;
   };
+  const cob = ind.cobertura;
 
   return `<div class="kpis" role="group" aria-label="Indicadores do diário">
-    ${item('total', 'Registros', todos.length, `${noMes} neste mês`)}
+    ${item(
+      'cobertura',
+      'Cobertura do diário',
+      cob === null ? '—' : fmtPct(cob, 0),
+      `${ind.diasComRegistro} de ${ind.diasUteis} dias úteis`,
+      cob === null ? '' : cob < 0.5 ? 'atraso' : cob < 0.8 ? 'tom-alerta' : '',
+    )}
     ${item(
       'inativo',
       'Sem registro há',
-      semRegistro === null ? '—' : `${semRegistro} dia${semRegistro === 1 ? '' : 's'}`,
-      semRegistro === null ? 'nenhuma visita registrada' : `último em ${fmtDataCurta(ultimo.data)}`,
-      semRegistro !== null && semRegistro > 7 ? 'tom-alerta' : '',
+      ind.semRegistroHa === null ? '—' : `${ind.semRegistroHa} dia${ind.semRegistroHa === 1 ? '' : 's'}`,
+      ind.semRegistroHa === null ? 'nenhuma visita registrada' : `último em ${fmtDataCurta(ind.ultimo)}`,
+      ind.semRegistroHa === null ? '' : ind.semRegistroHa > 7 ? 'atraso' : ind.semRegistroHa > 2 ? 'tom-alerta' : '',
     )}
-    ${item('foto', 'Com foto', totFotos, chuvosos.length ? `${chuvosos.length} dia${chuvosos.length === 1 ? '' : 's'} de chuva` : 'nenhum dia de chuva', '', true)}
+    ${item(
+      'impraticavel',
+      'Dias impraticáveis',
+      ind.diasImpraticaveis,
+      [
+        ind.diasImpraticaveis ? 'base para aditivo de prazo' : 'nenhum registrado',
+        ind.diasImpactoPrazo ? `${ind.diasImpactoPrazo} dia${ind.diasImpactoPrazo === 1 ? '' : 's'} de impacto declarado${ind.diasImpactoPrazo === 1 ? '' : 's'}` : '',
+      ].filter(Boolean).join(' · '),
+      '',
+      true,
+    )}
+    ${item('foto', 'Com foto', totFotos, `${ind.comFoto} de ${ind.registros} registro${ind.registros === 1 ? '' : 's'}`, '', true)}
     ${item(
       'ocorrencia',
-      'Com ocorrência',
-      comOcorrencia.length,
-      comOcorrencia.length ? 'confira antes de fechar a semana' : 'nada registrado',
-      comOcorrencia.length ? 'atraso' : '',
+      'Ocorrências abertas',
+      ind.ocorrenciasAbertas,
+      ind.ocorrenciasVencidas
+        ? `${ind.ocorrenciasVencidas} com prazo vencido`
+        : ind.ocorrenciasAbertas
+          ? 'dentro do prazo'
+          : ind.ocorrenciasResolvidas
+            ? `${ind.ocorrenciasResolvidas} resolvida${ind.ocorrenciasResolvidas === 1 ? '' : 's'}`
+            : 'nenhuma pendência',
+      ind.ocorrenciasVencidas ? 'atraso' : ind.ocorrenciasAbertas ? 'tom-alerta' : '',
       true,
     )}
   </div>`;
@@ -122,10 +147,38 @@ ACOES['whatsapp-diario'] = async (el, d) => {
 };
 
 /* --------------------------------------------------------------- cartão */
+/* Ocorrência como pendência (0015): quem, até quando, e o botão de
+   resolver sem abrir o formulário. */
+function linhaPendencia(d) {
+  if (d.ocorrenciaStatus === 'resolvida') {
+    return `<span class="pendencia-diario feito">Resolvida${isISO(d.ocorrenciaResolvidaEm) ? ` em ${esc(fmtData(d.ocorrenciaResolvidaEm))}` : ''}</span>`;
+  }
+  if (d.ocorrenciaStatus !== 'aberta') return '';
+  const vencida = isISO(d.ocorrenciaPrazo) && d.ocorrenciaPrazo < hojeISO();
+  const partes = [
+    'Pendência aberta',
+    d.ocorrenciaResponsavel ? `com ${esc(d.ocorrenciaResponsavel)}` : 'sem responsável',
+    isISO(d.ocorrenciaPrazo) ? `prazo ${esc(fmtData(d.ocorrenciaPrazo))}${vencida ? ' — vencido' : ''}` : '',
+  ].filter(Boolean);
+  return `<span class="pendencia-diario ${vencida ? 'atraso' : 'tom-alerta'}">${partes.join(' · ')}
+    ${Store.somenteLeitura() ? '' : botao('Marcar resolvida', 'resolver-ocorrencia', { id: d.id }, 'btn sutil pequeno')}</span>`;
+}
+
 function cartaoRegistro(d) {
-  const meta = [d.clima, d.etapa || null, num(d.efetivo) ? `${fmtNum(d.efetivo, 0)} na obra` : null]
+  /* clima por turno (0017), quando informado; senão, o do dia */
+  const clima = d.climaManha || d.climaTarde
+    ? `manhã ${d.climaManha || '—'} · tarde ${d.climaTarde || '—'}`
+    : d.clima;
+  const efetivo = efetivoDiario(d);
+  const meta = [clima, d.etapa || null, efetivo ? `${fmtNum(efetivo, 0)} na obra` : null]
     .filter(Boolean)
     .join(' · ');
+  const funcoes = (d.efetivoFuncoes || []).map((f) => `${f.funcao} ${f.qtd}`).join(', ');
+  const campo = [
+    funcoes ? `<b>Efetivo</b> — ${esc(funcoes)}` : '',
+    d.equipamentos ? `<b>Equipamentos</b> — ${esc(d.equipamentos)}` : '',
+    num(d.progressoEtapa) > 0 ? `<b>${esc(d.etapa || 'Etapa')}</b> em ${fmtPct(d.progressoEtapa, 0)} ao fim do dia` : '',
+  ].filter(Boolean);
   const fotos =
     d.fotos && d.fotos.length
       ? `<div class="fotos-diario">${d.fotos
@@ -146,7 +199,10 @@ function cartaoRegistro(d) {
     </header>
     <div class="corpo-diario">
       ${d.atividades ? `<p style="margin:0"><b>Atividades</b> — ${esc(d.atividades)}</p>` : ''}
+      ${campo.length ? `<p class="tinta2" style="margin:0;font-size:var(--t-peq)">${campo.join(' · ')}</p>` : ''}
+      ${d.impactaPrazo ? `<p class="atraso" style="margin:0;font-size:var(--t-peq)"><b>Impacta o prazo</b>${num(d.diasImpacto) ? ` — ${num(d.diasImpacto)} dia${num(d.diasImpacto) === 1 ? '' : 's'}` : ''}</p>` : ''}
       ${d.ocorrencias ? `<p class="tom-alerta" style="margin:0"><b>Ocorrências</b> — ${esc(d.ocorrencias)}</p>` : ''}
+      ${linhaPendencia(d)}
       ${fotos}
       ${d.autor ? `<span class="tinta3" style="font-size:var(--t-peq)">registrado por ${esc(d.autor)}</span>` : ''}
     </div>
@@ -169,11 +225,8 @@ VIEWS.diario = () => {
   const f = App.filtros;
   const todos = o.diario;
   const ordenados = todos.slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
-  const ultimo = ordenados[0];
-  const semRegistro = ultimo && isISO(ultimo.data) ? diasEntre(ultimo.data, hojeISO()) : null;
+  const ind = diarioIndicadores(o);
   const totFotos = todos.reduce((s, d) => s + (d.fotos ? d.fotos.length : 0), 0);
-  const chuvosos = todos.filter((d) => d.clima && d.clima.includes('Chuva'));
-  const comOcorrencia = todos.filter((d) => d.ocorrencias && d.ocorrencias.trim());
   const etapasUsadas = [...new Set(todos.map((d) => d.etapa).filter(Boolean))].sort((a, b) =>
     a.localeCompare(b, 'pt'),
   );
@@ -187,8 +240,8 @@ VIEWS.diario = () => {
   if (f.mes) itens = itens.filter((d) => competencia(d.data) === f.mes);
   if (f.situacao === 'chuva') itens = itens.filter((d) => d.clima && d.clima.includes('Chuva'));
   if (f.kpiDiario === 'foto') itens = itens.filter((d) => d.fotos && d.fotos.length);
-  if (f.kpiDiario === 'ocorrencia')
-    itens = itens.filter((d) => d.ocorrencias && d.ocorrencias.trim());
+  if (f.kpiDiario === 'impraticavel') itens = itens.filter(diaImpraticavel);
+  if (f.kpiDiario === 'ocorrencia') itens = itens.filter((d) => d.ocorrenciaStatus === 'aberta');
   if (busca)
     itens = itens.filter((d) =>
       norm(`${d.atividades} ${d.ocorrencias} ${d.autor} ${d.etapa}`).includes(busca),
@@ -211,8 +264,17 @@ VIEWS.diario = () => {
     total: todos.length,
   });
 
+  /* Registrar hoje em destaque enquanto o dia não tem registro — é a ação
+     que o mestre de obra abre a tela para fazer. */
+  const semHoje = ind.ultimo !== hojeISO();
   return `<div class="tela-lista">
-    ${kpisDiario(todos, semRegistro, ultimo, totFotos, chuvosos, comOcorrencia)}
+    ${
+      semHoje
+        ? `<div class="registrar-hoje">${botao('Registrar hoje', 'novo-diario', {}, 'btn primario', 'mais')}
+            <span class="tinta2">${ind.semRegistroHa === null ? 'Nenhum registro ainda.' : `Último registro há ${ind.semRegistroHa} dia${ind.semRegistroHa === 1 ? '' : 's'}.`}</span></div>`
+        : ''
+    }
+    ${kpisDiario(ind, totFotos)}
     ${barra}
     ${
       itens.length

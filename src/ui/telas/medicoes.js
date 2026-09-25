@@ -4,6 +4,11 @@
  * Uma linha por medição, em uma altura só: data, contrato, o que foi
  * medido, e os três valores que importam — líquido, pago, a pagar. A
  * situação é texto cinza; só o alerta que exige ação ganha cor.
+ *
+ * "A pagar" é a soma de medicaoAPagar (já sem retenção) — o KPI e a
+ * coluna dão o mesmo número — e diz a idade da conta mais antiga
+ * (medicoesEmAberto). Pagamento parcial fica âmbar na Situação
+ * (medicaoPagamento).
  */
 import {
   competencia,
@@ -18,7 +23,15 @@ import {
   num,
   round2,
 } from '../../nucleo/base.js';
-import { medicaoAPagar, medicaoAlerta, medicaoLiquido } from '../../dominio/calculos.js';
+import {
+  medicaoAPagar,
+  medicaoAlerta,
+  medicaoLiquido,
+  medicaoPagamento,
+  medicoesComPendencia,
+  medicoesEmAberto,
+  medidoFisicoContrato,
+} from '../../dominio/calculos.js';
 import { graficoBarras } from '../../graficos/index.js';
 import { ACOES } from '../acoes.js';
 import { App, botao, opcoesLista } from '../shell.js';
@@ -44,7 +57,11 @@ const ALERTA_GRAVE = new Set(['PAGO ACIMA DA MEDIÇÃO', 'CONTRATO ULTRAPASSADO'
    Medido e Pago são só leitura; A pagar e Com alerta filtram a lista ao
    clicar — mesmo padrão de telas/contratos.js, telas/cronograma.js e
    telas/materiais.js. */
-function kpisMedicoes(itensTodos, totMed, totPago, emAberto, comAlerta) {
+function kpisMedicoes(itensTodos, totMed, totPago, aberto, comAlerta) {
+  const n = aberto.itens.length;
+  const idade = aberto.maisAntiga
+    ? ` · a mais antiga há ${aberto.maisAntiga.dias} dia${aberto.maisAntiga.dias === 1 ? '' : 's'}`
+    : '';
   const item = (chave, rotulo, valor, contexto, tom = '', filtravel = false) => {
     const ativo = filtravel && App.filtros.kpiMed === chave;
     return `<div class="kpi-item${ativo ? ' ativo' : ''}"${filtravel ? ` data-acao="med-kpi" data-kpi="${chave}" role="button" tabindex="0" aria-pressed="${ativo}" title="Filtrar a lista"` : ''}>
@@ -60,9 +77,9 @@ function kpisMedicoes(itensTodos, totMed, totPago, emAberto, comAlerta) {
     ${item(
       'aberto',
       'A pagar',
-      fmtMoney(totMed - totPago, { dec: 0 }),
-      emAberto.length ? `${emAberto.length} em aberto` : 'nada em aberto',
-      emAberto.length ? 'tom-alerta' : '',
+      fmtMoney(aberto.total, { dec: 0 }),
+      n ? `${n} em aberto${idade}` : 'nada em aberto',
+      !n ? '' : aberto.maisAntiga && aberto.maisAntiga.dias > 60 ? 'atraso' : 'tom-alerta',
       true,
     )}
     ${item(
@@ -108,11 +125,11 @@ VIEWS.medicoes = () => {
   const ativas = o.medicoes.filter((m) => m.status !== 'Cancelado');
   const totMed = ativas.reduce((s, m) => s + medicaoLiquido(m), 0);
   const totPago = ativas.reduce((s, m) => s + num(m.valorPago), 0);
-  const emAberto = ativas.filter((m) => medicaoAPagar(o, m) > 0.005);
-  const comAlerta = ativas.filter((m) => {
-    const al = medicaoAlerta(o, m);
-    return al && al !== 'OK';
-  });
+  const aberto = medicoesEmAberto(o);
+  /* Mesma regra do menu e da tela de Alertas (pendenciasObra): conta também
+     a medição em aberto há muito tempo, não só o erro de valor. */
+  const comPendencia = medicoesComPendencia(o);
+  const comAlerta = ativas.filter((m) => comPendencia.has(m.id));
 
   /* ------------------------------------------------------- filtros */
   const bases = [...new Set(o.contratos.map((c) => c.codigoBase).filter(Boolean))];
@@ -130,6 +147,7 @@ VIEWS.medicoes = () => {
       liq,
       pago,
       falta: medicaoAPagar(o, m),
+      pagamento: medicaoPagamento(o, m),
       alerta: medicaoAlerta(o, m),
       prestador: prestadorDe(m.contratoBase),
     };
@@ -142,7 +160,7 @@ VIEWS.medicoes = () => {
     itens = itens.filter((d) => d.m.status !== 'Cancelado' && d.falta <= 0.005);
   if (f.kpiMed === 'aberto')
     itens = itens.filter((d) => d.m.status !== 'Cancelado' && d.falta > 0.005);
-  if (f.kpiMed === 'alerta') itens = itens.filter((d) => d.alerta && d.alerta !== 'OK');
+  if (f.kpiMed === 'alerta') itens = itens.filter((d) => comPendencia.has(d.m.id));
   if (busca) {
     itens = itens.filter((d) =>
       norm(
@@ -150,6 +168,8 @@ VIEWS.medicoes = () => {
       ).includes(busca),
     );
   }
+
+  const fisicoPorContrato = new Map(bases.map((b) => [b, medidoFisicoContrato(o, b)]));
 
   /* -------------------------------------------------------- colunas */
   const colunas = [
@@ -171,20 +191,45 @@ VIEWS.medicoes = () => {
         `<div class="cel-dupla"><b>${esc(d.m.contratoBase || '—')}</b>${d.prestador ? `<span>${esc(d.prestador)}</span>` : ''}</div>`,
     },
     {
+      k: 'numero',
+      rotulo: 'Nº',
+      largura: '5%',
+      celular: 'some',
+      valor: (d) => Number(d.m.numero) || d.m.numero || '',
+      celula: (d) => (d.m.numero ? esc(d.m.numero) : '<span class="tinta3">—</span>'),
+    },
+    {
       k: 'descricao',
       rotulo: 'Medição',
-      largura: '22%',
+      largura: '13%',
       celular: 'principal',
       valor: (d) => d.m.descricao || '',
+      /* no celular o nº e o % somem como coluna: voltam na linha de baixo */
       celula: (d) => {
-        const sub = [
+        const cel = [
           d.m.numero ? `nº ${d.m.numero}` : null,
           num(d.m.progresso) ? fmtPct(d.m.progresso, 0) : null,
-          d.m.documento || null,
-        ]
-          .filter(Boolean)
-          .join(' · ');
-        return `<div class="cel-dupla"><b>${esc(d.m.descricao || '—')}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div>`;
+        ].filter(Boolean);
+        return `<div class="cel-dupla"><b>${esc(d.m.descricao || '—')}</b>${
+          d.m.documento ? `<span>${esc(d.m.documento)}</span>` : ''
+        }${cel.length ? `<span class="so-celular">${esc(cel.join(' · '))}</span>` : ''}</div>`;
+      },
+    },
+    {
+      k: 'progresso',
+      rotulo: '% × físico',
+      largura: '9%',
+      num: true,
+      celular: 'some',
+      valor: (d) => num(d.m.progresso),
+      /* o % medido e, embaixo, o físico do contrato (medidoFisicoContrato):
+         medir à frente do físico é pagar o que não está na obra */
+      celula: (d) => {
+        const mf = fisicoPorContrato.get(d.m.contratoBase);
+        const pct = num(d.m.progresso) ? fmtPct(d.m.progresso, 0) : '—';
+        return mf
+          ? `<div class="cel-num-nota"><span>${pct}</span><span class="${mf.alerta ? 'atraso' : ''}">físico ${fmtPct(mf.fisico, 0)}</span></div>`
+          : num(d.m.progresso) ? pct : '<span class="tinta3">—</span>';
       },
     },
     {
@@ -231,6 +276,10 @@ VIEWS.medicoes = () => {
           const txt = d.alerta.charAt(0) + d.alerta.slice(1).toLowerCase();
           return `<span class="${cls}" title="${esc(d.m.status)}">${esc(txt)}</span>`;
         }
+        /* pagou parte e falta parte: âmbar, qualquer que seja o status */
+        if (d.pagamento === 'parcial') {
+          return `<span class="cel-aviso-alerta" title="status: ${esc(d.m.status || '—')}">Pago em parte</span>`;
+        }
         return `<span class="tinta2">${esc(d.m.status || '—')}</span>`;
       },
     },
@@ -254,7 +303,7 @@ VIEWS.medicoes = () => {
     .filter((x) => x.valor > 0.005);
 
   return `<div class="tela-lista">
-    ${kpisMedicoes(ativas, totMed, totPago, emAberto, comAlerta)}
+    ${kpisMedicoes(ativas, totMed, totPago, aberto, comAlerta)}
     ${barraFiltros({
       mostrar:
         o.medicoes.length > 1 ||
@@ -285,7 +334,7 @@ VIEWS.medicoes = () => {
     })}
     <p class="nota-rodape">Pagamento por medição entra só nesta tela. Compras, taxas e serviços sem
       medição vão em Lançamentos; entradas de financiamento ou do cliente, em Recebimentos.</p>
-    ${porContrato.length > 1 ? secao('A pagar por contrato', graficoBarras(porContrato, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--alerta)' })) : ''}
+    ${porContrato.length > 1 ? secao('A pagar por contrato', graficoBarras(porContrato, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--serie2)' })) : ''}
   </div>`;
 };
 

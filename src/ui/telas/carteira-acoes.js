@@ -52,7 +52,7 @@ ACOES['carteira-kpi'] = (el, d) => {
   repintar();
 };
 
-/* Grupo do painel "Precisa de ação": abre e fecha. */
+/* Grupo do painel "Pendências": abre e fecha. */
 ACOES['carteira-grupo'] = (el, d) => {
   if (tela.gruposFechados.has(d.grupo)) tela.gruposFechados.delete(d.grupo);
   else tela.gruposFechados.add(d.grupo);

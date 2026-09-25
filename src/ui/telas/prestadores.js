@@ -19,6 +19,7 @@ import {
   esc,
   fmtDataCurta,
   fmtMoney,
+  fmtPct,
   FORMAS_CONTRATACAO,
   hojeISO,
   isISO,
@@ -26,6 +27,7 @@ import {
   norm,
   novoPrestador,
   TIPOS_PIX,
+  TIPOS_PRESTADOR,
 } from '../../nucleo/base.js';
 import {
   formatarTelefoneBR,
@@ -39,7 +41,9 @@ import {
 import {
   avaliacaoPrestador,
   CRITERIOS_AVAL,
+  compararPrestadorAPagar,
   duplicadosPrestador,
+  pontualidadePrestador,
   prestadoresPagosSemContrato,
   resumoPrestador,
   sugestaoNomePrestador,
@@ -54,7 +58,8 @@ import { itensPendentes } from './vinculo.js';
 import { buscaToolbar, dinheiro, lista, vazioTela } from './componentes.js';
 
 /* Estado só de tela. */
-const tela = { selecao: '', especialidade: '', comSaldo: false, arquivados: false };
+/* tipo: '' = todos · 'servico' · 'fornecedor' (0018) */
+const tela = { selecao: '', especialidade: '', comSaldo: false, arquivados: false, tipo: '' };
 
 /* Valores de prestador sem centavos: a coluna fica estreita com o inspetor
    aberto, e para contratado e pago o real inteiro basta. */
@@ -142,6 +147,7 @@ function base({ semEspecialidade = false } = {}) {
   const dig = busca.replace(/\D/g, '');
   return Store.estado.prestadores.filter((p) => {
     if (!!p.arquivado !== tela.arquivados) return false;
+    if (tela.tipo && (p.tipo || 'servico') !== tela.tipo) return false;
     if (!semEspecialidade && tela.especialidade && p.especialidade !== tela.especialidade)
       return false;
     if (!busca) return true;
@@ -155,16 +161,20 @@ const comDados = (ps) =>
     p,
     r: resumoPrestador(Store.estado, p),
     a: avaliacaoPrestador(Store.estado, p),
+    pt: pontualidadePrestador(Store.estado, p),
   }));
 
+/* Quem espera pagamento há mais tempo vem primeiro (compararPrestadorAPagar);
+   clicar num cabeçalho troca para a ordem daquela coluna. */
 function dados() {
   let ds = comDados(base());
   if (tela.comSaldo) ds = ds.filter((d) => d.r.aPagarAgora > 0.005);
-  return ds;
+  return ds.sort(compararPrestadorAPagar);
 }
 
-/* Colunas. A de Avaliação só existe quando alguém tem avaliação — coluna
-   vazia em todas as linhas é ruído. Contratado, A pagar agora e A medir
+/* Colunas. A de Pontualidade só existe quando alguém tem entrega com
+   prazo (pontualidadePrestador) — coluna vazia em todas as linhas é ruído.
+   Ela ocupa o lugar das estrelas digitadas: o prazo é fato, não opinião. Contratado, A pagar agora e A medir
    ficam lado a lado para virar uma célula só, "Sem contrato", quando não
    há contrato. A pagar agora e A medir são os mesmos da tela de Contratos
    (indicadoresContrato, somado em resumoPrestador). */
@@ -281,17 +291,20 @@ function colunas(temAvaliacao) {
   ];
   if (temAvaliacao) {
     cols.push({
-      k: 'avaliacao',
-      rotulo: 'Avaliação',
+      k: 'pontualidade',
+      rotulo: 'No prazo',
       largura: L.aval,
       num: true,
       celular: 'some',
-      valor: (d) => (d.a.media === null ? -1 : d.a.media),
-      /* sem avaliação, célula vazia — nem traço, nem zero */
-      celula: (d) =>
-        d.a.media === null
-          ? ''
-          : `<span class="nota" title="${plural(d.a.avaliacoes, 'avaliação', 'avaliações')}">${d.a.media.toFixed(1).replace('.', ',')} ${svg(ICO.estrela, 11)}</span>`,
+      valor: (d) => (d.pt.pontualidade === null ? -1 : d.pt.pontualidade),
+      /* sem entrega com prazo, célula vazia — nem traço, nem zero */
+      celula: (d) => {
+        const pt = d.pt;
+        if (pt.pontualidade === null) return '';
+        const tom = pt.pontualidade < 0.5 ? 'atraso' : pt.pontualidade < 0.8 ? 'tom-alerta' : '';
+        const dica = `${pt.noPrazo} de ${pt.entregas} entregas no prazo${pt.diasMedios ? ` · atraso médio ${pt.diasMedios} d` : ''}${pt.atrasadasAgora ? ` · ${pt.atrasadasAgora} atrasada(s) agora` : ''}`;
+        return `<span class="${tom}" title="${esc(dica)}">${fmtPct(pt.pontualidade, 0)}</span>`;
+      },
     });
   }
   return cols;
@@ -303,7 +316,6 @@ function barraFiltros() {
   const semEsp = base({ semEspecialidade: true });
   const comSaldo = comDados(base()).filter((d) => d.r.aPagarAgora > 0.005).length;
   const arquivados = Store.estado.prestadores.filter((p) => p.arquivado).length;
-  const sug = somenteLeitura() ? 0 : sugestoes().length;
   return `<div class="filtro-barra nao-imprime">
     <button class="pilula${tela.especialidade ? ' ativa' : ''}" data-acao="prest-esp-menu" aria-haspopup="menu">
       ${tela.especialidade ? esc(tela.especialidade) : 'Todas as especialidades'} <span class="conta">${
@@ -312,6 +324,13 @@ function barraFiltros() {
           : semEsp.length
       }</span> ${svg(ICO.seta, 10)}
     </button>
+    ${
+      /* serviço × fornecedor (0018): só aparece quando há fornecedor */
+      Store.estado.prestadores.some((p) => p.tipo === 'fornecedor')
+        ? ['servico', 'fornecedor'].map((t) => `<button class="pilula${tela.tipo === t ? ' ativa' : ''}" data-acao="prest-tipo" data-tipo="${t}" aria-pressed="${tela.tipo === t}">
+            ${t === 'servico' ? 'Prestadores de serviço' : 'Fornecedores'} <span class="conta">${Store.estado.prestadores.filter((p) => !p.arquivado && (p.tipo || 'servico') === t).length}</span></button>`).join('')
+        : ''
+    }
     <button class="pilula${tela.comSaldo ? ' ativa' : ''}" data-acao="prest-com-saldo" aria-pressed="${tela.comSaldo}">
       A pagar agora <span class="conta">${comSaldo}</span>
     </button>
@@ -319,12 +338,6 @@ function barraFiltros() {
       arquivados || tela.arquivados
         ? `<button class="pilula${tela.arquivados ? ' ativa' : ''}" data-acao="prest-arquivados" aria-pressed="${tela.arquivados}">
           Arquivados <span class="conta">${arquivados}</span></button>`
-        : ''
-    }
-    ${
-      sug
-        ? `<span class="aviso-discreto filtro-dir">${plural(sug, 'nome', 'nomes')} em caixa alta ·
-          <button class="btn-link" data-acao="prest-revisar-nomes">Revisar</button></span>`
         : ''
     }
   </div>`;
@@ -426,6 +439,18 @@ function inspetor(p) {
        ${r.qtdLancamentos ? `<button class="btn-link ver-todos" data-acao="prest-ver-pagamentos" data-id="${esc(p.id)}">Ver todos os lançamentos</button>` : ''}`
     : '<p class="linha-cinza">Nenhum pagamento ainda.</p>';
 
+  /* pontualidade calculada primeiro; a nota digitada ao concluir fica
+     como complemento (qualidade e organização não têm como calcular) */
+  const pt = pontualidadePrestador(Store.estado, p);
+  const pontualidade =
+    pt.pontualidade === null
+      ? '<p class="linha-cinza">Nenhuma entrega com prazo ainda</p>'
+      : `<dl class="pares">
+        ${linhaNum('No prazo', `<span class="${pt.pontualidade < 0.5 ? 'atraso' : pt.pontualidade < 0.8 ? 'tom-alerta' : ''}">${fmtPct(pt.pontualidade, 0)}</span>`, `${pt.noPrazo} de ${pt.entregas} entregas`)}
+        ${pt.diasMedios ? linhaNum('Atraso médio', `${pt.diasMedios} dias`, 'nas entregas atrasadas') : ''}
+        ${pt.atrasadasAgora ? linhaNum('Atrasadas agora', String(pt.atrasadasAgora)) : ''}
+        ${linhaNum('Obras ao mesmo tempo', String(pt.obrasSimultaneas), 'com serviço em andamento hoje')}
+      </dl>`;
   const avaliacao =
     a.media === null
       ? '<p class="linha-cinza">Sem avaliação</p>'
@@ -468,7 +493,8 @@ function inspetor(p) {
       </dl></div>
       <div class="inspetor-secao"><h3>Obras</h3>${obras}</div>
       <div class="inspetor-secao"><h3>Últimos pagamentos</h3>${pagamentos}</div>
-      <div class="inspetor-secao"><h3>Avaliação</h3>${avaliacao}</div>
+      <div class="inspetor-secao"><h3>Pontualidade</h3>${pontualidade}</div>
+      <div class="inspetor-secao"><h3>Avaliação ao concluir</h3>${avaliacao}</div>
       ${
         p.documento || forma || p.observacoes
           ? `<div class="inspetor-secao"><h3>Cadastro</h3><dl class="pares">
@@ -498,7 +524,7 @@ VIEWS.prestadores = () => {
   const ds = dados();
   const sel = tela.selecao && acharPrestador(tela.selecao);
   const temAvaliacao = todos.some(
-    (p) => !p.arquivado && avaliacaoPrestador(Store.estado, p).media !== null,
+    (p) => !p.arquivado && pontualidadePrestador(Store.estado, p).pontualidade !== null,
   );
   return `<div class="tela-prestadores">
     <div class="tela-principal">
@@ -510,7 +536,8 @@ VIEWS.prestadores = () => {
         tabelaClasse: 'lista-prestadores',
         colunas: colunas(temAvaliacao),
         itens: ds,
-        ordemPadrao: { col: 'nome', dir: 1 },
+        /* chave sem coluna: a lista mantém a ordem de dados() */
+        ordemPadrao: { col: 'a-pagar-antigo', dir: 1 },
         rodapeRotulo: (n) => `${n} prestadores`,
         linhaAttrs: (d) =>
           `data-acao="prest-selecionar" data-id="${esc(d.p.id)}" data-prestador="${esc(d.p.id)}"${d.p.id === tela.selecao ? ' aria-selected="true"' : ''}`,
@@ -529,6 +556,11 @@ VIEWS.prestadores.toolbar = () => {
 };
 
 /* ---------------------------------------- filtros e atalhos do inspetor */
+
+ACOES['prest-tipo'] = (el, d) => {
+  tela.tipo = tela.tipo === d.tipo ? '' : d.tipo;
+  App.renderConteudo();
+};
 
 ACOES['prest-esp-menu'] = (el) => {
   const semEsp = base({ semEspecialidade: true });
@@ -598,6 +630,11 @@ function htmlForm(p, detalhes) {
     <div class="form-prest-avisos" data-avisos-prest></div>
     ${contatos ? `<button type="button" class="btn sutil pequeno importar-contato" data-acao="prest-importar-contato">${svg(ICO.contatos, 14)}Importar dos contatos</button>` : ''}
     ${campo('nome', 'Nome', `<input type="text" id="pf_nome" data-prest="nome" value="${v('nome')}" autocomplete="off" required>`)}
+    ${campo(
+      'tipo',
+      'Tipo',
+      `<select id="pf_tipo" data-prest="tipo">${TIPOS_PRESTADOR.map((t) => `<option value="${t.v}" ${(p.tipo || 'servico') === t.v ? 'selected' : ''}>${esc(t.t)}</option>`).join('')}</select>`,
+    )}
     <div class="form-prest-par">
       ${campo(
         'especialidade',
@@ -973,6 +1010,8 @@ document.addEventListener('keydown', (ev) => {
    Prévia de "WESLEY PINTOR" → Wesley · Wesley Pintor · Pintor. Nada muda
    sem a pessoa marcar e confirmar. */
 
+/* Nomes em caixa alta: o aviso mora em Ajustes (é arrumação de cadastro,
+   não o trabalho do dia); a revisão continua aqui. */
 function sugestoes() {
   const esp = Store.estado.listas.especialidades || [];
   return Store.estado.prestadores
@@ -1093,4 +1132,5 @@ ACOES['prest-salvar-aval'] = () => {
   toast('Avaliação registrada.', 'ok');
 };
 
-export { tela };
+export {
+  sugestoes as sugestoesNomesPrestador, tela };

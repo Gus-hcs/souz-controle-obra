@@ -16,25 +16,38 @@
  * obras que recebem. É o que garante que o mesmo número não apareça com
  * dois valores na tela.
  */
-import { esc, fmtData, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtPct } from '../../nucleo/base.js';
+import {
+  esc,
+  fmtData,
+  fmtDataCurta,
+  fmtDataCurtaAno,
+  hojeISO,
+  fmtMoney,
+  fmtMoneyCurto,
+  fmtNum,
+  fmtPct,
+} from '../../nucleo/base.js';
 import {
   agendaCarteira,
   avancoCarteira,
-  avancoPrevistoObra,
   caixaCarteira,
+  fluxoProjetadoCarteira,
   custoCarteira,
-  curvaSCarteira,
+  historiaCarteira,
+  nivelIndice,
   kpisObra,
   pendenciasCarteira,
   pendenciasObra,
   resultadoCarteira,
   riscoCarteira,
   saudeObra,
+  valorAgregadoObra,
 } from '../../dominio/calculos.js';
 import { graficoCurvaS } from '../../graficos/index.js';
+import { fmtIndice, tomNivel } from './componentes.js';
 import { Store } from '../../dados/store.js';
-import { App, ICO, botao, nomeCliente, svg } from '../shell.js';
-import { VIEWS } from '../telas-obra.js';
+import { App, ICO, botao, nomeCliente, obrasDaConstrutora, partesNomeObra, svg } from '../shell.js';
+import { VIEWS, fraseAncoraHTML, rotuloAcao } from '../telas-obra.js';
 
 /* Estado só de tela — não é dado, não vai para o Store. */
 const tela = {
@@ -49,12 +62,14 @@ const tela = {
 
 function dadosObra(o) {
   const ko = kpisObra(o);
+  const va = valorAgregadoObra(o);
   return {
     o,
     ko,
     saude: saudeObra(o),
     pend: pendenciasObra(o),
-    previsto: avancoPrevistoObra(o),
+    va,
+    previsto: va.previsto,
     cliente: nomeCliente(o.clienteId),
     semMovimento: !ko.saldoInicial && !ko.recebido && !ko.totalPago,
   };
@@ -64,7 +79,8 @@ function dadosObra(o) {
    calculados sobre a base — clicar num KPI filtra a lista, não o KPI. */
 function base() {
   const busca = (App.filtros.carteiraBusca || '').trim().toLowerCase();
-  return Store.estado.obras.filter((o) => {
+  /* obra em que a pessoa é cliente não entra nos números da construtora */
+  return obrasDaConstrutora().filter((o) => {
     if (tela.filtro === 'andamento' && o.status === 'Concluída') return false;
     if (tela.filtro === 'concluidas' && o.status !== 'Concluída') return false;
     if (!busca) return true;
@@ -78,7 +94,7 @@ function base() {
 const FILTROS_KPI = {
   caixa: { rotulo: 'obras com caixa negativo', teste: (d) => d.ko.saldoCaixa < -0.005 },
   resultado: { rotulo: 'obras que entram no resultado', teste: (d) => d.ko.venda > 0 },
-  avanco: { rotulo: 'obras atrasadas', teste: (d) => d.saude.prazo.desvioDias > 0 },
+  avanco: { rotulo: 'obras atrasadas', teste: (d) => d.saude.prazo.atrasoDias > 0 },
   risco: {
     rotulo: 'obras em risco',
     teste: (d) => d.saude.nivel === 'critico' || d.saude.nivel === 'atencao',
@@ -105,9 +121,9 @@ const COLUNAS = [
   },
   {
     k: 'fim',
-    rotulo: 'Fim previsto',
+    rotulo: 'Término proj.',
     largura: '10%',
-    valor: (d) => d.saude.prazo.fimPrevisto || '9999',
+    valor: (d) => d.saude.prazo.termino || d.saude.prazo.fimPrevisto || '9999',
   },
   {
     k: 'custo',
@@ -116,7 +132,7 @@ const COLUNAS = [
     num: true,
     valor: (d) => (d.ko.custoPrevisto > 0 ? d.ko.totalPago / d.ko.custoPrevisto : -1),
   },
-  { k: 'saldo', rotulo: 'Saldo', largura: '10%', num: true, valor: (d) => d.ko.saldoCaixa },
+  { k: 'saldo', rotulo: 'Caixa hoje', largura: '10%', num: true, valor: (d) => d.ko.saldoCaixa },
   {
     k: 'resultado',
     rotulo: 'Resultado',
@@ -172,6 +188,10 @@ const diaSemana = (iso) => SEMANA[new Date(iso + 'T12:00:00Z').getUTCDay()];
 
 function kpis(obras) {
   const caixa = caixaCarteira(obras);
+  /* vale de caixa (Onda 4): o menor saldo da construtora nos próximos
+     30 dias, com a data — é quando falta dinheiro, se faltar */
+  const proj = fluxoProjetadoCarteira(obras);
+  const vale = proj.valeJanela;
   const res = resultadoCarteira(obras);
   const av = avancoCarteira(obras);
   const risco = riscoCarteira(obras);
@@ -202,14 +222,12 @@ function kpis(obras) {
   return `<div class="kpis" role="group" aria-label="Indicadores da carteira">
     ${item(
       'caixa',
-      'Caixa hoje',
-      fmtMoney(caixa.saldo, { dec: 0 }),
-      `em 30 dias ${fmtMoney(caixa.projecao, { dec: 0 })}`,
-      caixa.saldoInicial
-        ? `inclui ${fmtMoneyCurto(caixa.saldoInicial)} de saldo inicial`
-        : 'recebido menos pago',
-      caixa.saldo < -0.005 ? 'atraso' : '',
-      caixa.projecao < -0.005 ? 'atraso' : '',
+      'Vale de caixa · 30 dias',
+      fmtMoney(vale.saldo, { dec: 0 }),
+      vale.data <= hojeISO() ? 'o menor saldo é hoje' : `em ${fmtDataCurta(vale.data)}`,
+      `caixa hoje ${fmtMoneyCurto(caixa.saldo)}${caixa.saldoInicial ? ` · inclui ${fmtMoneyCurto(caixa.saldoInicial)} de saldo inicial` : ''}`,
+      vale.saldo < -0.005 ? 'atraso' : '',
+      vale.saldo < -0.005 ? 'atraso' : '',
     )}
     ${item(
       'resultado',
@@ -270,15 +288,18 @@ function celulaAvanco(d) {
   </span>`;
 }
 
+/* Término projetado no ritmo de hoje (valorAgregadoObra) e o atraso da
+   OBRA contra a data do contrato — o mesmo número da coluna Saúde. */
 function celulaFim(d) {
   const p = d.saude.prazo;
-  if (!p.fimPrevisto) return '<span class="tinta3">sem data</span>';
+  const data = p.termino || p.fimPrevisto;
+  if (!data) return '<span class="tinta3">sem data</span>';
   /* Data em cima, desvio embaixo: lado a lado não cabe na coluna. */
-  const desvio = p.desvioDias
-    ? `<span class="${p.desvioDias >= 30 ? 'atraso' : 'cel-aviso-alerta'}">+${p.desvioDias}d</span>`
+  const desvio = p.atrasoDias
+    ? `<span class="${p.atrasoDias >= 30 ? 'atraso' : 'cel-aviso-alerta'}">+${p.atrasoDias}d</span>`
     : '<span></span>';
-  return `<div class="cel-dois" title="${esc(fmtData(p.fimPrevisto))}">
-    <span>${fmtDataCurta(p.fimPrevisto)}</span>${desvio}
+  return `<div class="cel-dois" title="projetado ${esc(fmtData(data))} · contrato ${esc(fmtData(p.fimPrevisto))}">
+    <span>${fmtDataCurtaAno(data)}</span>${desvio}
   </div>`;
 }
 
@@ -296,7 +317,13 @@ function celulaCusto(d) {
 }
 
 function linhaObra(d) {
-  const sub = [d.cliente, d.o.cidade].filter(Boolean).join(' · ') || 'sem cliente vinculado';
+  /* "Casa 14" em cima, "Vila Nova Esperança · cliente" embaixo: o nome
+     inteiro cortado no meio ("Casa 14 — Vila No…") não identificava nada.
+     O nome completo fica no title. */
+  const [codigo, local] = partesNomeObra(d.o);
+  const sub =
+    [local !== d.o.cidade ? local : '', d.cliente, d.o.cidade].filter(Boolean).join(' · ') ||
+    'sem cliente vinculado';
   const incompleta = d.saude.faltando.length > 0;
   /* Obra sem cronograma ou orçamento: no lugar de zeros e traços, uma frase
      que diz o que falta e o link para completar. */
@@ -311,10 +338,10 @@ function linhaObra(d) {
 
   return `<tr class="clicavel" data-obra="${esc(d.o.id)}" data-acao="carteira-selecionar"
       ${d.o.id === tela.selecao ? 'aria-selected="true"' : ''} tabindex="-1">
-    <td class="principal-celular"><div class="cel-obra"><b>${esc(d.o.nome)}</b><span>${esc(sub)}</span></div></td>
+    <td class="principal-celular"><div class="cel-obra" title="${esc(d.o.nome)}"><b>${esc(codigo)}</b><span>${esc(sub)}</span></div></td>
     <td class="cel-saude">${celulaSaude(d)}</td>
     ${meio}
-    <td class="num" data-rotulo="Saldo">${d.semMovimento ? '<span class="rotulo-cinza">sem movimento</span>' : dinheiro(d.ko.saldoCaixa)}</td>
+    <td class="num" data-rotulo="Caixa hoje">${d.semMovimento ? '<span class="rotulo-cinza">sem movimento</span>' : dinheiro(d.ko.saldoCaixa)}</td>
     <td class="num some-no-celular">${d.ko.venda > 0 ? dinheiro(d.ko.resultado) : '<span class="rotulo-cinza">sem valor de venda</span>'}</td>
     <td class="num"${d.pend.total ? ' data-rotulo="Pendências"' : ''}>${
       d.pend.total ? `<span class="${d.pend.criticas ? 'atraso' : ''}">${d.pend.total}</span>` : ''
@@ -381,16 +408,6 @@ const GRUPOS = [
 ];
 
 /* O verbo do botão diz o que se vai fazer lá. */
-function rotuloAcao(a) {
-  if (a.modulo === 'Medições') return 'Ver medição';
-  if (a.modulo === 'Contratos') return 'Ver contrato';
-  if (a.tipo === 'prazo') return 'Atualizar cronograma';
-  if (a.tipo === 'material') return 'Registrar compra';
-  if (a.modulo === 'Recebimentos') return 'Ver recebimento';
-  if (a.modulo === 'Lançamentos') return 'Ver lançamentos';
-  return 'Ver caixa';
-}
-
 function listaAcoes(itens, mostrarObra) {
   if (!itens.length) {
     return '<p class="tinta2 inspetor-vazio">Nada pedindo ação. Selecione uma obra para ver os detalhes.</p>';
@@ -433,8 +450,8 @@ function inspetor(ds, obrasBase) {
 
   if (!d) {
     const pend = pendenciasCarteira(obrasBase);
-    return `<aside class="inspetor" data-testid="inspetor" aria-label="Precisa de ação">
-      <div class="inspetor-cab"><h2>Precisa de ação<span class="sub">${
+    return `<aside class="inspetor" data-testid="inspetor" aria-label="Pendências">
+      <div class="inspetor-cab"><h2>Pendências<span class="sub">${
         pend.total ? `${pend.total} pendência${pend.total > 1 ? 's' : ''}` : 'nada pendente'
       }${pend.avisos ? ` · ${pend.avisos} aviso${pend.avisos > 1 ? 's' : ''} fora da conta` : ''}</span></h2></div>
       <div class="inspetor-corpo">${listaAcoes(pend.itens, true)}</div>
@@ -466,7 +483,8 @@ function inspetor(ds, obrasBase) {
       <div class="inspetor-secao">
         <dl class="pares">
           ${incompleta ? '' : par('Avanço físico', `${fmtPct(k.progressoFisico, 0)} <span class="tinta3">de ${fmtPct(d.previsto, 0)} previsto</span>`)}
-          ${p.fimPrevisto ? par('Fim previsto', `${fmtDataCurta(p.fimPrevisto)}${p.desvioDias ? ` <span class="${p.desvioDias >= 30 ? 'atraso' : 'cel-aviso-alerta'}">+${p.desvioDias}d</span>` : ''}`) : ''}
+          ${p.termino ? par('Término projetado', `${fmtDataCurtaAno(p.termino)}${p.atrasoDias ? ` <span class="${p.atrasoDias >= 30 ? 'atraso' : 'cel-aviso-alerta'}">+${p.atrasoDias}d</span>` : ''} <span class="tinta3">contrato ${fmtDataCurtaAno(p.fimPrevisto)}</span>`) : ''}
+          ${d.va.idp !== null ? par('IDP · IDC', `${fmtNum(d.va.idp, 2)} · ${d.va.idc === null ? '—' : fmtNum(d.va.idc, 2)} <span class="tinta3">prazo · custo</span>`, d.va.idp < 0.85 ? 'atraso' : '') : ''}
           ${k.custoPrevisto > 0 ? par('Custo', `${fmtMoneyCurto(k.totalPago)} <span class="tinta3">de ${fmtMoneyCurto(k.custoPrevisto)}</span>`) : ''}
           ${par('Caixa', dinheiro(k.saldoCaixa))}
           ${par('Resultado', k.venda > 0 ? `${dinheiro(k.resultado)} <span class="tinta3">${fmtPct(k.margem)}</span>` : '<span class="tinta3">sem valor de venda</span>')}
@@ -478,7 +496,7 @@ function inspetor(ds, obrasBase) {
           : `<div class="inspetor-secao inspetor-curva"><h3>Curva S</h3>${graficoCurvaS(d.o, 150)}</div>`
       }
       <div class="inspetor-secao">
-        <h3>Precisa de ação${d.pend.total ? ` (${d.pend.total})` : ''}</h3>
+        <h3>Pendências${d.pend.total ? ` (${d.pend.total})` : ''}</h3>
         ${listaAcoes(d.pend.itens, false)}
       </div>
       <div class="inspetor-secao">${botao('Abrir a obra', 'ir', { view: 'painel', obra: d.o.id }, 'btn primario larga')}</div>
@@ -493,13 +511,39 @@ function dadosObraPorId(id) {
 
 /* ------------------------------------------- curva S e próximos 14 dias */
 
+/* Agenda enxuta: só dinheiro (parcela, compra) e entrega de etapa, no
+   máximo 7 linhas — 26 itens empurravam para baixo o que importa. */
+const AGENDA_MAX = 7;
+const AGENDA_TIPOS = new Set(['recebimento', 'material', 'etapa']);
+
+/* Ranking por IDP no lugar da curva S da carteira: a curva ponderada pelo
+   custo deixava a casa doente sumir atrás do sobrado. Pior ritmo primeiro. */
+function rankingIdp(obras) {
+  const linhas = obras
+    .map((o) => ({ o, va: valorAgregadoObra(o) }))
+    .filter((x) => x.va.idp !== null)
+    .sort((a, b) => a.va.idp - b.va.idp);
+  if (!linhas.length) return '<p class="tinta2 inspetor-vazio">Nenhuma obra com cronograma em andamento.</p>';
+  return `<ol class="ranking-idp">${linhas
+    .map(({ o, va }) => {
+      const tom = tomNivel(nivelIndice(va.idp, 'idp'));
+      return `<li><button class="ranking-item" data-acao="ir" data-view="curva" data-obra="${esc(o.id)}">
+        <span class="ranking-nome">${esc(o.nome)}</span>
+        <span class="ranking-barra"><i class="${tom}" style="width:${Math.min(100, va.idp * 100).toFixed(1)}%"></i></span>
+        <span class="ranking-num ${tom}">IDP ${fmtIndice(va.idp)}</span>
+        <span class="ranking-num tinta2">IDC ${fmtIndice(va.idc)}</span>
+      </button></li>`;
+    })
+    .join('')}</ol>`;
+}
+
 function baixo(obras) {
-  const agenda = agendaCarteira(obras);
+  const todos = agendaCarteira(obras).filter((x) => AGENDA_TIPOS.has(x.tipo));
+  const agenda = todos.slice(0, AGENDA_MAX);
   const ROTULO = {
     recebimento: 'Parcela',
     material: 'Compra',
     etapa: 'Etapa',
-    contrato: 'Contrato',
   };
   const lista = agenda.length
     ? `<ol class="agenda">${agenda
@@ -513,16 +557,20 @@ function baixo(obras) {
             } · ${ROTULO[x.tipo]}</span></span>
           </button></li>`,
         )
-        .join('')}</ol>`
+        .join('')}</ol>${
+        todos.length > agenda.length
+          ? `<p class="tinta3" style="margin:var(--e2) 0 0;font-size:var(--t-peq)">+ ${todos.length - agenda.length} depois destes</p>`
+          : ''
+      }`
     : '<p class="tinta2 inspetor-vazio">Nada vence nos próximos 14 dias.</p>';
 
   return `<div class="carteira-baixo">
     <section class="secao">
-      <div class="secao-cab"><h2>Curva S da carteira</h2><span class="contagem">previsto × realizado, ponderado pelo custo</span></div>
-      ${graficoCurvaS(curvaSCarteira(obras), 220)}
+      <div class="secao-cab"><h2>Obras por ritmo</h2><span class="contagem">IDP: realizado ÷ previsto hoje · pior primeiro</span></div>
+      ${rankingIdp(obras)}
     </section>
     <section class="secao">
-      <div class="secao-cab"><h2>Próximos 14 dias</h2><span class="contagem">${agenda.length || ''}</span></div>
+      <div class="secao-cab"><h2>Próximos 14 dias</h2><span class="contagem">dinheiro e entregas</span></div>
       ${lista}
     </section>
   </div>`;
@@ -531,6 +579,16 @@ function baixo(obras) {
 /* ------------------------------------------------------------- tela */
 
 VIEWS.carteira = () => {
+  /* só acompanha obras como cliente: a carteira dele são essas obras */
+  if (Store.estado.obras.length && !obrasDaConstrutora().length) {
+    return `<div class="vazio" data-testid="carteira-cliente">
+      <h4>Suas obras</h4>
+      <p>Você acompanha ${Store.estado.obras.length === 1 ? 'esta obra' : 'estas obras'} como cliente: cronograma, diário com fotos e o relatório de status.</p>
+      <div class="acoes">${Store.estado.obras
+        .map((o) => botao(esc(o.nome), 'ir', { view: 'cronograma', obra: o.id }, 'btn'))
+        .join('')}</div>
+    </div>`;
+  }
   if (!Store.estado.obras.length) {
     return `<div class="vazio" data-testid="carteira-vazia">
       <h4>Nenhuma obra cadastrada</h4>
@@ -550,6 +608,7 @@ VIEWS.carteira = () => {
 
   return `<div class="tela-carteira">
     <div class="tela-principal">
+      ${fraseAncoraHTML(historiaCarteira(obrasBase), { mostrarObra: true })}
       ${kpis(obrasBase)}
       ${
         f

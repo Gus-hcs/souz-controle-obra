@@ -337,11 +337,34 @@ describe('prazo — fim previsto e desvio em dias', () => {
 
 /* ============================================================ saúde */
 describe('saúde da obra — nível e motivo', () => {
-  it('atraso e custo acima do contrato aparecem juntos, o pior primeiro', () => {
+  /* Auditoria 25/09/2026: o atraso da obra é término projetado − data
+     contratual, não o da etapa mais atrasada. Obra A: 66% feito contra
+     81,5% previsto (IDP 0,81) — no ritmo de hoje, os 293 dias do
+     cronograma viram 362 e a obra acaba em 07/01/2027, 69 dias depois de
+     30/10. A etapa mais atrasada (Pisos, 20 dias) escondia isso. */
+  it('atraso da obra é o projetado pelo IDP, e aparece junto com o custo', () => {
     const s = saudeObra(A, HOJE);
-    expect(s.nivel).toBe('atencao');
-    expect(s.texto).toBe('Atrasada 20d · +1');
-    expect(s.motivos.map((m) => m.texto)).toEqual(['Atrasada 20d', 'Custo +8%']);
+    const p = prazoObra(A, HOJE);
+    expect(p.termino).toBe('2027-01-07');
+    expect(p.atrasoProjetado).toBe(69);
+    expect(p.atrasoDias).toBe(69);
+    expect(p.desvioDias).toBe(20);
+    expect(s.nivel).toBe('critico');
+    expect(s.texto).toBe('Atrasada 69d · +1');
+    expect(s.motivos.map((m) => m.texto)).toEqual(['Atrasada 69d', 'Custo +8%']);
+  });
+
+  it('o atraso da obra nunca é menor que o da etapa mais atrasada', () => {
+    const o = JSON.parse(JSON.stringify(A));
+    /* tudo em dia pelo peso, mas uma etapa pequena vencida há 20 dias */
+    o.cronograma.forEach((e) => { e.progresso = 1; e.fimReal = e.fimPrevisto; e.inicioReal = e.inicioPrevisto; });
+    o.cronograma[2].progresso = 0.99;
+    o.cronograma[2].fimReal = '';
+    o.cronograma[4].progresso = 0;
+    o.cronograma[4].inicioReal = '';
+    o.cronograma[4].fimReal = '';
+    const p = prazoObra(o, HOJE);
+    expect(p.atrasoDias).toBeGreaterThanOrEqual(p.desvioDias);
   });
 
   it('atraso de 30 dias ou mais é crítico', () => {

@@ -2,9 +2,9 @@
  * supabase.js — Banco de dados: mapeamento das tabelas, sincronização e telas de acesso.
  */
 import { CFG } from '../config.js';
-import { esc, estadoInicial, isISO, migrar, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num } from '../nucleo/base.js';
-import { CHAVE_LOCAL, Store } from './store.js';
-import { App, confirmar, LOGO } from '../ui/shell.js';
+import { esc, estadoInicial, isISO, migrar, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, novaPendenciaCliente, novoTratamento, num } from '../nucleo/base.js';
+import { CHAVE_BASE_OFFLINE, CHAVE_LOCAL, Store, erroDeRede } from './store.js';
+import { App, confirmar, LOGO, toast } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
 import { carregarScript } from '../io/index.js';
 
@@ -46,7 +46,9 @@ const TABELAS_DB = [
       chavePix: 'chave_pix', tipoPix: 'tipo_pix', formaContratacao: 'forma_contratacao',
       valorReferencia: ['valor_referencia', 'num'], arquivado: ['arquivado', 'bool'],
       /* exige a migração 0012 */
-      cidade: 'cidade'
+      cidade: 'cidade',
+      /* exige a migração 0018 */
+      tipo: 'tipo'
     }
   },
   {
@@ -61,7 +63,11 @@ const TABELAS_DB = [
       'fin.valorFinanciado': ['valor_financiado', 'num'], 'fin.recursosProprios': ['recursos_proprios', 'num'],
       'fin.precoEmpreitadaM2': ['preco_empreitada_m2', 'num'], 'fin.custoFisicoMaxM2': ['custo_fisico_max_m2', 'num'],
       'fin.valorVenda': ['valor_venda', 'num'], 'fin.margemDesejada': ['margem_desejada', 'num'],
-      'fin.contratoCaixa': 'contrato_caixa', 'fin.dataAssinatura': ['data_assinatura', 'data']
+      'fin.contratoCaixa': 'contrato_caixa', 'fin.dataAssinatura': ['data_assinatura', 'data'],
+      /* exige a migração 0016 */
+      'fin.financiador': 'financiador',
+      /* exige a migração 0018 */
+      statusEnviadoEm: ['status_enviado_em', 'data']
     }
   },
   {
@@ -80,7 +86,9 @@ const TABELAS_DB = [
       dataAprovacaoAditivo: ['data_aprovacao_aditivo', 'data'], novoPrazoAditivo: ['novo_prazo_aditivo', 'data'],
       condicaoPagamento: 'condicao_pagamento', retencaoPct: ['retencao_pct', 'num'], formaPreco: 'forma_preco',
       dataEncerramento: ['data_encerramento', 'data'], documentoUrl: 'documento_url',
-      situacaoManual: 'situacao_manual', motivoSituacaoManual: 'motivo_situacao_manual'
+      situacaoManual: 'situacao_manual', motivoSituacaoManual: 'motivo_situacao_manual',
+      /* exige a migração 0016 */
+      etapas: ['etapas', 'json']
     }
   },
   {
@@ -100,7 +108,10 @@ const TABELAS_DB = [
       dataSolicitacao: ['data_solicitacao', 'data'], percentObra: ['percent_obra', 'num'],
       valorAprovado: ['valor_aprovado', 'num'], descontos: ['descontos', 'num'],
       dataRecebimento: ['data_recebimento', 'data'], valorRecebido: ['valor_recebido', 'num'],
-      status: 'status', observacoes: 'observacoes'
+      status: 'status', observacoes: 'observacoes',
+      /* exige a migração 0016 */
+      percentExigido: ['percent_exigido', 'num'], dataVistoria: ['data_vistoria', 'data'],
+      dataAprovacao: ['data_aprovacao', 'data']
     }
   },
   {
@@ -119,7 +130,9 @@ const TABELAS_DB = [
       prestadorId: ['prestador_id', 'ref'],
       quantidade: ['quantidade', 'num'], unidade: 'unidade', precoUnitario: ['preco_unitario', 'num'],
       desconto: ['desconto', 'num'], frete: ['frete', 'num'], formaPagamento: 'forma_pagamento',
-      observacoes: 'observacoes'
+      observacoes: 'observacoes',
+      /* exige a migração 0019 */
+      anexoNf: 'anexo_nf'
     }
   },
   {
@@ -128,17 +141,58 @@ const TABELAS_DB = [
       etapa: 'etapa', inicioPrevisto: ['inicio_previsto', 'data'], fimPrevisto: ['fim_previsto', 'data'],
       inicioReal: ['inicio_real', 'data'], fimReal: ['fim_real', 'data'], progresso: ['progresso', 'num'],
       quantidadeExecutada: ['quantidade_executada', 'num'], unidadeProducao: 'unidade_producao',
-      responsavel: 'responsavel', peso: ['peso', 'num']
+      responsavel: 'responsavel', peso: ['peso', 'num'],
+      /* exige a migração 0016 */
+      itemFinanciador: 'item_financiador', pesoFinanciador: ['peso_financiador', 'num'],
+      /* exige a migração 0017 */
+      predecessoras: ['predecessoras', 'json']
     }
   },
   {
     nome: 'diario', colecao: 'diario', ordenado: true, novo: () => novoDiario(),
     campos: {
       data: ['data', 'data'], clima: 'clima', efetivo: ['efetivo', 'num'], etapa: 'etapa',
-      atividades: 'atividades', ocorrencias: 'ocorrencias', autor: 'autor', fotos: ['fotos', 'json']
+      atividades: 'atividades', ocorrencias: 'ocorrencias', autor: 'autor', fotos: ['fotos', 'json'],
+      /* ocorrência como pendência — exige a migração 0015 (bloco A) aplicada */
+      ocorrenciaStatus: 'ocorrencia_status', ocorrenciaResponsavel: 'ocorrencia_responsavel',
+      ocorrenciaPrazo: ['ocorrencia_prazo', 'data'], ocorrenciaMaterialId: ['ocorrencia_material_id', 'ref'],
+      ocorrenciaResolvidaEm: ['ocorrencia_resolvida_em', 'data'],
+      /* diário de campo — exige a migração 0017 */
+      climaManha: 'clima_manha', climaTarde: 'clima_tarde', efetivoFuncoes: ['efetivo_funcoes', 'json'],
+      equipamentos: 'equipamentos', progressoEtapa: ['progresso_etapa', 'num'],
+      impactaPrazo: ['impacta_prazo', 'bool'], diasImpacto: ['dias_impacto', 'num']
+    }
+  },
+  {
+    /* Tratamento de alerta (0015). `opcional`: se a tabela ainda não existe
+       no banco, a carga segue sem ela, o recurso fica indisponível
+       (SUPA.tabelaDisponivel) e a sincronização não tenta gravá-la. */
+    nome: 'alertas_tratamento', colecao: 'tratamentos', opcional: true,
+    novo: () => novoTratamento(),
+    campos: {
+      chave: 'chave', status: 'status', responsavel: 'responsavel',
+      adiarAte: ['adiar_ate', 'data'], nota: 'nota',
+      sevMarcada: ['sev_marcada', 'num'], valorMarcado: ['valor_marcado', 'num'],
+      dataMarcacao: ['data_marcacao', 'data']
+    }
+  },
+  {
+    /* O que o cliente deve à obra (0018). Opcional como a de cima: sem a
+       tabela no banco, o recurso some e o resto segue. */
+    nome: 'pendencias_cliente', colecao: 'pendenciasCliente', opcional: true,
+    novo: () => novaPendenciaCliente(),
+    campos: {
+      descricao: 'descricao', prazo: ['prazo', 'data'], status: 'status',
+      resolvidaEm: ['resolvida_em', 'data'], criadaEm: ['data_criacao', 'data']
     }
   }
 ];
+
+/* Erro de "tabela não existe" — PostgREST devolve PGRST205 (ou 42P01 do
+   Postgres) quando a migração ainda não foi aplicada. */
+const tabelaInexistente = (error) =>
+  !!error && (error.code === 'PGRST205' || error.code === '42P01' ||
+    /could not find the table|does not exist/i.test(error.message || ''));
 
 const pegar = (obj, caminho) =>
   caminho.split('.').reduce((o, k) => (o === null || o === undefined ? undefined : o[k]), obj);
@@ -200,10 +254,31 @@ function paraApp(linha, tab) {
     else definir(item, caminho, v === null || v === undefined ? '' : String(v));
   });
   if (linha.usuario_id) item.usuarioId = linha.usuario_id;
+  /* versão da linha no banco (carimbo de concorrência): o sincronizar só
+     altera ou apaga se o banco ainda estiver nesta versão */
+  if (linha.atualizado_em) item.versao = String(linha.atualizado_em);
   return item;
 }
 
 /* todas as linhas de uma tabela a partir do estado, indexadas por id */
+/* id → item do estado, para devolver a versão nova depois de gravar */
+function itensDoEstado(estado, tab) {
+  const mapa = new Map();
+  if (tab.raiz) (estado[tab.raiz] || []).forEach((item) => mapa.set(item.id, item));
+  else (estado.obras || []).forEach((o) => (o[tab.colecao] || []).forEach((item) => mapa.set(item.id, item)));
+  return mapa;
+}
+
+/* Conflito de concorrência: outra pessoa gravou a linha depois que este
+   aparelho a carregou. O Store recarrega do banco e avisa. */
+class ConflitoSync extends Error {
+  constructor(conflitos) {
+    super(`${conflitos.length} registro(s) alterado(s) por outra pessoa`);
+    this.codigo = 'conflito';
+    this.conflitos = conflitos;
+  }
+}
+
 function linhasDoEstado(estado, tab) {
   const mapa = new Map();
   if (tab.raiz) {
@@ -233,6 +308,13 @@ const SUPA = {
   bloqueado: false,
   abas: {},          // { "<aba>": false } = abas bloqueadas para este usuário
   limiteObras: null, // null = sem limite; número = teto de obras da conta
+  indisponiveis: new Set(), // tabelas `opcional` que ainda não existem no banco
+
+  /* Recurso que depende de tabela opcional (migração ainda não aplicada).
+     Sem banco (modo local), tudo está disponível: grava no navegador. */
+  tabelaDisponivel(nome) {
+    return !this.indisponiveis.has(nome);
+  },
 
   lerConfig() {
     let cfg = { ...SUPABASE_PADRAO };
@@ -281,11 +363,32 @@ const SUPA = {
     } catch (e) {
       return { estado: 'erro', mensagem: e.message };
     }
-    const { data, error } = await this.sb.auth.getSession();
-    if (error) return { estado: 'erro', mensagem: error.message };
+    let data;
+    let error;
+    try {
+      ({ data, error } = await this.sb.auth.getSession());
+    } catch (e) {
+      error = e; /* sem rede para renovar o token: o app decide (erroDeRede) */
+    }
+    if (error) return { estado: 'erro', mensagem: error.message || String(error) };
     this.usuario = data && data.session ? data.session.user : null;
     this.pronto = true;
     return { estado: this.usuario ? 'autenticado' : 'anonimo' };
+  },
+
+  /* Sessão guardada pelo supabase-js no aparelho (sb-<ref>-auth-token).
+     Sem rede para renovar o token, é ela que diz quem está usando — o
+     suficiente para abrir offline e carimbar a autoria das linhas. */
+  usuarioGuardado() {
+    try {
+      const k = Object.keys(localStorage).find((x) => /^sb-.*-auth-token$/.test(x));
+      const s = k && JSON.parse(localStorage.getItem(k));
+      const u = s && (s.user || (s.currentSession && s.currentSession.user));
+      if (u) { this.usuario = u; this.pronto = true; }
+      return !!u;
+    } catch (e) {
+      return false;
+    }
   },
 
   async entrar(email, senha) {
@@ -313,7 +416,7 @@ const SUPA = {
   async sair() {
     try { await this.sb.auth.signOut(); } catch (e) {}
     this.usuario = null;
-    try { localStorage.removeItem(CHAVE_LOCAL); } catch (e) {}
+    try { localStorage.removeItem(CHAVE_LOCAL); localStorage.removeItem(CHAVE_BASE_OFFLINE); } catch (e) {}
     location.reload();
   },
 
@@ -523,8 +626,15 @@ const SUPA = {
   /* ------------------------------------------------------------ carga */
   async carregar() {
     const dados = {};
+    this.indisponiveis = new Set();
     for (const tab of TABELAS_DB) {
       const { data, error } = await this.sb.from(tab.nome).select('*').limit(10000);
+      if (error && tab.opcional && tabelaInexistente(error)) {
+        console.warn(`Tabela ${tab.nome} ainda não existe no banco — recurso desligado até aplicar a migração.`);
+        this.indisponiveis.add(tab.nome);
+        dados[tab.nome] = [];
+        continue;
+      }
       if (error) throw error;
       dados[tab.nome] = data || [];
     }
@@ -578,38 +688,82 @@ const SUPA = {
   /* ------------------------------------------------------- gravação */
   async sincronizar(anterior, atual) {
     const mapasA = new Map(), mapasB = new Map();
-    TABELAS_DB.forEach((t) => {
+    /* tabela opcional que não existe no banco fica fora da gravação */
+    const tabelas = TABELAS_DB.filter((t) => !this.indisponiveis.has(t.nome));
+    tabelas.forEach((t) => {
       mapasA.set(t.nome, linhasDoEstado(anterior, t));
       mapasB.set(t.nome, linhasDoEstado(atual, t));
     });
 
     let enviadas = 0, removidas = 0;
+    const conflitos = [];
+    const versaoAntes = (t, id) => {
+      const it = itensDoEstado(anterior, t).get(id);
+      return it && it.versao ? it.versao : '';
+    };
 
-    /* inserções e alterações, respeitando as dependências */
-    for (const t of TABELAS_DB) {
+    /* inserções e alterações, respeitando as dependências.
+       Linha nova: upsert em lote. Linha que já existia e tem versão
+       conhecida: UPDATE condicional à versão — se outra pessoa gravou
+       depois, nenhuma linha casa e vira conflito (nada é sobrescrito). */
+    for (const t of tabelas) {
       const antes = mapasA.get(t.nome), agora = mapasB.get(t.nome);
+      const itens = itensDoEstado(atual, t);
+      const versoesAntes = itensDoEstado(anterior, t);
+      const novas = [];
       const alteradas = [];
       agora.forEach((linha, id) => {
         const anteriorLinha = antes.get(id);
-        if (!anteriorLinha || JSON.stringify(anteriorLinha) !== JSON.stringify(linha)) alteradas.push(linha);
+        if (!anteriorLinha) novas.push(linha);
+        else if (JSON.stringify(anteriorLinha) !== JSON.stringify(linha)) alteradas.push(linha);
       });
-      for (let i = 0; i < alteradas.length; i += 400) {
-        const lote = alteradas.slice(i, i + 400);
-        const { error } = await this.sb.from(t.nome).upsert(lote, { onConflict: 'id' });
+      for (let i = 0; i < novas.length; i += 400) {
+        const lote = novas.slice(i, i + 400);
+        const { data, error } = await this.sb.from(t.nome).upsert(lote, { onConflict: 'id' }).select('id, atualizado_em');
         if (error) throw new Error(`${t.nome}: ${error.message}`);
+        (data || []).forEach((r) => { const it = itens.get(r.id); if (it) it.versao = String(r.atualizado_em); });
         enviadas += lote.length;
+      }
+      for (const linha of alteradas) {
+        const prev = versoesAntes.get(linha.id);
+        const versao = prev && prev.versao;
+        let q = this.sb.from(t.nome).update(linha).eq('id', linha.id);
+        if (versao) q = q.eq('atualizado_em', versao);
+        const { data, error } = await q.select('id, atualizado_em');
+        if (error) throw new Error(`${t.nome}: ${error.message}`);
+        if (!data || !data.length) {
+          conflitos.push({ tabela: t.nome, id: linha.id, tipo: 'alterado' });
+          continue;
+        }
+        const it = itens.get(linha.id);
+        if (it) it.versao = String(data[0].atualizado_em);
+        enviadas++;
       }
     }
 
-    /* exclusões na ordem inversa (filhos antes dos pais) */
-    for (const t of [...TABELAS_DB].reverse()) {
+    /* exclusões na ordem inversa (filhos antes dos pais). Com versão
+       conhecida, só apaga se ninguém mexeu; se a linha ainda existe com
+       outra versão, é conflito (não apaga o trabalho de outra pessoa). */
+    for (const t of [...tabelas].reverse()) {
       const antes = mapasA.get(t.nome), agora = mapasB.get(t.nome);
       const ids = [...antes.keys()].filter((id) => !agora.has(id));
-      for (let i = 0; i < ids.length; i += 400) {
-        const lote = ids.slice(i, i + 400);
+      const comVersao = ids.filter((id) => versaoAntes(t, id));
+      const semVersao = ids.filter((id) => !versaoAntes(t, id));
+      for (let i = 0; i < semVersao.length; i += 400) {
+        const lote = semVersao.slice(i, i + 400);
         const { error } = await this.sb.from(t.nome).delete().in('id', lote);
         if (error) throw new Error(`${t.nome}: ${error.message}`);
         removidas += lote.length;
+      }
+      for (const id of comVersao) {
+        const { data, error } = await this.sb.from(t.nome).delete()
+          .eq('id', id).eq('atualizado_em', versaoAntes(t, id)).select('id');
+        if (error) throw new Error(`${t.nome}: ${error.message}`);
+        if (data && data.length) { removidas++; continue; }
+        /* não apagou: ou já tinha sido apagada (tudo certo) ou mudou */
+        const { data: ainda, error: e2 } = await this.sb.from(t.nome).select('id').eq('id', id);
+        if (e2) throw new Error(`${t.nome}: ${e2.message}`);
+        if (ainda && ainda.length) conflitos.push({ tabela: t.nome, id, tipo: 'excluido' });
       }
     }
 
@@ -629,6 +783,7 @@ const SUPA = {
       }).eq('id', this.usuario.id);
       if (error) throw new Error('perfis: ' + error.message);
     }
+    if (conflitos.length) throw new ConflitoSync(conflitos);
     return { enviadas, removidas };
   }
 };
@@ -808,8 +963,57 @@ function traduzErroAuth(err) {
 }
 
 /* carrega os dados e abre o sistema depois do login */
+/* O que ficou no aparelho sem rede: o estado local e a última versão que
+   o banco confirmou. Com os dois, dá para enviar a diferença. */
+function pendenteOffline() {
+  try {
+    const base = localStorage.getItem(CHAVE_BASE_OFFLINE);
+    const local = localStorage.getItem(CHAVE_LOCAL);
+    if (!base || !local) return null;
+    return { base: migrar(JSON.parse(base)), local: migrar(JSON.parse(local)) };
+  } catch (e) {
+    return null;
+  }
+}
+
+/* Sem rede na abertura: abre com o que está no aparelho. Tudo continua
+   funcionando; o que for gravado fica pendente até a rede voltar. */
+function abrirOffline(pend) {
+  let estado = pend && pend.local;
+  if (!estado) {
+    try { estado = migrar(JSON.parse(localStorage.getItem(CHAVE_LOCAL))); } catch (e) { estado = null; }
+  }
+  if (!estado || !estado.obras || !estado.obras.length) return false;
+  Store.estado = estado;
+  Store.snapshot = pend ? pend.base : JSON.parse(JSON.stringify(estado));
+  try {
+    if (!pend) localStorage.setItem(CHAVE_BASE_OFFLINE, JSON.stringify(Store.snapshot));
+  } catch (e) { /* cota */ }
+  Store.backend = 'supabase';
+  Store.modo = 'banco';
+  Store.status = 'offline';
+  Store.pendente = true;
+  if (!App.rota.obraId && estado.obras.length) App.rota.obraId = estado.obras[0].id;
+  window.addEventListener('online', () => Store.salvar(), { once: true });
+  fecharAcesso();
+  App.render();
+  return true;
+}
+
 async function entrarNoSistema() {
   telaAcesso('<h2>Carregando suas obras…</h2><p class="acesso-sub">Buscando os dados no banco.</p>');
+  /* alteração feita sem rede numa sessão anterior: envia antes de carregar */
+  const pend = pendenteOffline();
+  if (pend) {
+    try {
+      await SUPA.sincronizar(pend.base, pend.local);
+      localStorage.removeItem(CHAVE_BASE_OFFLINE);
+      setTimeout(() => toast('O que foi registrado sem rede já está no banco.', 'ok', 6000), 400);
+    } catch (err) {
+      if (erroDeRede(err) && abrirOffline(pend)) return;
+      /* outro erro: segue a carga; a diferença continua guardada */
+    }
+  }
   try {
     const estado = await SUPA.carregar();
 
@@ -835,6 +1039,7 @@ async function entrarNoSistema() {
     App.render();
   } catch (err) {
     const m = String(err.message || err);
+    if (erroDeRede(err) && abrirOffline(pendenteOffline())) return;
     if (/relation .* does not exist|schema cache|Could not find the table/i.test(m)) {
       telaAcesso(`<h2>Banco ainda sem as tabelas</h2>
         <p class="acesso-sub">Abra o <b>SQL Editor</b> do Supabase, cole o conteúdo do arquivo
