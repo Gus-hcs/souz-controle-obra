@@ -7,7 +7,6 @@ import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { VIEWS } from './telas-obra.js';
 import { desenharGraficosPendentes } from '../graficos/index.js';
-import marcaUrl from '../marca.png';
 
 const ICO = {
   carteira: '<path d="M2 3h5v5H2zM9 3h5v5H9zM2 10h5v3H2zM9 10h5v3H9z"/>',
@@ -51,7 +50,15 @@ const svg = (d, tam = 16) =>
 
 /* Marca do sistema — dois cubos isométricos, fundo recortado.
    Usada no rail e na tela de acesso. */
-const LOGO = `<img class="marca-img" src="${marcaUrl}" alt="SouZ" draggable="false">`;
+/* Símbolo da marca (Manual da Marca, prancha 01): dois cubos iguais em
+   isometria de 30°, deslocados na diagonal — a carteira, não a casa única.
+   Três valores de cinza e contorno #686868, sempre: nunca verde, nunca
+   chapado, igual no claro e no escuro. */
+const CUBO = (x, y) => `<g transform="translate(${x},${y})">
+  <polygon points="0,-100 86.6,-50 0,0 -86.6,-50" fill="#D6D6D6"/>
+  <polygon points="-86.6,-50 0,0 0,100 -86.6,50" fill="#ADADAD"/>
+  <polygon points="86.6,-50 86.6,50 0,100 0,0" fill="#E8E8E8"/></g>`;
+const LOGO = `<svg class="marca-img" viewBox="0 0 340 342" role="img" aria-label="SouZ"><g stroke="#686868" stroke-width="6" stroke-linejoin="round">${CUBO(90, 103)}${CUBO(250, 239)}</g></svg>`;
 
 /* A rail conta a história da obra: planejar → executar → acompanhar.
    Os grupos com `obra: true` só aparecem quando há obra; os de `passo`

@@ -65,8 +65,9 @@
 }
 
 /* ------------------------------------------------------ tipografia
-   Tira Space Grotesk, Inter e JetBrains Mono das telas antigas: a
-   pilha do sistema passa a valer em toda parte. */
+   Tira Space Grotesk, Inter e JetBrains Mono das telas antigas: a fonte
+   da marca (Archivo) passa a valer em toda parte. Número e código (.mono,
+   .kpi .valor) ficam de fora: vão para o IBM Plex Mono (interface.css). */
 body,
 h1,
 h2,
@@ -74,9 +75,7 @@ h3,
 h4,
 .rotulo,
 table.tab th,
-.kpi .valor,
 .anel-t,
-.mono,
 .impl-fase-t,
 .rail-marca b,
 .acesso-marca b,

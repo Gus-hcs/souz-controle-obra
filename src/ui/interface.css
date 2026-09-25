@@ -155,12 +155,7 @@ a:hover {
   flex: 0 0 22px;
   display: grid;
   place-items: center;
-  /* A marca é clara, feita para fundo escuro. Em vez de trocar o arquivo,
-     ela ganha o quadradinho preto da identidade — que é também o formato
-     de ícone de app no cabeçalho de sidebar do macOS. */
-  background: #020403;
-  border-radius: var(--r-campo);
-  padding: 3px;
+  /* O símbolo do manual vale sobre claro e escuro: sem caixa em volta. */
 }
 .lateral-marca .marca-img {
   width: 100%;
@@ -168,10 +163,11 @@ a:hover {
   display: block;
   object-fit: contain;
 }
+/* Assinatura reduzida do manual: símbolo + SouZ em Archivo 800, fechado. */
 .lateral-marca b {
-  font-size: var(--t-corpo);
-  font-weight: var(--p-semi);
-  letter-spacing: 0.01em;
+  font-size: var(--t-medio);
+  font-weight: 800;
+  letter-spacing: -0.035em;
 }
 
 /* Seletor de obra: pop-up button do AppKit em duas linhas — obra em cima,
@@ -618,6 +614,7 @@ input[type='month'],
 input[type='search'],
 input[type='email'],
 input[type='password'],
+input[type='tel'],
 select,
 textarea {
   width: 100%;
@@ -3057,4 +3054,68 @@ table.lista td.cel-sem-contrato {
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: left;
+}
+
+/* ================================================================
+   Manual da marca Souz v1.0 — o que não cabe só nos tokens
+   ================================================================ */
+
+/* Prancha 03: tudo que alinha em coluna vai em IBM Plex Mono tabular —
+   valor, total, código, data. Peso 500, como no manual. */
+table.lista td.num,
+table.lista tfoot td.num,
+table.tab td.num,
+.mini-tab td.num,
+.kpi-val,
+.kpi .valor,
+.resumo-val,
+.par dd,
+.cel-num-nota,
+.agenda-data,
+.contato-numero,
+.lateral-nav button .cont,
+.pilula .conta,
+.tabular,
+.mono {
+  font-family: var(--fonte-mono);
+  font-variant-numeric: tabular-nums;
+}
+.kpi-val,
+.kpi .valor,
+.resumo-val {
+  font-weight: var(--p-medio);
+  letter-spacing: -0.01em;
+}
+/* O Plex Mono é mais largo que o Archivo: na tabela, o número vai no
+   tamanho secundário e um pouco mais junto, para caber na coluna sem
+   reticências (a Carteira com o painel de ação aberto é o caso-limite). */
+table.lista td.num,
+table.lista tfoot td.num,
+table.tab td.num,
+.mini-tab td.num,
+.cel-num-nota {
+  font-size: var(--t-peq);
+  letter-spacing: -0.03em;
+}
+/* a linha de baixo da célula de número ("76% de 120,7 mil") é apoio, não
+   valor de coluna: volta para o Archivo, mais estreito, no menor tamanho */
+table.lista td.num span {
+  font-family: var(--fonte);
+  font-size: var(--t-mini);
+  letter-spacing: 0;
+}
+
+/* Título quanto maior, mais fechado: −2,2% no título da tela, −1,2% no
+   de sheet e seção. */
+#topo .titulo b {
+  letter-spacing: -0.022em;
+}
+.modal > header h3,
+.inspetor-cab h2 {
+  letter-spacing: -0.012em;
+}
+
+/* Prancha 04: nada mais arredondado que 8px — a pílula de filtro também. */
+.pilula {
+  border-radius: var(--r-btn);
 }

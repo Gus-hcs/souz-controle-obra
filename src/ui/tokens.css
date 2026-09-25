@@ -1,8 +1,10 @@
 /* ================================================================
-   SOUZ — tokens de interface  (PROPOSTA — ainda não ligada ao build)
+   SOUZ — tokens de interface
 
    Linguagem: app nativo de macOS (Finder, Notas, Numbers, Ajustes do
-   Sistema) com a marca Souz no lugar do azul da Apple.
+   Sistema) vestido com o Manual da Marca Souz v1.0 (set/2026): preto com
+   traço de verde, grafite nas superfícies, Ciano Souz como única cor,
+   Archivo no texto e IBM Plex Mono nos números.
 
    Três regras que explicam todas as escolhas daqui para baixo:
 
@@ -22,11 +24,12 @@
   color-scheme: light;
 
   /* ---------------------------------------------------------- tipo
-     Pilha do sistema. SF Pro não se embute: a licença da Apple não
-     permite uso web fora das plataformas dela — mas em um Mac o
-     -apple-system já entrega SF Pro. No Windows cai no Segoe UI. */
-  --fonte: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'Helvetica Neue', sans-serif;
-  --fonte-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+     Manual da marca, prancha 03: Archivo (grotesca industrial) no texto e
+     IBM Plex Mono em tudo que alinha em coluna — valor, código, data.
+     Carregadas do Google Fonts no index.html; sem rede, cai na pilha do
+     sistema e nada quebra. */
+  --fonte: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --fonte-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --t-mini: 11px; /* rótulo de coluna, legenda de gráfico, contador */
   --t-peq: 12px; /* texto secundário, subtítulo, dica */
@@ -38,7 +41,7 @@
 
   --p-normal: 400;
   --p-medio: 500;
-  --p-semi: 590; /* o "semibold" do SF; no Segoe arredonda para 600 */
+  --p-semi: 600;
   --p-forte: 700;
 
   --lh-apertado: 1.25;
@@ -55,13 +58,14 @@
   --e10: 40px;
 
   /* -------------------------------------------------------- raio
-     macOS é econômico: 6px no botão, 8px no cartão, 10px no que
-     flutua. Nada de 16px "arredondado por decoração". */
-  --r-micro: 3px; /* indicador, tag, barra de progresso */
-  --r-campo: 5px; /* campo de texto, select */
-  --r-btn: 6px; /* botão, controle segmentado */
+     Manual da marca, prancha 04: 0 na marca e em divisor, 8 em botão e
+     cartão — nada mais arredondado que isso. --r-total fica só para o
+     que é círculo de verdade (ponto de status, avatar). */
+  --r-micro: 2px; /* indicador, tag, barra de progresso */
+  --r-campo: 6px; /* campo de texto, select */
+  --r-btn: 8px; /* botão, controle segmentado, pílula */
   --r-cartao: 8px; /* cartão, popover */
-  --r-sheet: 10px; /* sheet, folha que desce do topo */
+  --r-sheet: 8px; /* sheet, folha que desce do topo */
   --r-total: 999px;
 
   /* ------------------------------------------------------ medidas
@@ -79,69 +83,69 @@
   --leitura-max: 1080px; /* telas de leitura e formulário: Configuração, Ajustes, Relatório */
 
   /* ------------------------------------------------------ camadas
-     No claro, o conteúdo é branco e a sidebar é o material cinza —
-     o contrário do escuro. É assim no Finder, e é o que faz a janela
-     parecer profunda sem sombra nenhuma. */
-  --fundo-janela: #ffffff;
-  --fundo-conteudo: #ffffff;
-  --fundo-lateral: rgba(246, 247, 247, 0.82); /* material translúcido */
-  --fundo-lateral-solido: #f6f7f7; /* fallback sem backdrop-filter */
-  --fundo-toolbar: rgba(252, 252, 252, 0.8);
-  --fundo-agrupado: #f5f6f6; /* fundo de área com cartões dentro */
+     Claro = o "Papel" do manual (#EDEFEE) na sidebar e nos fundos
+     agrupados; conteúdo e cartão na superfície clara (#FBFCFB). */
+  --fundo-janela: #fbfcfb;
+  --fundo-conteudo: #fbfcfb;
+  --fundo-lateral: rgba(237, 239, 238, 0.86); /* Papel, translúcido */
+  --fundo-lateral-solido: #edefee; /* fallback sem backdrop-filter */
+  --fundo-toolbar: rgba(251, 252, 251, 0.82);
+  --fundo-agrupado: #edefee; /* fundo de área com cartões dentro */
   --fundo-elevado: #ffffff; /* popover, menu, sheet */
   --fundo-campo: #ffffff;
   --fundo-ctrl: #ffffff; /* botão neutro */
-  --fundo-ctrl-ativo: #eceded; /* botão pressionado */
-  --fundo-zebra: rgba(0, 0, 0, 0.022); /* zebra quase imperceptível */
-  --fundo-hover: rgba(0, 0, 0, 0.045);
+  --fundo-ctrl-ativo: #e3e7e5; /* botão pressionado */
+  --fundo-zebra: rgba(5, 16, 14, 0.022); /* zebra quase imperceptível */
+  --fundo-hover: rgba(5, 16, 14, 0.045);
 
   /* ------------------------------------------------------- tinta
-     Todos passam AA (4,5:1) para texto pequeno sobre o fundo do conteúdo,
-     nos dois temas — tests/contraste.test.js confere.
-     Uma restrição: --tinta3 NÃO vale sobre a lateral no escuro (3,9:1).
-     Cabeçalho de seção da sidebar usa --tinta2. */
-  --tinta: #161a19; /* primária */
-  --tinta2: #5b6462; /* secundária — rótulo, subtítulo */
-  --tinta3: #69726f; /* terciária — placeholder, unidade, dica (AA: 4,96 no branco) */
-  --tinta-inversa: #ffffff;
+     Todos passam AA (4,5:1) para texto pequeno sobre o conteúdo e sobre
+     a lateral, nos dois temas — tests/contraste.test.js confere.
+     O Traço do manual (#686868) é só linha: como texto não passa. */
+  --tinta: #05100e; /* Souz Preto */
+  --tinta2: #3e4b48; /* secundária — rótulo, subtítulo */
+  --tinta3: #626d6a; /* terciária — placeholder, unidade, dica (AA: 5,2) */
+  --tinta-inversa: #fbfcfb;
 
   /* --------------------------------------------------- separador
      Uma linha, nunca uma caixa. A "forte" só separa cabeçalho de
      tabela do corpo e rodapé de total. */
-  --separador: rgba(0, 0, 0, 0.1);
-  --separador-forte: rgba(0, 0, 0, 0.18);
+  --separador: #d3dad7;
+  --separador-forte: #b7c2be;
 
   /* ------------------------------------------------------- acento
-     Ciano da marca. Regra do manual: preenchimento ciano leva texto
-     ESCURO, nunca branco. Vale também para a linha selecionada. */
-  --acento: #0e9384; /* preenchimento: botão primário, seleção */
-  --acento-premido: #0b7a6d;
+     Ciano Souz (#0B7D72), a única cor. Manual, prancha 02: botão primário
+     com texto #FBFCFB (4,87:1). Como TEXTO sobre o claro o ciano cheio só
+     vale em título grande (4,34:1 no Papel), então link e rótulo usam um
+     degrau mais fechado do mesmo ciano. */
+  --acento: #0b7d72; /* preenchimento: botão primário, seleção */
+  --acento-premido: #096a61;
   --acento-texto: #0a6b62; /* texto/link/ícone em ciano sobre claro */
-  --acento-fraco: #e6f4f2; /* fundo de apoio bem lavado */
-  --sobre-acento: #04120f; /* o que fica em cima do ciano */
-  --foco: #0e9384;
-  --anel-foco: 0 0 0 3px rgba(14, 147, 132, 0.3);
+  --acento-fraco: #e3f1ef; /* fundo de apoio bem lavado */
+  --sobre-acento: #fbfcfb; /* o que fica em cima do ciano */
+  --foco: #0b7d72;
+  --anel-foco: 0 0 0 3px rgba(11, 125, 114, 0.3);
 
   /* --------------------------------------------------- semânticos
      Discretos e só quando informam. CONCLUÍDO É CINZA, de propósito:
      se "feito" fosse verde, brigaria com o acento e a tela voltaria a
      ter duas cores competindo. Verde nesta interface = ação, não estado. */
-  --atraso: #c0392b; /* atrasado, orçamento estourado, saldo negativo */
-  --atraso-fundo: #fcedeb;
-  --alerta: #8a5a00; /* vence em breve, medição não enviada */
-  --alerta-fundo: #fcf3e2;
+  --atraso: #b53a2a; /* atrasado, orçamento estourado, saldo negativo */
+  --atraso-fundo: #fbedea;
+  --alerta: #855700; /* vence em breve, medição não enviada */
+  --alerta-fundo: #fbf2e1;
   --neutro-feito: var(--tinta3); /* concluído, pago, encerrado */
 
   /* ------------------------------------------------ séries de gráfico
      Ordem pensada para daltonismo. A 1ª é o acento; as demais não
      competem com ele. */
-  --serie1: #0e9384;
+  --serie1: #0b7d72;
   --serie2: #a35f0c;
   --serie3: #5b6abf;
   --serie4: #4a7c2f;
   --serie5: #9a4e8f;
   --serie6: #5f6c75;
-  --grade-grafico: rgba(0, 0, 0, 0.08);
+  --grade-grafico: rgba(11, 125, 114, 0.1);
 
   /* ------------------------------------------------------- sombra
      Só no que flutua. Cartão não tem sombra: tem separador. */
@@ -167,55 +171,58 @@
    tem pré-processador. Mexeu em um, mexa no outro — tests/tokens.test.js
    quebra o `npm test` se os dois saírem de sincronia.
 
-   No escuro a sidebar é MAIS CLARA que o conteúdo, o inverso do claro.
-   É o que dá a leitura de "janela" do macOS sem precisar de sombra. */
+   No escuro a sidebar (Grafite) é mais clara que o conteúdo (Souz
+   Preto), o inverso do claro — é o que dá a leitura de "janela" do
+   macOS sem precisar de sombra. */
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
 
-    --fundo-janela: #1b1f1e;
-    --fundo-conteudo: #1b1f1e;
-    --fundo-lateral: rgba(44, 50, 48, 0.72);
-    --fundo-lateral-solido: #2c3230;
-    --fundo-toolbar: rgba(38, 43, 42, 0.78);
-    --fundo-agrupado: #161a19;
-    --fundo-elevado: #2a302e;
-    --fundo-campo: #101413;
-    --fundo-ctrl: #343b39;
-    --fundo-ctrl-ativo: #414947;
-    --fundo-zebra: rgba(255, 255, 255, 0.025);
-    --fundo-hover: rgba(255, 255, 255, 0.06);
+    /* a marca nasce no escuro: Souz Preto no conteúdo, Grafite na
+       sidebar e nas barras, Elevado no que flutua */
+    --fundo-janela: #05100e;
+    --fundo-conteudo: #05100e;
+    --fundo-lateral: rgba(14, 26, 23, 0.9);
+    --fundo-lateral-solido: #0e1a17;
+    --fundo-toolbar: rgba(14, 26, 23, 0.86);
+    --fundo-agrupado: #0e1a17;
+    --fundo-elevado: #0e2824;
+    --fundo-campo: #0e1a17;
+    --fundo-ctrl: #0e2824;
+    --fundo-ctrl-ativo: #173934;
+    --fundo-zebra: rgba(232, 232, 232, 0.022);
+    --fundo-hover: rgba(47, 212, 196, 0.06);
 
-    --tinta: #f2f4f3;
-    --tinta2: #a7b0ae;
-    --tinta3: #858e8b;
-    --tinta-inversa: #101413;
+    --tinta: #e8e8e8; /* Névoa */
+    --tinta2: #adadad; /* Cinza */
+    --tinta3: #8a9894;
+    --tinta-inversa: #05100e;
 
-    --separador: rgba(255, 255, 255, 0.11);
-    --separador-forte: rgba(255, 255, 255, 0.2);
+    --separador: #1c2e2a;
+    --separador-forte: #2a423d;
 
-    --acento: #12a594;
-    --acento-premido: #0e9384;
-    --acento-texto: #3fc9b8;
-    --acento-fraco: #0e2b27;
-    --sobre-acento: #04120f;
-    --foco: #3fc9b8;
-    --anel-foco: 0 0 0 3px rgba(63, 201, 184, 0.32);
+    --acento: #0b7d72; /* Ciano Souz: só preenchimento no escuro */
+    --acento-premido: #096a61;
+    --acento-texto: #2fd4c4; /* Ciano Claro: link, rótulo, destaque */
+    --acento-fraco: #0e2824;
+    --sobre-acento: #fbfcfb;
+    --foco: #2fd4c4;
+    --anel-foco: 0 0 0 3px rgba(47, 212, 196, 0.32);
 
-    --atraso: #f08070;
-    --atraso-fundo: #35201d;
+    --atraso: #e2705f;
+    --atraso-fundo: #2a1411;
     --alerta: #e0a44a;
-    --alerta-fundo: #2e2415;
+    --alerta-fundo: #2a2012;
     --neutro-feito: var(--tinta3);
 
-    --serie1: #3fc9b8;
+    --serie1: #2fd4c4;
     --serie2: #e0a44a;
     --serie3: #8b93f8;
     --serie4: #8cc63f;
     --serie5: #d18bcb;
     --serie6: #9aa7ad;
-    --grade-grafico: rgba(255, 255, 255, 0.08);
+    --grade-grafico: rgba(47, 212, 196, 0.1);
 
     --sombra-popover: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.45);
     --sombra-menu: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 8px 26px rgba(0, 0, 0, 0.5);
@@ -227,48 +234,50 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --fundo-janela: #1b1f1e;
-  --fundo-conteudo: #1b1f1e;
-  --fundo-lateral: rgba(44, 50, 48, 0.72);
-  --fundo-lateral-solido: #2c3230;
-  --fundo-toolbar: rgba(38, 43, 42, 0.78);
-  --fundo-agrupado: #161a19;
-  --fundo-elevado: #2a302e;
-  --fundo-campo: #101413;
-  --fundo-ctrl: #343b39;
-  --fundo-ctrl-ativo: #414947;
-  --fundo-zebra: rgba(255, 255, 255, 0.025);
-  --fundo-hover: rgba(255, 255, 255, 0.06);
+  /* a marca nasce no escuro: Souz Preto no conteúdo, Grafite na
+     sidebar e nas barras, Elevado no que flutua */
+  --fundo-janela: #05100e;
+  --fundo-conteudo: #05100e;
+  --fundo-lateral: rgba(14, 26, 23, 0.9);
+  --fundo-lateral-solido: #0e1a17;
+  --fundo-toolbar: rgba(14, 26, 23, 0.86);
+  --fundo-agrupado: #0e1a17;
+  --fundo-elevado: #0e2824;
+  --fundo-campo: #0e1a17;
+  --fundo-ctrl: #0e2824;
+  --fundo-ctrl-ativo: #173934;
+  --fundo-zebra: rgba(232, 232, 232, 0.022);
+  --fundo-hover: rgba(47, 212, 196, 0.06);
 
-  --tinta: #f2f4f3;
-  --tinta2: #a7b0ae;
-  --tinta3: #858e8b;
-  --tinta-inversa: #101413;
+  --tinta: #e8e8e8; /* Névoa */
+  --tinta2: #adadad; /* Cinza */
+  --tinta3: #8a9894;
+  --tinta-inversa: #05100e;
 
-  --separador: rgba(255, 255, 255, 0.11);
-  --separador-forte: rgba(255, 255, 255, 0.2);
+  --separador: #1c2e2a;
+  --separador-forte: #2a423d;
 
-  --acento: #12a594;
-  --acento-premido: #0e9384;
-  --acento-texto: #3fc9b8;
-  --acento-fraco: #0e2b27;
-  --sobre-acento: #04120f;
-  --foco: #3fc9b8;
-  --anel-foco: 0 0 0 3px rgba(63, 201, 184, 0.32);
+  --acento: #0b7d72; /* Ciano Souz: só preenchimento no escuro */
+  --acento-premido: #096a61;
+  --acento-texto: #2fd4c4; /* Ciano Claro: link, rótulo, destaque */
+  --acento-fraco: #0e2824;
+  --sobre-acento: #fbfcfb;
+  --foco: #2fd4c4;
+  --anel-foco: 0 0 0 3px rgba(47, 212, 196, 0.32);
 
-  --atraso: #f08070;
-  --atraso-fundo: #35201d;
+  --atraso: #e2705f;
+  --atraso-fundo: #2a1411;
   --alerta: #e0a44a;
-  --alerta-fundo: #2e2415;
+  --alerta-fundo: #2a2012;
   --neutro-feito: var(--tinta3);
 
-  --serie1: #3fc9b8;
+  --serie1: #2fd4c4;
   --serie2: #e0a44a;
   --serie3: #8b93f8;
   --serie4: #8cc63f;
   --serie5: #d18bcb;
   --serie6: #9aa7ad;
-  --grade-grafico: rgba(255, 255, 255, 0.08);
+  --grade-grafico: rgba(47, 212, 196, 0.1);
 
   --sombra-popover: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.45);
   --sombra-menu: 0 0 0 0.5px rgba(0, 0, 0, 0.5), 0 8px 26px rgba(0, 0, 0, 0.5);
