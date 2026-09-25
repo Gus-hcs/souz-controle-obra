@@ -157,7 +157,7 @@ function celulaReal(e, c) {
     c.atraso > 0
       ? `${c.atraso} dia${c.atraso === 1 ? '' : 's'} de atraso`
       : e.quantidadeExecutada
-        ? `${fmtNum(e.quantidadeExecutada, 1)} ${e.unidadeProducao || ''}${c.produtividade ? ` · ${fmtNum(c.produtividade, 1)}/dia` : ''}`
+        ? `${fmtNum(e.quantidadeExecutada, 1)} ${e.unidadeProducao || ''}${c.produtividade ? ` · ${fmtNum(c.produtividade, 1)} ${e.unidadeProducao ? e.unidadeProducao + '/' : 'por '}dia` : ''}`
         : '';
   return `<div style="display:flex;flex-direction:column;line-height:1.3;gap:2px">
     <span class="${c.atraso > 0 ? 'atraso' : 'tinta2'}">${txt ? esc(txt) : '<span class="tinta3">—</span>'}</span>

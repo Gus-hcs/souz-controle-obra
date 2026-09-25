@@ -1574,6 +1574,23 @@ function alteracaoSensivel(linha) {
   return linha.operacao === 'DELETE' || CAMPOS_SENSIVEIS.has(linha.campo);
 }
 
+/* Unidade de produção que a etapa costuma ter: fundação e estrutura em
+   m³, muro e calha em m, louça e esquadria em un; o resto (alvenaria,
+   reboco, piso, pintura…) em m². É só sugestão — preenche a unidade
+   vazia ao salvar a etapa; a escolhida pelo usuário prevalece. */
+const UNIDADE_POR_ETAPA = [
+  [/funda|estrutur|concret|laje|sapata|baldrame/, 'm³'],
+  [/muro|calha|rufo|meio-fio|cerca/, 'm'],
+  [/louc|metais|porta|esquadri|janela|fossa|sumidouro|bancada|marmore|instala|eletroduto/, 'un'],
+];
+
+function unidadeSugeridaEtapa(etapa) {
+  const n = norm(etapa || '');
+  if (!n) return '';
+  const achou = UNIDADE_POR_ETAPA.find(([re]) => re.test(n));
+  return achou ? achou[1] : 'm²';
+}
+
 /* Saúde do cliente: a da obra dele em pior estado. Cliente sem obra não
    tem saúde (null) — a tela mostra a situação do cadastro. */
 function saudeCliente(obras, hoje = hojeISO()) {
@@ -1975,6 +1992,7 @@ export {
   estouroContratos,
   saudeObra,
   saudeCliente,
+  unidadeSugeridaEtapa,
   medicaoPagamento,
   medicoesEmAberto,
   alteracaoSensivel,

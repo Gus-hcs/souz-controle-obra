@@ -16,6 +16,7 @@ import {
   listaProtegida,
   saudeCliente,
   saudeObra,
+  unidadeSugeridaEtapa,
   usoItensLista,
 } from '../src/dominio/calculos.js';
 import { apenasErros, validarEmpresa } from '../src/dominio/validacao.js';
@@ -180,5 +181,24 @@ describe('Medições — pagamento parcial se destaca', () => {
     expect(medicaoPagamento(o, por('CT-001', '4'))).toBe('aberta');
     expect(medicaoPagamento(o, por('CT-001', '1'))).toBe('quitada');
     expect(medicaoPagamento(o, { ...por('CT-001', '4'), status: 'Cancelado' })).toBe('cancelada');
+  });
+});
+
+describe('Cronograma — unidade de produção pela etapa, não m² para tudo', () => {
+  it.each([
+    ['Fundação', 'm³'],
+    ['Estrutura', 'm³'],
+    ['Muro', 'm'],
+    ['Calhas e rufos', 'm'],
+    ['Louças e metais', 'un'],
+    ['Esquadrias/janelas', 'un'],
+    ['Instalações hidrossanitárias', 'un'],
+    ['Fechamento/alvenaria', 'm²'],
+    ['Pintura', 'm²'],
+  ])('%s → %s', (etapa, un) => {
+    expect(unidadeSugeridaEtapa(etapa)).toBe(un);
+  });
+  it('etapa sem nome não sugere', () => {
+    expect(unidadeSugeridaEtapa('')).toBe('');
   });
 });

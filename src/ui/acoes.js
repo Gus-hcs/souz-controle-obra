@@ -2,7 +2,7 @@
  * acoes.js — Ações: tudo que um clique dispara — abrir formulário, salvar, excluir.
  */
 import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, uid } from '../nucleo/base.js';
-import { alertasObra, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, listaProtegida, materialCalc, medicaoAlerta, resumoPrestador, usoItensLista } from '../dominio/calculos.js';
+import { alertasObra, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, listaProtegida, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa, usoItensLista } from '../dominio/calculos.js';
 import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
@@ -748,6 +748,8 @@ function formEtapa(e, novo, aoSalvar) {
     validar: (d) => validarEtapa(d),
     aoSalvar: (d) => {
       if (!d.etapa) return toast('Informe o nome da etapa.', 'aviso');
+      /* unidade vazia: a que a etapa costuma ter, não m² para tudo */
+      if (!d.unidadeProducao) d.unidadeProducao = unidadeSugeridaEtapa(d.etapa);
       Object.assign(e, d);
       fecharModal();
       aoSalvar(e);

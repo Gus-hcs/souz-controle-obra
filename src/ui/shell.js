@@ -83,7 +83,7 @@ const MENU = [
   ] },
   { grupo: 'Acompanhar', obra: true, passo: 3, nota: 'sempre à vista', itens: [
     { v: 'painel', t: 'Painel', i: 'painel' },
-    { v: 'curva', t: 'Controle Financeiro', i: 'curva' },
+    { v: 'curva', t: 'Físico × financeiro', i: 'curva' },
     { v: 'fluxo', t: 'Fluxo de caixa', i: 'fluxo' },
     { v: 'alertas', t: 'Alertas', i: 'alerta' },
     { v: 'relatorio', t: 'Relatórios', i: 'relatorio' }
@@ -110,7 +110,7 @@ const TITULOS = {
   lancamentos: ['Lançamentos', 'Compras, taxas e demais saídas'],
   materiais: ['Plano de materiais', 'O que comprar, quando e quanto falta'],
   cronograma: ['Cronograma da obra', 'Etapas, prazos e progresso real'],
-  curva: ['Controle Financeiro', 'Curva S — avanço físico x financeiro e desvio'],
+  curva: ['Físico × financeiro', 'Curva S: o que foi feito contra o que foi gasto, e a tendência'],
   diario: ['Diário de obra', 'Registro de visitas, ocorrências e fotos'],
   fluxo: ['Fluxo de caixa', 'Entradas e saídas mês a mês'],
   alertas: ['Alertas', 'Pendências que exigem ação'],
