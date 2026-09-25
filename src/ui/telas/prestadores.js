@@ -39,6 +39,7 @@ import {
 import {
   avaliacaoPrestador,
   CRITERIOS_AVAL,
+  compararPrestadorAPagar,
   duplicadosPrestador,
   prestadoresPagosSemContrato,
   resumoPrestador,
@@ -157,10 +158,12 @@ const comDados = (ps) =>
     a: avaliacaoPrestador(Store.estado, p),
   }));
 
+/* Quem espera pagamento há mais tempo vem primeiro (compararPrestadorAPagar);
+   clicar num cabeçalho troca para a ordem daquela coluna. */
 function dados() {
   let ds = comDados(base());
   if (tela.comSaldo) ds = ds.filter((d) => d.r.aPagarAgora > 0.005);
-  return ds;
+  return ds.sort(compararPrestadorAPagar);
 }
 
 /* Colunas. A de Avaliação só existe quando alguém tem avaliação — coluna
@@ -303,7 +306,6 @@ function barraFiltros() {
   const semEsp = base({ semEspecialidade: true });
   const comSaldo = comDados(base()).filter((d) => d.r.aPagarAgora > 0.005).length;
   const arquivados = Store.estado.prestadores.filter((p) => p.arquivado).length;
-  const sug = somenteLeitura() ? 0 : sugestoes().length;
   return `<div class="filtro-barra nao-imprime">
     <button class="pilula${tela.especialidade ? ' ativa' : ''}" data-acao="prest-esp-menu" aria-haspopup="menu">
       ${tela.especialidade ? esc(tela.especialidade) : 'Todas as especialidades'} <span class="conta">${
@@ -319,12 +321,6 @@ function barraFiltros() {
       arquivados || tela.arquivados
         ? `<button class="pilula${tela.arquivados ? ' ativa' : ''}" data-acao="prest-arquivados" aria-pressed="${tela.arquivados}">
           Arquivados <span class="conta">${arquivados}</span></button>`
-        : ''
-    }
-    ${
-      sug
-        ? `<span class="aviso-discreto filtro-dir">${plural(sug, 'nome', 'nomes')} em caixa alta ·
-          <button class="btn-link" data-acao="prest-revisar-nomes">Revisar</button></span>`
         : ''
     }
   </div>`;
@@ -510,7 +506,8 @@ VIEWS.prestadores = () => {
         tabelaClasse: 'lista-prestadores',
         colunas: colunas(temAvaliacao),
         itens: ds,
-        ordemPadrao: { col: 'nome', dir: 1 },
+        /* chave sem coluna: a lista mantém a ordem de dados() */
+        ordemPadrao: { col: 'a-pagar-antigo', dir: 1 },
         rodapeRotulo: (n) => `${n} prestadores`,
         linhaAttrs: (d) =>
           `data-acao="prest-selecionar" data-id="${esc(d.p.id)}" data-prestador="${esc(d.p.id)}"${d.p.id === tela.selecao ? ' aria-selected="true"' : ''}`,
@@ -973,6 +970,8 @@ document.addEventListener('keydown', (ev) => {
    Prévia de "WESLEY PINTOR" → Wesley · Wesley Pintor · Pintor. Nada muda
    sem a pessoa marcar e confirmar. */
 
+/* Nomes em caixa alta: o aviso mora em Ajustes (é arrumação de cadastro,
+   não o trabalho do dia); a revisão continua aqui. */
 function sugestoes() {
   const esp = Store.estado.listas.especialidades || [];
   return Store.estado.prestadores
@@ -1093,4 +1092,5 @@ ACOES['prest-salvar-aval'] = () => {
   toast('Avaliação registrada.', 'ok');
 };
 
-export { tela };
+export {
+  sugestoes as sugestoesNomesPrestador, tela };

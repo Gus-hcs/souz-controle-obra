@@ -1289,6 +1289,10 @@ table.lista tfoot td.num {
   table.lista tbody td.principal-celular .cel-dupla {
     flex-wrap: wrap;
   }
+  /* no cartão há espaço: o nome não precisa reservar 40% da linha */
+  table.lista tbody td.principal-celular .cel-dupla b {
+    min-width: 0;
+  }
 
   /* Linha 2: os números que importam, em sequência, separados por espaço.
      `display: inline` em vez de bloco é o que os põe na mesma linha. */

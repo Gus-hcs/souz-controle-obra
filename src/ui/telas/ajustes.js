@@ -12,6 +12,7 @@ import { Store, horaCurta } from '../../dados/store.js';
 import { SUPA } from '../../dados/supabase.js';
 import { botao, campoHTML } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
+import { sugestoesNomesPrestador } from './prestadores.js';
 
 const LISTAS_EDITAVEIS = [
   ['etapas', 'Etapas da obra'],
@@ -65,6 +66,7 @@ VIEWS.ajustes = () => {
   const emp = e.empresa;
   const tamanho = (JSON.stringify(e).length / 1024).toFixed(0);
   const avisosEmpresa = validarEmpresa(emp);
+  const nomesCaixaAlta = Store.somenteLeitura() ? 0 : sugestoesNomesPrestador().length;
   const uso = usoItensLista(e);
   /* "12 em uso" embaixo de cada lista: quem apaga um item sabe antes */
   const dicaUso = (k) => {
@@ -142,6 +144,14 @@ VIEWS.ajustes = () => {
         </p>
       </div>
     </div>
+
+    ${
+      /* arrumação de cadastro: morava na barra de Prestadores */
+      nomesCaixaAlta
+        ? `<div class="aviso-linha" role="status">${nomesCaixaAlta} ${nomesCaixaAlta === 1 ? 'nome de prestador está' : 'nomes de prestadores estão'} em caixa alta ou com a especialidade junto ao nome.
+            <button class="btn-link" data-acao="prest-revisar-nomes">Revisar nomes</button></div>`
+        : ''
+    }
 
     <div class="caixa">
       <div class="caixa-cab">

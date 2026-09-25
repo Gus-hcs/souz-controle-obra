@@ -9,6 +9,8 @@ import {
   alteracaoSensivel,
   ativacaoConta,
   coberturaPlanoMateriais,
+  compararPrestadorAPagar,
+  resumoPrestador,
   empreitadaPrincipal,
   fotosDaSemana,
   incoerenciasObra,
@@ -308,5 +310,22 @@ describe('Relatórios — fotos da semana no PDF do cliente', () => {
     const o = casa14();
     o.diario = [{ data: HOJE, fotos: Array.from({ length: 9 }, () => ({ dados: PNG })) }];
     expect(fotosDaSemana(o, HOJE, 6)).toHaveLength(6);
+  });
+});
+
+describe('Prestadores — quem espera pagamento há mais tempo vem primeiro', () => {
+  it('aPagarDesde é a medição em aberto mais antiga dos contratos dele', () => {
+    const o = casa14();
+    const ct = o.contratos.find((c) => c.codigoBase === 'CT-002');
+    ct.prestador = 'Pedro Pisos';
+    const est = { obras: [o], prestadores: [] };
+    const r = resumoPrestador(est, { id: 'p1', nome: 'Pedro Pisos', apelido: '' });
+    const aberta = o.medicoes.find((m) => m.contratoBase === 'CT-002' && m.numero === '2');
+    expect(r.aPagarDesde).toBe(aberta.data);
+  });
+  it('ordem: mais antigo primeiro, sem conta no fim, empate pelo nome', () => {
+    const d = (nome, desde) => ({ p: { nome }, r: { aPagarDesde: desde } });
+    const lista = [d('Zé', ''), d('Ana', '2026-08-01'), d('Bia', '2026-06-01'), d('Caio', '')];
+    expect(lista.sort(compararPrestadorAPagar).map((x) => x.p.nome)).toEqual(['Bia', 'Ana', 'Caio', 'Zé']);
   });
 });

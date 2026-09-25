@@ -1843,6 +1843,8 @@ function ligadoAoPrestador(p, prestadorId, nomeTexto) {
 function resumoPrestador(estado, p) {
   let contratado = 0, pagoMedicoes = 0, pagoLancamentos = 0, aPagarAgora = 0, aMedir = 0;
   let qtdContratos = 0, qtdMedicoesPagas = 0, qtdLancamentos = 0;
+  /* data da medição em aberto mais antiga: quem espera há mais tempo */
+  let aPagarDesde = '';
   const obras = [];
   const pagamentos = [];
   estado.obras.forEach((o) => {
@@ -1858,6 +1860,9 @@ function resumoPrestador(estado, p) {
     let pmObra = 0;
     o.medicoes.forEach((m) => {
       if (!bases.has(m.contratoBase) || m.status === 'Cancelado') return;
+      if (isISO(m.data) && medicaoAPagar(o, m) > 0.005 && (!aPagarDesde || m.data < aPagarDesde)) {
+        aPagarDesde = m.data;
+      }
       const pg = num(m.valorPago);
       pmObra += pg;
       if (pg > 0) {
@@ -1891,7 +1896,7 @@ function resumoPrestador(estado, p) {
   pagamentos.sort((a, b) => String(b.data || '').localeCompare(String(a.data || '')));
   return {
     contratado, pago: pagoMedicoes + pagoLancamentos, pagoMedicoes, pagoLancamentos,
-    aPagarAgora: round2(aPagarAgora), aMedir: round2(aMedir), obras, pagamentos,
+    aPagarAgora: round2(aPagarAgora), aMedir: round2(aMedir), aPagarDesde, obras, pagamentos,
     qtdContratos, qtdMedicoesPagas, qtdLancamentos,
     /* Sem contrato, "Contratado R$ 0" e "A pagar agora R$ 0" seriam falsos: não
        é que não haja nada a pagar, é que não há contrato para comparar. */
@@ -1899,6 +1904,16 @@ function resumoPrestador(estado, p) {
     /* com qualquer vínculo, só pode ser arquivado — nunca apagado */
     temVinculo: obras.length > 0
   };
+}
+
+/* Ordem padrão da lista de prestadores: quem tem conta a receber há mais
+   tempo primeiro (aPagarDesde crescente); depois, pelo nome. */
+function compararPrestadorAPagar(a, b) {
+  const da = a.r.aPagarDesde, db = b.r.aPagarDesde;
+  if (da && db && da !== db) return da < db ? -1 : 1;
+  if (da && !db) return -1;
+  if (!da && db) return 1;
+  return String(a.p.nome || '').localeCompare(String(b.p.nome || ''), 'pt');
 }
 
 /* Totais de uma lista de prestadores — o rodapé da tela sai daqui.
@@ -2139,6 +2154,7 @@ export {
   previaVinculoPrestadores,
   avaliacaoPrestador,
   duplicadosPrestador,
+  compararPrestadorAPagar,
   CRITERIOS_AVAL,
   capitalizarNome,
   sugestaoNomePrestador

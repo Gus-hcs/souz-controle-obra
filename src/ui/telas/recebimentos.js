@@ -112,7 +112,13 @@ VIEWS.recebimentos = () => {
         ]
           .filter(Boolean)
           .join(' · ');
-        return `<div class="cel-dupla"><b>${esc(d.r.etapaPci || d.r.origem || '—')}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div>`;
+        /* no cartão do celular, parcela não recebida mostra o previsto e a
+           data — "Recebido —" sozinho não dizia quanto nem quando */
+        const aReceber =
+          num(d.r.valorRecebido) <= 0.005 && num(d.r.valorPrevisto) > 0.005
+            ? `<span class="so-celular">previsto ${esc(fmtMoney(num(d.r.valorPrevisto), { dec: 0 }))}${isISO(d.r.dataPrevista) ? ` para ${esc(fmtDataCurta(d.r.dataPrevista))}` : ''}</span>`
+            : '';
+        return `<div class="cel-dupla"><b>${esc(d.r.etapaPci || d.r.origem || '—')}</b>${sub ? `<span>${esc(sub)}</span>` : ''}${aReceber}</div>`;
       },
     },
     {
