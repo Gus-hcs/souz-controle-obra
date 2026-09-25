@@ -303,6 +303,12 @@ const App = {
     }
     prepararTabelas(alvo);
     desenharGraficosPendentes();
+    /* Linha do tempo que não cabe (Gantt no celular): abre rolada até hoje,
+       com um terço da largura de passado à esquerda — antes abria no
+       primeiro mês da obra e a linha de hoje ficava fora da tela. */
+    alvo.querySelectorAll('[data-rolar-para]').forEach((el) => {
+      el.scrollLeft = Math.max(0, Number(el.dataset.rolarPara) - el.clientWidth / 3);
+    });
   }
 };
 

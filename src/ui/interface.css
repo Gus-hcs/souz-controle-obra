@@ -1993,7 +1993,77 @@ table.lista-carteira tbody td {
   }
 }
 
-/* ----------------------------------- curva S e próximos 14 dias */
+/* ------------------------------ obras por ritmo e próximos 14 dias */
+/* Ranking por IDP (carteira.js rankingIdp): uma linha por obra, a barra
+   é o ritmo — cheia é 100% do planejado. */
+.ranking-idp {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: var(--fio) solid var(--separador);
+}
+.ranking-item {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) auto auto;
+  align-items: center;
+  gap: var(--e3);
+  width: 100%;
+  padding: var(--e2) 0;
+  background: none;
+  border: 0;
+  border-bottom: var(--fio) solid var(--separador);
+  color: var(--tinta);
+  font-size: var(--t-peq);
+  text-align: left;
+  cursor: pointer;
+}
+.ranking-item:hover {
+  background: var(--fundo-hover);
+}
+.ranking-nome {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ranking-barra {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--separador);
+  overflow: hidden;
+}
+.ranking-barra i {
+  display: block;
+  height: 100%;
+  background: var(--tinta3);
+}
+.ranking-barra i.atraso {
+  background: var(--atraso);
+}
+.ranking-barra i.tom-alerta {
+  background: var(--alerta);
+}
+.ranking-barra i.feito {
+  background: var(--acento);
+}
+.ranking-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Celular: "Precisa de ação" vem primeiro — antes ficava abaixo de 26
+   itens de agenda, e no canteiro ninguém rolava até lá. */
+@media (max-width: 767px) {
+  .tela-carteira {
+    display: flex;
+    flex-direction: column;
+  }
+  #conteudo.paineis .tela-carteira > .inspetor {
+    order: -1;
+    border-top: 0;
+    border-bottom: var(--fio) solid var(--separador);
+  }
+}
+
 .carteira-baixo {
   display: grid;
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
@@ -2972,14 +3042,69 @@ table.lista td.cel-sem-contrato {
   gap: var(--e2);
 }
 
-/* Faixa de chips de contexto (status, prazo, pendências) acima dos kpis. */
-.faixa-contexto {
+/* Frase-âncora (telas-obra.js fraseAncoraHTML), no topo do Painel e da
+   Carteira: situação → por quê → fazer. A borda da esquerda leva a cor do
+   pior nível; o fundo só tinge quando é crítico. */
+.frase-ancora {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  gap: var(--e2);
+  padding: var(--e3) var(--e4);
+  border: var(--fio) solid var(--separador);
+  border-left: 3px solid var(--separador);
+  border-radius: var(--r-cartao);
+  background: var(--fundo-conteudo);
+  margin-bottom: var(--e4);
+}
+.frase-ancora.n-critico {
+  border-left-color: var(--atraso);
+  background: var(--atraso-fundo);
+}
+.frase-ancora.n-atencao {
+  border-left-color: var(--alerta);
+}
+.frase-ancora p {
+  margin: 0;
+}
+.ancora-situacao {
+  font-size: var(--t-corpo);
+  font-weight: var(--p-medio);
+  line-height: 1.45;
+}
+.ancora-linha {
+  display: flex;
   gap: var(--e3);
+  align-items: baseline;
   font-size: var(--t-peq);
   color: var(--tinta2);
+}
+.ancora-rot {
+  flex: none;
+  width: 52px;
+  color: var(--tinta3);
+}
+.ancora-acoes > span:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e2);
+  min-width: 0;
+}
+/* a ação é frase, não rótulo curto: quebra linha em vez de estourar */
+.ancora-acoes .btn {
+  height: auto;
+  min-height: var(--alt-ctrl);
+  padding-block: var(--e1);
+  white-space: normal;
+  text-align: left;
+}
+@media (max-width: 767px) {
+  .ancora-linha {
+    flex-direction: column;
+    gap: var(--e1);
+  }
+  .ancora-acoes .btn {
+    min-height: 44px;
+  }
 }
 
 /* ------------------------------------------ vínculo com o cadastro */
@@ -3144,4 +3269,59 @@ table.lista td.num span {
   --acento-fraco: var(--barra-ctrl-ativo);
   --foco: var(--barra-acento-texto);
   color: var(--tinta);
+}
+
+/* ================================================================
+   Campo de obra (auditoria, Onda 2) — dedo, luva e sol
+   ================================================================ */
+
+/* Lixeira só dentro da edição em tela de toque: na linha, ao lado do
+   lápis, um toque errado apagava a etapa. O "Excluir" fica no rodapé do
+   formulário de edição (acoes.js comExcluir). */
+@media (hover: none), (max-width: 767px) {
+  .acao-excluir {
+    display: none;
+  }
+}
+
+/* Alvo de toque de pelo menos 44 px no botão "+" da barra de cima. */
+@media (max-width: 767px) {
+  #topo .btn.primario {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* Diário: "Registrar hoje" é a ação da tela — grande e primeiro. */
+.registrar-hoje {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e3);
+  margin-bottom: var(--e4);
+  font-size: var(--t-peq);
+}
+.registrar-hoje .btn {
+  min-height: 44px;
+  padding: 0 var(--e6);
+  font-size: var(--t-corpo);
+}
+
+/* Gráfico no celular fica com eixo de 6 px e não se lê: nessa largura ele
+   some e entra uma linha de números (.so-celular) no lugar. */
+.so-celular {
+  display: none;
+}
+@media (max-width: 767px) {
+  .so-celular {
+    display: block;
+  }
+  .nao-celular {
+    display: none;
+  }
+}
+.numeros-celular {
+  margin: 0;
+  font-size: var(--t-corpo);
+  line-height: 1.6;
 }

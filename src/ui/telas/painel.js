@@ -1,27 +1,29 @@
 /**
  * telas/painel.js — Painel da obra, na linguagem nova.
  *
- * Nada calcula aqui: kpisObra, alertasObra, fluxoCaixa, implantacaoObra e os
- * demais vêm prontos de dominio/calculos.js. A tela só organiza o que já foi
- * calculado — o que precisa de atenção primeiro, os números principais
- * depois, os gráficos de apoio por último.
+ * Nada calcula aqui: kpisObra, historiaObra, causasRaizObra, fluxoCaixa,
+ * implantacaoObra e os demais vêm prontos de dominio/calculos.js. A tela
+ * conta a história da obra na ordem da auditoria: situação → causa → ação
+ * na frase do topo, os números principais depois, as causas com o dinheiro
+ * em jogo, os gráficos de apoio por último.
  */
 import { esc, fmtData, fmtMoney, fmtMoneyCurto, fmtPct, num } from '../../nucleo/base.js';
 import {
-  basesContratuais,
+  historiaObra,
   implantacaoObra,
   kpisObra,
   lancamentoTotal,
-  materialCalc,
-  medicaoAPagar,
+  nivelIndice,
   pendenciasObra,
+  valorAgregadoObra,
 } from '../../dominio/calculos.js';
 import { graficoBarras, graficoCurvaS, graficoFluxo } from '../../graficos/index.js';
 import { App, botao } from '../shell.js';
-import { alertaHTML, implExpandida, VIEWS } from '../telas-obra.js';
+import { causaHTML, fraseAncoraHTML, implExpandida, VIEWS } from '../telas-obra.js';
+import { fmtIndice, tomNivel } from './componentes.js';
 
 /* -------------------------------------------------------------- kpis */
-function kpisPainel(o, k) {
+function kpisPainel(o, k, va) {
   const item = (rotulo, valor, contexto, tom = '') => `<div class="kpi-item">
     <span class="kpi-rot">${esc(rotulo)}</span>
     <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
@@ -49,8 +51,10 @@ function kpisPainel(o, k) {
     ${item(
       'Avanço físico',
       fmtPct(k.progressoFisico, 0),
-      `orçamento consumido ${fmtPct(k.progressoFinanceiro, 0)}${k.desvioFisicoFinanceiro < -0.1 ? ' — desembolso à frente' : ''}`,
-      k.desvioFisicoFinanceiro < -0.1 ? 'tom-alerta' : '',
+      va.idp === null
+        ? `orçamento consumido ${fmtPct(k.progressoFinanceiro, 0)}`
+        : `previsto ${fmtPct(va.previsto, 0)} · IDP ${fmtIndice(va.idp)} · IDC ${fmtIndice(va.idc)}`,
+      tomNivel(nivelIndice(va.idp, 'idp')),
     )}
     ${item(
       'Saldo contratual',
@@ -71,42 +75,13 @@ function kpisPainel(o, k) {
   </div>`;
 }
 
-/* ------------------------------------------------------------ contexto */
-function situacaoObra(texto, tom = '') {
-  return `<span class="situacao-ct ${tom}"><span class="pt"></span>${esc(texto)}</span>`;
-}
-
-function faixaContexto(o, k, criticos, atencao) {
-  /* A base do número vai escrita: é a data CONTRATUAL. A etapa mais
-     atrasada (Cronograma, Carteira) é outra conta e tem outro rótulo. */
-  const prazoTxt =
-    k.diasParaFim === null
-      ? 'sem data contratual'
-      : k.diasParaFim < 0
-        ? `data contratual vencida há ${-k.diasParaFim} dias`
-        : `${k.diasParaFim} dias até a data contratual`;
-
-  const pendencias = criticos.length
-    ? situacaoObra(
-        `${criticos.length} alerta${criticos.length > 1 ? 's' : ''} crítico${criticos.length > 1 ? 's' : ''}`,
-        'atraso',
-      )
-    : atencao.length
-      ? situacaoObra(`${atencao.length} em atenção`, 'tom-alerta')
-      : situacaoObra('sem pendências', 'feito');
-
-  return `<div class="faixa-contexto">
-    ${situacaoObra(o.status || 'Planejada', o.status === 'Concluída' ? 'feito' : '')}
-    ${situacaoObra(prazoTxt, k.diasParaFim !== null && k.diasParaFim < 0 ? 'atraso' : 'tinta3')}
-    ${pendencias}
-  </div>`;
-}
-
 /* ------------------------------------------------------ implantação */
 function cartaoImplantacao(o) {
   const impl = implantacaoObra(o);
   const total = impl.passos.length;
   const aberto = !impl.montada || implExpandida.has(o.id);
+  /* obra com os 8 passos feitos não precisa mais da faixa: some sozinha */
+  if (impl.completa && !implExpandida.has(o.id)) return '';
 
   if (!aberto) {
     return `<div class="implantacao montada" data-acao="impl-toggle" data-obra="${o.id}" role="button" tabindex="0">
@@ -158,85 +133,32 @@ function cartaoImplantacao(o) {
   </div>`;
 }
 
-/* -------------------------------------------------------- o que fazer */
-function caixaAcao(o, k, criticos, atencao, pend) {
-  const matSaldo = o.materiais
-    .filter((m) => m.status !== 'Cancelado')
-    .map((m) => materialCalc(o, m));
-  const vencidos = matSaldo.filter((c) => c.vencido);
-  /* mesma regra do valor ao lado (k.medicoesNaoPagas): já desconta a retenção */
-  const medPend = o.medicoes.filter((m) => medicaoAPagar(o, m) > 0.005);
-  const recPend = o.recebimentos.filter((r) => r.status !== 'Recebido' && r.status !== 'Cancelado');
-  const basesNeg = basesContratuais(o).filter((b) => b.saldo < -0.005);
-
-  const linhas = [
-    [
-      'Materiais vencidos sem compra',
-      vencidos.length,
-      vencidos.reduce((s, c) => s + c.saldoValor, 0),
-      'materiais',
-      vencidos.length > 0,
-    ],
-    [
-      'Contratos com saldo negativo',
-      basesNeg.length,
-      basesNeg.reduce((s, b) => s + b.saldo, 0),
-      'contratos',
-      basesNeg.length > 0,
-    ],
-    ['Medições ainda não pagas', medPend.length, k.medicoesNaoPagas, 'medicoes', false],
-    [
-      'Recebimentos previstos pendentes',
-      recPend.length,
-      k.previstoNaoRecebido,
-      'recebimentos',
-      false,
-    ],
-    [
-      'Materiais com saldo a comprar',
-      matSaldo.filter((c) => c.saldo > 0).length,
-      matSaldo.reduce((s, c) => (c.saldo > 0 ? s + c.saldoValor : s), 0),
-      'materiais',
-      false,
-    ],
-  ];
-
-  const tabela = `<table class="tab sem-fixo">
-    <thead><tr><th>Indicador</th><th class="num">Qtde</th><th class="num">Valor</th><th></th></tr></thead>
-    <tbody>${linhas
-      .map(
-        ([rot, qt, val, view, alerta]) => `<tr>
-      <td>${esc(rot)}</td>
-      <td class="num ${alerta ? 'atraso' : ''}">${qt}</td>
-      <td class="num">${fmtMoney(val, { dec: 0 })}</td>
-      <td class="acoes-linha">${botao('abrir', 'ir', { view }, 'btn sutil pequeno')}</td>
-    </tr>`,
-      )
-      .join('')}</tbody>
-  </table>`;
-
-  if (criticos.length || atencao.length) {
+/* -------------------------------------------------------- o que fazer
+   Causas-raiz com o dinheiro em jogo e a ação — num bloco só. A antiga
+   tabela "Indicador / Qtde / Valor" repetia o que os alertas já diziam. */
+function caixaAcao(pend, historia) {
+  const causas = historia.causasTodas;
+  if (!causas.length) {
     return `<div class="caixa">
-      <div class="caixa-cab">
-        <h3>Precisa de atenção</h3>
-        <div class="dir">${botao(`Ver ${pend.total} alerta${pend.total === 1 ? '' : 's'}`, 'ir', { view: 'alertas' }, 'btn sutil pequeno')}</div>
-      </div>
-      ${(criticos.length ? criticos : atencao)
-        .slice(0, 4)
-        .map((a) => alertaHTML(a))
-        .join('')}
-      ${tabela}
+      <div class="caixa-cab"><h3>Situação</h3></div>
+      <p class="feito" style="margin:0">✓ Sem pendências. A obra está em dia com o que foi lançado.</p>
     </div>`;
   }
+  const valor = causas.reduce((s, c) => s + c.valor, 0);
   return `<div class="caixa">
-    <div class="caixa-cab"><h3>Situação</h3></div>
-    <p class="feito" style="margin:0 0 var(--e3)">✓ Sem pendências. A obra está em dia com o que foi lançado.</p>
-    ${tabela}
+    <div class="caixa-cab">
+      <h3>Precisa de ação<span class="tinta2" style="font-weight:400"> · ${causas.length} problema${causas.length > 1 ? 's' : ''}-raiz${valor > 0.5 ? ` · ${fmtMoney(valor, { dec: 0 })} em jogo` : ''}</span></h3>
+      <div class="dir">${botao(`Ver ${pend.total} alerta${pend.total === 1 ? '' : 's'}`, 'ir', { view: 'alertas' }, 'btn sutil pequeno')}</div>
+    </div>
+    ${causas
+      .slice(0, 4)
+      .map((c) => causaHTML(c))
+      .join('')}
   </div>`;
 }
 
 /* ---------------------------------------------------------- andamento */
-function caixaAndamento(o, k) {
+function caixaAndamento(o, k, va) {
   return `<div class="caixa">
     <div class="caixa-cab"><h3>Andamento da obra</h3></div>
     <div style="display:flex;flex-direction:column;gap:12px">
@@ -250,12 +172,12 @@ function caixaAndamento(o, k) {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:var(--t-corpo)">
         <div><span class="tinta2" style="font-size:var(--t-peq)">Etapas atrasadas</span><br>
           <b style="font-size:19px" class="${k.etapasAtrasadas ? 'atraso' : ''}">${k.etapasAtrasadas}</b></div>
-        <div><span class="tinta2" style="font-size:var(--t-peq)">Dias de obra</span><br>
-          <b style="font-size:19px">${k.diasObra || '—'}</b></div>
+        <div><span class="tinta2" style="font-size:var(--t-peq)">Início atrasado</span><br>
+          <b style="font-size:19px" class="${k.etapasInicioAtrasado ? 'atraso' : ''}">${k.etapasInicioAtrasado}</b></div>
+        <div><span class="tinta2" style="font-size:var(--t-peq)">Término projetado</span><br>
+          <b class="${va.atrasoProjetado > 0 ? 'atraso' : ''}">${va.termino ? fmtData(va.termino) : '—'}</b></div>
         <div><span class="tinta2" style="font-size:var(--t-peq)">Data contratual</span><br>
-          <b>${fmtData(o.previsaoConclusao)}</b></div>
-        <div><span class="tinta2" style="font-size:var(--t-peq)">Até a data contratual</span><br>
-          <b class="${k.diasParaFim !== null && k.diasParaFim < 0 ? 'atraso' : ''}">${k.diasParaFim === null ? '—' : k.diasParaFim < 0 ? `vencida há ${-k.diasParaFim} dias` : k.diasParaFim + ' dias'}</b></div>
+          <b>${fmtData(o.previsaoConclusao)}</b>${va.atrasoProjetado > 0 ? ` <span class="atraso" style="font-size:var(--t-peq)">+${va.atrasoProjetado} d</span>` : ''}</div>
       </div>
       <div style="border-top:var(--fio) solid var(--separador);padding-top:10px">
         <span class="tinta2" style="font-size:var(--t-peq)">Liberado pelo financiamento</span>
@@ -276,8 +198,8 @@ VIEWS.painel = () => {
   const k = kpisObra(o);
   /* a mesma contagem do menu, da carteira e da tela de Alertas */
   const pend = pendenciasObra(o);
-  const criticos = pend.itens.filter((a) => a.sev === 3);
-  const atencao = pend.itens.filter((a) => a.sev === 2);
+  const va = valorAgregadoObra(o);
+  const historia = historiaObra(o);
 
   const custoPorEtapa = {};
   o.lancamentos.forEach((l) => {
@@ -293,10 +215,10 @@ VIEWS.painel = () => {
     });
 
   return `<div class="tela-lista">
-    ${faixaContexto(o, k, criticos, atencao)}
-    ${kpisPainel(o, k)}
+    ${fraseAncoraHTML(historia, { status: o.status })}
+    ${kpisPainel(o, k, va)}
     ${cartaoImplantacao(o)}
-    ${caixaAcao(o, k, criticos, atencao, pend)}
+    ${caixaAcao(pend, historia)}
 
     <div class="grade g-2-1" style="align-items:start">
       <div class="caixa">
@@ -304,9 +226,10 @@ VIEWS.painel = () => {
           <h3>Curva S — avanço físico x financeiro</h3>
           <div class="dir">${botao('Ver detalhes', 'ir', { view: 'curva' }, 'btn sutil pequeno')}</div>
         </div>
-        ${graficoCurvaS(o, 280)}
+        <div class="nao-celular">${graficoCurvaS(o, 280)}</div>
+        <p class="so-celular numeros-celular">Físico <b>${fmtPct(k.progressoFisico, 0)}</b> (previsto ${fmtPct(va.previsto, 0)}) · IDP <b>${fmtIndice(va.idp)}</b> · IDC <b>${fmtIndice(va.idc)}</b></p>
       </div>
-      ${caixaAndamento(o, k)}
+      ${caixaAndamento(o, k, va)}
     </div>
 
     <div class="grade g-2-1">
@@ -315,7 +238,8 @@ VIEWS.painel = () => {
           <h3>Fluxo de caixa mensal</h3>
           <div class="dir">${botao('Ver tabela completa', 'ir', { view: 'fluxo' }, 'btn sutil pequeno')}</div>
         </div>
-        ${graficoFluxo(o, 260)}
+        <div class="nao-celular">${graficoFluxo(o, 260)}</div>
+        <p class="so-celular numeros-celular">Caixa hoje <b class="${k.saldoCaixa < 0 ? 'atraso' : ''}">${fmtMoney(k.saldoCaixa, { dec: 0 })}</b> · no fim da obra <b class="${k.posicaoProjetada < 0 ? 'atraso' : ''}">${fmtMoney(k.posicaoProjetada, { dec: 0 })}</b></p>
       </div>
       <div class="caixa">
         <div class="caixa-cab"><h3>Onde o dinheiro foi</h3></div>

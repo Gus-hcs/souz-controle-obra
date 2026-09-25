@@ -408,10 +408,22 @@ ACOES['novo-aditivo'] = (el, d) => {
   formContrato(c, true, () => { mutar(() => { o.contratos.push(c); }); toast('Aditivo cadastrado.', 'ok'); });
 };
 
+/* Excluir mora DENTRO da edição: a lixeira ao lado do lápis, na linha, era
+   um toque errado de distância (luva, dedo sujo, sol). Na tela de toque a
+   lixeira da linha some (interface.css) e este botão é o caminho. */
+function comExcluir(tipo, id) {
+  if (Store.somenteLeitura()) return;
+  const esq = document.querySelector('#modal-camada footer .esq');
+  if (!esq) return;
+  esq.innerHTML = `<button class="btn perigo" data-acao="excluir-${tipo}" data-id="${esc(id)}">Excluir</button>`;
+}
+
 ACOES['editar-contrato'] = (el, d) => {
   const o = App.obra();
   const c = o.contratos.find((x) => x.id === d.id);
-  if (c) formContrato(c, false, () => { mutar(() => {}); toast('Contrato atualizado.', 'ok'); });
+  if (!c) return;
+  formContrato(c, false, () => { mutar(() => {}); toast('Contrato atualizado.', 'ok'); });
+  comExcluir('contrato', c.id);
 };
 
 ACOES['excluir-contrato'] = (el, d) => {
@@ -483,7 +495,9 @@ ACOES['nova-medicao'] = (el, d) => {
 ACOES['editar-medicao'] = (el, d) => {
   const o = App.obra();
   const m = o.medicoes.find((x) => x.id === d.id);
-  if (m) formMedicao(m, false, () => { mutar(() => {}); toast('Medição atualizada.', 'ok'); });
+  if (!m) return;
+  formMedicao(m, false, () => { mutar(() => {}); toast('Medição atualizada.', 'ok'); });
+  comExcluir('medicao', m.id);
 };
 
 ACOES['excluir-medicao'] = (el, d) => {
@@ -539,7 +553,9 @@ ACOES['novo-recebimento'] = () => {
 ACOES['editar-recebimento'] = (el, d) => {
   const o = App.obra();
   const r = o.recebimentos.find((x) => x.id === d.id);
-  if (r) formRecebimento(r, false, () => { mutar(() => {}); toast('Recebimento atualizado.', 'ok'); });
+  if (!r) return;
+  formRecebimento(r, false, () => { mutar(() => {}); toast('Recebimento atualizado.', 'ok'); });
+  comExcluir('recebimento', r.id);
 };
 ACOES['excluir-recebimento'] = (el, d) => {
   const o = App.obra();
@@ -601,7 +617,9 @@ ACOES['novo-lancamento'] = () => {
 ACOES['editar-lancamento'] = (el, d) => {
   const o = App.obra();
   const l = o.lancamentos.find((x) => x.id === d.id);
-  if (l) formLancamento(l, false, () => { mutar(() => {}); toast('Lançamento atualizado.', 'ok'); });
+  if (!l) return;
+  formLancamento(l, false, () => { mutar(() => {}); toast('Lançamento atualizado.', 'ok'); });
+  comExcluir('lancamento', l.id);
 };
 ACOES['excluir-lancamento'] = (el, d) => {
   const o = App.obra();
@@ -651,7 +669,9 @@ ACOES['novo-material'] = () => {
 ACOES['editar-material'] = (el, d) => {
   const o = App.obra();
   const m = o.materiais.find((x) => x.id === d.id);
-  if (m) formMaterial(m, false, () => { mutar(() => {}); toast('Item atualizado.', 'ok'); });
+  if (!m) return;
+  formMaterial(m, false, () => { mutar(() => {}); toast('Item atualizado.', 'ok'); });
+  comExcluir('material', m.id);
 };
 ACOES['excluir-material'] = (el, d) => {
   const o = App.obra();
@@ -721,7 +741,9 @@ ACOES['nova-etapa'] = () => {
 ACOES['editar-etapa'] = (el, d) => {
   const o = App.obra();
   const e = o.cronograma.find((x) => x.id === d.id);
-  if (e) formEtapa(e, false, () => { mutar(() => {}); toast('Etapa atualizada.', 'ok'); });
+  if (!e) return;
+  formEtapa(e, false, () => { mutar(() => {}); toast('Etapa atualizada.', 'ok'); });
+  comExcluir('etapa', e.id);
 };
 ACOES['excluir-etapa'] = (el, d) => {
   const o = App.obra();
@@ -918,7 +940,9 @@ ACOES['novo-diario'] = () => {
 ACOES['editar-diario'] = (el, d) => {
   const o = App.obra();
   const r = o.diario.find((x) => x.id === d.id);
-  if (r) formDiario(r, false, () => { mutar(() => {}); toast('Registro atualizado.', 'ok'); });
+  if (!r) return;
+  formDiario(r, false, () => { mutar(() => {}); toast('Registro atualizado.', 'ok'); });
+  comExcluir('diario', r.id);
 };
 ACOES['excluir-diario'] = (el, d) => {
   const o = App.obra();

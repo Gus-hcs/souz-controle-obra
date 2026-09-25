@@ -302,7 +302,7 @@ function graficoGantt(obra) {
       <svg class="grafico" viewBox="0 0 ${ml} ${H}" style="width:${ml}px;height:${H}px;flex:none" aria-hidden="true">
         ${rotulos.join('')}
       </svg>
-      <div class="tab-rolagem" style="flex:1;min-width:0"><div class="grafico-cx" data-grafico="${id}" style="position:relative">
+      <div class="tab-rolagem" style="flex:1;min-width:0" data-rolar-para="${px(hojeISO()).toFixed(0)}"><div class="grafico-cx" data-grafico="${id}" style="position:relative">
         <svg class="grafico" viewBox="0 0 ${WT} ${H}" style="width:${WT}px;height:${H}px" role="img" aria-label="Cronograma da obra, interativo">
           ${gradeMes}${linhas}${hoje}
         </svg>

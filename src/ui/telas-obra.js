@@ -8,7 +8,7 @@
  * obra, carteira) já foram todas migradas para ui/telas/*.js, na
  * linguagem visual nova. Este arquivo só guarda o que elas ainda importam.
  */
-import { esc } from '../nucleo/base.js';
+import { esc, fmtMoney } from '../nucleo/base.js';
 import { SUPA } from '../dados/supabase.js';
 import { App } from './shell.js';
 
@@ -18,17 +18,103 @@ const VIEWS = {};
    (telas/painel.js lê e escreve; a ação impl-toggle fica em acoes.js) */
 const implExpandida = new Set();
 
+/* Verbo da ação no botão, pela tela onde se resolve — "abrir" pequeno e
+   sem cor não dizia o que fazer (auditoria, tela de Alertas). */
+const VERBO_VIEW = {
+  medicoes: 'Ver medição',
+  contratos: 'Ver contrato',
+  cronograma: 'Atualizar cronograma',
+  materiais: 'Registrar compra',
+  recebimentos: 'Ver parcela',
+  lancamentos: 'Conferir lançamentos',
+  fluxo: 'Ver caixa',
+  curva: 'Ver curva S',
+  painel: 'Ver painel',
+  'obra-config': 'Ajustar configuração',
+};
+function rotuloAcao(a) {
+  return VERBO_VIEW[a.ref && a.ref.view] || 'Abrir';
+}
+
+function botaoAcao(a) {
+  return a.ref && a.ref.view
+    ? `<button class="btn pequeno" data-acao="ir" data-view="${esc(a.ref.view)}" data-obra="${esc(a.obraId)}">${esc(rotuloAcao(a))}</button>`
+    : '';
+}
+
+/* "R$ 37.500 em jogo · 40 dias" — o que faz um alerta pesar mais que outro */
+function pesoAlerta(a) {
+  return [
+    a.valor > 0.5 ? `${fmtMoney(a.valor, { dec: 0 })} em jogo` : '',
+    a.dias > 0 ? `${a.dias} dia${a.dias === 1 ? '' : 's'}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 function alertaHTML(a, mostrarObra = false) {
+  const peso = pesoAlerta(a);
   return `<div class="alerta s${a.sev}">
     <span class="sev"></span>
     <div class="txt">
       <b>${esc(a.titulo)}</b>
       ${mostrarObra ? `<span class="chip" style="margin-left:6px">${esc(a.obraNome)}</span>` : ''}
-      <p>${esc(a.detalhe)}</p>
+      <p>${esc(a.detalhe)}${peso ? ` <span class="tinta3">· ${esc(peso)}</span>` : ''}</p>
       <span class="acao">→ ${esc(a.acao)}</span>
     </div>
-    ${a.ref && a.ref.view ? `<button class="btn sutil pequeno" data-acao="ir" data-view="${a.ref.view}" data-obra="${a.obraId}">abrir</button>` : ''}
+    ${botaoAcao(a)}
   </div>`;
+}
+
+/* Uma causa-raiz (causasRaizObra): o problema, o que ele custa, a ação —
+   e os sintomas embaixo, recolhidos, em vez de soltos na lista. */
+function causaHTML(c, mostrarObra = false) {
+  const peso = pesoAlerta(c);
+  const sint = c.sintomas.length
+    ? `<details class="causa-sintomas"><summary>${c.sintomas.length} sintoma${c.sintomas.length > 1 ? 's' : ''} desta causa</summary>
+        <ul>${c.sintomas.map((s) => `<li class="s${s.sev}">${esc(s.titulo)}</li>`).join('')}</ul>
+      </details>`
+    : '';
+  return `<div class="alerta causa s${c.sev}">
+    <span class="sev"></span>
+    <div class="txt">
+      <b>${esc(c.titulo)}</b>
+      ${mostrarObra ? `<span class="chip" style="margin-left:6px">${esc(c.obraNome)}</span>` : ''}
+      <p>${esc(c.detalhe)}${peso ? ` <span class="tinta3">· ${esc(peso)}</span>` : ''}</p>
+      <span class="acao">→ ${esc(c.acao)}</span>
+      ${sint}
+    </div>
+    ${botaoAcao(c)}
+  </div>`;
+}
+
+/* Frase-âncora (historiaObra / historiaCarteira): a primeira coisa da tela.
+   Situação em uma linha, com cor por pedaço; "Por quê" = as causas-raiz;
+   "Fazer" = um botão por causa, com o verbo da ação. */
+const TOM_ANCORA = { critico: 'atraso', atencao: 'tom-alerta', ok: 'feito' };
+
+function fraseAncoraHTML(h, { status = '', mostrarObra = false } = {}) {
+  const sit = h.situacao
+    .map((x) => `<span class="${TOM_ANCORA[x.nivel] || ''}">${esc(x.texto)}</span>`)
+    .join('<span class="tinta3"> · </span>');
+  const causas = h.causas.length
+    ? `<p class="ancora-linha"><span class="ancora-rot">Por quê</span><span>${h.causas
+        .map((c) => `${esc(c.titulo)}${mostrarObra ? ` <span class="tinta3">(${esc(c.obraNome)})</span>` : ''}`)
+        .join('<span class="tinta3"> · </span>')}</span></p>`
+    : '';
+  const acoes = h.causas.length
+    ? `<p class="ancora-linha ancora-acoes"><span class="ancora-rot">Fazer</span><span>${h.causas
+        .map(
+          (c) =>
+            `<button class="btn pequeno" data-acao="ir" data-view="${esc((c.ref && c.ref.view) || 'alertas')}" data-obra="${esc(c.obraId)}" title="${esc(c.titulo)}">${esc(c.acao.replace(/\.$/, ''))}</button>`,
+        )
+        .join('')}</span></p>`
+    : '';
+  return `<section class="frase-ancora n-${h.nivel}" aria-label="Situação">
+    <p class="ancora-situacao">${status ? `<span class="tinta2">${esc(status)}</span><span class="tinta3"> · </span>` : ''}${sit || '<span class="tinta2">Sem números para contar ainda.</span>'}</p>
+    ${causas}
+    ${acoes}
+  </section>`;
 }
 
 /* ==================================================== TRILHA DE AUDITORIA
@@ -59,4 +145,13 @@ function carregarAuditoria(chave, forcar = false) {
     });
 }
 
-export { VIEWS, alertaHTML, Auditoria, carregarAuditoria, implExpandida };
+export {
+  VIEWS,
+  alertaHTML,
+  causaHTML,
+  fraseAncoraHTML,
+  rotuloAcao,
+  Auditoria,
+  carregarAuditoria,
+  implExpandida,
+};

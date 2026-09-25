@@ -224,9 +224,24 @@ a {
   max-width: 88ch;
 }
 
-/* Tabela curta dentro de caixa (Painel): o cabeçalho fixo grudava no topo
-   da janela e flutuava por cima das linhas ao rolar. Poucas linhas não
-   precisam de cabeçalho fixo. */
-table.tab.sem-fixo th {
-  position: static;
+/* Causa-raiz (telas-obra.js causaHTML): os sintomas ficam recolhidos
+   embaixo da causa, com o pontinho da severidade de cada um. */
+.alerta.causa .causa-sintomas {
+  margin-top: var(--e1);
+  font-size: var(--t-peq);
+  color: var(--tinta2);
+}
+.alerta.causa .causa-sintomas summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.alerta.causa .causa-sintomas ul {
+  margin: var(--e1) 0 0;
+  padding-left: var(--e4);
+}
+.alerta.causa .causa-sintomas li.s3::marker {
+  color: var(--critico);
+}
+.alerta.causa .causa-sintomas li.s2::marker {
+  color: var(--aviso);
 }

@@ -281,9 +281,20 @@ function materialCalc(obra, mat) {
   const necessaria = num(mat.quantidadeNecessaria);
   const saldo = Math.max(0, necessaria - comprada);
   const orcamento = necessaria * num(mat.precoPrevisto);
-  const vencido = isISO(mat.dataNecessaria) && mat.dataNecessaria < hojeISO() && saldo > 0 && mat.status !== 'Cancelado';
+  /* Etapa do material já concluída no cronograma: a sobra do plano não
+     trava mais obra nenhuma — o alerta se encerra sozinho. O saldo segue
+     no custo previsto (é a conta da planilha); só deixa de ser "vencido". */
+  const etapaConcluida = !!norm(mat.etapa) && (obra.cronograma || []).some(
+    (e) => norm(e.etapa) === norm(mat.etapa) && num(e.progresso) >= 1);
+  const vencido = isISO(mat.dataNecessaria) && mat.dataNecessaria < hojeISO() && saldo > 0 &&
+    mat.status !== 'Cancelado' && !etapaConcluida;
+  /* Etapa em andamento esperando material: esse é o que para a frente. */
+  const travaFrente = vencido && (obra.cronograma || []).some(
+    (e) => norm(e.etapa) === norm(mat.etapa) && num(e.progresso) > 0 && num(e.progresso) < 1);
   return {
-    comprada, valorComprado, saldo, orcamento, vencido,
+    comprada, valorComprado, saldo, orcamento, vencido, etapaConcluida, travaFrente,
+    /* comprado acima do necessário (porcelanato 120 m² para 60 m²) */
+    excesso: necessaria > 0 ? Math.max(0, comprada - necessaria) : 0,
     saldoValor: saldo * num(mat.precoPrevisto),
     desvio: valorComprado - (comprada * num(mat.precoPrevisto)),
     compras: ls.length
@@ -309,8 +320,13 @@ function etapaCalc(e, hoje = hojeISO()) {
   else if (e.fimPrevisto < hoje) situacao = 'ATRASADO';
   else if (progresso > 0) situacao = 'EM ANDAMENTO';
   else situacao = 'NÃO INICIADO';
+  /* Início atrasado: ainda em 0%, o início previsto já passou e o fim não
+     (se o fim passou, já é ATRASADO). A situação da planilha continua
+     "NÃO INICIADO"; este número é o que faltava para acender o alerta. */
+  const atrasoInicio = (situacao === 'NÃO INICIADO' && isISO(e.inicioPrevisto) && !isISO(e.inicioReal) &&
+    e.inicioPrevisto < hoje) ? diasEntre(e.inicioPrevisto, hoje) : 0;
   return {
-    diasPrevistos, diasRealizados, atraso, progresso, situacao,
+    diasPrevistos, diasRealizados, atraso, atrasoInicio, progresso, situacao,
     produtividade: diasRealizados > 0 ? num(e.quantidadeExecutada) / diasRealizados : 0,
     desvioPrazo: diasPrevistos > 0 ? diasRealizados - diasPrevistos : 0
   };
@@ -494,6 +510,7 @@ function kpisObra(obra) {
     liberadoFinanciamento: financiado > 0 ? recebidoFinanciamento / financiado : null,
     aReceber: Math.max(0, financiado - recebidoFinanciamento),
     etapasAtrasadas: etapas.filter((e) => e.situacao === 'ATRASADO').length,
+    etapasInicioAtrasado: etapas.filter((e) => e.atrasoInicio > 0).length,
     etapasConcluidas: etapas.filter((e) => e.situacao === 'CONCLUÍDO').length,
     etapasTotal: etapas.length,
     diasObra, diasParaFim,
@@ -556,23 +573,34 @@ function curvaS(obra) {
 
 /* -------------------------------------------------------- ALERTAS  */
 /* severidade: 3 crítico · 2 atenção · 1 informativo */
+/* Cada alerta leva, além do texto:
+   - valor: dinheiro em jogo (R$), quando há;
+   - dias: há quanto tempo o problema existe / quanto atrasa;
+   - raiz: chave para agrupar sintomas sob a causa (causasRaizObra);
+   - principal: true quando o alerta É uma causa, não um sintoma dela.
+   A severidade sobe com dinheiro e tempo: parcela parada > 15 dias,
+   medição aberta > 60 dias e etapa > 30 dias atrasada são críticas. */
 function alertasObra(obra) {
   const out = [];
   const hoje = hojeISO();
-  const add = (sev, modulo, titulo, detalhe, acao, ref) =>
-    out.push({ sev, modulo, titulo, detalhe, acao, ref, obraId: obra.id, obraNome: obra.nome });
+  const add = (sev, modulo, titulo, detalhe, acao, ref, extra = {}) =>
+    out.push({
+      sev, modulo, titulo, detalhe, acao, ref, obraId: obra.id, obraNome: obra.nome,
+      valor: 0, dias: 0, raiz: '', principal: false, ...extra
+    });
 
   /* Contratos */
   basesContratuais(obra).forEach((b) => {
     if (b.saldo < -0.005) {
       add(3, 'Contratos', `Contrato ${b.base} ultrapassado`,
         `Pago ${fmtMoney(b.pago)} contra ${fmtMoney(b.autorizado)} autorizados.`,
-        'Emitir aditivo ou revisar medições.', { view: 'contratos', id: b.base });
+        'Emitir aditivo ou revisar medições.', { view: 'contratos', id: b.base }, { valor: -b.saldo });
     }
     if (b.medido - b.autorizado > 0.005) {
       add(2, 'Contratos', `Medições acima do contrato ${b.base}`,
         `Medido ${fmtMoney(b.medido)} para um autorizado de ${fmtMoney(b.autorizado)}.`,
-        'Conferir escopo medido ou formalizar aditivo.', { view: 'contratos', id: b.base });
+        'Conferir escopo medido ou formalizar aditivo.', { view: 'contratos', id: b.base },
+        { valor: b.medido - b.autorizado });
     }
   });
 
@@ -582,32 +610,50 @@ function alertasObra(obra) {
     if (alerta === 'PAGO ACIMA DA MEDIÇÃO') {
       add(3, 'Medições', `Pagamento acima da medição ${m.numero || ''}`.trim(),
         `Pago ${fmtMoney(m.valorPago)} para um líquido medido de ${fmtMoney(medicaoLiquido(m))}.`,
-        'Corrigir o valor pago ou a medição.', { view: 'medicoes', id: m.id });
+        'Corrigir o valor pago ou a medição.', { view: 'medicoes', id: m.id },
+        { valor: num(m.valorPago) - medicaoLiquido(m) });
     } else if (alerta === 'PAGAMENTO INCOMPLETO') {
       add(2, 'Medições', `Medição ${m.numero || ''} marcada como paga sem quitação`.trim(),
         `Falta ${fmtMoney(medicaoAPagar(obra, m))}.`,
-        'Ajustar status para Parcial ou completar o pagamento.', { view: 'medicoes', id: m.id });
+        'Ajustar status para Parcial ou completar o pagamento.', { view: 'medicoes', id: m.id },
+        { valor: medicaoAPagar(obra, m) });
     }
     const pendente = medicaoAPagar(obra, m);
     if (pendente > 0.005 && isISO(m.data) && diasEntre(m.data, hoje) > 15) {
-      add(2, 'Medições', `Medição ${m.numero || ''} em aberto há ${diasEntre(m.data, hoje)} dias`.trim(),
+      const dias = diasEntre(m.data, hoje);
+      add(dias > 60 ? 3 : 2, 'Medições', `Medição ${m.numero || ''}${m.contratoBase ? ` do ${m.contratoBase}` : ''} em aberto há ${dias} dias`.replace(/\s+/g, ' '),
         `Saldo a pagar de ${fmtMoney(pendente)} para ${m.contratoBase || 'contrato não informado'}.`,
-        'Programar o pagamento do prestador.', { view: 'medicoes', id: m.id });
+        'Programar o pagamento do prestador.', { view: 'medicoes', id: m.id }, { valor: pendente, dias });
     }
   });
 
-  /* Recebimentos */
+  /* Recebimentos — uma parcela, um alerta. "Atrasada" e "solicitada sem
+     retorno" eram dois alertas soltos (um deles informativo) para o mesmo
+     dinheiro parado; agora é um só, e passa a crítico com 15 dias. */
   obra.recebimentos.forEach((r) => {
     if (r.status === 'Cancelado' || r.status === 'Recebido') return;
+    const solicitado = r.status === 'Solicitado' && isISO(r.dataSolicitacao);
+    const diasSolic = solicitado ? diasEntre(r.dataSolicitacao, hoje) : 0;
+    const valor = recebimentoLiquido(r) || num(r.valorPrevisto);
+    /* dinheiro do cliente tem outra causa e outra ação que o do financiador:
+       não se cobra laudo de vistoria de quem vai pagar a entrada */
+    const financiador = recebimentoDoFinanciamento(r);
+    const raiz = financiador ? 'financiamento' : 'cliente';
     if (isISO(r.dataPrevista) && r.dataPrevista < hoje) {
-      add(2, 'Recebimentos', `Parcela ${r.numeroMedicao || r.etapaPci || ''} atrasada`.trim(),
-        `Previsto ${fmtMoney(r.valorPrevisto)} para ${fmtData(r.dataPrevista)} — ${diasEntre(r.dataPrevista, hoje)} dias sem crédito.`,
-        'Cobrar a CAIXA ou revisar a data prevista.', { view: 'recebimentos', id: r.id });
-    }
-    if (r.status === 'Solicitado' && isISO(r.dataSolicitacao) && diasEntre(r.dataSolicitacao, hoje) > 20) {
-      add(1, 'Recebimentos', 'Solicitação sem retorno',
-        `Solicitado em ${fmtData(r.dataSolicitacao)} (${diasEntre(r.dataSolicitacao, hoje)} dias).`,
-        'Acionar o engenheiro da CAIXA.', { view: 'recebimentos', id: r.id });
+      const dias = diasEntre(r.dataPrevista, hoje);
+      add(dias > 15 ? 3 : 2, 'Recebimentos', `Parcela ${r.numeroMedicao || r.etapaPci || ''} sem crédito há ${dias} dias`.replace(/\s+/g, ' '),
+        `Previsto ${fmtMoney(r.valorPrevisto)} para ${fmtData(r.dataPrevista)}${solicitado ? ` · solicitada em ${fmtData(r.dataSolicitacao)}, ${diasSolic} dias sem retorno` : ' · ainda não solicitada'}.`,
+        !financiador
+          ? 'Cobrar o cliente ou combinar nova data.'
+          : solicitado
+            ? 'Cobrar o laudo da vistoria — e conferir se o serviço da parcela está concluído.'
+            : 'Solicitar a parcela ou revisar a data prevista.',
+        { view: 'recebimentos', id: r.id }, { valor, dias, raiz, principal: true });
+    } else if (solicitado && diasSolic > 20) {
+      add(2, 'Recebimentos', `Parcela ${r.numeroMedicao || r.etapaPci || ''} solicitada sem retorno`.replace(/\s+/g, ' '),
+        `Solicitada em ${fmtData(r.dataSolicitacao)} (${diasSolic} dias).`,
+        'Acionar o engenheiro do financiador.', { view: 'recebimentos', id: r.id },
+        { valor, dias: diasSolic, raiz, principal: true });
     }
   });
 
@@ -615,10 +661,16 @@ function alertasObra(obra) {
   obra.materiais.forEach((m) => {
     const c = materialCalc(obra, m);
     if (c.vencido) {
-      add(2, 'Materiais', `${m.material || 'Material'} vencido sem compra`,
-        `Faltam ${fmtNum(c.saldo, 2)} ${m.unidade} desde ${fmtData(m.dataNecessaria)} (${fmtMoney(c.saldoValor)}).`,
-        'Comprar ou reprogramar a data.', { view: 'materiais', id: m.id });
-    } else if (c.saldo > 0 && isISO(m.dataNecessaria) && diasEntre(hoje, m.dataNecessaria) <= 7 && m.status !== 'Cancelado') {
+      /* material que para uma etapa em andamento é crítico; o resto, atenção */
+      add(c.travaFrente ? 3 : 2, 'Materiais',
+        c.travaFrente ? `${m.material || 'Material'} travando ${m.etapa}` : `${m.material || 'Material'} vencido sem compra`,
+        `Faltam ${fmtNum(c.saldo, 2)} ${m.unidade} desde ${fmtData(m.dataNecessaria)} (${fmtMoney(c.saldoValor)})${c.travaFrente ? ` — ${m.etapa} está em andamento` : ''}.`,
+        c.travaFrente ? 'Comprar hoje: a frente de serviço depende dele.' : 'Comprar ou reprogramar a data.',
+        { view: 'materiais', id: m.id },
+        { valor: c.saldoValor, dias: diasEntre(m.dataNecessaria, hoje),
+          raiz: c.travaFrente ? `etapa:${norm(m.etapa)}` : '', principal: c.travaFrente });
+    } else if (c.saldo > 0 && !c.etapaConcluida && isISO(m.dataNecessaria) && m.dataNecessaria >= hoje &&
+      diasEntre(hoje, m.dataNecessaria) <= 7 && m.status !== 'Cancelado') {
       add(1, 'Materiais', `${m.material || 'Material'} necessário em ${diasEntre(hoje, m.dataNecessaria)} dia(s)`,
         `Saldo de ${fmtNum(c.saldo, 2)} ${m.unidade} para ${m.etapa || 'etapa não informada'}.`,
         'Programar a compra.', { view: 'materiais', id: m.id });
@@ -628,10 +680,19 @@ function alertasObra(obra) {
   /* Cronograma */
   obra.cronograma.forEach((e) => {
     const c = etapaCalc(e);
+    /* etapa atrasada é sintoma: do material que falta (mesma etapa) ou do
+       responsável que tem várias etapas atrasadas */
+    const raizEtapa = { raiz: `etapa:${norm(e.etapa)}`, responsavel: e.responsavel || '' };
     if (c.situacao === 'ATRASADO') {
-      add(2, 'Cronograma', `${e.etapa} atrasada em ${c.atraso} dia(s)`,
+      add(c.atraso > 30 ? 3 : 2, 'Cronograma', `${e.etapa} atrasada em ${c.atraso} dia(s)`,
         `Progresso de ${fmtPct(c.progresso, 0)} — fim previsto era ${fmtData(e.fimPrevisto)}.`,
-        'Atualizar progresso ou replanejar a etapa.', { view: 'cronograma', id: e.id });
+        'Atualizar progresso ou replanejar a etapa.', { view: 'cronograma', id: e.id },
+        { dias: c.atraso, ...raizEtapa });
+    } else if (c.atrasoInicio > 0) {
+      add(2, 'Cronograma', `${e.etapa} não começou — início previsto há ${c.atrasoInicio} dia(s)`,
+        `Início previsto em ${fmtData(e.inicioPrevisto)}, ainda em 0%; fim previsto ${fmtData(e.fimPrevisto)}.`,
+        `Cobrar o início${e.responsavel ? ` de ${e.responsavel}` : ''} ou replanejar a etapa.`, { view: 'cronograma', id: e.id },
+        { dias: c.atrasoInicio, ...raizEtapa });
     }
   });
 
@@ -640,7 +701,8 @@ function alertasObra(obra) {
   if (k.saldoCaixa < 0) {
     add(3, 'Financeiro', 'Caixa da obra negativo',
       `Saldo de ${fmtMoney(k.saldoCaixa)} considerando entradas e saídas lançadas.`,
-      'Antecipar recebimento ou aportar recursos.', { view: 'fluxo' });
+      'Antecipar recebimento ou aportar recursos.', { view: 'fluxo' },
+      { valor: -k.saldoCaixa, raiz: 'financiamento' });
   }
   /* Informativo: o teto é referência de orçamento, não problema de hoje.
      Compara só custo físico — comissão, honorário, taxa e terreno ficam fora. */
@@ -652,12 +714,14 @@ function alertasObra(obra) {
   if (k.margem !== null && k.margem < num(obra.fin.margemDesejada)) {
     add(2, 'Financeiro', 'Margem abaixo da desejada',
       `Projetada ${fmtPct(k.margem)} contra ${fmtPct(obra.fin.margemDesejada)} desejados.`,
-      'Rever custos previstos ou o valor de venda.', { view: 'painel' });
+      'Rever custos previstos ou o valor de venda.', { view: 'painel' },
+      { valor: Math.max(0, (num(obra.fin.margemDesejada) - k.margem) * k.venda) });
   }
   if (k.etapasTotal > 0 && k.desvioFisicoFinanceiro < -0.1) {
     add(2, 'Produção', 'Desembolso à frente do avanço físico',
       `Físico ${fmtPct(k.progressoFisico, 0)} contra ${fmtPct(k.progressoFinanceiro, 0)} financeiro.`,
-      'Conferir adiantamentos e compras antecipadas.', { view: 'curva' });
+      'Conferir adiantamentos e compras antecipadas.', { view: 'curva' },
+      { valor: (k.progressoFinanceiro - k.progressoFisico) * k.custoPrevisto });
   }
 
   /* Duplicidade suspeita */
@@ -669,9 +733,11 @@ function alertasObra(obra) {
   });
   chave.forEach((ls) => {
     if (ls.length > 1 && lancamentoTotal(ls[0]) > 0) {
-      add(1, 'Lançamentos', 'Possível lançamento duplicado',
+      /* pagar duas vezes é dinheiro saindo: atenção, não informativo */
+      add(2, 'Lançamentos', 'Possível lançamento duplicado',
         `${ls.length} lançamentos iguais de ${fmtMoney(lancamentoTotal(ls[0]))} em ${fmtData(ls[0].data)} (${ls[0].fornecedor || 'sem fornecedor'}).`,
-        'Conferir e excluir o repetido.', { view: 'lancamentos', id: ls[0].id });
+        'Conferir e excluir o repetido.', { view: 'lancamentos', id: ls[0].id },
+        { valor: lancamentoTotal(ls[0]) * (ls.length - 1), ids: ls.map((l) => l.id) });
     }
   });
 
@@ -888,6 +954,198 @@ function pendenciasObra(obra) {
   };
 }
 
+/* =====================================================================
+   CAUSA-RAIZ — 14 alertas soltos parecem 14 problemas; quase sempre são 3.
+   Agrupa as pendências (sev ≥ 2) assim:
+   - alerta marcado "principal" é uma causa (parcela parada, material que
+     trava etapa em andamento); os alertas com a mesma chave de raiz viram
+     sintomas dela (caixa negativo sob a parcela; etapa atrasada sob o
+     material que falta);
+   - etapas atrasadas sem causa conhecida, com o MESMO responsável, viram
+     uma causa só ("Antônio Ribeiro: 3 etapas atrasadas");
+   - o resto fica sozinho.
+   Valor em risco da causa = soma dos valores das causas do grupo (o
+   sintoma não soma de novo: caixa negativo é consequência da parcela).
+   A contagem do menu continua a de pendenciasObra — isto só organiza.
+   ===================================================================== */
+function causasRaizObra(obra) {
+  const itens = alertasObra(obra).filter((a) => a.sev >= 2);
+  const comCausa = new Set(itens.filter((a) => a.principal && a.raiz).map((a) => a.raiz));
+  const porResp = new Map();
+  itens.forEach((a) => {
+    if (a.modulo !== 'Cronograma' || !a.responsavel || comCausa.has(a.raiz)) return;
+    const r = norm(a.responsavel);
+    porResp.set(r, (porResp.get(r) || 0) + 1);
+  });
+
+  const grupos = new Map();
+  const por = (chave, a) => {
+    if (!grupos.has(chave)) grupos.set(chave, []);
+    grupos.get(chave).push(a);
+  };
+  itens.forEach((a, i) => {
+    if (a.raiz && comCausa.has(a.raiz)) return por(a.raiz, a);
+    if (a.modulo === 'Cronograma' && a.responsavel && porResp.get(norm(a.responsavel)) >= 2) {
+      return por(`resp:${norm(a.responsavel)}`, a);
+    }
+    return por(`solo:${i}`, a);
+  });
+
+  const ordem = (a, b) =>
+    (b.principal ? 1 : 0) - (a.principal ? 1 : 0) || b.sev - a.sev || b.valor - a.valor || b.dias - a.dias;
+  const causas = [...grupos.entries()].map(([chave, lista]) => {
+    const alertas = lista.slice().sort(ordem);
+    const principal = alertas[0];
+    const causasDoGrupo = alertas.filter((a) => a.principal);
+    const valor = round2((causasDoGrupo.length ? causasDoGrupo : alertas).reduce((s, a) => s + (a.valor || 0), 0));
+    const base = {
+      chave,
+      sev: Math.max(...alertas.map((a) => a.sev)),
+      valor,
+      dias: Math.max(...alertas.map((a) => a.dias || 0)),
+      titulo: principal.titulo,
+      detalhe: principal.detalhe,
+      acao: principal.acao,
+      ref: principal.ref,
+      modulo: principal.modulo,
+      principal,
+      sintomas: alertas.slice(1),
+      obraId: obra.id,
+      obraNome: obra.nome
+    };
+    if (chave.startsWith('resp:')) {
+      const resp = principal.responsavel;
+      base.titulo = `${resp}: ${alertas.length} etapas atrasadas`;
+      base.detalhe = alertas.map((a) => a.titulo).join(' · ');
+      base.acao = `Cobrar prazo e reforço de equipe de ${resp}.`;
+      base.ref = { view: 'cronograma' };
+      base.sintomas = alertas;
+    } else if (chave === 'financiamento' && causasDoGrupo.length > 1) {
+      base.titulo = `${causasDoGrupo.length} parcelas do financiamento sem crédito`;
+    } else if (chave === 'cliente' && causasDoGrupo.length > 1) {
+      base.titulo = `${causasDoGrupo.length} parcelas do cliente em atraso`;
+    }
+    return base;
+  });
+  return causas.sort((a, b) => b.sev - a.sev || b.valor - a.valor || b.dias - a.dias);
+}
+
+/* Frase-âncora do Painel e da Carteira: situação → causa → ação.
+   Situação em no máximo três pedaços (prazo, caixa, margem); causas e ações
+   são as três primeiras causas-raiz. Cada pedaço traz o nível para a cor. */
+function historiaObra(obra, hoje = hojeISO()) {
+  const k = kpisObra(obra);
+  const p = prazoObra(obra, hoje);
+  const situacao = [];
+  if (p.atrasoDias > 0) {
+    situacao.push({
+      texto: `Atrasada ${p.atrasoDias} dias${p.termino ? ` (término projetado ${fmtData(p.termino)})` : ''}`,
+      nivel: p.atrasoDias >= 30 ? 'critico' : 'atencao'
+    });
+  } else if (p.termino && obra.cronograma.length) {
+    situacao.push({ texto: `No prazo — término projetado ${fmtData(p.termino)}`, nivel: 'ok' });
+  }
+  if (k.saldoCaixa < -0.005 || k.recebido > 0 || k.totalPago > 0) {
+    situacao.push({ texto: `caixa ${fmtMoney(k.saldoCaixa, { dec: 0 })}`, nivel: k.saldoCaixa < -0.005 ? 'critico' : 'ok' });
+  }
+  if (k.margem !== null) {
+    const alvo = num(obra.fin.margemDesejada);
+    situacao.push({
+      texto: `margem ${fmtPct(k.margem)}${alvo ? ` (alvo ${fmtPct(alvo)})` : ''}`,
+      nivel: k.margem < alvo ? 'atencao' : 'ok'
+    });
+  }
+  const todas = causasRaizObra(obra);
+  const causas = todas.slice(0, 3);
+  return {
+    situacao,
+    nivel: situacao.some((s) => s.nivel === 'critico') ? 'critico'
+      : situacao.some((s) => s.nivel === 'atencao') || causas.length ? 'atencao' : 'ok',
+    causas,
+    causasTodas: todas,
+    valorTravado: round2(causas.reduce((s, c) => s + c.valor, 0))
+  };
+}
+
+/* Frase-âncora da carteira: quantas obras estão em risco e por quê, e as
+   três piores causas entre todas as obras (mesma ordem de causasRaizObra). */
+function historiaCarteira(obras, hoje = hojeISO()) {
+  const saudes = obras.map((o) => ({ o, s: saudeObra(o, hoje), k: kpisObra(o) }));
+  const risco = saudes.filter((x) => x.s.nivel === 'critico' || x.s.nivel === 'atencao');
+  const caixaNeg = saudes.filter((x) => x.k.saldoCaixa < -0.005);
+  const atrasadas = saudes.filter((x) => x.s.prazo.atrasoDias > 0);
+  const situacao = [];
+  if (!obras.length) return { situacao, nivel: 'ok', causas: [], valorTravado: 0 };
+  situacao.push(risco.length
+    ? { texto: `${risco.length} de ${obras.length} obra${obras.length > 1 ? 's' : ''} em risco`, nivel: risco.some((x) => x.s.nivel === 'critico') ? 'critico' : 'atencao' }
+    : { texto: `${obras.length} obra${obras.length > 1 ? 's' : ''}, nenhuma em risco`, nivel: 'ok' });
+  if (atrasadas.length) {
+    situacao.push({ texto: `${atrasadas.length} atrasada${atrasadas.length > 1 ? 's' : ''}`, nivel: 'atencao' });
+  }
+  if (caixaNeg.length) {
+    situacao.push({ texto: `${caixaNeg.length} com caixa negativo`, nivel: 'critico' });
+  }
+  const ordem = (a, b) => b.sev - a.sev || b.valor - a.valor || b.dias - a.dias;
+  const causas = obras.flatMap((o) => causasRaizObra(o)).sort(ordem).slice(0, 3);
+  return {
+    situacao,
+    nivel: situacao.some((s) => s.nivel === 'critico') ? 'critico'
+      : situacao.some((s) => s.nivel === 'atencao') ? 'atencao' : 'ok',
+    causas,
+    valorTravado: round2(causas.reduce((s, c) => s + c.valor, 0))
+  };
+}
+
+/* ------------------------------------------------------------ DIÁRIO
+   Seis registros em 241 dias não é diário, é caderno. Cobertura = dias
+   com registro / dias úteis (seg–sex) desde o início da obra até hoje.
+   Dia impraticável = clima "Impraticável" ou "Chuva forte", ou efetivo zero
+   com "parad" no texto — é o argumento concreto para aditivo de prazo. */
+const CLIMAS_IMPRATICAVEIS = new Set(['Impraticável', 'Chuva forte']);
+
+function diaImpraticavel(d) {
+  if (CLIMAS_IMPRATICAVEIS.has(d.clima)) return true;
+  return num(d.efetivo) === 0 && /parad/i.test(`${d.atividades || ''} ${d.ocorrencias || ''}`);
+}
+
+function diasUteisEntre(ini, fim) {
+  if (!isISO(ini) || !isISO(fim) || fim < ini) return 0;
+  let n = 0;
+  let d = ini;
+  let guard = 0;
+  while (d <= fim && guard++ < 4000) {
+    const dow = new Date(d + 'T12:00:00Z').getUTCDay();
+    if (dow !== 0 && dow !== 6) n++;
+    d = addDiasISO(d, 1);
+  }
+  return n;
+}
+
+function diarioIndicadores(obra, hoje = hojeISO()) {
+  const registros = (obra.diario || []).filter((d) => isISO(d.data) && d.data <= hoje);
+  const datas = [...new Set(registros.map((d) => d.data))].sort();
+  const inicio = isISO(obra.dataInicio) ? obra.dataInicio : datas[0] || '';
+  const fim = obra.status === 'Concluída' && datas.length ? datas[datas.length - 1] : hoje;
+  const uteis = diasUteisEntre(inicio, fim);
+  const comRegistroUteis = datas.filter((d) => {
+    const dow = new Date(d + 'T12:00:00Z').getUTCDay();
+    return d >= inicio && dow !== 0 && dow !== 6;
+  }).length;
+  const impraticaveis = [...new Set(registros.filter(diaImpraticavel).map((d) => d.data))];
+  const ultimo = datas[datas.length - 1] || '';
+  return {
+    registros: registros.length,
+    diasComRegistro: datas.length,
+    diasUteis: uteis,
+    cobertura: uteis > 0 ? Math.min(1, comRegistroUteis / uteis) : null,
+    diasImpraticaveis: impraticaveis.length,
+    datasImpraticaveis: impraticaveis.sort(),
+    comFoto: registros.filter((d) => d.fotos && d.fotos.length).length,
+    semRegistroHa: ultimo ? diasEntre(ultimo, hoje) : null,
+    ultimo
+  };
+}
+
 /* Medições que têm pendência: a mesma regra de pendenciasObra, não um
    recorte próprio. Antes a tela de Medições contava só o alerta estrutural
    (pago acima, contrato ultrapassado) e dizia "0" enquanto o menu e a tela
@@ -974,14 +1232,85 @@ function avancoCarteira(obras, hoje = hojeISO()) {
   return { realizado, previsto, desvio: realizado - previsto, obras: dentro, fora: obras.length - dentro };
 }
 
-/* Prazo: fim planejado da obra e quantos dias ela está atrasada.
-   O atraso é o da etapa não concluída mais atrasada — é o mínimo que a
-   obra vai atrasar, já que ela só termina quando essa etapa terminar. */
-function prazoObra(obra, hoje = hojeISO()) {
+/* =====================================================================
+   VALOR AGREGADO — IDP, IDC, custo no término e término projetado.
+
+   IDP = físico realizado / físico previsto hoje (abaixo de 1: atrasada).
+   IDC = valor agregado / custo realizado, SÓ custo físico dos dois lados
+         (comissão paga de uma vez distorceria). Abaixo de 1: gastando mais
+         do que entregou. "A cada R$ 1 gasto, entregou R$ IDC."
+   EAC = custo físico previsto / IDC + custo não físico.
+   Término projetado = início + duração do cronograma / IDP — no ritmo de
+   hoje, quando a obra acaba. Nunca antes de hoje se ainda falta obra.
+   Atraso projetado = término projetado − data contratual. É o "atraso da
+   obra": um número só, o mesmo na Carteira, no Painel e no Cronograma.
+   ===================================================================== */
+const IDP_MINIMO = 0.25; /* abaixo disso a projeção passaria de 4× o prazo: trava */
+
+function valorAgregadoObra(obra, hoje = hojeISO()) {
+  const k = kpisObra(obra);
+  const previsto = avancoPrevistoObra(obra, hoje);
+  const real = k.progressoFisico;
+  const idp = obra.cronograma.length && previsto > 0.005 ? real / previsto : null;
+
+  const va = real * k.custoFisicoPrevisto;
+  const cr = k.totalPago - k.custoNaoFisico;
+  const idc = va > 0.005 && cr > 0.005 ? va / cr : null;
+  const eac = idc ? k.custoFisicoPrevisto / idc + k.custoNaoFisico : k.custoPrevisto;
+
   const fins = obra.cronograma.map((e) => e.fimPrevisto).filter(isISO).sort();
-  const fimPrevisto = isISO(obra.previsaoConclusao) ? obra.previsaoConclusao : (fins[fins.length - 1] || '');
+  const inis = obra.cronograma.map((e) => e.inicioPrevisto).filter(isISO).sort();
+  const fimPlano = fins[fins.length - 1] || (isISO(obra.previsaoConclusao) ? obra.previsaoConclusao : '');
+  const inicio = isISO(obra.dataInicio) ? obra.dataInicio : inis[0] || '';
+  const contratual = isISO(obra.previsaoConclusao) ? obra.previsaoConclusao : fimPlano;
+
+  let termino = '';
+  if (obra.cronograma.length && real >= 1 - 1e-9) {
+    const reais = obra.cronograma.map((e) => e.fimReal).filter(isISO).sort();
+    termino = reais[reais.length - 1] || hoje;
+  } else if (idp === null) {
+    termino = fimPlano;
+  } else if (isISO(inicio) && isISO(fimPlano)) {
+    const dur = Math.max(1, diasEntre(inicio, fimPlano));
+    termino = addDiasISO(inicio, Math.round(dur / Math.max(idp, IDP_MINIMO)));
+    if (termino < hoje) termino = hoje;
+  }
+  const atrasoProjetado = isISO(termino) && isISO(contratual) ? diasEntre(contratual, termino) : null;
+
+  return {
+    previsto, realizado: real, idp, idc,
+    va, cr, eac, desvioCusto: eac - k.custoPrevisto,
+    inicio, fimPlano, contratual, termino, atrasoProjetado,
+    idpTravado: idp !== null && idp < IDP_MINIMO
+  };
+}
+
+/* Semáforo dos índices (limiares da auditoria):
+   IDP < 0,95 atenção, < 0,85 crítico · IDC < 0,97 atenção, < 0,92 crítico. */
+function nivelIndice(valor, tipo) {
+  if (valor === null || valor === undefined) return '';
+  const [amb, verm] = tipo === 'idc' ? [0.97, 0.92] : [0.95, 0.85];
+  return valor < verm ? 'critico' : valor < amb ? 'atencao' : 'ok';
+}
+
+/* Prazo: data contratual, término projetado e os dois atrasos, cada um com
+   o seu nome — nunca mais um número sem rótulo.
+   - desvioDias: a etapa não concluída mais atrasada ("atraso da etapa");
+   - atrasoDias: o ATRASO DA OBRA = término projetado − data contratual,
+     nunca menor que o da etapa mais atrasada (a obra não acaba antes dela). */
+function prazoObra(obra, hoje = hojeISO()) {
+  const va = valorAgregadoObra(obra, hoje);
+  const fimPrevisto = va.contratual;
   const atraso = obra.cronograma.reduce((mx, e) => Math.max(mx, etapaCalc(e, hoje).atraso), 0);
-  return { fimPrevisto, desvioDias: atraso };
+  const atrasoObra = Math.max(atraso, va.atrasoProjetado === null ? 0 : va.atrasoProjetado);
+  return {
+    fimPrevisto,
+    desvioDias: atraso,
+    termino: va.termino,
+    atrasoProjetado: va.atrasoProjetado,
+    atrasoDias: atrasoObra,
+    idp: va.idp
+  };
 }
 
 /* Estouro de custo pelos contratos: quanto se MEDIU acima do autorizado,
@@ -1014,8 +1343,9 @@ function saudeObra(obra, hoje = hojeISO()) {
 
   const motivos = [];
   const p = prazoObra(obra, hoje);
-  if (p.desvioDias > 0) {
-    motivos.push({ tipo: 'prazo', nivel: p.desvioDias >= 30 ? 'critico' : 'atencao', texto: `Atrasada ${p.desvioDias}d` });
+  /* atraso da OBRA (término projetado × data contratual), não o da etapa */
+  if (p.atrasoDias > 0) {
+    motivos.push({ tipo: 'prazo', nivel: p.atrasoDias >= 30 ? 'critico' : 'atencao', texto: `Atrasada ${p.atrasoDias}d` });
   }
   const c = estouroContratos(obra);
   if (c.ultrapassado || c.estouro > 0.0005) {
@@ -1408,6 +1738,11 @@ export {
   custoCarteira,
   pendenciasObra,
   medicoesComPendencia,
+  causasRaizObra,
+  historiaObra,
+  historiaCarteira,
+  diarioIndicadores,
+  diaImpraticavel,
   pendenciasCarteira,
   recebimentoDoFinanciamento,
   lancamentoCustoFisico,
@@ -1415,6 +1750,8 @@ export {
   avancoPrevistoObra,
   avancoCarteira,
   prazoObra,
+  valorAgregadoObra,
+  nivelIndice,
   estouroContratos,
   saudeObra,
   riscoCarteira,

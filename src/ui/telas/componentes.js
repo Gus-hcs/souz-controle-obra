@@ -8,7 +8,7 @@
  *
  * Nada aqui calcula regra de negócio: recebe os números prontos.
  */
-import { esc, fmtMoney } from '../../nucleo/base.js';
+import { esc, fmtMoney, fmtNum } from '../../nucleo/base.js';
 import { Store } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
 import { App, ICO, botao, svg } from '../shell.js';
@@ -91,7 +91,7 @@ function acoesRegistro(tipo, id, nome) {
   const n = esc(nome || 'registro');
   return `<button class="btn sutil icone pequeno" data-acao="editar-${tipo}" data-id="${esc(id)}"
       title="Editar" aria-label="Editar ${n}">${svg(ICO.lapis, 13)}</button>
-    <button class="btn sutil icone pequeno" data-acao="excluir-${tipo}" data-id="${esc(id)}"
+    <button class="btn sutil icone pequeno acao-excluir" data-acao="excluir-${tipo}" data-id="${esc(id)}"
       title="Excluir" aria-label="Excluir ${n}">${svg(ICO.lixo, 13)}</button>`;
 }
 
@@ -250,7 +250,17 @@ function vazioTela({ titulo, texto, acao }) {
   </div>`;
 }
 
+/* Índice de valor agregado (IDP, IDC) com duas casas — "—" quando não há
+   base para calcular (obra que ainda não deveria ter começado). */
+const fmtIndice = (v) => (v === null || v === undefined ? '—' : fmtNum(v, 2));
+
+/* Nível do semáforo (nivelIndice, dominio/calculos.js) na classe de cor. */
+const TOM_NIVEL = { critico: 'atraso', atencao: 'tom-alerta', ok: 'feito' };
+const tomNivel = (nivel) => TOM_NIVEL[nivel] || '';
+
 export {
+  fmtIndice,
+  tomNivel,
   dinheiro,
   resumo,
   seletor,

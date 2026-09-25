@@ -1,25 +1,26 @@
 /**
  * telas/diario.js — Diário de obra, na linguagem nova.
  *
- * Os cartões (data, clima, atividades, fotos) já eram bons — só a casca
- * (hero/kpi/chip) era antiga. Nada muda na regra: o diário continua sendo
- * texto livre por dia, sem cálculo de domínio.
+ * Os cartões (data, clima, atividades, fotos) já eram bons. Os números do
+ * topo saem de diarioIndicadores (dominio/calculos.js): cobertura — dias
+ * úteis com registro sobre dias úteis de obra — e dias impraticáveis, o
+ * argumento concreto para aditivo de prazo.
  */
 import {
   competencia,
   dataUriParaArquivo,
-  diasEntre,
   esc,
   fmtCompetencia,
   fmtData,
   fmtDataCurta,
   fmtNum,
+  fmtPct,
   hojeISO,
-  isISO,
   norm,
   num,
 } from '../../nucleo/base.js';
 import { linkWhatsApp, normalizarTelefoneBR } from '../../nucleo/contato.js';
+import { diaImpraticavel, diarioIndicadores } from '../../dominio/calculos.js';
 import { Store } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
 import { App, botao, ICO, svg, toast } from '../shell.js';
@@ -33,8 +34,7 @@ import {
   vazioTela,
 } from './componentes.js';
 
-function kpisDiario(todos, semRegistro, ultimo, totFotos, comFoto, comOcorrencia) {
-  const noMes = todos.filter((d) => competencia(d.data) === competencia(hojeISO())).length;
+function kpisDiario(ind, totFotos, comOcorrencia) {
   const item = (chave, rotulo, valor, contexto, tom = '', filtravel = false) => {
     const ativo = filtravel && App.filtros.kpiDiario === chave;
     return `<div class="kpi-item${ativo ? ' ativo' : ''}"${filtravel ? ` data-acao="diario-kpi" data-kpi="${chave}" role="button" tabindex="0" aria-pressed="${ativo}" title="Filtrar a lista"` : ''}>
@@ -43,17 +43,32 @@ function kpisDiario(todos, semRegistro, ultimo, totFotos, comFoto, comOcorrencia
       <span class="kpi-ctx">${contexto}</span>
     </div>`;
   };
+  const cob = ind.cobertura;
 
   return `<div class="kpis" role="group" aria-label="Indicadores do diário">
-    ${item('total', 'Registros', todos.length, `${noMes} neste mês`)}
+    ${item(
+      'cobertura',
+      'Cobertura do diário',
+      cob === null ? '—' : fmtPct(cob, 0),
+      `${ind.diasComRegistro} de ${ind.diasUteis} dias úteis`,
+      cob === null ? '' : cob < 0.5 ? 'atraso' : cob < 0.8 ? 'tom-alerta' : '',
+    )}
     ${item(
       'inativo',
       'Sem registro há',
-      semRegistro === null ? '—' : `${semRegistro} dia${semRegistro === 1 ? '' : 's'}`,
-      semRegistro === null ? 'nenhuma visita registrada' : `último em ${fmtDataCurta(ultimo.data)}`,
-      semRegistro !== null && semRegistro > 7 ? 'tom-alerta' : '',
+      ind.semRegistroHa === null ? '—' : `${ind.semRegistroHa} dia${ind.semRegistroHa === 1 ? '' : 's'}`,
+      ind.semRegistroHa === null ? 'nenhuma visita registrada' : `último em ${fmtDataCurta(ind.ultimo)}`,
+      ind.semRegistroHa === null ? '' : ind.semRegistroHa > 7 ? 'atraso' : ind.semRegistroHa > 2 ? 'tom-alerta' : '',
     )}
-    ${item('foto', 'Com foto', totFotos, `${comFoto} de ${todos.length} registro${todos.length === 1 ? '' : 's'}`, '', true)}
+    ${item(
+      'impraticavel',
+      'Dias impraticáveis',
+      ind.diasImpraticaveis,
+      ind.diasImpraticaveis ? 'base para aditivo de prazo' : 'nenhum registrado',
+      '',
+      true,
+    )}
+    ${item('foto', 'Com foto', totFotos, `${ind.comFoto} de ${ind.registros} registro${ind.registros === 1 ? '' : 's'}`, '', true)}
     ${item(
       'ocorrencia',
       'Com ocorrência',
@@ -169,10 +184,8 @@ VIEWS.diario = () => {
   const f = App.filtros;
   const todos = o.diario;
   const ordenados = todos.slice().sort((a, b) => String(b.data).localeCompare(String(a.data)));
-  const ultimo = ordenados[0];
-  const semRegistro = ultimo && isISO(ultimo.data) ? diasEntre(ultimo.data, hojeISO()) : null;
+  const ind = diarioIndicadores(o);
   const totFotos = todos.reduce((s, d) => s + (d.fotos ? d.fotos.length : 0), 0);
-  const comFoto = todos.filter((d) => d.fotos && d.fotos.length).length;
   const comOcorrencia = todos.filter((d) => d.ocorrencias && d.ocorrencias.trim());
   const etapasUsadas = [...new Set(todos.map((d) => d.etapa).filter(Boolean))].sort((a, b) =>
     a.localeCompare(b, 'pt'),
@@ -187,6 +200,7 @@ VIEWS.diario = () => {
   if (f.mes) itens = itens.filter((d) => competencia(d.data) === f.mes);
   if (f.situacao === 'chuva') itens = itens.filter((d) => d.clima && d.clima.includes('Chuva'));
   if (f.kpiDiario === 'foto') itens = itens.filter((d) => d.fotos && d.fotos.length);
+  if (f.kpiDiario === 'impraticavel') itens = itens.filter(diaImpraticavel);
   if (f.kpiDiario === 'ocorrencia')
     itens = itens.filter((d) => d.ocorrencias && d.ocorrencias.trim());
   if (busca)
@@ -211,8 +225,17 @@ VIEWS.diario = () => {
     total: todos.length,
   });
 
+  /* Registrar hoje em destaque enquanto o dia não tem registro — é a ação
+     que o mestre de obra abre a tela para fazer. */
+  const semHoje = ind.ultimo !== hojeISO();
   return `<div class="tela-lista">
-    ${kpisDiario(todos, semRegistro, ultimo, totFotos, comFoto, comOcorrencia)}
+    ${
+      semHoje
+        ? `<div class="registrar-hoje">${botao('Registrar hoje', 'novo-diario', {}, 'btn primario', 'mais')}
+            <span class="tinta2">${ind.semRegistroHa === null ? 'Nenhum registro ainda.' : `Último registro há ${ind.semRegistroHa} dia${ind.semRegistroHa === 1 ? '' : 's'}.`}</span></div>`
+        : ''
+    }
+    ${kpisDiario(ind, totFotos, comOcorrencia)}
     ${barra}
     ${
       itens.length

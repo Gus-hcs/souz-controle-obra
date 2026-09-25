@@ -97,6 +97,9 @@ const addDias = (iso, n) => {
 
 const fmtData = (iso) => (isISO(iso) ? iso.slice(8, 10) + '/' + iso.slice(5, 7) + '/' + iso.slice(0, 4) : '—');
 const fmtDataCurta = (iso) => (isISO(iso) ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '—');
+/* dd/mm/aa — para coluna estreita onde a obra pode acabar em outro ano
+   ("20/08" sozinho não diz se é deste ano ou do próximo). */
+const fmtDataCurtaAno = (iso) => (isISO(iso) ? fmtDataCurta(iso) + '/' + iso.slice(2, 4) : '—');
 
 const competencia = (iso) => (isISO(iso) ? iso.slice(0, 7) : '');
 
@@ -439,6 +442,7 @@ export {
   addDias,
   fmtData,
   fmtDataCurta,
+  fmtDataCurtaAno,
   competencia,
   MESES,
   fmtCompetencia,

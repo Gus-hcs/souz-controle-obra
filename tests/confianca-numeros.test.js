@@ -12,15 +12,6 @@
  */
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import {
-  novaObra,
-  novoContrato,
-  novaMedicao,
-  novoRecebimento,
-  novoLancamento,
-  novoMaterial,
-  novaEtapaCronograma,
-} from '../src/nucleo/base.js';
-import {
   alertasObra,
   basesContratuais,
   contratoTotalAutorizado,
@@ -31,101 +22,13 @@ import {
   recebimentoDoFinanciamento,
 } from '../src/dominio/calculos.js';
 
-const HOJE = '2026-09-25';
+import { HOJE, casa14 } from './casa14.fixture.js';
+
 vi.useFakeTimers();
 vi.setSystemTime(new Date(`${HOJE}T12:00:00Z`));
 afterAll(() => vi.useRealTimers());
 
-const h = (n) => {
-  const d = new Date(`${HOJE}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-};
 const perto = (a, b, tol = 0.01) => expect(Math.abs(a - b)).toBeLessThanOrEqual(tol);
-
-function casa14() {
-  const o = novaObra('Casa 14 — Vila Nova Esperança');
-  Object.assign(o, {
-    areaConstruida: 52,
-    dataInicio: h(-240),
-    previsaoConclusao: h(-10),
-    status: 'Em andamento',
-  });
-  Object.assign(o.fin, {
-    saldoInicial: 3000,
-    valorTerreno: 42000,
-    valorFinanciado: 150000,
-    recursosProprios: 18000,
-    precoEmpreitadaM2: 720,
-    custoFisicoMaxM2: 1200,
-    valorVenda: 205000,
-    margemDesejada: 0.15,
-  });
-
-  const c = (x) => Object.assign(novoContrato(), x);
-  o.contratos.push(
-    c({ codigo: 'CT-001', codigoBase: 'CT-001', registro: 'Contrato', quantidade: 52, precoUnitario: 720,
-        valorInformado: 0, inicioPrevisto: h(-236), fimPrevisto: h(-30), status: 'Em andamento' }),
-    c({ codigo: 'CT-001-A1', codigoBase: 'CT-001', registro: 'Aditivo', tipoAditivo: 'prazo',
-        statusAditivo: 'proposto', valorInformado: 0, novoPrazoAditivo: h(25), status: 'Em andamento' }),
-    c({ codigo: 'CT-001-A2', codigoBase: 'CT-001', registro: 'Aditivo', tipoAditivo: 'acrescimo',
-        statusAditivo: 'proposto', valorInformado: 3200, status: 'Em andamento' }),
-    c({ codigo: 'CT-001-A3', codigoBase: 'CT-001', registro: 'Aditivo', tipoAditivo: 'supressao',
-        statusAditivo: 'aprovado', valorInformado: 1500, status: 'Em andamento' }),
-    c({ codigo: 'CT-002', codigoBase: 'CT-002', registro: 'Contrato', valorInformado: 7800,
-        inicioPrevisto: h(-150), fimPrevisto: h(-110), status: 'Concluído' }),
-    c({ codigo: 'CT-003', codigoBase: 'CT-003', registro: 'Contrato', quantidade: 52, precoUnitario: 45,
-        valorInformado: 0, inicioPrevisto: h(-20), fimPrevisto: h(10), status: 'Planejado' }),
-  );
-
-  const m = (x) => Object.assign(novaMedicao(), x);
-  o.medicoes.push(
-    m({ contratoBase: 'CT-001', numero: '1', data: h(-205), valorMedido: 7900, dataPagamento: h(-202), valorPago: 7900, status: 'Pago' }),
-    m({ contratoBase: 'CT-001', numero: '2', data: h(-160), valorMedido: 9350, dataPagamento: h(-157), valorPago: 9350, status: 'Pago' }),
-    m({ contratoBase: 'CT-001', numero: '3', data: h(-100), valorMedido: 7900, dataPagamento: h(-96), valorPago: 7900, status: 'Pago' }),
-    m({ contratoBase: 'CT-001', numero: '4', data: h(-45), valorMedido: 5400, valorPago: 0, status: 'Em aberto' }),
-    m({ contratoBase: 'CT-002', numero: '1', data: h(-128), valorMedido: 3900, dataPagamento: h(-125), valorPago: 3900, status: 'Pago' }),
-    m({ contratoBase: 'CT-002', numero: '2', data: h(-108), valorMedido: 3900, dataPagamento: h(-100), valorPago: 2300, status: 'Parcial' }),
-  );
-
-  const r = (x) => Object.assign(novoRecebimento(), x);
-  o.recebimentos.push(
-    r({ origem: 'Cliente', etapaPci: 'Entrada do cliente', dataPrevista: h(-240), valorPrevisto: 18000,
-        dataRecebimento: h(-238), valorRecebido: 18000, status: 'Recebido' }),
-    r({ origem: 'CAIXA', numeroMedicao: '1', dataPrevista: h(-210), valorPrevisto: 30000, valorAprovado: 30000,
-        descontos: 210, dataRecebimento: h(-204), valorRecebido: 29790, status: 'Recebido' }),
-    r({ origem: 'CAIXA', numeroMedicao: '2', dataPrevista: h(-165), valorPrevisto: 37500, valorAprovado: 37500,
-        descontos: 262.5, dataRecebimento: h(-158), valorRecebido: 37237.5, status: 'Recebido' }),
-    r({ origem: 'CAIXA', numeroMedicao: '3', dataPrevista: h(-40), valorPrevisto: 37500, dataSolicitacao: h(-45),
-        status: 'Solicitado' }),
-    r({ origem: 'CAIXA', numeroMedicao: '4', dataPrevista: h(30), valorPrevisto: 45000, status: 'Previsto' }),
-  );
-
-  const mat = (x) => Object.assign(novoMaterial(), x);
-  const cimento = mat({ etapa: 'Fundação', material: 'Cimento CP II 50 kg', quantidadeNecessaria: 100, unidade: 'saco', dataNecessaria: h(-230), precoPrevisto: 37 });
-  const rejunte = mat({ etapa: 'Pisos e revestimentos', material: 'Rejunte', quantidadeNecessaria: 40, unidade: 'saco', dataNecessaria: h(-6), precoPrevisto: 31 });
-  const tinta = mat({ etapa: 'Pintura', material: 'Tinta acrílica 18 L', quantidadeNecessaria: 9, unidade: 'lata', dataNecessaria: h(8), precoPrevisto: 235 });
-  o.materiais.push(cimento, rejunte, tinta);
-
-  const l = (x) => Object.assign(novoLancamento(), x);
-  o.lancamentos.push(
-    l({ data: h(-232), tipo: 'Taxa/imposto', descricao: 'ART', quantidade: 1, precoUnitario: 262 }),
-    l({ data: h(-230), tipo: 'Taxa/imposto', descricao: 'Alvará', quantidade: 1, precoUnitario: 650 }),
-    l({ data: h(-228), tipo: 'Material', etapa: 'Fundação', descricao: 'Cimento CP II 50 kg', quantidade: 90,
-        precoUnitario: 37, frete: 150, materialId: cimento.id }),
-    l({ data: h(-120), tipo: 'Material', descricao: 'Material de obra', quantidade: 1, precoUnitario: 20000 }),
-    l({ data: h(-40), tipo: 'Honorário técnico/gestão', descricao: 'Acompanhamento', quantidade: 1, precoUnitario: 1200 }),
-    l({ data: h(-20), tipo: 'Comissão imobiliária', descricao: 'Comissão do corretor', quantidade: 1, precoUnitario: 6150 }),
-  );
-
-  const e = (x) => Object.assign(novaEtapaCronograma(), x);
-  o.cronograma.push(
-    e({ etapa: 'Fundação', inicioPrevisto: h(-232), fimPrevisto: h(-210), inicioReal: h(-229), fimReal: h(-200), progresso: 1, peso: 12 }),
-    e({ etapa: 'Reboco e requadros', inicioPrevisto: h(-110), fimPrevisto: h(-40), inicioReal: h(-100), progresso: 0.9, peso: 9 }),
-    e({ etapa: 'Pintura', inicioPrevisto: h(5), fimPrevisto: h(25), progresso: 0, peso: 6 }),
-  );
-  return o;
-}
 
 describe('1. valor contratado — uma fonte só', () => {
   const o = casa14();

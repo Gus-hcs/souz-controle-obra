@@ -63,7 +63,7 @@ describe('retenção de 10% na medição', () => {
     expect(medicaoAlerta(o, m)).toBe('PAGAMENTO INCOMPLETO');
     expect(titulos(o)).toEqual([
       'Medição 1 marcada como paga sem quitação',
-      'Medição 1 em aberto há 30 dias',
+      'Medição 1 do CT-001 em aberto há 30 dias',
     ]);
     expect(alertasObra(o).find((a) => a.titulo.includes('sem quitação')).detalhe).toMatch(/1\.000/);
   });
