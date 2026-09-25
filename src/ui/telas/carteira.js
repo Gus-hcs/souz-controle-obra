@@ -44,7 +44,7 @@ import {
 import { graficoCurvaS } from '../../graficos/index.js';
 import { fmtIndice, tomNivel } from './componentes.js';
 import { Store } from '../../dados/store.js';
-import { App, ICO, botao, nomeCliente, svg } from '../shell.js';
+import { App, ICO, botao, nomeCliente, partesNomeObra, svg } from '../shell.js';
 import { VIEWS, fraseAncoraHTML, rotuloAcao } from '../telas-obra.js';
 
 /* Estado só de tela — não é dado, não vai para o Store. */
@@ -312,7 +312,13 @@ function celulaCusto(d) {
 }
 
 function linhaObra(d) {
-  const sub = [d.cliente, d.o.cidade].filter(Boolean).join(' · ') || 'sem cliente vinculado';
+  /* "Casa 14" em cima, "Vila Nova Esperança · cliente" embaixo: o nome
+     inteiro cortado no meio ("Casa 14 — Vila No…") não identificava nada.
+     O nome completo fica no title. */
+  const [codigo, local] = partesNomeObra(d.o);
+  const sub =
+    [local !== d.o.cidade ? local : '', d.cliente, d.o.cidade].filter(Boolean).join(' · ') ||
+    'sem cliente vinculado';
   const incompleta = d.saude.faltando.length > 0;
   /* Obra sem cronograma ou orçamento: no lugar de zeros e traços, uma frase
      que diz o que falta e o link para completar. */
@@ -327,7 +333,7 @@ function linhaObra(d) {
 
   return `<tr class="clicavel" data-obra="${esc(d.o.id)}" data-acao="carteira-selecionar"
       ${d.o.id === tela.selecao ? 'aria-selected="true"' : ''} tabindex="-1">
-    <td class="principal-celular"><div class="cel-obra"><b>${esc(d.o.nome)}</b><span>${esc(sub)}</span></div></td>
+    <td class="principal-celular"><div class="cel-obra" title="${esc(d.o.nome)}"><b>${esc(codigo)}</b><span>${esc(sub)}</span></div></td>
     <td class="cel-saude">${celulaSaude(d)}</td>
     ${meio}
     <td class="num" data-rotulo="Saldo">${d.semMovimento ? '<span class="rotulo-cinza">sem movimento</span>' : dinheiro(d.ko.saldoCaixa)}</td>

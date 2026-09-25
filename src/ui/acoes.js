@@ -12,7 +12,24 @@ import { carregarAuditoria, implExpandida } from './telas-obra.js';
 const ACOES = {};
 
 /* ------------------------------------------------------- navegação */
-ACOES.ir = (el, d) => App.ir(d.view, d.obra);
+/* Na carteira ("Todas as obras"), uma tela de obra sem obra escolhida
+   abre o seletor em vez de cair, calada, na última obra lembrada; a
+   escolha leva à tela pedida. */
+let viewPendente = '';
+ACOES.ir = (el, d) => {
+  if (
+    App.rota.view === 'carteira' && !d.obra && VIEWS_OBRA.has(d.view) &&
+    Store.estado.obras.length > 1 && el && el.closest && el.closest('#rail')
+  ) {
+    const botaoObra = document.querySelector('[data-acao="obra-menu"]');
+    if (botaoObra) {
+      viewPendente = d.view;
+      ACOES['obra-menu'](botaoObra);
+      return;
+    }
+  }
+  App.ir(d.view, d.obra);
+};
 
 /* ---------------------------------- cartão de implantação (Painel) */
 ACOES['impl-toggle'] = (el, d) => {
@@ -214,6 +231,7 @@ ACOES['excluir-obra'] = () => {
 
 /* Menu do seletor de obra: cada obra em duas linhas, como no botão. */
 function fecharMenuObra() {
+  viewPendente = '';
   const m = document.querySelector('.menu-obra');
   if (m) m.remove();
   const b = document.querySelector('[data-acao="obra-menu"]');
@@ -245,7 +263,9 @@ ACOES['obra-menu'] = (el) => {
   if (atual) atual.focus();
 };
 ACOES['trocar-obra-id'] = (el, d) => {
+  const pedida = viewPendente;
   fecharMenuObra();
+  viewPendente = pedida;
   ACOES['trocar-obra']({ value: d.obra || '' });
 };
 document.addEventListener('mousedown', (ev) => {
@@ -258,9 +278,11 @@ document.addEventListener('keydown', (ev) => {
 ACOES['trocar-obra'] = (el) => {
   /* "Todas as obras" leva à carteira; a obra ativa continua lembrada
      para quando se entrar numa tela de obra. */
+  const pedida = viewPendente;
+  viewPendente = '';
   if (!el.value) return App.ir('carteira');
   App.rota.obraId = el.value;
-  App.ir(VIEWS_OBRA.has(App.rota.view) ? App.rota.view : 'painel', el.value);
+  App.ir(pedida || (VIEWS_OBRA.has(App.rota.view) ? App.rota.view : 'painel'), el.value);
 };
 
 /* ------------------------------------------------------ menu da conta */
