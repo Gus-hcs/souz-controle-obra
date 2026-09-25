@@ -3364,3 +3364,14 @@ table.lista td.num span {
   font-size: var(--t-corpo);
   line-height: 1.6;
 }
+
+/* Toque (celular, tablet): campo com fonte abaixo de 16px faz o iOS dar
+   zoom na página ao focar. Valia só na folha do prestador; agora vale em
+   todo formulário. */
+@media (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
