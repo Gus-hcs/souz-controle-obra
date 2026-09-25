@@ -183,9 +183,10 @@
        sidebar e nas barras, Elevado no que flutua */
     --fundo-janela: #05100e;
     --fundo-conteudo: #05100e;
-    --fundo-lateral: rgba(14, 26, 23, 0.9);
-    --fundo-lateral-solido: #0e1a17;
-    --fundo-toolbar: rgba(14, 26, 23, 0.86);
+    /* barra de cima e lateral quase pretas, um degrau abaixo do conteúdo */
+    --fundo-lateral: rgba(2, 8, 6, 0.94);
+    --fundo-lateral-solido: #020806;
+    --fundo-toolbar: rgba(2, 8, 6, 0.92);
     --fundo-agrupado: #0e1a17;
     --fundo-elevado: #0e2824;
     --fundo-campo: #0e1a17;
@@ -238,9 +239,10 @@
      sidebar e nas barras, Elevado no que flutua */
   --fundo-janela: #05100e;
   --fundo-conteudo: #05100e;
-  --fundo-lateral: rgba(14, 26, 23, 0.9);
-  --fundo-lateral-solido: #0e1a17;
-  --fundo-toolbar: rgba(14, 26, 23, 0.86);
+  /* barra de cima e lateral quase pretas, um degrau abaixo do conteúdo */
+  --fundo-lateral: rgba(2, 8, 6, 0.94);
+  --fundo-lateral-solido: #020806;
+  --fundo-toolbar: rgba(2, 8, 6, 0.92);
   --fundo-agrupado: #0e1a17;
   --fundo-elevado: #0e2824;
   --fundo-campo: #0e1a17;
