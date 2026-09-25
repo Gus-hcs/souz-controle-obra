@@ -846,7 +846,7 @@ function alertasObra(obra) {
       { valor: Math.max(0, (num(obra.fin.margemDesejada) - k.margem) * k.venda) });
   }
   if (k.etapasTotal > 0 && k.desvioFisicoFinanceiro < -0.1) {
-    add('desembolso', 2, 'Produção', 'Desembolso à frente do avanço físico',
+    add('desembolso', 2, 'Produção', 'Financeiro realizado à frente do físico',
       `Físico ${fmtPct(k.progressoFisico, 0)} contra ${fmtPct(k.progressoFinanceiro, 0)} financeiro.`,
       'Conferir adiantamentos e compras antecipadas.', { view: 'curva' },
       { valor: (k.progressoFinanceiro - k.progressoFisico) * k.custoPrevisto });
@@ -1092,7 +1092,7 @@ function resultadoCarteira(obras) {
 }
 
 /* Tipo de cada pendência, pelo módulo que a gerou. É o agrupamento do
-   painel "Precisa de ação" e o detalhamento do KPI. */
+   painel "Pendências" e o detalhamento do KPI. */
 const TIPO_PENDENCIA = {
   Contratos: 'contrato', 'Medições': 'contrato',
   Cronograma: 'prazo',

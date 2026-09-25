@@ -27,7 +27,7 @@ function kpisFluxo(k, tot) {
 
   return `<div class="kpis" role="group" aria-label="Indicadores de fluxo de caixa">
     ${item(
-      'Saldo em caixa',
+      'Caixa hoje',
       fmtMoney(k.saldoCaixa, { dec: 0 }),
       `inicial ${fmtMoneyCurto(k.saldoInicial)} + ${fmtMoneyCurto(tot.e)} − ${fmtMoneyCurto(tot.s)}`,
       k.saldoCaixa < 0 ? 'atraso' : '',

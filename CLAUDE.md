@@ -110,6 +110,17 @@ Todos são escritos para rodar de novo sem quebrar (`if not exists`,
   o que o banco já garante (`SUPA.abaLiberada`, filtro no menu, guarda no
   `App.ir`).
 
+## Vocabulário
+
+Um termo para cada coisa, em todas as telas, PDFs e alertas:
+
+| Use | Não use | O que é |
+|---|---|---|
+| **Pendências** | Alertas, Precisa de ação, Precisa de atenção | alerta de gravidade ≥ 2 (`pendenciasObra`); a tela `alertas` se chama Pendências |
+| **Caixa hoje** | Saldo em caixa, Saldo | `kpisObra().saldoCaixa` |
+| **Financeiro realizado** | Avanço financeiro | desembolso ÷ custo previsto, em % (curva S) |
+| **Desembolso** | — | o mesmo, em R$ acumulados |
+
 ## Pendências conhecidas
 
 - **UI cega a papel.** `SUPA.papelNaObra()` / `SUPA.podeEditarObra()` existem,

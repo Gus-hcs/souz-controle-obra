@@ -526,7 +526,7 @@ async function montarPdfStatus(o, { interno = false } = {}) {
       ['Avanço físico', fmtPct(k.progressoFisico, 0), `${k.etapasConcluidas}/${k.etapasTotal} etapas`],
       ['Financiamento liberado', liberado, `${fmtMoney(k.recebidoFinanciamento, { dec: 0 })} de ${fmtMoney(k.financiado, { dec: 0 })}`],
       ['Pago', fmtMoney(k.totalPago, { dec: 0 }), k.area ? `físico previsto ${fmtMoney(k.custoFisicoPrevistoM2, { dec: 0 })}/m²` : ''],
-      ['Saldo em caixa', fmtMoney(k.saldoCaixa, { dec: 0 }), `previsto ${fmtMoney(k.custoPrevisto, { dec: 0 })}`]
+      ['Caixa hoje', fmtMoney(k.saldoCaixa, { dec: 0 }), `previsto ${fmtMoney(k.custoPrevisto, { dec: 0 })}`]
     ]
     : [
       ['Obra concluída', fmtPct(k.progressoFisico, 0), `${k.etapasConcluidas} de ${k.etapasTotal} etapas`],

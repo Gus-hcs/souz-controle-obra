@@ -129,7 +129,7 @@ const COLUNAS = [
     num: true,
     valor: (d) => (d.ko.custoPrevisto > 0 ? d.ko.totalPago / d.ko.custoPrevisto : -1),
   },
-  { k: 'saldo', rotulo: 'Saldo', largura: '10%', num: true, valor: (d) => d.ko.saldoCaixa },
+  { k: 'saldo', rotulo: 'Caixa hoje', largura: '10%', num: true, valor: (d) => d.ko.saldoCaixa },
   {
     k: 'resultado',
     rotulo: 'Resultado',
@@ -336,7 +336,7 @@ function linhaObra(d) {
     <td class="principal-celular"><div class="cel-obra" title="${esc(d.o.nome)}"><b>${esc(codigo)}</b><span>${esc(sub)}</span></div></td>
     <td class="cel-saude">${celulaSaude(d)}</td>
     ${meio}
-    <td class="num" data-rotulo="Saldo">${d.semMovimento ? '<span class="rotulo-cinza">sem movimento</span>' : dinheiro(d.ko.saldoCaixa)}</td>
+    <td class="num" data-rotulo="Caixa hoje">${d.semMovimento ? '<span class="rotulo-cinza">sem movimento</span>' : dinheiro(d.ko.saldoCaixa)}</td>
     <td class="num some-no-celular">${d.ko.venda > 0 ? dinheiro(d.ko.resultado) : '<span class="rotulo-cinza">sem valor de venda</span>'}</td>
     <td class="num"${d.pend.total ? ' data-rotulo="Pendências"' : ''}>${
       d.pend.total ? `<span class="${d.pend.criticas ? 'atraso' : ''}">${d.pend.total}</span>` : ''
@@ -445,8 +445,8 @@ function inspetor(ds, obrasBase) {
 
   if (!d) {
     const pend = pendenciasCarteira(obrasBase);
-    return `<aside class="inspetor" data-testid="inspetor" aria-label="Precisa de ação">
-      <div class="inspetor-cab"><h2>Precisa de ação<span class="sub">${
+    return `<aside class="inspetor" data-testid="inspetor" aria-label="Pendências">
+      <div class="inspetor-cab"><h2>Pendências<span class="sub">${
         pend.total ? `${pend.total} pendência${pend.total > 1 ? 's' : ''}` : 'nada pendente'
       }${pend.avisos ? ` · ${pend.avisos} aviso${pend.avisos > 1 ? 's' : ''} fora da conta` : ''}</span></h2></div>
       <div class="inspetor-corpo">${listaAcoes(pend.itens, true)}</div>
@@ -491,7 +491,7 @@ function inspetor(ds, obrasBase) {
           : `<div class="inspetor-secao inspetor-curva"><h3>Curva S</h3>${graficoCurvaS(d.o, 150)}</div>`
       }
       <div class="inspetor-secao">
-        <h3>Precisa de ação${d.pend.total ? ` (${d.pend.total})` : ''}</h3>
+        <h3>Pendências${d.pend.total ? ` (${d.pend.total})` : ''}</h3>
         ${listaAcoes(d.pend.itens, false)}
       </div>
       <div class="inspetor-secao">${botao('Abrir a obra', 'ir', { view: 'painel', obra: d.o.id }, 'btn primario larga')}</div>

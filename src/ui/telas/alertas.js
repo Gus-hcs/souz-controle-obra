@@ -43,7 +43,7 @@ function kpisAlertas(nCausas, valor, nCrit, nAten, nInfo) {
     </div>`;
   };
 
-  return `<div class="kpis" role="group" aria-label="Indicadores de alertas">
+  return `<div class="kpis" role="group" aria-label="Indicadores de pendências">
     ${item(
       'causas',
       'Problemas-raiz',
@@ -54,7 +54,7 @@ function kpisAlertas(nCausas, valor, nCrit, nAten, nInfo) {
     )}
     ${item('3', 'Críticos', nCrit, nCrit ? 'bloqueiam caixa ou entrega' : 'nada crítico', nCrit ? 'atraso' : '')}
     ${item('2', 'Atenção', nAten, nAten ? 'resolver nos próximos dias' : 'nada pendente', nAten ? 'tom-alerta' : '')}
-    ${item('1', 'Informativos', nInfo, nInfo ? 'fora da contagem de alertas' : 'nenhum')}
+    ${item('1', 'Informativos', nInfo, nInfo ? 'fora da contagem de pendências' : 'nenhum')}
   </div>`;
 }
 
@@ -119,7 +119,7 @@ VIEWS.alertas = () => {
   if (!todos.length) {
     return `<div class="tela-lista">
       <p class="tinta2" style="text-align:center;padding:var(--e10) 0">
-        Tudo em ordem — nenhum alerta para esta obra agora. Os alertas são recalculados a cada mudança nos dados.
+        Tudo em ordem — nenhuma pendência nesta obra agora. As pendências são recalculadas a cada mudança nos dados.
       </p>
     </div>`;
   }
@@ -185,5 +185,5 @@ VIEWS.alertas = () => {
 VIEWS.alertas.toolbar = () => {
   const o = App.obra();
   if (!o || !alertasObra(o).length) return '';
-  return buscaToolbar('Buscar alerta…', 'busca-alertas');
+  return buscaToolbar('Buscar pendência…', 'busca-alertas');
 };

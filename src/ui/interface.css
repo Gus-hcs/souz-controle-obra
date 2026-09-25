@@ -2062,7 +2062,7 @@ table.lista-carteira tbody td {
   white-space: nowrap;
 }
 
-/* Celular: "Precisa de ação" vem primeiro — antes ficava abaixo de 26
+/* Celular: "Pendências" vem primeiro — antes ficava abaixo de 26
    itens de agenda, e no canteiro ninguém rolava até lá. */
 @media (max-width: 767px) {
   .tela-carteira {
@@ -2196,7 +2196,7 @@ table.lista-carteira tbody td {
 
 /* Abaixo de 1100px o inspetor não cabe ao lado: desce para baixo da
    lista, e o conteúdo inteiro rola junto. Antes ele sumia — e com ele o
-   painel "Precisa de ação". */
+   painel "Pendências". */
 @media (max-width: 1100px) {
   #conteudo.paineis {
     display: block;

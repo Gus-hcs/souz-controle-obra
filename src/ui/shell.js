@@ -85,7 +85,7 @@ const MENU = [
     { v: 'painel', t: 'Painel', i: 'painel' },
     { v: 'curva', t: 'Físico × financeiro', i: 'curva' },
     { v: 'fluxo', t: 'Fluxo de caixa', i: 'fluxo' },
-    { v: 'alertas', t: 'Alertas', i: 'alerta' },
+    { v: 'alertas', t: 'Pendências', i: 'alerta' },
     { v: 'relatorio', t: 'Relatórios', i: 'relatorio' }
   ] },
   /* A trilha é por obra (`obra: true` no item), mas é consulta de
@@ -113,7 +113,7 @@ const TITULOS = {
   curva: ['Físico × financeiro', 'Curva S: o que foi feito contra o que foi gasto, e a tendência'],
   diario: ['Diário de obra', 'Registro de visitas, ocorrências e fotos'],
   fluxo: ['Fluxo de caixa', 'Entradas e saídas mês a mês'],
-  alertas: ['Alertas', 'Pendências que exigem ação'],
+  alertas: ['Pendências', 'O que precisa de ação, agrupado pela causa'],
   relatorio: ['Relatórios', 'Documentos para cliente, financiador e arquivo'],
   auditoria: ['Trilha de auditoria', 'Quem alterou cada valor financeiro e quando'],
   'obra-config': ['Configuração da obra', 'Identificação, financiamento e contrato'],

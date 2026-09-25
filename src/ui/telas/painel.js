@@ -35,7 +35,7 @@ function kpisPainel(o, k, va) {
 
   return `<div class="kpis" role="group" aria-label="Indicadores principais da obra">
     ${item(
-      'Saldo em caixa',
+      'Caixa hoje',
       fmtMoney(k.saldoCaixa, { dec: 0 }),
       `recebido ${fmtMoneyCurto(k.recebido)} · pago ${fmtMoneyCurto(k.totalPago)}`,
       k.saldoCaixa < 0 ? 'atraso' : '',
@@ -147,8 +147,8 @@ function caixaAcao(pend, historia) {
   const valor = causas.reduce((s, c) => s + c.valor, 0);
   return `<div class="caixa">
     <div class="caixa-cab">
-      <h3>Precisa de ação<span class="tinta2" style="font-weight:400"> · ${causas.length} problema${causas.length > 1 ? 's' : ''}-raiz${valor > 0.5 ? ` · ${fmtMoney(valor, { dec: 0 })} em jogo` : ''}</span></h3>
-      <div class="dir">${botao(`Ver ${pend.total} alerta${pend.total === 1 ? '' : 's'}`, 'ir', { view: 'alertas' }, 'btn sutil pequeno')}</div>
+      <h3>Pendências<span class="tinta2" style="font-weight:400"> · ${causas.length} problema${causas.length > 1 ? 's' : ''}-raiz${valor > 0.5 ? ` · ${fmtMoney(valor, { dec: 0 })} em jogo` : ''}</span></h3>
+      <div class="dir">${botao(`Ver ${pend.total === 1 ? 'a pendência' : `as ${pend.total} pendências`}`, 'ir', { view: 'alertas' }, 'btn sutil pequeno')}</div>
     </div>
     ${causas
       .slice(0, 4)
