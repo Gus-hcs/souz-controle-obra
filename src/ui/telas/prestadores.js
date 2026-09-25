@@ -19,6 +19,7 @@ import {
   esc,
   fmtDataCurta,
   fmtMoney,
+  fmtPct,
   FORMAS_CONTRATACAO,
   hojeISO,
   isISO,
@@ -41,6 +42,7 @@ import {
   CRITERIOS_AVAL,
   compararPrestadorAPagar,
   duplicadosPrestador,
+  pontualidadePrestador,
   prestadoresPagosSemContrato,
   resumoPrestador,
   sugestaoNomePrestador,
@@ -156,6 +158,7 @@ const comDados = (ps) =>
     p,
     r: resumoPrestador(Store.estado, p),
     a: avaliacaoPrestador(Store.estado, p),
+    pt: pontualidadePrestador(Store.estado, p),
   }));
 
 /* Quem espera pagamento há mais tempo vem primeiro (compararPrestadorAPagar);
@@ -166,8 +169,9 @@ function dados() {
   return ds.sort(compararPrestadorAPagar);
 }
 
-/* Colunas. A de Avaliação só existe quando alguém tem avaliação — coluna
-   vazia em todas as linhas é ruído. Contratado, A pagar agora e A medir
+/* Colunas. A de Pontualidade só existe quando alguém tem entrega com
+   prazo (pontualidadePrestador) — coluna vazia em todas as linhas é ruído.
+   Ela ocupa o lugar das estrelas digitadas: o prazo é fato, não opinião. Contratado, A pagar agora e A medir
    ficam lado a lado para virar uma célula só, "Sem contrato", quando não
    há contrato. A pagar agora e A medir são os mesmos da tela de Contratos
    (indicadoresContrato, somado em resumoPrestador). */
@@ -284,17 +288,20 @@ function colunas(temAvaliacao) {
   ];
   if (temAvaliacao) {
     cols.push({
-      k: 'avaliacao',
-      rotulo: 'Avaliação',
+      k: 'pontualidade',
+      rotulo: 'No prazo',
       largura: L.aval,
       num: true,
       celular: 'some',
-      valor: (d) => (d.a.media === null ? -1 : d.a.media),
-      /* sem avaliação, célula vazia — nem traço, nem zero */
-      celula: (d) =>
-        d.a.media === null
-          ? ''
-          : `<span class="nota" title="${plural(d.a.avaliacoes, 'avaliação', 'avaliações')}">${d.a.media.toFixed(1).replace('.', ',')} ${svg(ICO.estrela, 11)}</span>`,
+      valor: (d) => (d.pt.pontualidade === null ? -1 : d.pt.pontualidade),
+      /* sem entrega com prazo, célula vazia — nem traço, nem zero */
+      celula: (d) => {
+        const pt = d.pt;
+        if (pt.pontualidade === null) return '';
+        const tom = pt.pontualidade < 0.5 ? 'atraso' : pt.pontualidade < 0.8 ? 'tom-alerta' : '';
+        const dica = `${pt.noPrazo} de ${pt.entregas} entregas no prazo${pt.diasMedios ? ` · atraso médio ${pt.diasMedios} d` : ''}${pt.atrasadasAgora ? ` · ${pt.atrasadasAgora} atrasada(s) agora` : ''}`;
+        return `<span class="${tom}" title="${esc(dica)}">${fmtPct(pt.pontualidade, 0)}</span>`;
+      },
     });
   }
   return cols;
@@ -422,6 +429,18 @@ function inspetor(p) {
        ${r.qtdLancamentos ? `<button class="btn-link ver-todos" data-acao="prest-ver-pagamentos" data-id="${esc(p.id)}">Ver todos os lançamentos</button>` : ''}`
     : '<p class="linha-cinza">Nenhum pagamento ainda.</p>';
 
+  /* pontualidade calculada primeiro; a nota digitada ao concluir fica
+     como complemento (qualidade e organização não têm como calcular) */
+  const pt = pontualidadePrestador(Store.estado, p);
+  const pontualidade =
+    pt.pontualidade === null
+      ? '<p class="linha-cinza">Nenhuma entrega com prazo ainda</p>'
+      : `<dl class="pares">
+        ${linhaNum('No prazo', `<span class="${pt.pontualidade < 0.5 ? 'atraso' : pt.pontualidade < 0.8 ? 'tom-alerta' : ''}">${fmtPct(pt.pontualidade, 0)}</span>`, `${pt.noPrazo} de ${pt.entregas} entregas`)}
+        ${pt.diasMedios ? linhaNum('Atraso médio', `${pt.diasMedios} dias`, 'nas entregas atrasadas') : ''}
+        ${pt.atrasadasAgora ? linhaNum('Atrasadas agora', String(pt.atrasadasAgora)) : ''}
+        ${linhaNum('Obras ao mesmo tempo', String(pt.obrasSimultaneas), 'com serviço em andamento hoje')}
+      </dl>`;
   const avaliacao =
     a.media === null
       ? '<p class="linha-cinza">Sem avaliação</p>'
@@ -464,7 +483,8 @@ function inspetor(p) {
       </dl></div>
       <div class="inspetor-secao"><h3>Obras</h3>${obras}</div>
       <div class="inspetor-secao"><h3>Últimos pagamentos</h3>${pagamentos}</div>
-      <div class="inspetor-secao"><h3>Avaliação</h3>${avaliacao}</div>
+      <div class="inspetor-secao"><h3>Pontualidade</h3>${pontualidade}</div>
+      <div class="inspetor-secao"><h3>Avaliação ao concluir</h3>${avaliacao}</div>
       ${
         p.documento || forma || p.observacoes
           ? `<div class="inspetor-secao"><h3>Cadastro</h3><dl class="pares">
@@ -494,7 +514,7 @@ VIEWS.prestadores = () => {
   const ds = dados();
   const sel = tela.selecao && acharPrestador(tela.selecao);
   const temAvaliacao = todos.some(
-    (p) => !p.arquivado && avaliacaoPrestador(Store.estado, p).media !== null,
+    (p) => !p.arquivado && pontualidadePrestador(Store.estado, p).pontualidade !== null,
   );
   return `<div class="tela-prestadores">
     <div class="tela-principal">

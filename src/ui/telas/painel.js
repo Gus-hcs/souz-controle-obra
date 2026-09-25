@@ -7,19 +7,20 @@
  * na frase do topo, os números principais depois, as causas com o dinheiro
  * em jogo, os gráficos de apoio por último.
  */
-import { esc, fmtData, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtPct, num } from '../../nucleo/base.js';
+import { esc, fmtData, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtPct, hojeISO, num } from '../../nucleo/base.js';
 import {
   historiaObra,
   implantacaoObra,
   kpisObra,
+  custoPorEtapa,
+  fluxoProjetado,
   liberadoExecutado,
   proximaParcelaFinanciador,
-  lancamentoTotal,
   nivelIndice,
   pendenciasObra,
   valorAgregadoObra,
 } from '../../dominio/calculos.js';
-import { graficoBarras, graficoCurvaS, graficoFluxo } from '../../graficos/index.js';
+import { graficoBarras, graficoCurvaS } from '../../graficos/index.js';
 import { App, botao } from '../shell.js';
 import { causaHTML, fraseAncoraHTML, implExpandida, VIEWS } from '../telas-obra.js';
 import { fmtIndice, tomNivel } from './componentes.js';
@@ -255,6 +256,26 @@ function caixaFinanciador(o) {
   </div>`;
 }
 
+/* Caixa no Painel: só o vale (o gráfico mês a mês mora na tela de Fluxo).
+   O número que importa é o menor saldo que vem por aí, e quando. */
+function caixaVale(k, proj) {
+  const v = proj.vale;
+  const tom = v.saldo < 0 ? 'atraso' : v.saldo < k.saldoCaixa * 0.5 ? 'tom-alerta' : '';
+  const proximos = proj.eventos.filter((e) => e.data <= v.data).slice(-3);
+  return `<div class="caixa caixa-vale">
+    <div class="caixa-cab">
+      <h3>Caixa projetado</h3>
+      <div class="dir">${botao('Ver fluxo', 'ir', { view: 'fluxo' }, 'btn sutil pequeno')}</div>
+    </div>
+    <dl class="pares">
+      <div class="par"><dt>Caixa hoje</dt><dd class="${k.saldoCaixa < 0 ? 'atraso' : ''}">${fmtMoney(k.saldoCaixa, { dec: 0 })}</dd></div>
+      <div class="par"><dt>Vale de caixa</dt><dd class="${tom}"><b>${fmtMoney(v.saldo, { dec: 0 })}</b> ${v.data <= hojeISO() ? 'hoje' : `em ${esc(fmtDataCurta(v.data))}`}</dd></div>
+      <div class="par"><dt>No fim da obra</dt><dd class="${k.posicaoProjetada < 0 ? 'atraso' : ''}">${fmtMoney(k.posicaoProjetada, { dec: 0 })}</dd></div>
+    </dl>
+    ${proximos.length ? `<p class="tinta2" style="font-size:var(--t-peq);margin:var(--e2) 0 0">Até o vale: ${proximos.map((e) => `${esc(e.descricao)} ${e.valor > 0 ? '+' : '−'}${esc(fmtMoneyCurto(Math.abs(e.valor)))}`).join(' · ')}</p>` : ''}
+  </div>`;
+}
+
 VIEWS.painel = () => {
   const o = App.obra();
   const k = kpisObra(o);
@@ -263,18 +284,7 @@ VIEWS.painel = () => {
   const va = valorAgregadoObra(o);
   const historia = historiaObra(o);
 
-  const custoPorEtapa = {};
-  o.lancamentos.forEach((l) => {
-    const et = l.etapa || 'Não classificado';
-    custoPorEtapa[et] = (custoPorEtapa[et] || 0) + lancamentoTotal(l);
-  });
-  o.medicoes
-    .filter((m) => m.status !== 'Cancelado')
-    .forEach((m) => {
-      const ct = o.contratos.find((c) => c.codigoBase === m.contratoBase);
-      const et = (ct && ct.escopo) || 'Empreitada';
-      custoPorEtapa[et] = (custoPorEtapa[et] || 0) + num(m.valorPago);
-    });
+  const proj = fluxoProjetado(o);
 
   return `<div class="tela-lista">
     ${fraseAncoraHTML(historia, { status: o.status })}
@@ -296,20 +306,10 @@ VIEWS.painel = () => {
     </div>
 
     <div class="grade g-2-1">
-      <div class="caixa">
-        <div class="caixa-cab">
-          <h3>Fluxo de caixa mensal</h3>
-          <div class="dir">${botao('Ver tabela completa', 'ir', { view: 'fluxo' }, 'btn sutil pequeno')}</div>
-        </div>
-        <div class="nao-celular">${graficoFluxo(o, 260)}</div>
-        <p class="so-celular numeros-celular">Caixa hoje <b class="${k.saldoCaixa < 0 ? 'atraso' : ''}">${fmtMoney(k.saldoCaixa, { dec: 0 })}</b> · no fim da obra <b class="${k.posicaoProjetada < 0 ? 'atraso' : ''}">${fmtMoney(k.posicaoProjetada, { dec: 0 })}</b></p>
-      </div>
+      ${caixaVale(k, proj)}
       <div class="caixa">
         <div class="caixa-cab"><h3>Onde o dinheiro foi</h3></div>
-        ${graficoBarras(
-          Object.entries(custoPorEtapa).map(([rotulo, valor]) => ({ rotulo, valor })),
-          { limite: 8 },
-        )}
+        ${graficoBarras(custoPorEtapa(o), { limite: 8 })}
       </div>
     </div>
   </div>`;

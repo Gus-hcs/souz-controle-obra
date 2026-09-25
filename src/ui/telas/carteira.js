@@ -21,6 +21,7 @@ import {
   fmtData,
   fmtDataCurta,
   fmtDataCurtaAno,
+  hojeISO,
   fmtMoney,
   fmtMoneyCurto,
   fmtNum,
@@ -30,6 +31,7 @@ import {
   agendaCarteira,
   avancoCarteira,
   caixaCarteira,
+  fluxoProjetadoCarteira,
   custoCarteira,
   historiaCarteira,
   nivelIndice,
@@ -185,6 +187,10 @@ const diaSemana = (iso) => SEMANA[new Date(iso + 'T12:00:00Z').getUTCDay()];
 
 function kpis(obras) {
   const caixa = caixaCarteira(obras);
+  /* vale de caixa (Onda 4): o menor saldo da construtora nos próximos
+     30 dias, com a data — é quando falta dinheiro, se faltar */
+  const proj = fluxoProjetadoCarteira(obras);
+  const vale = proj.valeJanela;
   const res = resultadoCarteira(obras);
   const av = avancoCarteira(obras);
   const risco = riscoCarteira(obras);
@@ -215,14 +221,12 @@ function kpis(obras) {
   return `<div class="kpis" role="group" aria-label="Indicadores da carteira">
     ${item(
       'caixa',
-      'Caixa hoje',
-      fmtMoney(caixa.saldo, { dec: 0 }),
-      `em 30 dias ${fmtMoney(caixa.projecao, { dec: 0 })}`,
-      caixa.saldoInicial
-        ? `inclui ${fmtMoneyCurto(caixa.saldoInicial)} de saldo inicial`
-        : 'recebido menos pago',
-      caixa.saldo < -0.005 ? 'atraso' : '',
-      caixa.projecao < -0.005 ? 'atraso' : '',
+      'Vale de caixa · 30 dias',
+      fmtMoney(vale.saldo, { dec: 0 }),
+      vale.data <= hojeISO() ? 'o menor saldo é hoje' : `em ${fmtDataCurta(vale.data)}`,
+      `caixa hoje ${fmtMoneyCurto(caixa.saldo)}${caixa.saldoInicial ? ` · inclui ${fmtMoneyCurto(caixa.saldoInicial)} de saldo inicial` : ''}`,
+      vale.saldo < -0.005 ? 'atraso' : '',
+      vale.saldo < -0.005 ? 'atraso' : '',
     )}
     ${item(
       'resultado',

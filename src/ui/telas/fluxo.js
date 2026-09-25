@@ -3,22 +3,27 @@
  *
  * Nada calcula aqui: fluxoCaixa (dominio/calculos.js) já devolve mês a mês
  * entradas, saídas, saldo e o que falta liquidar. A tela só desenha.
+ *
+ * Para a frente, fluxoProjetado: o vale de caixa (menor saldo projetado
+ * e a data) e os próximos eventos — parcelas, medições a pagar, saldo a
+ * medir dos contratos e material a comprar — com o saldo depois de cada um.
  */
 import {
   competencia,
   esc,
   fmtCompetencia,
+  fmtDataCurta,
   fmtMoney,
   fmtMoneyCurto,
   hojeISO,
 } from '../../nucleo/base.js';
-import { fluxoCaixa, kpisObra } from '../../dominio/calculos.js';
+import { fluxoCaixa, fluxoProjetado, kpisObra } from '../../dominio/calculos.js';
 import { graficoFluxo } from '../../graficos/index.js';
 import { App } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
 import { barraFiltros, dinheiro, lista, secao, seletor } from './componentes.js';
 
-function kpisFluxo(k, tot) {
+function kpisFluxo(k, tot, proj) {
   const item = (rotulo, valor, contexto, tom = '') => `<div class="kpi-item">
     <span class="kpi-rot">${esc(rotulo)}</span>
     <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
@@ -32,6 +37,12 @@ function kpisFluxo(k, tot) {
       `inicial ${fmtMoneyCurto(k.saldoInicial)} + ${fmtMoneyCurto(tot.e)} − ${fmtMoneyCurto(tot.s)}`,
       k.saldoCaixa < 0 ? 'atraso' : '',
     )}
+    ${item(
+      'Vale de caixa',
+      fmtMoney(proj.vale.saldo, { dec: 0 }),
+      proj.vale.data === hojeISO() ? 'o menor saldo é hoje' : `menor saldo projetado, em ${fmtDataCurta(proj.vale.data)}`,
+      proj.vale.saldo < 0 ? 'atraso' : proj.vale.saldo < k.saldoCaixa * 0.5 ? 'tom-alerta' : '',
+    )}
     ${item('A receber', fmtMoney(k.previstoNaoRecebido, { dec: 0 }), 'parcelas previstas não creditadas')}
     ${item('A pagar', fmtMoney(k.medicoesNaoPagas, { dec: 0 }), 'medições em aberto', k.medicoesNaoPagas > 0.005 ? 'tom-alerta' : '')}
     ${item(
@@ -43,12 +54,38 @@ function kpisFluxo(k, tot) {
   </div>`;
 }
 
+/* Os próximos eventos projetados, com o saldo depois de cada um; o do
+   vale em destaque. */
+const TIPO_EVENTO = {
+  entrada: 'Entrada',
+  'entrada-vencida': 'Entrada vencida',
+  medicao: 'Medição a pagar',
+  contrato: 'A medir',
+  material: 'Material',
+};
+function tabelaProjetada(proj) {
+  const linhas = proj.eventos.slice(0, 15);
+  return `<div class="tab-rolagem"><table class="tab tab-projetada">
+    <thead><tr><th>Data</th><th>Movimento</th><th class="num">Valor</th><th class="num">Saldo depois</th></tr></thead>
+    <tbody>${linhas.map((e) => {
+      const vale = e.data === proj.vale.data && e.saldoApos === proj.vale.saldo;
+      return `<tr${vale ? ' class="linha-vale"' : ''}>
+        <td class="mono">${esc(fmtDataCurta(e.data))}</td>
+        <td><span class="tinta2">${esc(TIPO_EVENTO[e.tipo] || e.tipo)}</span> · ${esc(e.descricao)}</td>
+        <td class="num ${e.valor < 0 ? '' : 'feito'}">${e.valor > 0 ? '+' : '−'}${esc(fmtMoney(Math.abs(e.valor), { dec: 0 }))}</td>
+        <td class="num ${e.saldoApos < 0 ? 'atraso' : ''}"><b>${esc(fmtMoney(e.saldoApos, { dec: 0 }))}</b>${vale ? ' <span class="tom-alerta">← vale</span>' : ''}</td>
+      </tr>`;
+    }).join('')}</tbody></table></div>
+    ${proj.eventos.length > linhas.length ? `<p class="tinta3" style="font-size:var(--t-peq);margin:var(--e2) 0 0">+ ${proj.eventos.length - linhas.length} movimentos depois; saldo no fim ${esc(fmtMoney(proj.saldoFinal, { dec: 0 }))}.</p>` : ''}`;
+}
+
 /* ---------------------------------------------------------------- tela */
 VIEWS.fluxo = () => {
   const o = App.obra();
   const f = App.filtros;
   const dados = fluxoCaixa(o);
   const k = kpisObra(o);
+  const proj = fluxoProjetado(o);
   const hojeM = competencia(hojeISO());
 
   const tot = dados.reduce(
@@ -157,8 +194,9 @@ VIEWS.fluxo = () => {
   ];
 
   return `<div class="tela-lista">
-    ${kpisFluxo(k, tot)}
+    ${kpisFluxo(k, tot, proj)}
     ${secao('Movimento mensal', graficoFluxo(o, 280))}
+    ${proj.eventos.length ? secao('Próximos movimentos · projetado', tabelaProjetada(proj)) : ''}
     ${barraFiltros({
       mostrar: dados.length > 1,
       controles: [

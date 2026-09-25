@@ -897,6 +897,141 @@ function medidoFisicoContrato(obra, base) {
   };
 }
 
+/* ================================ FLUXO PROJETADO E VALE DE CAIXA
+   Do caixa de hoje para a frente, evento a evento:
+   - entradas: parcelas não recebidas na data prevista; a vencida não tem
+     data certa — entra reprogramada para daqui a 15 dias;
+   - medições já feitas e não pagas: saem hoje;
+   - saldo a medir dos contratos: distribuído por igual, semana a semana,
+     do início (ou hoje) até o fim vigente — ou até o término projetado,
+     se o prazo do contrato já passou;
+   - material a comprar: na data de necessidade (vencido = hoje).
+   O VALE é o menor saldo que o caixa vai atingir, e a data: é o número
+   que diz se falta dinheiro antes de a próxima parcela entrar. */
+const DIAS_REPROGRAMA_VENCIDA = 15;
+
+function eventosProjetados(obra, hoje = hojeISO()) {
+  const ev = [];
+  const push = (data, valor, tipo, descricao) => {
+    if (Math.abs(valor) > 0.005) ev.push({ data, valor: round2(valor), tipo, descricao, obraId: obra.id, obraNome: obra.nome });
+  };
+
+  obra.recebimentos.forEach((r) => {
+    if (r.status === 'Recebido' || r.status === 'Cancelado') return;
+    const v = Math.max(0, (recebimentoLiquido(r) || num(r.valorPrevisto)) - num(r.valorRecebido));
+    const rotulo = `${r.origem || 'Parcela'}${r.numeroMedicao ? ` nº ${r.numeroMedicao}` : ''}`;
+    if (isISO(r.dataPrevista) && r.dataPrevista >= hoje) push(r.dataPrevista, v, 'entrada', rotulo);
+    else push(addDias(hoje, DIAS_REPROGRAMA_VENCIDA), v, 'entrada-vencida', `${rotulo} (vencida, reprogramada)`);
+  });
+
+  obra.medicoes.forEach((m) => {
+    push(hoje, -medicaoAPagar(obra, m), 'medicao', `Medição ${m.numero || ''} ${m.contratoBase || ''}`.replace(/\s+/g, ' ').trim());
+  });
+
+  const termino = valorAgregadoObra(obra, hoje).termino;
+  basesContratuais(obra).forEach((b) => {
+    const ind = indicadoresContrato(obra, b.base);
+    if (!(ind.aMedir > 0.005)) return;
+    const registros = obra.contratos.filter((c) => (c.codigoBase || c.codigo) === b.base);
+    const principal = registros.find((c) => c.registro === 'Contrato') || registros[0] || {};
+    const ini = isISO(principal.inicioPrevisto) && principal.inicioPrevisto > hoje ? principal.inicioPrevisto : hoje;
+    let fim = contratoFimVigente(registros);
+    if (!isISO(fim) || fim <= ini) fim = isISO(termino) && termino > ini ? termino : addDias(ini, 30);
+    const dias = Math.max(1, diasEntre(ini, fim));
+    const semanas = Math.max(1, Math.ceil(dias / 7));
+    for (let i = 1; i <= semanas; i++) {
+      const data = i === semanas ? fim : addDias(ini, i * 7);
+      push(data, -ind.aMedir / semanas, 'contrato', `A medir ${b.base}`);
+    }
+  });
+
+  obra.materiais.forEach((m) => {
+    if (m.status === 'Cancelado') return;
+    const c = materialCalc(obra, m);
+    if (c.etapaConcluida || !(c.saldoValor > 0.005)) return;
+    const data = isISO(m.dataNecessaria) && m.dataNecessaria > hoje ? m.dataNecessaria : hoje;
+    push(data, -c.saldoValor, 'material', m.material || 'Material');
+  });
+
+  return ev.sort((a, b) => a.data.localeCompare(b.data) || a.valor - b.valor);
+}
+
+/* Saldo dia a dia a partir do caixa de hoje; o vale geral e o vale dos
+   próximos `janela` dias; e os meses para a tabela. */
+function consolidarFluxo(saldoHoje, eventos, hoje = hojeISO(), janela = 30) {
+  const porData = new Map();
+  eventos.forEach((e) => porData.set(e.data, (porData.get(e.data) || 0) + e.valor));
+  let saldo = saldoHoje;
+  const pontos = [];
+  if (!porData.has(hoje)) pontos.push({ data: hoje, saldo });
+  [...porData.keys()].sort().forEach((d) => {
+    saldo += porData.get(d);
+    pontos.push({ data: d, saldo: round2(saldo) });
+  });
+  /* saldo depois de cada evento, na ordem — a lista da tela de Fluxo */
+  let corrente = saldoHoje;
+  const comSaldo = eventos.map((e) => {
+    corrente += e.valor;
+    return { ...e, saldoApos: round2(corrente) };
+  });
+  const menor = (ps) => ps.reduce((m, p) => (p.saldo < m.saldo ? p : m), ps[0]);
+  const limite = addDias(hoje, janela);
+  const meses = new Map();
+  eventos.forEach((e) => {
+    const ym = competencia(e.data);
+    const m = meses.get(ym) || { ym, entradas: 0, saidas: 0 };
+    if (e.valor > 0) m.entradas += e.valor;
+    else m.saidas += -e.valor;
+    meses.set(ym, m);
+  });
+  let acum = saldoHoje;
+  const listaMeses = [...meses.values()].sort((a, b) => a.ym.localeCompare(b.ym)).map((m) => {
+    acum += m.entradas - m.saidas;
+    return { ...m, entradas: round2(m.entradas), saidas: round2(m.saidas), saldoFim: round2(acum) };
+  });
+  return {
+    saldoHoje: round2(saldoHoje),
+    eventos: comSaldo,
+    pontos,
+    vale: menor(pontos),
+    valeJanela: menor(pontos.filter((p) => p.data <= limite)),
+    janela,
+    saldoFinal: round2(saldo),
+    meses: listaMeses,
+  };
+}
+
+function fluxoProjetado(obra, hoje = hojeISO(), janela = 30) {
+  return consolidarFluxo(kpisObra(obra).saldoCaixa, eventosProjetados(obra, hoje), hoje, janela);
+}
+
+/* A carteira inteira como um caixa só (a construtora paga tudo da
+   mesma conta): o vale de caixa da empresa nos próximos 30 dias. */
+function fluxoProjetadoCarteira(obras, hoje = hojeISO(), janela = 30) {
+  const saldo = obras.reduce((s, o) => s + kpisObra(o).saldoCaixa, 0);
+  const eventos = obras.flatMap((o) => eventosProjetados(o, hoje))
+    .sort((a, b) => a.data.localeCompare(b.data) || a.valor - b.valor);
+  return consolidarFluxo(saldo, eventos, hoje, janela);
+}
+
+/* Onde o dinheiro foi, por etapa (Painel): lançamentos pela etapa deles,
+   medições pagas pelo escopo do contrato. */
+function custoPorEtapa(obra) {
+  const mapa = {};
+  obra.lancamentos.forEach((l) => {
+    const et = l.etapa || 'Não classificado';
+    mapa[et] = (mapa[et] || 0) + lancamentoTotal(l);
+  });
+  obra.medicoes
+    .filter((m) => m.status !== 'Cancelado')
+    .forEach((m) => {
+      const ct = obra.contratos.find((c) => c.codigoBase === m.contratoBase);
+      const et = (ct && ct.escopo) || 'Empreitada';
+      mapa[et] = (mapa[et] || 0) + num(m.valorPago);
+    });
+  return Object.entries(mapa).map(([rotulo, valor]) => ({ rotulo, valor: round2(valor) }));
+}
+
 /* -------------------------------------------------------- ALERTAS  */
 /* severidade: 3 crítico · 2 atenção · 1 informativo */
 /* Cada alerta leva, além do texto:
@@ -2225,6 +2360,66 @@ function previaVinculoPrestadores(estado) {
    nenhuma avaliação, a média é null — a tela deixa a célula vazia. */
 const CRITERIOS_AVAL = [['avalPrazo', 'Prazo'], ['avalQualidade', 'Qualidade'], ['avalOrganizacao', 'Organização']];
 
+/* Pontualidade calculada do prestador — no lugar das estrelas digitadas.
+   Cada entrega com data prometida conta uma vez:
+   - numa obra onde ele é responsável por etapas do cronograma, as etapas
+     (fim previsto × fim real, ou hoje se ainda não acabou);
+   - senão, os contratos dele (fim vigente × encerramento ou última
+     medição, ou hoje se ainda não acabou).
+   Entrega ainda aberta só conta se o prazo já passou (está atrasada).
+   Obras simultâneas: obras com etapa começada e não concluída, ou
+   contrato em andamento, hoje. */
+function pontualidadePrestador(estado, p, hoje = hojeISO()) {
+  const entregas = [];
+  const ativas = new Set();
+  estado.obras.forEach((o) => {
+    const etapas = o.cronograma.filter((e) => ligadoAoPrestador(p, '', e.responsavel));
+    if (etapas.length) {
+      etapas.forEach((e) => {
+        const feita = num(e.progresso) >= 1;
+        if (isISO(e.inicioReal) && !feita) ativas.add(o.id);
+        if (!isISO(e.fimPrevisto)) return;
+        if (feita) {
+          const fim = isISO(e.fimReal) ? e.fimReal : e.fimPrevisto;
+          entregas.push({ obraId: o.id, item: e.etapa, atraso: Math.max(0, diasEntre(e.fimPrevisto, fim)), aberta: false });
+        } else if (hoje > e.fimPrevisto) {
+          entregas.push({ obraId: o.id, item: e.etapa, atraso: diasEntre(e.fimPrevisto, hoje), aberta: true });
+        }
+      });
+      return;
+    }
+    const bases = new Set(o.contratos
+      .filter((c) => c.status !== 'Cancelado' && ligadoAoPrestador(p, c.prestadorId, c.prestador))
+      .map((c) => c.codigoBase || c.codigo).filter(Boolean));
+    bases.forEach((base) => {
+      const registros = o.contratos.filter((c) => (c.codigoBase || c.codigo) === base);
+      const principal = registros.find((c) => c.registro === 'Contrato') || registros[0] || {};
+      const fim = contratoFimVigente(registros);
+      const sit = contratoSituacao(o, base, hoje);
+      const concluido = sit.chave === 'encerrado' || sit.chave === 'a-pagar';
+      if (!concluido && (sit.chave === 'em-andamento' || sit.chave === 'atrasado')) ativas.add(o.id);
+      if (!isISO(fim)) return;
+      if (concluido) {
+        const datas = o.medicoes.filter((m) => m.contratoBase === base && isISO(m.data)).map((m) => m.data).sort();
+        const entrega = isISO(principal.dataEncerramento) ? principal.dataEncerramento : datas[datas.length - 1] || fim;
+        entregas.push({ obraId: o.id, item: base, atraso: Math.max(0, diasEntre(fim, entrega)), aberta: false });
+      } else if (hoje > fim && sit.chave !== 'paralisado' && sit.chave !== 'rescindido') {
+        entregas.push({ obraId: o.id, item: base, atraso: diasEntre(fim, hoje), aberta: true });
+      }
+    });
+  });
+  const atrasadas = entregas.filter((e) => e.atraso > 0);
+  return {
+    entregas: entregas.length,
+    noPrazo: entregas.length - atrasadas.length,
+    pontualidade: entregas.length ? (entregas.length - atrasadas.length) / entregas.length : null,
+    diasMedios: atrasadas.length ? Math.round(atrasadas.reduce((s, e) => s + e.atraso, 0) / atrasadas.length) : 0,
+    atrasadasAgora: entregas.filter((e) => e.aberta).length,
+    obrasSimultaneas: ativas.size,
+    detalhe: entregas,
+  };
+}
+
 function avaliacaoPrestador(estado, p) {
   const notas = [];
   const porCriterio = { avalPrazo: [], avalQualidade: [], avalOrganizacao: [] };
@@ -2373,6 +2568,11 @@ export {
   proximaParcelaFinanciador,
   liberadoExecutado,
   resumoRecebimentos,
+  eventosProjetados,
+  consolidarFluxo,
+  fluxoProjetado,
+  fluxoProjetadoCarteira,
+  custoPorEtapa,
   memoriaMedicao,
   medidoFisicoContrato,
   empreitadaPrincipal,
@@ -2402,6 +2602,7 @@ export {
   previaVinculoPrestadores,
   avaliacaoPrestador,
   duplicadosPrestador,
+  pontualidadePrestador,
   compararPrestadorAPagar,
   CRITERIOS_AVAL,
   capitalizarNome,
