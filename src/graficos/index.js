@@ -327,7 +327,9 @@ function graficoGantt(obra) {
         const lim = Math.max(a, px(e.fimPrevisto));
         if (b - lim > 0.5) {
           const feito = p >= 1 ? b : a + (b - a) * p;
-          real += `<rect x="${lim.toFixed(1)}" y="${y + 13}" width="${(b - lim).toFixed(1)}" height="8" rx="3" fill="var(--critico)" opacity="${p >= 1 ? 1 : 0.35}"/>`;
+          /* etapa já concluída: o atraso é histórico — vermelho mais leve
+             que o do atraso que ainda está acontecendo */
+          real += `<rect x="${lim.toFixed(1)}" y="${y + 13}" width="${(b - lim).toFixed(1)}" height="8" rx="3" fill="var(--critico)" opacity="${p >= 1 ? 0.45 : 0.35}"/>`;
           if (p < 1 && feito > lim + 0.5) {
             real += `<rect x="${lim.toFixed(1)}" y="${y + 13}" width="${(feito - lim).toFixed(1)}" height="8" rx="3" fill="var(--critico)"/>`;
           }

@@ -330,7 +330,7 @@ VIEWS.materiais = () => {
       ordemPadrao: { col: 'prazo', dir: 1 },
       rodapeRotulo: (n) => `${n} itens`,
     })}
-    ${faltaPorEtapa.length > 1 ? secao('Falta comprar por etapa', graficoBarras(faltaPorEtapa, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--alerta)' })) : ''}
+    ${faltaPorEtapa.length > 1 ? secao('Falta comprar por etapa', graficoBarras(faltaPorEtapa, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--serie2)' })) : ''}
   </div>`;
 };
 

@@ -153,14 +153,17 @@
   --neutro-feito: var(--tinta3); /* concluído, pago, encerrado */
 
   /* ------------------------------------------------ séries de gráfico
-     Ordem pensada para daltonismo. A 1ª é o acento; as demais não
-     competem com ele. */
-  --serie1: #0b7d72;
-  --serie2: #a35f0c;
-  --serie3: #5b6abf;
-  --serie4: #4a7c2f;
-  --serie5: #9a4e8f;
-  --serie6: #5f6c75;
+     Ordem pensada para daltonismo. A 1ª é o acento; as demais são da
+     mesma família — saturação e luminosidade parecidas com o ciano, tons
+     frios e abafados — para o gráfico conversar com a interface. Nenhuma
+     é âmbar nem vermelha: essas cores são de alerta e atraso, e dinheiro
+     a pagar não é problema. */
+  --serie1: #0b7d72; /* ciano — entradas, físico */
+  --serie2: #3b6e8f; /* azul-aço — saídas, a pagar */
+  --serie3: #5e62a8; /* índigo — financeiro realizado */
+  --serie4: #5b7a3a; /* oliva — liberado pelo financiador */
+  --serie5: #8a5a82; /* ameixa */
+  --serie6: #6b7775; /* ardósia */
   --grade-grafico: rgba(11, 125, 114, 0.1);
 
   /* ------------------------------------------------------- sombra
@@ -233,10 +236,10 @@
     --neutro-feito: var(--tinta3);
 
     --serie1: #2fd4c4;
-    --serie2: #e0a44a;
-    --serie3: #8b93f8;
-    --serie4: #8cc63f;
-    --serie5: #d18bcb;
+    --serie2: #7fb0cf;
+    --serie3: #9a9ee6;
+    --serie4: #a3c47a;
+    --serie5: #cc97c3;
     --serie6: #9aa7ad;
     --grade-grafico: rgba(47, 212, 196, 0.1);
 
@@ -288,10 +291,10 @@
   --neutro-feito: var(--tinta3);
 
   --serie1: #2fd4c4;
-  --serie2: #e0a44a;
-  --serie3: #8b93f8;
-  --serie4: #8cc63f;
-  --serie5: #d18bcb;
+  --serie2: #7fb0cf;
+  --serie3: #9a9ee6;
+  --serie4: #a3c47a;
+  --serie5: #cc97c3;
   --serie6: #9aa7ad;
   --grade-grafico: rgba(47, 212, 196, 0.1);
 

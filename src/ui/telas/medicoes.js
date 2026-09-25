@@ -334,7 +334,7 @@ VIEWS.medicoes = () => {
     })}
     <p class="nota-rodape">Pagamento por medição entra só nesta tela. Compras, taxas e serviços sem
       medição vão em Lançamentos; entradas de financiamento ou do cliente, em Recebimentos.</p>
-    ${porContrato.length > 1 ? secao('A pagar por contrato', graficoBarras(porContrato, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--alerta)' })) : ''}
+    ${porContrato.length > 1 ? secao('A pagar por contrato', graficoBarras(porContrato, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--serie2)' })) : ''}
   </div>`;
 };
 
