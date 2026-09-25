@@ -13,10 +13,10 @@ import { VIEWS } from '../telas-obra.js';
 import {
   barraFiltros,
   dinheiro,
+  faixaKpis,
   fmtIndice,
   lista,
   secao,
-  seletor,
   tomNivel,
   vazioTela,
 } from './componentes.js';
@@ -24,55 +24,56 @@ import {
 /* Primeiro a resposta (quando acaba, quanto vai custar), depois os
    índices que a explicam, por último os percentuais crus. */
 function kpisCurva(k, va, desvio, desvioFinFis) {
-  const item = (rotulo, valor, contexto, tom = '') => `<div class="kpi-item">
-    <span class="kpi-rot">${esc(rotulo)}</span>
-    <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
-    <span class="kpi-ctx">${contexto}</span>
-  </div>`;
   const atraso = va.atrasoProjetado;
-
-  return `<div class="kpis" role="group" aria-label="Indicadores da curva S">
-    ${item(
-      'Término projetado',
-      va.termino ? fmtData(va.termino) : '—',
-      atraso === null
-        ? 'sem data contratual'
-        : atraso > 0
-          ? `${atraso} dia${atraso === 1 ? '' : 's'} depois da data contratual`
-          : atraso < 0
-            ? `${-atraso} dia${atraso === -1 ? '' : 's'} antes da data contratual`
-            : 'na data contratual',
-      atraso > 0 ? tomNivel(nivelIndice(va.idp, 'idp')) || 'tom-alerta' : '',
-    )}
-    ${item(
-      'IDP · prazo',
-      fmtIndice(va.idp),
-      va.idp === null
-        ? 'obra ainda sem previsto'
-        : `ritmo de ${fmtPct(va.idp, 0)} do planejado${va.idpTravado ? ' · projeção limitada' : ''}`,
-      tomNivel(nivelIndice(va.idp, 'idp')),
-    )}
-    ${item(
-      'IDC · custo',
-      fmtIndice(va.idc),
-      va.idc === null
-        ? 'sem gasto físico ainda'
-        : `a cada R$ 1 gasto, entregou R$ ${fmtNum(va.idc, 2)} · término ${fmtMoney(va.eac, { dec: 0 })}`,
-      tomNivel(nivelIndice(va.idc, 'idc')),
-    )}
-    ${item(
-      'Avanço físico',
-      fmtPct(k.progressoFisico, 1),
-      `previsto ${fmtPct(va.previsto, 1)} · ${(desvio >= 0 ? '+' : '−') + fmtNum(Math.abs(desvio) * 100, 1)} p.p.`,
-      desvio < -0.1 ? 'atraso' : desvio < -0.05 ? 'tom-alerta' : '',
-    )}
-    ${item(
-      'Orçamento consumido',
-      fmtPct(k.progressoFinanceiro, 1),
-      `${fmtMoney(k.totalPago, { dec: 0 })} de ${fmtMoney(k.custoPrevisto, { dec: 0 })} previstos`,
-      desvioFinFis > 0.1 ? 'tom-alerta' : '',
-    )}
-  </div>`;
+  const dias = (n) => `${n} dia${n === 1 ? '' : 's'}`;
+  return faixaKpis(
+    [
+      {
+        rotulo: 'Término projetado',
+        valor: va.termino ? fmtData(va.termino) : '—',
+        contexto:
+          atraso === null
+            ? 'sem data contratual'
+            : atraso > 0
+              ? `${dias(atraso)} depois da data contratual`
+              : atraso < 0
+                ? `${dias(-atraso)} antes da data contratual`
+                : 'na data contratual',
+        tom: atraso > 0 ? tomNivel(nivelIndice(va.idp, 'idp')) || 'tom-alerta' : '',
+      },
+      {
+        rotulo: 'IDP · prazo',
+        valor: fmtIndice(va.idp),
+        contexto:
+          va.idp === null
+            ? 'obra ainda sem previsto'
+            : `ritmo de ${fmtPct(va.idp, 0)} do planejado${va.idpTravado ? ' · projeção limitada' : ''}`,
+        tom: tomNivel(nivelIndice(va.idp, 'idp')),
+      },
+      {
+        rotulo: 'IDC · custo',
+        valor: fmtIndice(va.idc),
+        contexto:
+          va.idc === null
+            ? 'sem gasto físico ainda'
+            : `a cada R$ 1 gasto, entregou R$ ${fmtNum(va.idc, 2)} · término ${fmtMoney(va.eac, { dec: 0 })}`,
+        tom: tomNivel(nivelIndice(va.idc, 'idc')),
+      },
+      {
+        rotulo: 'Avanço físico',
+        valor: fmtPct(k.progressoFisico, 1),
+        contexto: `previsto ${fmtPct(va.previsto, 1)} · ${(desvio >= 0 ? '+' : '−') + fmtNum(Math.abs(desvio) * 100, 1)} p.p.`,
+        tom: desvio < -0.1 ? 'atraso' : desvio < -0.05 ? 'tom-alerta' : '',
+      },
+      {
+        rotulo: 'Orçamento consumido',
+        valor: fmtPct(k.progressoFinanceiro, 1),
+        contexto: `${fmtMoney(k.totalPago, { dec: 0 })} de ${fmtMoney(k.custoPrevisto, { dec: 0 })} previstos`,
+        tom: desvioFinFis > 0.1 ? 'tom-alerta' : '',
+      },
+    ],
+    { rotulo: 'Indicadores da curva S' },
+  );
 }
 
 /* ---------------------------------------------------------------- tela */
@@ -184,17 +185,15 @@ VIEWS.curva = () => {
     ${kpisCurva(k, va, desvio, desvioFinFis)}
     ${secao('Curva S', `<p class="tinta2" style="margin:0 0 var(--e3)">${fraseFisica} ${fraseFin}</p><div class="nao-celular">${graficoCurvaS(o, 320)}</div>`)}
     ${barraFiltros({
-      mostrar: dados.length > 1,
-      controles: [
-        seletor(
-          'situacao',
-          [
-            ['realizado', 'Só realizado'],
-            ['projecao', 'Só projeção'],
-          ],
-          'Tudo',
-        ),
-      ],
+      pilulas: {
+        chave: 'situacao',
+        todos: 'Tudo',
+        total: dados.length,
+        opcoes: [
+          { valor: 'realizado', rotulo: 'Realizado', n: dados.filter((d) => !d.futuro).length },
+          { valor: 'projecao', rotulo: 'Projeção', n: dados.filter((d) => d.futuro).length },
+        ],
+      },
       filtrados: itens.length,
       total: dados.length,
     })}

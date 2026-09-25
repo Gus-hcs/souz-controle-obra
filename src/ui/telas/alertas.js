@@ -15,7 +15,7 @@
  * "Tratados"; volta sozinho se piorar ou se o adiamento vencer
  * (situacaoTratamento, dominio/calculos.js).
  */
-import { esc, fmtMoney, hojeISO, norm, STATUS_TRATAMENTO } from '../../nucleo/base.js';
+import { fmtMoney, hojeISO, norm, STATUS_TRATAMENTO } from '../../nucleo/base.js';
 import {
   alertasObra,
   causasRaizObra,
@@ -27,35 +27,47 @@ import { Store, mutar } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
 import { App, abrirForm, fecharModal, toast } from '../shell.js';
 import { VIEWS, alertaHTML, causaHTML } from '../telas-obra.js';
-import { barraFiltros, buscaToolbar, seletor } from './componentes.js';
+import { barraFiltros, buscaToolbar, faixaKpis } from './componentes.js';
 
 function kpisAlertas(nCausas, valor, nCrit, nAten, nInfo) {
-  const item = (chave, rotulo, valorTxt, contexto, tom = '', filtravel = true) => {
-    const ativo = filtravel && App.filtros.kpiAlerta === chave;
-    return `<div class="kpi-item${ativo ? ' ativo' : ''}"${
-      filtravel
-        ? ` data-acao="alerta-kpi" data-kpi="${chave}" role="button" tabindex="0" aria-pressed="${ativo}" title="Filtrar a lista"`
-        : ''
-    }>
-      <span class="kpi-rot">${esc(rotulo)}</span>
-      <span class="kpi-val${tom ? ' ' + tom : ''}">${valorTxt}</span>
-      <span class="kpi-ctx">${contexto}</span>
-    </div>`;
-  };
-
-  return `<div class="kpis" role="group" aria-label="Indicadores de pendências">
-    ${item(
-      'causas',
-      'Problemas-raiz',
-      nCausas,
-      valor > 0.5 ? `${fmtMoney(valor, { dec: 0 })} em jogo` : nCausas ? 'sem valor em risco' : 'nada pendente',
-      nCausas ? 'atraso' : '',
-      false,
-    )}
-    ${item('3', 'Críticos', nCrit, nCrit ? 'bloqueiam caixa ou entrega' : 'nada crítico', nCrit ? 'atraso' : '')}
-    ${item('2', 'Atenção', nAten, nAten ? 'resolver nos próximos dias' : 'nada pendente', nAten ? 'tom-alerta' : '')}
-    ${item('1', 'Informativos', nInfo, nInfo ? 'fora da contagem de pendências' : 'nenhum')}
-  </div>`;
+  return faixaKpis(
+    [
+      {
+        chave: 'causas',
+        rotulo: 'Problemas-raiz',
+        valor: nCausas,
+        contexto:
+          valor > 0.5
+            ? `${fmtMoney(valor, { dec: 0 })} em jogo`
+            : nCausas
+              ? 'sem valor em risco'
+              : 'nada pendente',
+        tom: nCausas ? 'atraso' : '',
+        filtra: false,
+      },
+      {
+        chave: '3',
+        rotulo: 'Críticos',
+        valor: nCrit,
+        contexto: nCrit ? 'bloqueiam caixa ou entrega' : 'nada crítico',
+        tom: nCrit ? 'atraso' : '',
+      },
+      {
+        chave: '2',
+        rotulo: 'Atenção',
+        valor: nAten,
+        contexto: nAten ? 'resolver nos próximos dias' : 'nada pendente',
+        tom: nAten ? 'tom-alerta' : '',
+      },
+      {
+        chave: '1',
+        rotulo: 'Informativos',
+        valor: nInfo,
+        contexto: nInfo ? 'fora da contagem de pendências' : 'nenhum',
+      },
+    ],
+    { rotulo: 'Indicadores de pendências', acao: 'alerta-kpi', ativo: App.filtros.kpiAlerta },
+  );
 }
 
 ACOES['alerta-kpi'] = (el, d) => {
@@ -168,12 +180,24 @@ VIEWS.alertas = () => {
       : `<p class="tinta2" style="text-align:center;padding:var(--e10) 0">Nada pendente com esse filtro.</p>`;
   }
 
-  const barra = barraFiltros({
-    mostrar: todos.length > 1,
-    controles: [modulos.length > 1 ? seletor('modulo', modulos, 'Todos os módulos') : ''],
-    filtrados,
-    total: filtrando ? todos.length : pend.total,
-  });
+  /* módulo em pílula, com a contagem */
+  const barra =
+    todos.length > 1 && modulos.length > 1
+      ? barraFiltros({
+          pilulas: {
+            chave: 'modulo',
+            todos: 'Todos os módulos',
+            total: todos.length,
+            opcoes: modulos.map((m) => ({
+              valor: m,
+              rotulo: m,
+              n: todos.filter((a) => a.modulo === m).length,
+            })),
+          },
+          filtrados,
+          total: filtrando ? todos.length : pend.total,
+        })
+      : '';
 
   return `<div class="tela-lista">
     ${kpisAlertas(causas.length, valor, pend.criticas, pend.atencao, pend.avisos)}

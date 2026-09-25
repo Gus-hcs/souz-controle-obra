@@ -20,6 +20,7 @@ import {
   botaoNovo,
   buscaToolbar,
   dinheiro,
+  faixaKpis,
   lista,
   vazioTela,
 } from './componentes.js';
@@ -27,17 +28,29 @@ import {
 function kpisClientes(itens) {
   const emRisco = itens.filter((d) => d.saude && (d.saude.nivel === 'critico' || d.saude.nivel === 'atencao')).length;
   const valorTotal = itens.reduce((s, c) => s + c.valor, 0);
-  const item = (rotulo, valor, contexto, tom = '') => `<div class="kpi-item">
-    <span class="kpi-rot">${esc(rotulo)}</span>
-    <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
-    <span class="kpi-ctx">${contexto}</span>
-  </div>`;
-
-  return `<div class="kpis" role="group" aria-label="Indicadores de clientes">
-    ${item('Clientes e interessados', itens.length, `${itens.filter((c) => c.obras.length).length} com obra vinculada`)}
-    ${item('Com obra em risco', emRisco, emRisco ? 'atraso, custo ou caixa — ligue antes dele' : 'nenhum cliente com obra em risco', emRisco ? 'tom-alerta' : '')}
-    ${item('Valor contratado', fmtMoney(valorTotal, { dec: 0 }), 'soma do valor de venda das obras')}
-  </div>`;
+  return faixaKpis(
+    [
+      {
+        rotulo: 'Clientes e interessados',
+        valor: itens.length,
+        contexto: `${itens.filter((c) => c.obras.length).length} com obra vinculada`,
+      },
+      {
+        rotulo: 'Com obra em risco',
+        valor: emRisco,
+        contexto: emRisco
+          ? 'atraso, custo ou caixa — ligue antes dele'
+          : 'nenhum cliente com obra em risco',
+        tom: emRisco ? 'tom-alerta' : '',
+      },
+      {
+        rotulo: 'Valor contratado',
+        valor: fmtMoney(valorTotal, { dec: 0 }),
+        contexto: 'soma do valor de venda das obras',
+      },
+    ],
+    { rotulo: 'Indicadores de clientes' },
+  );
 }
 
 /* ---------------------------------------------------------------- tela */

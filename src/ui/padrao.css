@@ -1,0 +1,357 @@
+/* ================================================================
+   SOUZ — padrão de tela
+
+   As peças que TODA tela usa, num lugar só, carregado por último:
+   contêiner da página, faixa de KPIs (faixaKpis), formulário em colunas,
+   painel de análise (painelAnalise) e a barra de filtros (barraFiltros).
+   Os componentes estão em ui/telas/componentes.js. Uma tela que precisa
+   de um jeito diferente disso é defeito, não exceção.
+   ================================================================ */
+
+:root {
+  /* margem lateral do conteúdo: 24px, 16px no celular */
+  --margem-tela: var(--e6);
+}
+@media (max-width: 767px) {
+  :root {
+    --margem-tela: var(--e4);
+  }
+}
+
+/* ------------------------------------------------ contêiner da página
+   Um contêiner só: largura toda da área de conteúdo, sem max-width
+   local. Telas com inspetor (paineis) rolam dentro de .tela-principal. */
+#conteudo {
+  padding: var(--e5) var(--margem-tela) var(--e8);
+}
+#conteudo.paineis {
+  padding: 0;
+}
+.tela-principal {
+  padding: var(--e5) var(--margem-tela) var(--e8);
+}
+#topo {
+  padding-left: var(--margem-tela);
+  padding-right: var(--margem-tela);
+}
+/* Tabela sempre na largura do contêiner: a lista e também a tabela de
+   apoio (table.tab), que o legado deixava do tamanho do conteúdo. */
+.lista-cx,
+table.lista,
+#conteudo .tab-rolagem > table.tab,
+.analise-corpo table.tab {
+  width: 100%;
+}
+
+/* ------------------------------------------------ formulário da página
+   O formulário que mora na tela (Configuração, Ajustes) se arranja em
+   colunas: 4 a partir de 1440px, 2 entre 768 e 1439px, 1 no celular.
+   Os campos declaram a fração em 12 avos (c3 = um quarto, c6 = metade);
+   no médio, tudo que é menor que metade vira metade. Os formulários de
+   sheet e modal não entram aqui: têm a largura deles. */
+@media (min-width: 768px) and (max-width: 1439px) {
+  #conteudo .form-grade > .c2,
+  #conteudo .form-grade > .c3,
+  #conteudo .form-grade > .c4,
+  #conteudo .form-grade > .c5 {
+    grid-column: span 6;
+  }
+  #conteudo .form-grade > .c8,
+  #conteudo .form-grade > .c9 {
+    grid-column: span 12;
+  }
+}
+
+/* ---------------------------------------------------- faixa de KPIs
+   Cards de largura e altura iguais, na largura toda, com fio de 1px
+   entre eles: o fundo do contêiner é o fio, e o gap de 1px o mostra.
+   Sem sombra, sem borda colorida; o raio é o da tabela. */
+.kpis-cx {
+  margin-bottom: var(--e4);
+}
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  align-items: stretch;
+  gap: var(--fio);
+  background: var(--separador);
+  border: var(--fio) solid var(--separador);
+  border-radius: var(--r-cartao);
+  overflow: hidden;
+}
+.kpi-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 2px;
+  min-width: 0;
+  margin: 0;
+  padding: var(--e3) var(--e4);
+  background: var(--fundo-conteudo);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--tinta);
+  font: inherit;
+  text-align: left;
+}
+.kpi-rot {
+  font-size: var(--t-peq);
+  font-weight: var(--p-normal);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--tinta2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kpi-val {
+  font-family: var(--fonte);
+  font-size: var(--t-max);
+  font-weight: var(--p-semi);
+  line-height: var(--lh-apertado);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kpi-val.atraso {
+  color: var(--atraso);
+}
+.kpi-val.tom-alerta {
+  color: var(--alerta);
+}
+.kpi-val.feito {
+  color: var(--feito, var(--tinta));
+}
+.kpi-ctx {
+  font-size: var(--t-peq);
+  line-height: 1.35;
+  color: var(--tinta2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+/* card que filtra a tela */
+.kpi-item.clicavel {
+  cursor: pointer;
+  transition: background-color var(--mov-rapido) var(--curva);
+}
+.kpi-item.clicavel:hover {
+  background: color-mix(in srgb, var(--fundo-conteudo), var(--tinta) 4%);
+}
+.kpi-item.clicavel:active {
+  background: var(--fundo-ctrl-ativo);
+  transition: none;
+}
+.kpi-item.clicavel:focus-visible {
+  outline: 2px solid var(--foco);
+  outline-offset: -2px;
+}
+.kpi-item.ativo {
+  background: var(--acento-fraco);
+  box-shadow: inset 0 -2px 0 var(--acento);
+}
+.kpi-item.ativo .kpi-rot {
+  color: var(--acento-texto);
+}
+
+/* 768–1199px: grade de 2 ou 3 colunas, sem card sozinho na última linha.
+   3 cards → 3 colunas; 4 → 2×2; 5 → 3 + 2 (grade de 6, os dois de baixo
+   ocupam meia linha cada). */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .kpis[data-n='4'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .kpis[data-n='5'] {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .kpis[data-n='5'] > :nth-child(-n + 3) {
+    grid-column: span 2;
+  }
+  .kpis[data-n='5'] > :nth-child(n + 4) {
+    grid-column: span 3;
+  }
+}
+/* Tela com inspetor aberto ao lado: a faixa fica estreita mesmo em tela
+   grande. Aí vale a grade do médio, pela largura da própria faixa. */
+@media (min-width: 1200px) {
+  .kpis-cx {
+    container-type: inline-size;
+  }
+  @container (max-width: 760px) {
+    .kpis[data-n='4'] {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .kpis[data-n='5'] {
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+    .kpis[data-n='5'] > :nth-child(-n + 3) {
+      grid-column: span 2;
+    }
+    .kpis[data-n='5'] > :nth-child(n + 4) {
+      grid-column: span 3;
+    }
+  }
+}
+/* Celular: faixa que rola de lado, dois cards à vista e a ponta do
+   terceiro avisando que tem mais. */
+@media (max-width: 767px) {
+  .kpis {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: calc((100% - var(--fio)) / 2.15);
+    grid-auto-rows: auto;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+  .kpis::-webkit-scrollbar {
+    display: none;
+  }
+  .kpi-item {
+    scroll-snap-align: start;
+    padding: var(--e3);
+  }
+  .kpis[data-n='5'] > * {
+    grid-column: auto;
+  }
+}
+
+/* ------------------------------------------------- painel de análise
+   Blocos de análise no fim da tela: duas colunas a partir de 1200px,
+   uma abaixo disso; cada bloco da mesma altura do vizinho. */
+.painel-analise {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: var(--e4);
+  margin-top: var(--e8);
+}
+.painel-analise.um {
+  grid-template-columns: minmax(0, 1fr);
+}
+.analise-bloco {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--e4);
+  border: var(--fio) solid var(--separador);
+  border-radius: var(--r-cartao);
+  background: var(--fundo-conteudo);
+}
+.analise-cab {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--e1) var(--e2);
+  margin-bottom: var(--e3);
+}
+.analise-cab h2 {
+  margin: 0;
+  font-size: var(--t-corpo);
+  font-weight: var(--p-semi);
+}
+.analise-cab span {
+  font-size: var(--t-peq);
+}
+.analise-corpo {
+  flex: 1;
+  min-width: 0;
+}
+.analise-corpo .grafico,
+.analise-corpo svg {
+  max-width: 100%;
+}
+@media (max-width: 1199px) {
+  .painel-analise {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --------------------------------------------------------- filtros
+   Pílulas com contagem + "Mais filtros" (menu). O filtro do menu que está
+   ligado vira etiqueta com ×, para ver e tirar sem abrir o menu. */
+.filtro-barra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--e2);
+  margin-bottom: var(--e3);
+}
+.etiqueta-filtro {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--alt-peq);
+  padding: 0 var(--e2);
+  border: 0;
+  border-radius: var(--r-total);
+  background: var(--fundo-hover);
+  color: var(--tinta);
+  font: inherit;
+  font-size: var(--t-peq);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.etiqueta-filtro:hover {
+  background: var(--fundo-ctrl-ativo);
+}
+.menu-filtros {
+  min-width: 220px;
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+}
+.menu-filtros .menu-grupo {
+  padding: var(--e2) var(--e2) 2px;
+  font-size: var(--t-mini);
+  font-weight: var(--p-semi);
+  color: var(--tinta2);
+}
+.menu-filtros button {
+  justify-content: space-between;
+}
+.menu-filtros button .conta {
+  margin-left: var(--e4);
+  color: var(--tinta3);
+  font-variant-numeric: tabular-nums;
+}
+.menu-filtros button[aria-checked='true'] {
+  font-weight: var(--p-medio);
+}
+.menu-filtros hr {
+  margin: var(--e1) 0;
+  border: 0;
+  border-top: var(--fio) solid var(--separador);
+}
+/* Celular: os filtros ficam numa faixa só, que rola de lado por dentro —
+   cinco pílulas empilhadas ocupariam três linhas antes do primeiro
+   registro, e a página continua sem rolagem horizontal. */
+@media (max-width: 767px) {
+  .filtro-barra {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-left: calc(var(--margem-tela) * -1);
+    margin-right: calc(var(--margem-tela) * -1);
+    padding: 0 var(--margem-tela) var(--e1);
+    scrollbar-width: none;
+  }
+  .filtro-barra::-webkit-scrollbar {
+    display: none;
+  }
+  .filtro-barra > * {
+    flex: 0 0 auto;
+  }
+  .etiqueta-filtro,
+  .filtro-barra .pilula {
+    min-height: 44px;
+  }
+  .menu-filtros button {
+    min-height: 44px;
+  }
+}

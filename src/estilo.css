@@ -154,7 +154,7 @@ a { color: var(--marca); }
 :focus-visible { outline: 2px solid var(--marca); outline-offset: 2px; border-radius: 3px; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .btn, .rail-nav button, .kpi, .obra-cartao, .cartao, table.tab tbody tr,
+  .btn, .rail-nav button, .obra-cartao, .cartao, table.tab tbody tr,
   .chip, a { transition: background-color .14s ease, border-color .14s ease,
     color .14s ease, box-shadow .14s ease, transform .14s ease; }
 }
@@ -333,41 +333,6 @@ body[data-view="painel"] #conteudo { max-width: 1780px; }
 .g-graf { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
 .g-graf > .largo { grid-column: 1 / -1; }
 
-/* KPI */
-.kpi {
-  background: var(--sup); border: 1px solid var(--linha); border-radius: var(--r2);
-  padding: 14px 16px; display: flex; flex-direction: column; gap: 3px;
-  box-shadow: var(--sombra); position: relative; overflow: hidden;
-}
-.kpi .rotulo { font-size: 10.5px; letter-spacing: .1em; }
-.kpi .valor {
-  font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 28px; font-weight: 600;
-  line-height: 1.12; font-variant-numeric: tabular-nums; letter-spacing: -.02em;
-  margin-top: 1px; color: var(--tinta);
-}
-.kpi .sub { font-size: 11.5px; color: var(--mudo); }
-.kpi.ok .valor { color: var(--ok); }
-.kpi.aviso .valor { color: var(--aviso); }
-.kpi.critico .valor { color: var(--critico); }
-/* faixa lateral só quando há um estado a sinalizar */
-.kpi .faixa { display: none; }
-.kpi.ok .faixa, .kpi.aviso .faixa, .kpi.critico .faixa {
-  display: block; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px;
-  border-radius: 999px; background: var(--marca);
-}
-.kpi.ok .faixa { background: var(--ok); }
-.kpi.aviso .faixa { background: var(--aviso); }
-.kpi.critico .faixa { background: var(--critico); }
-
-.kpi .kpi-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.kpi.com-visual { flex-direction: row; align-items: center; gap: 14px; }
-.kpi.com-visual .kpi-txt { flex: 1; }
-.kpi.com-visual .kpi-vis { flex: 0 0 auto; display: grid; place-items: center; }
-.kpi.destaque { padding: 18px 20px; }
-.kpi.destaque .valor { font-size: 31px; }
-.kpi.destaque .rotulo { font-size: 11px; }
-
-.spark { width: 104px; height: 34px; display: block; flex: 0 0 104px; }
 .anel { width: 46px; height: 46px; display: block; overflow: visible; }
 .anel-t {
   font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 12px; font-weight: 600;
@@ -737,8 +702,6 @@ select { cursor: pointer; }
   #conteudo { padding: 12px; }
   .g2 { grid-template-columns: minmax(0, 1fr); }
   .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .kpi .valor { font-size: 24px; }
-  .kpi .sub { font-size: 10.5px; }
   .form-grade > * { grid-column: span 12 !important; }
   .modal .corpo { max-height: none; }
   #modal-camada { padding: 0; }
@@ -780,9 +743,6 @@ select { cursor: pointer; }
 }
 @media (max-width: 520px) {
   #conteudo { padding: 10px; }
-  .kpi { padding: 11px 13px; }
-  .kpi .valor { font-size: 20px; }
-  .kpi.destaque .valor { font-size: 24px; }
   .status-salvo { font-size: 0; gap: 0; }
   .status-salvo .pt { width: 9px; height: 9px; flex: 0 0 9px; }
 }
@@ -800,7 +760,7 @@ select { cursor: pointer; }
   }
   #rail, #topo, .nao-imprime, #toasts, #modal-camada { display: none !important; }
   #conteudo { padding: 0; max-width: none; }
-  .cartao, .kpi { break-inside: avoid; box-shadow: none; border-color: #ccc; }
+  .cartao, .kpi-item { break-inside: avoid; box-shadow: none; border-color: #ccc; }
   /* na impressão, a prévia é o documento — sem moldura de cartão */
   .cartao:has(#previa-relatorio) { border: 0; }
   .cartao:has(#previa-relatorio) > header { display: none; }

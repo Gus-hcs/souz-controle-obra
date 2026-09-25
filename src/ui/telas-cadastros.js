@@ -6,7 +6,8 @@ import { ativacaoConta, diasSemAtividade, etapaCalc, kpisObra } from '../dominio
 import { apenasErros, validarEmpresa, validarPerfilAdmin, validarSenhaForte, validarUsuarioNovo } from '../dominio/validacao.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
-import { App, abrirModal, botao, ehClienteDaObra, campoBusca, cartao, chip, confirmar, fecharModal, ICO, kpi, MENU, nomeCliente, svg, toast, tomSituacao, vazio } from './shell.js';
+import { App, abrirModal, botao, ehClienteDaObra, cartao, chip, confirmar, fecharModal, ICO, MENU, nomeCliente, svg, toast, tomSituacao, vazio } from './shell.js';
+import { buscaToolbar, faixaKpis } from './telas/componentes.js';
 import { VIEWS } from './telas-obra.js';
 import { ACOES } from './acoes.js';
 
@@ -215,32 +216,45 @@ VIEWS.admin = () => {
     </tr>`;
   };
 
-  return `<div class="grade" style="gap:16px">
-    <div class="grade g4">
-      ${kpi('Clientes', linhas.length, `${ativos} no plano ativo`)}
-      ${kpi('Obras na plataforma', totObras, 'somando todas as contas')}
-      ${kpi('Paradas há 14+ dias', paradas, paradas ? 'no topo da lista — vale uma ligação' : 'todas as contas em uso', paradas ? 'aviso' : 'ok')}
-      ${kpi('Contas com restrição', restritos, 'bloqueadas ou com aba fechada', restritos ? 'aviso' : 'ok')}
-    </div>
-    ${cartao('Uso por conta', `
-      <div class="tab-rolagem"><table class="tab">
-        <thead><tr>
-          <th>Cliente</th><th>Plano</th>
-          <th class="num">Obras</th><th class="num">Contr.</th><th class="num">Medições</th>
-          <th class="num">Lançam.</th><th class="num">Fotos</th>
-          <th class="num" title="obra, contrato, medição, gasto, diário e foto">Ativação</th>
-          <th>Última atividade</th><th>Editar</th><th></th>
-        </tr></thead>
-        <tbody>${vis.map(linhaHTML).join('') || `<tr><td colspan="11">${vazio('Nenhum cliente', 'Ainda não há contas cadastradas além da sua.')}</td></tr>`}</tbody>
-      </table></div>`, {
-      semPadding: true,
-      acoes: `<div class="filtros">
-        ${campoBusca('busca', 'Buscar por e-mail ou empresa…')}
-        ${botao('Atualizar', 'admin-recarregar', {}, 'btn sutil pequeno')}
-        ${botao('Novo cliente', 'admin-novo', {}, 'btn primario pequeno', 'mais')}
-      </div>`,
-    })}
+  return `<div class="tela-lista">
+    ${faixaKpis(
+      [
+        { rotulo: 'Clientes', valor: linhas.length, contexto: `${ativos} no plano ativo` },
+        { rotulo: 'Obras na plataforma', valor: totObras, contexto: 'somando todas as contas' },
+        {
+          rotulo: 'Paradas há 14+ dias',
+          valor: paradas,
+          contexto: paradas ? 'no topo da lista — vale uma ligação' : 'todas as contas em uso',
+          tom: paradas ? 'tom-alerta' : '',
+        },
+        {
+          rotulo: 'Contas com restrição',
+          valor: restritos,
+          contexto: 'bloqueadas ou com aba fechada',
+          tom: restritos ? 'tom-alerta' : '',
+        },
+      ],
+      { rotulo: 'Indicadores das contas' },
+    )}
+    <div class="lista-cx"><div class="tab-rolagem"><table class="tab tab-contas" data-testid="lista-contas">
+      <thead><tr>
+        <th>Cliente</th><th>Plano</th>
+        <th class="num">Obras</th><th class="num">Contr.</th><th class="num">Medições</th>
+        <th class="num">Lançam.</th><th class="num">Fotos</th>
+        <th class="num" title="obra, contrato, medição, gasto, diário e foto">Ativação</th>
+        <th>Última atividade</th><th>Editar</th><th></th>
+      </tr></thead>
+      <tbody>${vis.map(linhaHTML).join('') || `<tr><td colspan="11">${vazio('Nenhum cliente', busca ? 'Nenhuma conta com essa busca.' : 'Ainda não há contas cadastradas além da sua.')}</td></tr>`}</tbody>
+    </table></div></div>
   </div>`;
+};
+
+/* busca, atualizar e novo cliente na toolbar, como nas outras telas */
+VIEWS.admin.toolbar = () => {
+  if (!SUPA.ehAdmin || !Admin.linhas) return '';
+  return `${buscaToolbar('Buscar por e-mail ou empresa…', 'busca-contas')}
+    ${botao('Atualizar', 'admin-recarregar', {}, 'btn sutil pequeno')}
+    ${botao('<span class="rotulo-btn">Novo cliente</span>', 'admin-novo', {}, 'btn primario', 'mais')}`;
 };
 
 /* senha provisória em 3 blocos de 4, com minúscula, maiúscula, número e

@@ -41,11 +41,10 @@ import {
   botaoNovo,
   buscaToolbar,
   dinheiro,
-  filtrando,
+  faixaKpis,
   lista,
-  resumo,
+  painelAnalise,
   secao,
-  seletor,
   vazioTela,
 } from './componentes.js';
 
@@ -74,7 +73,19 @@ VIEWS.lancamentos = () => {
     .sort()
     .reverse();
   const busca = norm(f.busca || '');
-  let itens = todos.map((l) => ({ l, total: lancamentoTotal(l) }));
+  const todosItens = todos.map((l) => ({ l, total: lancamentoTotal(l) }));
+  const SITUACOES_LANC = [
+    { valor: 'plano', rotulo: 'Do plano de materiais', pertence: (d) => d.l.materialId },
+    { valor: 'avulso', rotulo: 'Avulsos', pertence: (d) => !d.l.materialId },
+    { valor: 'sem-etapa', rotulo: 'Sem etapa', pertence: (d) => !d.l.etapa },
+    { valor: 'duplicados', rotulo: 'Possíveis duplicados', pertence: (d) => duplicado.has(d.l.id) },
+    {
+      valor: 'nao-obra',
+      rotulo: 'Fora da obra física',
+      pertence: (d) => lancamentoNatureza(d.l) !== 'Obra',
+    },
+  ];
+  let itens = todosItens;
   if (f.tipo) itens = itens.filter((d) => d.l.tipo === f.tipo);
   if (f.etapa) itens = itens.filter((d) => d.l.etapa === f.etapa);
   if (f.fornecedor) itens = itens.filter((d) => d.l.fornecedor === f.fornecedor);
@@ -83,11 +94,8 @@ VIEWS.lancamentos = () => {
   if (prestFiltro)
     itens = itens.filter((d) => ligadoAoPrestador(prestFiltro, d.l.prestadorId, d.l.fornecedor));
   if (f.mes) itens = itens.filter((d) => competencia(d.l.data) === f.mes);
-  if (f.situacao === 'plano') itens = itens.filter((d) => d.l.materialId);
-  if (f.situacao === 'avulso') itens = itens.filter((d) => !d.l.materialId);
-  if (f.situacao === 'sem-etapa') itens = itens.filter((d) => !d.l.etapa);
-  if (f.situacao === 'duplicados') itens = itens.filter((d) => duplicado.has(d.l.id));
-  if (f.situacao === 'nao-obra') itens = itens.filter((d) => lancamentoNatureza(d.l) !== 'Obra');
+  const situacao = SITUACOES_LANC.find((x) => x.valor === f.situacao);
+  if (situacao) itens = itens.filter(situacao.pertence);
   if (busca) {
     itens = itens.filter((d) =>
       norm(`${d.l.descricao} ${d.l.fornecedor} ${d.l.documento} ${d.l.categoria}`).includes(busca),
@@ -198,13 +206,25 @@ VIEWS.lancamentos = () => {
   })();
   const porEtapa = soma('etapa', 'Sem etapa');
   const graficos =
-    itens.length > 1 && (porNatureza.length > 1 || porEtapa.length > 1)
-      ? secao(
-          'Para onde foi o dinheiro',
-          `<div class="grade-graficos">
-            ${porNatureza.length > 1 ? `<div><h3 class="sub-grafico">Por natureza</h3>${graficoBarras(porNatureza, { formata: (v) => fmtMoneyCurto(v) })}</div>` : ''}
-            ${porEtapa.length > 1 ? `<div><h3 class="sub-grafico">Por etapa</h3>${graficoBarras(porEtapa, { limite: 10, formata: (v) => fmtMoneyCurto(v) })}</div>` : ''}
-          </div>`,
+    itens.length > 1
+      ? painelAnalise(
+          [
+            {
+              titulo: 'Por natureza',
+              conteudo:
+                porNatureza.length > 1
+                  ? graficoBarras(porNatureza, { formata: (v) => fmtMoneyCurto(v) })
+                  : '',
+            },
+            {
+              titulo: 'Por etapa',
+              conteudo:
+                porEtapa.length > 1
+                  ? graficoBarras(porEtapa, { limite: 10, formata: (v) => fmtMoneyCurto(v) })
+                  : '',
+            },
+          ],
+          { titulo: 'Para onde foi o dinheiro' },
         )
       : '';
 
@@ -228,61 +248,88 @@ VIEWS.lancamentos = () => {
     : '';
 
   return `<div class="tela-lista">
-    ${resumo([
-      {
-        rotulo: 'Total lançado',
-        valor: fmtMoney(r.total, { dec: 0 }),
-        nota: `${r.n} lançamento${r.n === 1 ? '' : 's'}${
-          r.naoObra.valor > 0.005 ? ` · ${fmtMoney(r.naoObra.valor, { dec: 0 })} fora da obra física` : ''
-        }`,
-      },
-      {
-        rotulo: 'Compras de material',
-        valor: fmtMoney(r.material, { dec: 0 }),
-        nota: r.total ? `${fmtPct(r.material / r.total, 0)} do total` : '',
-      },
-      {
-        rotulo: 'Sem etapa',
-        valor: r.semEtapa.n ? `${r.semEtapa.n}` : 'nenhum',
-        tom: r.semEtapa.n ? 'tom-alerta' : '',
-        nota: r.semEtapa.n
-          ? `${fmtMoney(r.semEtapa.valor, { dec: 0 })} fora do custo por etapa`
-          : 'tudo classificado',
-      },
-    ])}
+    ${faixaKpis(
+      [
+        {
+          rotulo: 'Total lançado',
+          valor: fmtMoney(r.total, { dec: 0 }),
+          contexto: `${r.n} lançamento${r.n === 1 ? '' : 's'}${
+            r.naoObra.valor > 0.005
+              ? ` · ${fmtMoney(r.naoObra.valor, { dec: 0 })} fora da obra física`
+              : ''
+          }`,
+        },
+        {
+          rotulo: 'Compras de material',
+          valor: fmtMoney(r.material, { dec: 0 }),
+          contexto: r.total ? `${fmtPct(r.material / r.total, 0)} do total` : '',
+        },
+        {
+          rotulo: 'Sem etapa',
+          valor: r.semEtapa.n ? `${r.semEtapa.n}` : 'nenhum',
+          tom: r.semEtapa.n ? 'tom-alerta' : '',
+          contexto: r.semEtapa.n
+            ? `${fmtMoney(r.semEtapa.valor, { dec: 0 })} fora do custo por etapa`
+            : 'tudo classificado',
+        },
+      ],
+      { rotulo: 'Indicadores de lançamentos' },
+    )}
     ${barraFiltros({
-      mostrar:
-        todos.length > 1 ||
-        filtrando(['tipo', 'etapa', 'fornecedor', 'mes', 'situacao', 'busca', 'prestadorId']),
+      pilulas: {
+        chave: 'tipo',
+        todos: 'Todos',
+        total: todosItens.length,
+        opcoes: [...new Set([...opcoesLista('tiposSaida'), ...todos.map((l) => l.tipo)])]
+          .filter(Boolean)
+          .map((t) => ({ valor: t, rotulo: t, n: todosItens.filter((d) => d.l.tipo === t).length })),
+      },
+      mais: [
+        {
+          chave: 'etapa',
+          rotulo: 'Etapa',
+          todos: 'Todas as etapas',
+          opcoes: opcoesEtapas()
+            .map((e) => [e, e, todosItens.filter((d) => d.l.etapa === e).length])
+            .filter((op) => op[2] > 0),
+        },
+        {
+          chave: 'fornecedor',
+          rotulo: 'Fornecedor',
+          todos: 'Todos os fornecedores',
+          opcoes: fornecedores.map((fo) => [
+            fo,
+            fo,
+            todosItens.filter((d) => d.l.fornecedor === fo).length,
+          ]),
+        },
+        {
+          chave: 'situacao',
+          rotulo: 'Origem',
+          todos: 'Qualquer origem',
+          opcoes: SITUACOES_LANC.map((x) => [
+            x.valor,
+            x.rotulo,
+            todosItens.filter(x.pertence).length,
+          ]).filter((op) => op[2] > 0),
+        },
+        {
+          chave: 'mes',
+          rotulo: 'Mês',
+          todos: 'Todos os meses',
+          opcoes: meses.map((ym) => [
+            ym,
+            fmtCompetencia(ym),
+            todosItens.filter((d) => competencia(d.l.data) === ym).length,
+          ]),
+        },
+      ],
+      extra: prestFiltro
+        ? `<button type="button" class="etiqueta-filtro" data-acao="lanc-sem-prestador" title="Tirar o filtro de prestador">
+            <span class="tinta2">Prestador:</span> ${esc(nomeExibicao(prestFiltro.nome))} <span aria-hidden="true">×</span></button>`
+        : '',
       filtrados: itens.length,
       total: todos.length,
-      controles: [
-        prestFiltro
-          ? `<button class="pilula ativa" data-acao="lanc-sem-prestador" title="Tirar o filtro de prestador">
-              ${esc(nomeExibicao(prestFiltro.nome))} <span aria-hidden="true">✕</span></button>`
-          : '',
-        seletor('tipo', opcoesLista('tiposSaida'), 'Todos os tipos'),
-        seletor('etapa', opcoesEtapas(), 'Todas as etapas'),
-        fornecedores.length > 1 ? seletor('fornecedor', fornecedores, 'Todos os fornecedores') : '',
-        seletor(
-          'situacao',
-          [
-            ['plano', 'Do plano de materiais'],
-            ['avulso', 'Avulsos'],
-            ['sem-etapa', 'Sem etapa'],
-            ['duplicados', 'Possíveis duplicados'],
-            ['nao-obra', 'Fora da obra física'],
-          ],
-          'Qualquer origem',
-        ),
-        meses.length > 1
-          ? seletor(
-              'mes',
-              meses.map((ym) => [ym, fmtCompetencia(ym)]),
-              'Todos os meses',
-            )
-          : '',
-      ],
     })}
     ${lista({
       id: 'lancamentos',

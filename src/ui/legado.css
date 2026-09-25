@@ -66,8 +66,7 @@
 
 /* ------------------------------------------------------ tipografia
    Tira Space Grotesk, Inter e JetBrains Mono das telas antigas: a fonte
-   da marca (Archivo) passa a valer em toda parte. Número e código (.mono,
-   .kpi .valor) ficam de fora: vão para o IBM Plex Mono (interface.css). */
+   da marca (Archivo) passa a valer em toda parte, número incluído. */
 body,
 h1,
 h2,
@@ -98,22 +97,8 @@ table.tab td[data-rotulo]::before {
   color: var(--tinta2);
 }
 
-/* Nenhum número de tela de trabalho passa de 22px. */
-.kpi .valor {
-  font-size: var(--t-max);
-  font-weight: var(--p-semi);
-  letter-spacing: -0.01em;
-}
-.kpi.destaque .valor {
-  font-size: var(--t-max);
-}
-.kpi .rotulo {
-  font-size: var(--t-mini);
-}
-
 /* Cartão separa por fio, não por sombra. */
 .cartao,
-.kpi,
 .obra-cartao,
 .hero,
 .modal,
@@ -122,7 +107,6 @@ table.tab tr {
   box-shadow: none;
 }
 .cartao,
-.kpi,
 .obra-cartao {
   border-radius: var(--r-cartao);
 }
@@ -199,7 +183,6 @@ table.tab tbody tr:hover td {
    a sombra sai. */
 .btn,
 .rail-nav button,
-.kpi,
 .obra-cartao,
 .cartao,
 table.tab tbody tr,

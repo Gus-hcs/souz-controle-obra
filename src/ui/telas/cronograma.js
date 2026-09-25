@@ -38,9 +38,9 @@ import {
   botaoNovo,
   buscaToolbar,
   fmtIndice,
+  faixaKpis,
   lista,
   secao,
-  seletor,
   tomNivel,
   vazioTela,
 } from './componentes.js';
@@ -70,55 +70,52 @@ function kpisCronograma(o) {
   const proxima = abertas[0];
   const nTravadas = k.etapasAtrasadas + k.etapasInicioAtrasado;
 
-  const item = (chave, rotulo, valor, contexto, tom = '', filtravel = false) => {
-    const ativo = filtravel && App.filtros.kpiCrono === chave;
-    return `<div class="kpi-item${ativo ? ' ativo' : ''}"${filtravel ? ` data-acao="crono-kpi" data-kpi="${chave}" role="button" tabindex="0" aria-pressed="${ativo}" title="Filtrar a lista"` : ''}>
-      <span class="kpi-rot">${esc(rotulo)}</span>
-      <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
-      <span class="kpi-ctx">${contexto}</span>
-    </div>`;
-  };
   const atraso = va.atrasoProjetado;
 
-  return `<div class="kpis" role="group" aria-label="Indicadores do cronograma">
-    ${item(
-      'entrega',
-      'Término projetado',
-      va.termino ? fmtData(va.termino) : '—',
-      `${prazo.fimPrevisto ? `contrato ${fmtDataCurta(prazo.fimPrevisto)}` : 'sem data contratual'}${
-        atraso > 0 ? ` · +${atraso} d` : ''
-      }`,
-      atraso > 0 ? (atraso >= 30 ? 'atraso' : 'tom-alerta') : '',
-    )}
-    ${item(
-      'fisico',
-      'Avanço físico',
-      fmtPct(k.progressoFisico, 0),
-      `previsto ${fmtPct(va.previsto, 0)} · IDP ${fmtIndice(va.idp)}`,
-      tomNivel(nivelIndice(va.idp, 'idp')),
-    )}
-    ${item(
-      'atrasadas',
-      'Etapas atrasadas',
-      nTravadas,
-      nTravadas
-        ? [
-            k.etapasAtrasadas ? `${k.etapasAtrasadas} com fim vencido` : '',
-            k.etapasInicioAtrasado ? `${k.etapasInicioAtrasado} sem começar` : '',
-          ]
-            .filter(Boolean)
-            .join(' · ')
-        : 'tudo no prazo',
-      nTravadas ? 'atraso' : '',
-      true,
-    )}
-    ${item(
-      'proxima',
-      'Próxima entrega',
-      proxima ? esc(proxima.etapa || '—') : '—',
-      proxima ? fmtDataCurta(proxima.fimPrevisto) : 'nada com fim à frente',
-    )}
-  </div>`;
+  return faixaKpis(
+    [
+      {
+        chave: 'entrega',
+        rotulo: 'Término projetado',
+        valor: va.termino ? fmtData(va.termino) : '—',
+        contexto: `${prazo.fimPrevisto ? `contrato ${fmtDataCurta(prazo.fimPrevisto)}` : 'sem data contratual'}${
+          atraso > 0 ? ` · +${atraso} d` : ''
+        }`,
+        tom: atraso > 0 ? (atraso >= 30 ? 'atraso' : 'tom-alerta') : '',
+        filtra: false,
+      },
+      {
+        chave: 'fisico',
+        rotulo: 'Avanço físico',
+        valor: fmtPct(k.progressoFisico, 0),
+        contexto: `previsto ${fmtPct(va.previsto, 0)} · IDP ${fmtIndice(va.idp)}`,
+        tom: tomNivel(nivelIndice(va.idp, 'idp')),
+        filtra: false,
+      },
+      {
+        chave: 'atrasadas',
+        rotulo: 'Etapas atrasadas',
+        valor: nTravadas,
+        contexto: nTravadas
+          ? [
+              k.etapasAtrasadas ? `${k.etapasAtrasadas} com fim vencido` : '',
+              k.etapasInicioAtrasado ? `${k.etapasInicioAtrasado} sem começar` : '',
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : 'tudo no prazo',
+        tom: nTravadas ? 'atraso' : '',
+      },
+      {
+        chave: 'proxima',
+        rotulo: 'Próxima entrega',
+        valor: proxima ? esc(proxima.etapa || '—') : '—',
+        contexto: proxima ? fmtDataCurta(proxima.fimPrevisto) : 'nada com fim à frente',
+        filtra: false,
+      },
+    ],
+    { rotulo: 'Indicadores do cronograma', acao: 'crono-kpi', ativo: App.filtros.kpiCrono },
+  );
 }
 
 ACOES['crono-kpi'] = (el, d) => {
@@ -275,21 +272,35 @@ VIEWS.cronograma = () => {
   if (f.kpiCrono === 'atrasadas') itens = itens.filter((d) => atrasadaOuTravada(d.c));
   if (busca) itens = itens.filter((d) => norm(`${d.e.etapa} ${d.e.responsavel}`).includes(busca));
 
+  /* situação em pílula, com a contagem; responsável no "Mais filtros" */
+  const todasEtapas = o.cronograma.map((e) => ({ e, c: etapaCalc(e), ag: porId.get(e.id) || null }));
+  const conta = (fn) => todasEtapas.filter(fn).length;
   const barra = barraFiltros({
-    mostrar: o.cronograma.length > 1,
-    controles: [
-      responsaveis.length > 1 ? seletor('responsavel', responsaveis, 'Todos os responsáveis') : '',
-      seletor(
-        'situacao',
-        [
-          ['atrasadas', 'Atrasadas'],
-          ['andamento', 'Em andamento'],
-          ['nao-iniciadas', 'Não iniciadas'],
-          ['concluidas', 'Concluídas'],
-          ...(agenda ? [['criticas', 'Caminho crítico']] : []),
-        ],
-        'Situação: todas',
-      ),
+    pilulas: {
+      chave: 'situacao',
+      todos: 'Todas',
+      total: o.cronograma.length,
+      opcoes: [
+        { valor: 'atrasadas', rotulo: 'Atrasadas', n: conta((d) => atrasadaOuTravada(d.c)) },
+        { valor: 'andamento', rotulo: 'Em andamento', n: conta((d) => d.c.situacao === 'EM ANDAMENTO') },
+        {
+          valor: 'nao-iniciadas',
+          rotulo: 'Não iniciadas',
+          n: conta((d) => d.c.situacao === 'NÃO INICIADO' || d.c.situacao === 'NÃO PLANEJADO'),
+        },
+        { valor: 'concluidas', rotulo: 'Concluídas', n: conta((d) => d.c.situacao === 'CONCLUÍDO') },
+        ...(agenda
+          ? [{ valor: 'criticas', rotulo: 'Caminho crítico', n: conta((d) => d.ag && d.ag.critica) }]
+          : []),
+      ],
+    },
+    mais: [
+      {
+        chave: 'responsavel',
+        rotulo: 'Responsável',
+        todos: 'Todos os responsáveis',
+        opcoes: responsaveis.map((r) => [r, r, conta((d) => d.e.responsavel === r)]),
+      },
     ],
     filtrados: itens.length,
     total: o.cronograma.length,

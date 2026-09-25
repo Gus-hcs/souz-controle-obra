@@ -2,12 +2,14 @@
  * app.js — Ponto de entrada: delegação de eventos, rotas e inicialização.
  */
 /* Ordem importa: estilo.css é o legado, tokens/interface são a linguagem
-   nova e legado.css religa os nomes antigos aos tokens. Quem vem depois
-   vence na cascata. */
+   nova, legado.css religa os nomes antigos aos tokens e padrao.css é o
+   padrão de tela (KPIs, contêiner, filtros), que vale sobre todos. Quem
+   vem depois vence na cascata. */
 import './estilo.css';
 import './ui/tokens.css';
 import './ui/interface.css';
 import './ui/legado.css';
+import './ui/padrao.css';
 import { Store, erroDeRede } from './dados/store.js';
 import {
   EXIGE_BANCO,

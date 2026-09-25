@@ -37,9 +37,9 @@ import {
   botaoNovo,
   buscaToolbar,
   dinheiro,
+  faixaKpis,
   lista,
-  secao,
-  seletor,
+  painelAnalise,
   vazioTela,
 } from './componentes.js';
 
@@ -54,66 +54,60 @@ function kpisMateriais(todos, cobertura) {
   const comCompra = todos.filter((x) => x.c.compras > 0);
   const desvioTotal = comCompra.reduce((s, x) => s + x.c.desvio, 0);
 
-  const item = (chave, rotulo, valor, contexto, tom = '') => {
-    const ativo = App.filtros.kpiMat === chave;
-    return `<div class="kpi-item${ativo ? ' ativo' : ''}" data-acao="mat-kpi" data-kpi="${chave}"
-        role="button" tabindex="0" aria-pressed="${ativo}" title="Filtrar a lista">
-      <span class="kpi-rot">${esc(rotulo)}</span>
-      <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
-      <span class="kpi-ctx">${contexto}</span>
-    </div>`;
-  };
-
-  return `<div class="kpis" role="group" aria-label="Indicadores do plano de materiais">
-    ${item(
-      'comprar',
-      'Falta comprar',
-      fmtMoney(saldoTotal, { dec: 0 }),
-      `${comSaldo.length} item${comSaldo.length === 1 ? '' : 's'} com saldo`,
-      saldoTotal > 0.005 ? 'tom-alerta' : '',
-    )}
-    ${item(
-      'vencidos',
-      'Vencidos sem compra',
-      vencidos.length,
-      travando.length
-        ? `${travando.length} travando etapa em andamento`
-        : vencidos.length
-          ? `${fmtMoney(
-              vencidos.reduce((s, x) => s + x.c.saldoValor, 0),
-              { dec: 0 },
-            )} — comprar já`
-          : 'nada em atraso',
-      vencidos.length ? 'atraso' : '',
-    )}
-    ${item(
-      'comprados',
-      'Já comprado',
-      fmtMoney(compradoTotal, { dec: 0 }),
-      orcTotal
-        ? `${fmtPct(compradoTotal / orcTotal, 0)} de ${fmtMoney(orcTotal, { dec: 0 })} orçados`
-        : `${todos.length} item${todos.length === 1 ? '' : 's'} no plano`,
-    )}
-    ${item(
-      'desvio',
-      'Desvio de orçamento',
-      comCompra.length
-        ? `${desvioTotal >= 0 ? '+' : '−'}${fmtMoney(Math.abs(desvioTotal), { dec: 0 })}`
-        : '—',
-      (!comCompra.length
-        ? 'sem compras ainda'
-        : desvioTotal > 0.5
-          ? 'acima do previsto'
-          : desvioTotal < -0.5
-            ? 'abaixo do previsto'
-            : 'dentro do previsto') +
-        /* o desvio só mede o que está no plano: diz quanto isso é */
-        (cobertura.fracao === null
-          ? ''
-          : ` · plano cobre ${fmtPct(cobertura.fracao, 0)} das compras`),
-      desvioTotal > 0.5 ? 'atraso' : '',
-    )}
-  </div>`;
+  return faixaKpis(
+    [
+      {
+        chave: 'comprar',
+        rotulo: 'Falta comprar',
+        valor: fmtMoney(saldoTotal, { dec: 0 }),
+        contexto: `${comSaldo.length} item${comSaldo.length === 1 ? '' : 's'} com saldo`,
+        tom: saldoTotal > 0.005 ? 'tom-alerta' : '',
+      },
+      {
+        chave: 'vencidos',
+        rotulo: 'Vencidos sem compra',
+        valor: vencidos.length,
+        contexto: travando.length
+          ? `${travando.length} travando etapa em andamento`
+          : vencidos.length
+            ? `${fmtMoney(
+                vencidos.reduce((s, x) => s + x.c.saldoValor, 0),
+                { dec: 0 },
+              )} — comprar já`
+            : 'nada em atraso',
+        tom: vencidos.length ? 'atraso' : '',
+      },
+      {
+        chave: 'comprados',
+        rotulo: 'Já comprado',
+        valor: fmtMoney(compradoTotal, { dec: 0 }),
+        contexto: orcTotal
+          ? `${fmtPct(compradoTotal / orcTotal, 0)} de ${fmtMoney(orcTotal, { dec: 0 })} orçados`
+          : `${todos.length} item${todos.length === 1 ? '' : 's'} no plano`,
+      },
+      {
+        chave: 'desvio',
+        rotulo: 'Desvio de orçamento',
+        valor: comCompra.length
+          ? `${desvioTotal >= 0 ? '+' : '−'}${fmtMoney(Math.abs(desvioTotal), { dec: 0 })}`
+          : '—',
+        contexto:
+          (!comCompra.length
+            ? 'sem compras ainda'
+            : desvioTotal > 0.5
+              ? 'acima do previsto'
+              : desvioTotal < -0.5
+                ? 'abaixo do previsto'
+                : 'dentro do previsto') +
+          /* o desvio só mede o que está no plano: diz quanto isso é */
+          (cobertura.fracao === null
+            ? ''
+            : ` · plano cobre ${fmtPct(cobertura.fracao, 0)} das compras`),
+        tom: desvioTotal > 0.5 ? 'atraso' : '',
+      },
+    ],
+    { rotulo: 'Indicadores do plano de materiais', acao: 'mat-kpi', ativo: App.filtros.kpiMat },
+  );
 }
 
 ACOES['mat-kpi'] = (el, d) => {
@@ -299,12 +293,34 @@ VIEWS.materiais = () => {
       norm(`${d.m.material} ${d.m.etapa} ${d.m.observacoes}`).includes(busca),
     );
 
+  /* status em pílula; etapa e prioridade no "Mais filtros" */
+  const conta = (fn) => todos.filter(fn).length;
   const barra = barraFiltros({
-    mostrar: o.materiais.length > 1,
-    controles: [
-      etapas.length > 1 ? seletor('etapa', etapas, 'Todas as etapas') : '',
-      seletor('prioridade', opcoesLista('prioridades'), 'Toda prioridade'),
-      seletor('status', opcoesLista('statusMaterial'), 'Todos os status'),
+    pilulas: {
+      chave: 'status',
+      todos: 'Todos',
+      total: todos.length,
+      opcoes: opcoesLista('statusMaterial').map((st) => ({
+        valor: st,
+        rotulo: st,
+        n: conta((d) => d.m.status === st),
+      })),
+    },
+    mais: [
+      {
+        chave: 'etapa',
+        rotulo: 'Etapa',
+        todos: 'Todas as etapas',
+        opcoes: etapas.map((e) => [e, e, conta((d) => d.m.etapa === e)]),
+      },
+      {
+        chave: 'prioridade',
+        rotulo: 'Prioridade',
+        todos: 'Toda prioridade',
+        opcoes: opcoesLista('prioridades')
+          .map((pr) => [pr, pr, conta((d) => d.m.prioridade === pr)])
+          .filter((op) => op[2] > 0),
+      },
     ],
     filtrados: itens.length,
     total: o.materiais.length,
@@ -330,7 +346,15 @@ VIEWS.materiais = () => {
       ordemPadrao: { col: 'prazo', dir: 1 },
       rodapeRotulo: (n) => `${n} itens`,
     })}
-    ${faltaPorEtapa.length > 1 ? secao('Falta comprar por etapa', graficoBarras(faltaPorEtapa, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--serie2)' })) : ''}
+    ${painelAnalise([
+      {
+        titulo: 'Falta comprar por etapa',
+        conteudo:
+          faltaPorEtapa.length > 1
+            ? graficoBarras(faltaPorEtapa, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--serie2)' })
+            : '',
+      },
+    ])}
   </div>`;
 };
 

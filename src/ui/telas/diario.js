@@ -31,63 +31,76 @@ import {
   barraFiltros,
   botaoNovo,
   buscaToolbar,
-  seletor,
+  faixaKpis,
   vazioTela,
 } from './componentes.js';
 
 function kpisDiario(ind, totFotos) {
-  const item = (chave, rotulo, valor, contexto, tom = '', filtravel = false) => {
-    const ativo = filtravel && App.filtros.kpiDiario === chave;
-    return `<div class="kpi-item${ativo ? ' ativo' : ''}"${filtravel ? ` data-acao="diario-kpi" data-kpi="${chave}" role="button" tabindex="0" aria-pressed="${ativo}" title="Filtrar a lista"` : ''}>
-      <span class="kpi-rot">${esc(rotulo)}</span>
-      <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
-      <span class="kpi-ctx">${contexto}</span>
-    </div>`;
-  };
   const cob = ind.cobertura;
-
-  return `<div class="kpis" role="group" aria-label="Indicadores do diário">
-    ${item(
-      'cobertura',
-      'Cobertura do diário',
-      cob === null ? '—' : fmtPct(cob, 0),
-      `${ind.diasComRegistro} de ${ind.diasUteis} dias úteis`,
-      cob === null ? '' : cob < 0.5 ? 'atraso' : cob < 0.8 ? 'tom-alerta' : '',
-    )}
-    ${item(
-      'inativo',
-      'Sem registro há',
-      ind.semRegistroHa === null ? '—' : `${ind.semRegistroHa} dia${ind.semRegistroHa === 1 ? '' : 's'}`,
-      ind.semRegistroHa === null ? 'nenhuma visita registrada' : `último em ${fmtDataCurta(ind.ultimo)}`,
-      ind.semRegistroHa === null ? '' : ind.semRegistroHa > 7 ? 'atraso' : ind.semRegistroHa > 2 ? 'tom-alerta' : '',
-    )}
-    ${item(
-      'impraticavel',
-      'Dias impraticáveis',
-      ind.diasImpraticaveis,
-      [
-        ind.diasImpraticaveis ? 'base para aditivo de prazo' : 'nenhum registrado',
-        ind.diasImpactoPrazo ? `${ind.diasImpactoPrazo} dia${ind.diasImpactoPrazo === 1 ? '' : 's'} de impacto declarado${ind.diasImpactoPrazo === 1 ? '' : 's'}` : '',
-      ].filter(Boolean).join(' · '),
-      '',
-      true,
-    )}
-    ${item('foto', 'Com foto', totFotos, `${ind.comFoto} de ${ind.registros} registro${ind.registros === 1 ? '' : 's'}`, '', true)}
-    ${item(
-      'ocorrencia',
-      'Ocorrências abertas',
-      ind.ocorrenciasAbertas,
-      ind.ocorrenciasVencidas
-        ? `${ind.ocorrenciasVencidas} com prazo vencido`
-        : ind.ocorrenciasAbertas
-          ? 'dentro do prazo'
-          : ind.ocorrenciasResolvidas
-            ? `${ind.ocorrenciasResolvidas} resolvida${ind.ocorrenciasResolvidas === 1 ? '' : 's'}`
-            : 'nenhuma pendência',
-      ind.ocorrenciasVencidas ? 'atraso' : ind.ocorrenciasAbertas ? 'tom-alerta' : '',
-      true,
-    )}
-  </div>`;
+  const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+  return faixaKpis(
+    [
+      {
+        chave: 'cobertura',
+        rotulo: 'Cobertura do diário',
+        valor: cob === null ? '—' : fmtPct(cob, 0),
+        contexto: `${ind.diasComRegistro} de ${ind.diasUteis} dias úteis`,
+        tom: cob === null ? '' : cob < 0.5 ? 'atraso' : cob < 0.8 ? 'tom-alerta' : '',
+        filtra: false,
+      },
+      {
+        chave: 'inativo',
+        rotulo: 'Sem registro há',
+        valor: ind.semRegistroHa === null ? '—' : plural(ind.semRegistroHa, 'dia', 'dias'),
+        contexto:
+          ind.semRegistroHa === null
+            ? 'nenhuma visita registrada'
+            : `último em ${fmtDataCurta(ind.ultimo)}`,
+        tom:
+          ind.semRegistroHa === null
+            ? ''
+            : ind.semRegistroHa > 7
+              ? 'atraso'
+              : ind.semRegistroHa > 2
+                ? 'tom-alerta'
+                : '',
+        filtra: false,
+      },
+      {
+        chave: 'impraticavel',
+        rotulo: 'Dias impraticáveis',
+        valor: ind.diasImpraticaveis,
+        contexto: [
+          ind.diasImpraticaveis ? 'base para aditivo de prazo' : 'nenhum registrado',
+          ind.diasImpactoPrazo
+            ? `${plural(ind.diasImpactoPrazo, 'dia', 'dias')} de impacto declarado${ind.diasImpactoPrazo === 1 ? '' : 's'}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      },
+      {
+        chave: 'foto',
+        rotulo: 'Com foto',
+        valor: totFotos,
+        contexto: `${ind.comFoto} de ${plural(ind.registros, 'registro', 'registros')}`,
+      },
+      {
+        chave: 'ocorrencia',
+        rotulo: 'Ocorrências abertas',
+        valor: ind.ocorrenciasAbertas,
+        contexto: ind.ocorrenciasVencidas
+          ? `${ind.ocorrenciasVencidas} com prazo vencido`
+          : ind.ocorrenciasAbertas
+            ? 'dentro do prazo'
+            : ind.ocorrenciasResolvidas
+              ? plural(ind.ocorrenciasResolvidas, 'resolvida', 'resolvidas')
+              : 'nenhuma pendência',
+        tom: ind.ocorrenciasVencidas ? 'atraso' : ind.ocorrenciasAbertas ? 'tom-alerta' : '',
+      },
+    ],
+    { rotulo: 'Indicadores do diário', acao: 'diario-kpi', ativo: App.filtros.kpiDiario },
+  );
 }
 
 ACOES['diario-kpi'] = (el, d) => {
@@ -247,22 +260,44 @@ VIEWS.diario = () => {
       norm(`${d.atividades} ${d.ocorrencias} ${d.autor} ${d.etapa}`).includes(busca),
     );
 
-  const barra = barraFiltros({
-    mostrar: todos.length > 1,
-    controles: [
-      etapasUsadas.length > 1 ? seletor('etapa', etapasUsadas, 'Todas as etapas') : '',
-      meses.length > 1
-        ? seletor(
-            'mes',
-            meses.map((ym) => [ym, fmtCompetencia(ym)]),
-            'Todos os meses',
-          )
-        : '',
-      seletor('situacao', [['chuva', 'Dia de chuva']], 'Todos os registros'),
-    ],
-    filtrados: itens.length,
-    total: todos.length,
-  });
+  /* dia de chuva em pílula; etapa e mês no "Mais filtros" */
+  const barra =
+    todos.length > 1
+      ? barraFiltros({
+          pilulas: {
+            chave: 'situacao',
+            todos: 'Todos os registros',
+            total: todos.length,
+            opcoes: [
+              {
+                valor: 'chuva',
+                rotulo: 'Dia de chuva',
+                n: todos.filter((d) => d.clima && d.clima.includes('Chuva')).length,
+              },
+            ],
+          },
+          mais: [
+            {
+              chave: 'etapa',
+              rotulo: 'Etapa',
+              todos: 'Todas as etapas',
+              opcoes: etapasUsadas.map((e) => [e, e, todos.filter((d) => d.etapa === e).length]),
+            },
+            {
+              chave: 'mes',
+              rotulo: 'Mês',
+              todos: 'Todos os meses',
+              opcoes: meses.map((ym) => [
+                ym,
+                fmtCompetencia(ym),
+                todos.filter((d) => competencia(d.data) === ym).length,
+              ]),
+            },
+          ],
+          filtrados: itens.length,
+          total: todos.length,
+        })
+      : '';
 
   /* Registrar hoje em destaque enquanto o dia não tem registro — é a ação
      que o mestre de obra abre a tela para fazer. */

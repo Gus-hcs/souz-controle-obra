@@ -33,7 +33,7 @@ import {
   resumoRecebimentos,
 } from '../../dominio/calculos.js';
 import { graficoBarras } from '../../graficos/index.js';
-import { App, botao, opcoesLista } from '../shell.js';
+import { App, botao } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
 import {
   acoesRegistro,
@@ -41,11 +41,9 @@ import {
   botaoNovo,
   buscaToolbar,
   dinheiro,
-  filtrando,
+  faixaKpis,
   lista,
-  resumo,
-  secao,
-  seletor,
+  painelAnalise,
   vazioTela,
 } from './componentes.js';
 
@@ -77,14 +75,26 @@ VIEWS.recebimentos = () => {
     ...new Set(o.recebimentos.map((r) => competencia(r.dataPrevista)).filter(Boolean)),
   ].sort();
   const busca = norm(f.busca || '');
-  let itens = o.recebimentos.map((r) => ({ r, dif: recebimentoDiferenca(r), atr: atrasada(r) }));
+  const todosItens = o.recebimentos.map((r) => ({
+    r,
+    dif: recebimentoDiferenca(r),
+    atr: atrasada(r),
+  }));
+  /* situação em pílula: atrasadas primeiro, que é o que se cobra */
+  const SITUACOES = [
+    { valor: 'atrasadas', rotulo: 'Atrasadas', pertence: (d) => d.atr },
+    { valor: 'receber', rotulo: 'A receber', pertence: (d) => naoRecebido(d.r) },
+    {
+      valor: 'recebidas',
+      rotulo: 'Recebidas',
+      pertence: (d) => d.r.status === 'Recebido' || d.r.status === 'Recebido parcial',
+    },
+  ];
+  let itens = todosItens;
   if (f.origem) itens = itens.filter((d) => d.r.origem === f.origem);
-  if (f.status) itens = itens.filter((d) => d.r.status === f.status);
   if (f.mes) itens = itens.filter((d) => competencia(d.r.dataPrevista) === f.mes);
-  if (f.situacao === 'receber') itens = itens.filter((d) => naoRecebido(d.r));
-  if (f.situacao === 'recebidas')
-    itens = itens.filter((d) => d.r.status === 'Recebido' || d.r.status === 'Recebido parcial');
-  if (f.situacao === 'atrasadas') itens = itens.filter((d) => d.atr);
+  const situacao = SITUACOES.find((x) => x.valor === f.situacao);
+  if (situacao) itens = itens.filter(situacao.pertence);
   if (busca) {
     itens = itens.filter((d) =>
       norm(`${d.r.origem} ${d.r.etapaPci} ${d.r.numeroMedicao} ${d.r.observacoes}`).includes(busca),
@@ -201,76 +211,83 @@ VIEWS.recebimentos = () => {
   ].filter((x) => x.valor > 0.005);
 
   return `<div class="tela-lista">
-    ${resumo([
-      {
-        rotulo: 'Recebido',
-        valor: fmtMoney(k.recebido, { dec: 0 }),
-        /* O % é só do financiador: dinheiro do cliente entra no caixa, mas
-           não é liberação do financiamento. */
-        nota:
-          k.liberadoFinanciamento !== null
-            ? `financiamento: ${fmtPct(k.liberadoFinanciamento, 1)} de ${fmtMoney(k.financiado, { dec: 0 })} liberados${k.recebidoProprio > 0.005 ? ` · próprios ${fmtMoney(k.recebidoProprio, { dec: 0 })}` : ''}`
-            : 'financiamento, cliente e próprios',
-      },
-      {
-        rotulo: 'A receber',
-        valor: fmtMoney(k.previstoNaoRecebido, { dec: 0 }),
-        nota: `${pendentes.length} parcela${pendentes.length === 1 ? '' : 's'} pendente${pendentes.length === 1 ? '' : 's'}`,
-      },
-      {
-        rotulo: 'Atrasadas',
-        valor: atrasadas.length ? `${atrasadas.length}` : 'nenhuma',
-        tom: atrasadas.length ? 'atraso' : '',
-        nota: atrasadas.length
-          ? `${fmtMoney(totAtrasado, { dec: 0 })} previstos sem crédito`
-          : 'nada vencido',
-      },
-      /* liberado × executado (0016): o que a construtora está bancando */
-      le
-        ? {
-            rotulo: 'Liberado × executado',
-            valor: `${fmtPct(le.liberado, 0)} × ${fmtPct(le.executado, 0)}`,
-            tom: le.bancando > 0.5 ? 'tom-alerta' : '',
-            nota: le.bancando > 0.5
-              ? `a construtora banca ${fmtMoney(le.bancando, { dec: 0 })}`
-              : le.adiantado > 0.5
-                ? `${fmtMoney(le.adiantado, { dec: 0 })} liberados à frente da obra`
-                : `${le.financiador} em dia com a obra`,
-          }
-        : null,
-      tDescontos > 0.005
-        ? {
-            rotulo: 'Descontos e tarifas',
-            valor: fmtMoney(tDescontos, { dec: 0 }),
-            nota: 'retidos na liberação',
-          }
-        : null,
-    ])}
+    ${faixaKpis(
+      [
+        {
+          rotulo: 'Recebido',
+          valor: fmtMoney(k.recebido, { dec: 0 }),
+          /* O % é só do financiador: dinheiro do cliente entra no caixa, mas
+             não é liberação do financiamento. */
+          contexto:
+            k.liberadoFinanciamento !== null
+              ? `financiamento: ${fmtPct(k.liberadoFinanciamento, 1)} de ${fmtMoney(k.financiado, { dec: 0 })} liberados${k.recebidoProprio > 0.005 ? ` · próprios ${fmtMoney(k.recebidoProprio, { dec: 0 })}` : ''}${tDescontos > 0.005 ? ` · tarifas ${fmtMoney(tDescontos, { dec: 0 })}` : ''}`
+              : `financiamento, cliente e próprios${tDescontos > 0.005 ? ` · tarifas ${fmtMoney(tDescontos, { dec: 0 })}` : ''}`,
+        },
+        {
+          rotulo: 'A receber',
+          valor: fmtMoney(k.previstoNaoRecebido, { dec: 0 }),
+          contexto: `${pendentes.length} parcela${pendentes.length === 1 ? '' : 's'} pendente${pendentes.length === 1 ? '' : 's'}`,
+        },
+        {
+          rotulo: 'Atrasadas',
+          valor: atrasadas.length ? `${atrasadas.length}` : 'nenhuma',
+          tom: atrasadas.length ? 'atraso' : '',
+          contexto: atrasadas.length
+            ? `${fmtMoney(totAtrasado, { dec: 0 })} previstos sem crédito`
+            : 'nada vencido',
+        },
+        /* liberado × executado (0016): o que a construtora está bancando */
+        le
+          ? {
+              rotulo: 'Liberado × executado',
+              valor: `${fmtPct(le.liberado, 0)} × ${fmtPct(le.executado, 0)}`,
+              tom: le.bancando > 0.5 ? 'tom-alerta' : '',
+              contexto:
+                le.bancando > 0.5
+                  ? `a construtora banca ${fmtMoney(le.bancando, { dec: 0 })}`
+                  : le.adiantado > 0.5
+                    ? `${fmtMoney(le.adiantado, { dec: 0 })} liberados à frente da obra`
+                    : `${esc(le.financiador)} em dia com a obra`,
+            }
+          : null,
+      ],
+      { rotulo: 'Indicadores de recebimentos' },
+    )}
     ${barraFiltros({
-      mostrar:
-        o.recebimentos.length > 1 || filtrando(['origem', 'status', 'mes', 'situacao', 'busca']),
+      pilulas: {
+        chave: 'situacao',
+        todos: 'Todas',
+        total: todosItens.length,
+        opcoes: SITUACOES.map((x) => ({
+          valor: x.valor,
+          rotulo: x.rotulo,
+          n: todosItens.filter(x.pertence).length,
+        })),
+      },
+      mais: [
+        {
+          chave: 'origem',
+          rotulo: 'Origem',
+          todos: 'Todas as origens',
+          opcoes: [...new Set(o.recebimentos.map((r) => r.origem).filter(Boolean))].map((or) => [
+            or,
+            or,
+            todosItens.filter((d) => d.r.origem === or).length,
+          ]),
+        },
+        {
+          chave: 'mes',
+          rotulo: 'Mês',
+          todos: 'Todos os meses',
+          opcoes: meses.map((ym) => [
+            ym,
+            fmtCompetencia(ym),
+            todosItens.filter((d) => competencia(d.r.dataPrevista) === ym).length,
+          ]),
+        },
+      ],
       filtrados: itens.length,
       total: o.recebimentos.length,
-      controles: [
-        seletor('origem', opcoesLista('origensRecebimento'), 'Todas as origens'),
-        seletor('status', opcoesLista('statusRecebimento'), 'Todos os status'),
-        seletor(
-          'situacao',
-          [
-            ['receber', 'A receber'],
-            ['recebidas', 'Recebidas'],
-            ['atrasadas', 'Atrasadas'],
-          ],
-          'Qualquer situação',
-        ),
-        meses.length > 1
-          ? seletor(
-              'mes',
-              meses.map((ym) => [ym, fmtCompetencia(ym)]),
-              'Todos os meses',
-            )
-          : '',
-      ],
     })}
     ${lista({
       id: 'recebimentos',
@@ -280,7 +297,19 @@ VIEWS.recebimentos = () => {
       ordemPadrao: { col: 'data', dir: 1 },
       rodapeRotulo: (n) => `${n} parcelas`,
     })}
-    ${porMes.length > 1 ? secao('A receber por mês', graficoBarras(porMes, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--serie1)', manterOrdem: true })) : ''}
+    ${painelAnalise([
+      {
+        titulo: 'A receber por mês',
+        conteudo:
+          porMes.length > 1
+            ? graficoBarras(porMes, {
+                formata: (v) => fmtMoneyCurto(v),
+                cor: 'var(--serie1)',
+                manterOrdem: true,
+              })
+            : '',
+      },
+    ])}
   </div>`;
 };
 

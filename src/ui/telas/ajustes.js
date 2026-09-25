@@ -13,6 +13,7 @@ import { SUPA } from '../../dados/supabase.js';
 import { botao, campoHTML } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
 import { sugestoesNomesPrestador } from './prestadores.js';
+import { faixaKpis } from './componentes.js';
 
 const LISTAS_EDITAVEIS = [
   ['etapas', 'Etapas da obra'],
@@ -42,22 +43,23 @@ function kpisAjustes(e, tamanho) {
       o.diario.length,
     0,
   );
-  const item = (rotulo, valor, contexto) => `<div class="kpi-item">
-    <span class="kpi-rot">${esc(rotulo)}</span>
-    <span class="kpi-val">${valor}</span>
-    <span class="kpi-ctx">${contexto}</span>
-  </div>`;
-
-  return `<div class="kpis" role="group" aria-label="Indicadores da base de dados">
-    ${item('Obras cadastradas', e.obras.length, 'nesta conta')}
-    ${item('Registros no total', totalRegistros, 'contratos, medições, recebimentos e mais')}
-    ${item(
-      'Última gravação',
-      Store.salvoEm ? `${fmtData(Store.salvoEm.slice(0, 10))}` : '—',
-      Store.salvoEm ? horaCurta(Store.salvoEm) : 'ainda não salvou',
-    )}
-    ${item('Tamanho da base', `${tamanho} KB`, Store.descricaoModo())}
-  </div>`;
+  return faixaKpis(
+    [
+      { rotulo: 'Obras cadastradas', valor: e.obras.length, contexto: 'nesta conta' },
+      {
+        rotulo: 'Registros no total',
+        valor: totalRegistros,
+        contexto: 'contratos, medições, recebimentos e mais',
+      },
+      {
+        rotulo: 'Última gravação',
+        valor: Store.salvoEm ? `${fmtData(Store.salvoEm.slice(0, 10))}` : '—',
+        contexto: Store.salvoEm ? horaCurta(Store.salvoEm) : 'ainda não salvou',
+      },
+      { rotulo: 'Tamanho da base', valor: `${tamanho} KB`, contexto: Store.descricaoModo() },
+    ],
+    { rotulo: 'Indicadores da base de dados' },
+  );
 }
 
 /* ---------------------------------------------------------------- tela */

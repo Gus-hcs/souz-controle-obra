@@ -50,8 +50,8 @@ import {
   botaoNovo,
   buscaToolbar,
   dinheiro,
+  faixaKpis,
   lista,
-  seletor,
   vazioTela,
 } from './componentes.js';
 
@@ -74,7 +74,7 @@ const tela = { selecao: '' };
 
 /* Pílulas: só a situação calculada (contratoSituacao) e o a pagar agora
    (indicadoresContrato) — nunca o status digitado, que podia contradizer
-   as datas. Paralisado e Rescindido só aparecem quando existem. */
+   as datas. Pílula com zero não aparece (barraFiltros). */
 const SIT_PILULAS = [
   { chave: 'atraso', rotulo: 'Atrasados', pertence: (l) => PROBLEMA_PRAZO.has(l.sit.chave) },
   { chave: 'apagar', rotulo: 'A pagar agora', pertence: (l) => l.ind.aPagarAgora > 0.005 },
@@ -95,13 +95,11 @@ const SIT_PILULAS = [
     chave: 'paralisado',
     rotulo: 'Paralisados',
     pertence: (l) => l.sit.chave === 'paralisado',
-    soSeHouver: true,
   },
   {
     chave: 'rescindido',
     rotulo: 'Rescindidos',
     pertence: (l) => l.sit.chave === 'rescindido',
-    soSeHouver: true,
   },
 ];
 
@@ -193,37 +191,54 @@ function kpisContratos(todas) {
   const temPendente = todas.some((l) => l.comp.pendentes.length);
   const comSinal = (v) => `${v < 0 ? '−' : ''}${fmtMoney(Math.abs(v), { dec: 0 })}`;
 
-  const item = (chave, rotulo, valor, contexto, tom = '') => {
-    const ativo = App.filtros.kpiCt === chave;
-    return `<button class="kpi-item${ativo ? ' ativo' : ''}" data-acao="ct-kpi" data-kpi="${chave}"
-        aria-pressed="${ativo}" title="Filtrar a lista">
-      <span class="kpi-rot">${esc(rotulo)}</span>
-      <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
-      <span class="kpi-ctx">${contexto}</span>
-    </button>`;
-  };
-
-  return `<div class="kpis" role="group" aria-label="Indicadores de contratos">
-    ${item(
-      'autorizado',
-      'Autorizado',
-      fmtMoney(autorizado, { dec: 0 }),
-      `${todas.length} contrato${todas.length === 1 ? '' : 's'}` +
-        (Math.abs(aditivosAprovadosValor) > 0.005
-          ? ` · ${comSinal(aditivosAprovadosValor)} em aditivos`
-          : '') +
-        (temPendente ? ` · ${comSinal(aditivosPendentesValor)} em aditivos pendentes` : ''),
-    )}
-    ${item('medido', 'Medido', fmtMoney(medido, { dec: 0 }), `${fmtPct(autorizado > 0 ? medido / autorizado : 0, 0)} do autorizado`)}
-    ${item(
-      'apagar',
-      'A pagar agora',
-      fmtMoney(aPagarAgora, { dec: 0 }),
-      'já medido e não pago',
-      aPagarAgora > 0.005 ? 'tom-alerta' : '',
-    )}
-    ${item('amedir', 'A medir', fmtMoney(aMedir, { dec: 0 }), 'ainda vai virar conta')}
-  </div>`;
+  /* Autorizado: curto no card ("3 contratos · aditivos −R$ 1.500"); os
+     aditivos ainda pendentes vão para a segunda linha e para o tooltip */
+  const nContratos = `${todas.length} contrato${todas.length === 1 ? '' : 's'}`;
+  const ctxAutorizado =
+    nContratos +
+    (Math.abs(aditivosAprovadosValor) > 0.005
+      ? ` · aditivos ${comSinal(aditivosAprovadosValor)}`
+      : '') +
+    (temPendente ? `<br>${comSinal(aditivosPendentesValor)} pendentes` : '');
+  return faixaKpis(
+    [
+      {
+        chave: 'autorizado',
+        rotulo: 'Autorizado',
+        valor: fmtMoney(autorizado, { dec: 0 }),
+        contexto: ctxAutorizado,
+        dica:
+          nContratos +
+          (Math.abs(aditivosAprovadosValor) > 0.005
+            ? ` · aditivos aprovados ${comSinal(aditivosAprovadosValor)}`
+            : '') +
+          (temPendente
+            ? ` · aditivos pendentes ${comSinal(aditivosPendentesValor)} (ainda não contam)`
+            : ''),
+        filtra: false,
+      },
+      {
+        chave: 'medido',
+        rotulo: 'Medido',
+        valor: fmtMoney(medido, { dec: 0 }),
+        contexto: `${fmtPct(autorizado > 0 ? medido / autorizado : 0, 0)} do autorizado`,
+      },
+      {
+        chave: 'apagar',
+        rotulo: 'A pagar agora',
+        valor: fmtMoney(aPagarAgora, { dec: 0 }),
+        contexto: 'já medido e não pago',
+        tom: aPagarAgora > 0.005 ? 'tom-alerta' : '',
+      },
+      {
+        chave: 'amedir',
+        rotulo: 'A medir',
+        valor: fmtMoney(aMedir, { dec: 0 }),
+        contexto: 'ainda vai virar conta',
+      },
+    ],
+    { rotulo: 'Indicadores de contratos', acao: 'ct-kpi', ativo: App.filtros.kpiCt },
+  );
 }
 
 ACOES['ct-kpi'] = (el, d) => {
@@ -231,31 +246,46 @@ ACOES['ct-kpi'] = (el, d) => {
   App.renderConteudo();
 };
 
-/* -------------------------------------------------------- pílulas (Fase 4)
-   Situação (calculada, agrupada) e status (bruto, os valores que aparecem
-   nos dados) — os dois filtros que mudam o que é urgente ver. Prestador e
-   forma de preço são recorte, não urgência: continuam em <select>. */
-function pilulasContratos(todas) {
-  if (!todas.length) return '';
-  const atual = App.filtros.situacaoCt || '';
-  const pil = (chave, rotulo, n) => {
-    const ativa = atual === chave;
-    return `<button class="pilula${ativa ? ' ativa' : ''}" data-acao="ct-pilula-situacao"
-        data-valor="${chave}" aria-pressed="${ativa}">
-      ${esc(rotulo)} <span class="conta">${n}</span>
-    </button>`;
-  };
-  const grupos = SIT_PILULAS.map((g) => ({ g, n: todas.filter(g.pertence).length }))
-    .filter(({ g, n }) => !g.soSeHouver || n > 0)
-    .map(({ g, n }) => pil(g.chave, g.rotulo, n))
-    .join('');
-  return `<div class="filtro-barra nao-imprime">${pil('', 'Todos', todas.length)}${grupos}</div>`;
+/* ------------------------------------------------------------ filtros
+   Pílulas: situação calculada (agrupada) — o recorte que muda o que é
+   urgente ver. Prestador e forma de preço são recorte, não urgência: vão
+   para "Mais filtros". */
+function filtrosContratos(todas, linhas) {
+  if (todas.length < 2) return '';
+  const prestadores = [...new Set(todas.map((l) => l.prestador).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, 'pt'),
+  );
+  return barraFiltros({
+    pilulas: {
+      chave: 'situacaoCt',
+      todos: 'Todos',
+      total: todas.length,
+      opcoes: SIT_PILULAS.map((g) => ({
+        valor: g.chave,
+        rotulo: g.rotulo,
+        n: todas.filter(g.pertence).length,
+      })),
+    },
+    mais: [
+      {
+        chave: 'prestador',
+        rotulo: 'Prestador',
+        todos: 'Todos os prestadores',
+        opcoes: prestadores.map((p) => [p, p, todas.filter((l) => l.prestador === p).length]),
+      },
+      {
+        chave: 'regime',
+        rotulo: 'Forma de preço',
+        todos: 'Todas as formas de preço',
+        opcoes: opcoesLista('regimes')
+          .map((r) => [r, r, todas.filter((l) => l.registros.some((c) => c.regime === r)).length])
+          .filter((o) => o[2] > 0),
+      },
+    ],
+    filtrados: linhas.length,
+    total: todas.length,
+  });
 }
-
-ACOES['ct-pilula-situacao'] = (el, d) => {
-  App.filtros.situacaoCt = !d.valor || App.filtros.situacaoCt === d.valor ? '' : d.valor;
-  App.renderConteudo();
-};
 
 /* -------------------------------------------------------------- tabela
    A linha inteira é clicável (abre o inspetor, Fase 5) — sem botão "⋯" na
@@ -565,27 +595,12 @@ VIEWS.contratos = () => {
       ? `<p class="aviso-discreto atraso">${atrasados} contrato${atrasados > 1 ? 's' : ''} atrasado${atrasados > 1 ? 's' : ''}</p>`
       : '';
 
-  const prestadores = [...new Set(todas.map((l) => l.prestador).filter(Boolean))].sort((a, b) =>
-    a.localeCompare(b, 'pt'),
-  );
-
-  const barra = barraFiltros({
-    mostrar: todas.length > 1,
-    controles: [
-      seletor('prestador', prestadores, 'Todos os prestadores'),
-      seletor('regime', opcoesLista('regimes'), 'Todas as formas de preço'),
-    ],
-    filtrados: linhas.length,
-    total: todas.length,
-  });
-
   return `<div class="tela-contratos">
     <div class="tela-principal">
       <div class="tela-lista">
         ${kpisContratos(todas)}
         ${aviso}
-        ${pilulasContratos(todas)}
-        ${barra}
+        ${filtrosContratos(todas, linhas)}
         ${lista({
           id: 'contratos',
           colunas: colunasContratos(),

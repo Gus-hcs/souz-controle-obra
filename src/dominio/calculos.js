@@ -2513,6 +2513,39 @@ function totaisPrestadores(estado, prestadores) {
   }, { contratado: 0, pago: 0, aPagarAgora: 0, aMedir: 0, comContrato: 0 });
 }
 
+/* A faixa de KPIs de Prestadores: quantos estão ativos (serviço ×
+   fornecedor), quanto já foi pago, quanto está a pagar agora — e há
+   quanto tempo espera quem espera mais — e a pontualidade de todos
+   juntos (entregas no prazo ÷ entregas com prazo). Arquivados ficam fora. */
+function indicadoresPrestadores(estado, hoje = hojeISO()) {
+  const ativos = estado.prestadores.filter((p) => !p.arquivado);
+  const t = totaisPrestadores(estado, ativos);
+  let comSaldo = 0, desde = '', entregas = 0, noPrazo = 0, atrasadasAgora = 0;
+  ativos.forEach((p) => {
+    const r = resumoPrestador(estado, p);
+    if (r.aPagarAgora > 0.005) comSaldo++;
+    if (r.aPagarDesde && (!desde || r.aPagarDesde < desde)) desde = r.aPagarDesde;
+    const pt = pontualidadePrestador(estado, p, hoje);
+    entregas += pt.entregas;
+    noPrazo += pt.noPrazo;
+    atrasadasAgora += pt.atrasadasAgora;
+  });
+  const fornecedores = ativos.filter((p) => p.tipo === 'fornecedor').length;
+  return {
+    ativos: ativos.length,
+    fornecedores,
+    servico: ativos.length - fornecedores,
+    pago: round2(t.pago),
+    aPagarAgora: round2(t.aPagarAgora),
+    comSaldo,
+    esperaMaisAntiga: desde ? Math.max(0, diasEntre(desde, hoje)) : null,
+    entregas,
+    noPrazo,
+    pontualidade: entregas ? noPrazo / entregas : null,
+    atrasadasAgora,
+  };
+}
+
 /* Prestadores ativos que receberam sem ter contrato ligado — pagos só por
    lançamento. É o aviso "N prestadores com pagamentos sem contrato". */
 function prestadoresPagosSemContrato(estado) {
@@ -2815,6 +2848,7 @@ export {
   ligadoAoPrestador,
   resumoPrestador,
   totaisPrestadores,
+  indicadoresPrestadores,
   prestadoresPagosSemContrato,
   previaVinculoPrestadores,
   avaliacaoPrestador,

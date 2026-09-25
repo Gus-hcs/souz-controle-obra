@@ -18,7 +18,7 @@ import { SUPA } from '../../dados/supabase.js';
 import { ACOES } from '../acoes.js';
 import { App, botao } from '../shell.js';
 import { Auditoria, carregarAuditoria, VIEWS } from '../telas-obra.js';
-import { barraFiltros, buscaToolbar, lista, seletor, vazioTela } from './componentes.js';
+import { barraFiltros, buscaToolbar, faixaKpis, lista, vazioTela } from './componentes.js';
 
 const AUD_TABELAS = {
   contratos: 'Contrato',
@@ -86,26 +86,35 @@ const OP_TOM = { INSERT: '', UPDATE: '', DELETE: 'atraso' };
 const OP_TEXTO = { INSERT: 'criado', UPDATE: 'alterado', DELETE: 'excluído' };
 
 function kpisAuditoria(linhas, recentes, ultima, sensiveis) {
-  const item = (rotulo, valor, contexto) => `<div class="kpi-item">
-    <span class="kpi-rot">${esc(rotulo)}</span>
-    <span class="kpi-val">${valor}</span>
-    <span class="kpi-ctx">${contexto}</span>
-  </div>`;
-
-  return `<div class="kpis" role="group" aria-label="Indicadores da trilha de auditoria">
-    ${item(
-      'Alterações registradas',
-      linhas.length,
-      `${sensiveis} sensíve${sensiveis === 1 ? 'l' : 'is'}${linhas.length >= 500 ? ' · as 500 mais recentes' : ''}`,
-    )}
-    ${item('Nos últimos 7 dias', recentes, recentes ? 'movimentação recente' : 'sem alterações na semana')}
-    ${item(
-      'Última alteração',
-      ultima ? esc(fmtQuando(ultima.criado_em)) : '—',
-      ultima ? `${audQuem(ultima.usuario_id)} · ${audRegistro(App.obra(), ultima.tabela, ultima.registro_id)}` : 'nenhuma',
-    )}
-  </div>`;
+  return faixaKpis(
+    [
+      {
+        rotulo: 'Alterações registradas',
+        valor: linhas.length,
+        contexto: `${sensiveis} sensíve${sensiveis === 1 ? 'l' : 'is'}${linhas.length >= 500 ? ' · as 500 mais recentes' : ''}`,
+      },
+      {
+        rotulo: 'Nos últimos 7 dias',
+        valor: recentes,
+        contexto: recentes ? 'movimentação recente' : 'sem alterações na semana',
+      },
+      {
+        rotulo: 'Última alteração',
+        valor: ultima ? esc(fmtQuando(ultima.criado_em)) : '—',
+        contexto: ultima
+          ? `${audQuem(ultima.usuario_id)} · ${audRegistro(App.obra(), ultima.tabela, ultima.registro_id)}`
+          : 'nenhuma',
+      },
+    ],
+    { rotulo: 'Indicadores da trilha de auditoria' },
+  );
 }
+
+/* "Só sensíveis" é o escopo padrão; a pílula liga e desliga. */
+ACOES['aud-escopo'] = () => {
+  App.filtros.escopo = App.filtros.escopo === 'todas' ? '' : 'todas';
+  App.renderConteudo();
+};
 
 /* ---------------------------------------------------------------- tela */
 VIEWS.auditoria = () => {
@@ -240,43 +249,58 @@ VIEWS.auditoria = () => {
     },
   ];
 
-  const barra = barraFiltros({
-    mostrar: linhas.length > 1,
-    controles: [
-      sensiveis.length && !f.audRegistro
-        ? seletor('escopo', [['todas', 'Todas as alterações']], 'Alterações sensíveis')
-        : '',
-      f.audRegistro
-        ? `<span class="tinta2">Histórico de <b>${audRegistro(o, ...f.audRegistro.split(':'))}</b></span>
-           <button class="btn sutil pequeno" data-acao="aud-registro" data-chave="${esc(f.audRegistro)}">Ver todos</button>`
-        : '',
-      seletor(
-        'operacao',
-        [
-          ['INSERT', 'Criados'],
-          ['UPDATE', 'Alterados'],
-          ['DELETE', 'Excluídos'],
-        ],
-        'Toda operação',
-      ),
-      tabelas.length > 1
-        ? seletor(
-            'modulo',
-            tabelas.map((t) => [t, AUD_TABELAS[t] || t]),
-            'Todos os registros',
-          )
-        : '',
-      campos.length > 1
-        ? seletor(
-            'campo',
-            campos.map((c) => [c, (AUD_CAMPOS[c] || [c])[0]]),
-            'Todos os campos',
-          )
-        : '',
-    ],
-    filtrados: itens.length,
-    total: f.audRegistro ? linhas.length : base.length,
-  });
+  /* operação em pílula; registro e campo no "Mais filtros". O escopo
+     (só sensíveis × todas) e o histórico de um registro vêm antes. */
+  const extra = [
+    sensiveis.length && !f.audRegistro
+      ? `<button type="button" class="pilula${soSensiveis ? ' ativa' : ''}" data-acao="aud-escopo"
+          aria-pressed="${soSensiveis}">Só sensíveis <span class="conta">${sensiveis.length}</span></button>`
+      : '',
+    f.audRegistro
+      ? `<button type="button" class="etiqueta-filtro" data-acao="aud-registro" data-chave="${esc(f.audRegistro)}"
+          title="Ver todos os registros"><span class="tinta2">Histórico de</span> ${audRegistro(o, ...f.audRegistro.split(':'))} <span aria-hidden="true">×</span></button>`
+      : '',
+  ].join('');
+  const barra =
+    linhas.length > 1
+      ? barraFiltros({
+          pilulas: {
+            chave: 'operacao',
+            todos: 'Toda operação',
+            total: base.length,
+            opcoes: [
+              ['INSERT', 'Criados'],
+              ['UPDATE', 'Alterados'],
+              ['DELETE', 'Excluídos'],
+            ].map(([v, r]) => ({ valor: v, rotulo: r, n: base.filter((l) => l.operacao === v).length })),
+          },
+          mais: [
+            {
+              chave: 'modulo',
+              rotulo: 'Registro',
+              todos: 'Todos os registros',
+              opcoes: tabelas.map((t) => [
+                t,
+                AUD_TABELAS[t] || t,
+                base.filter((l) => l.tabela === t).length,
+              ]),
+            },
+            {
+              chave: 'campo',
+              rotulo: 'Campo',
+              todos: 'Todos os campos',
+              opcoes: campos.map((c) => [
+                c,
+                (AUD_CAMPOS[c] || [c])[0],
+                base.filter((l) => l.campo === c).length,
+              ]),
+            },
+          ],
+          extra,
+          filtrados: itens.length,
+          total: f.audRegistro ? linhas.length : base.length,
+        })
+      : '';
 
   return `<div class="tela-lista">
     ${kpisAuditoria(linhas, recentes, ultima, sensiveis.length)}

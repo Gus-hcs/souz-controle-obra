@@ -44,37 +44,36 @@ import { apenasErros, validarObra } from '../../dominio/validacao.js';
 import { SUPA } from '../../dados/supabase.js';
 import { ACOES } from '../acoes.js';
 import { VIEWS } from '../telas-obra.js';
+import { faixaKpis } from './componentes.js';
 
 function kpisConfig(o, k) {
   const alvo = num(o.fin.margemDesejada);
-  const item = (rotulo, valor, contexto, tom = '') => `<div class="kpi-item">
-    <span class="kpi-rot">${esc(rotulo)}</span>
-    <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
-    <span class="kpi-ctx">${contexto}</span>
-  </div>`;
-
-  return `<div class="kpis" role="group" aria-label="Indicadores da configuração">
-    ${item(
-      'Empreitada principal',
-      fmtMoney(empreitadaPrincipal(o), { dec: 0 }),
-      num(o.areaConstruida)
-        ? `${fmtNum(o.areaConstruida, 2)} m² × ${fmtMoney(o.fin.precoEmpreitadaM2, { dec: 0 })}/m²`
-        : 'informe a área construída',
-    )}
-    ${item(
-      'Custo previsto total',
-      fmtMoney(k.custoPrevisto, { dec: 0 }),
-      `obra física ${fmtMoney(k.custoFisicoPrevisto, { dec: 0 })} · terreno, taxas e comissão ${fmtMoney(k.custoNaoFisico, { dec: 0 })}`,
-    )}
-    ${item(
-      'Resultado projetado',
-      k.resultado === null ? '—' : fmtMoney(k.resultado, { dec: 0 }),
-      k.margem === null
-        ? 'informe o valor de venda'
-        : `margem de ${fmtPct(k.margem)}${alvo ? ` · alvo ${fmtPct(alvo)}` : ''}`,
-      k.margem === null ? '' : k.margem < alvo ? 'tom-alerta' : '',
-    )}
-  </div>`;
+  return faixaKpis(
+    [
+      {
+        rotulo: 'Empreitada principal',
+        valor: fmtMoney(empreitadaPrincipal(o), { dec: 0 }),
+        contexto: num(o.areaConstruida)
+          ? `${fmtNum(o.areaConstruida, 2)} m² × ${fmtMoney(o.fin.precoEmpreitadaM2, { dec: 0 })}/m²`
+          : 'informe a área construída',
+      },
+      {
+        rotulo: 'Custo previsto total',
+        valor: fmtMoney(k.custoPrevisto, { dec: 0 }),
+        contexto: `obra física ${fmtMoney(k.custoFisicoPrevisto, { dec: 0 })} · terreno, taxas e comissão ${fmtMoney(k.custoNaoFisico, { dec: 0 })}`,
+      },
+      {
+        rotulo: 'Resultado projetado',
+        valor: k.resultado === null ? '—' : fmtMoney(k.resultado, { dec: 0 }),
+        contexto:
+          k.margem === null
+            ? 'informe o valor de venda'
+            : `margem de ${fmtPct(k.margem)}${alvo ? ` · alvo ${fmtPct(alvo)}` : ''}`,
+        tom: k.margem === null ? '' : k.margem < alvo ? 'tom-alerta' : '',
+      },
+    ],
+    { rotulo: 'Indicadores da configuração' },
+  );
 }
 
 const SECOES = [

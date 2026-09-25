@@ -4,7 +4,7 @@
    Linguagem: app nativo de macOS (Finder, Notas, Numbers, Ajustes do
    Sistema) vestido com o Manual da Marca Souz v1.0 (set/2026): preto com
    traço de verde, grafite nas superfícies, Ciano Souz como única cor,
-   Archivo no texto e IBM Plex Mono nos números.
+   Archivo no texto e nos números (com algarismos tabulares).
 
    Três regras que explicam todas as escolhas daqui para baixo:
 
@@ -24,12 +24,13 @@
   color-scheme: light;
 
   /* ---------------------------------------------------------- tipo
-     Manual da marca, prancha 03: Archivo (grotesca industrial) no texto e
-     IBM Plex Mono em tudo que alinha em coluna — valor, código, data.
-     Carregadas do Google Fonts no index.html; sem rede, cai na pilha do
+     Archivo (grotesca industrial, prancha 03 do manual) no texto e nos
+     números — o número alinha por font-variant-numeric: tabular-nums, não
+     por fonte monoespaçada. --fonte-mono fica só para código (chave PIX).
+     Archivo vem do Google Fonts no index.html; sem rede, cai na pilha do
      sistema e nada quebra. */
   --fonte: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --fonte-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --fonte-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --t-mini: 11px; /* rótulo de coluna, legenda de gráfico, contador */
   --t-peq: 12px; /* texto secundário, subtítulo, dica */
@@ -80,7 +81,6 @@
   --toolbar-h: 52px; /* toolbar unificada */
   --lateral-w: 220px; /* sidebar */
   --inspetor-w: 300px; /* painel inspetor à direita */
-  --leitura-max: 1080px; /* telas de leitura e formulário: Configuração, Ajustes, Relatório */
 
   /* ------------------------------------------------ barras petróleo
      A lateral esquerda e a barra de cima são petróleo escuro nos DOIS
