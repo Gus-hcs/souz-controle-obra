@@ -1455,6 +1455,13 @@ function saudeObra(obra, hoje = hojeISO()) {
   return { nivel, ordem: ORDEM_SAUDE[nivel], texto, motivos, faltando, prazo: p };
 }
 
+/* Saúde do cliente: a da obra dele em pior estado. Cliente sem obra não
+   tem saúde (null) — a tela mostra a situação do cadastro. */
+function saudeCliente(obras, hoje = hojeISO()) {
+  if (!obras || !obras.length) return null;
+  return obras.map((o) => saudeObra(o, hoje)).sort((a, b) => a.ordem - b.ordem)[0];
+}
+
 /* Custo: realizado (pago) sobre o orçado (custo previsto) — a coluna Custo
    da carteira e a linha de total saem daqui. */
 function custoCarteira(obras) {
@@ -1848,6 +1855,7 @@ export {
   nivelIndice,
   estouroContratos,
   saudeObra,
+  saudeCliente,
   riscoCarteira,
   agendaCarteira,
   curvaSCarteira,

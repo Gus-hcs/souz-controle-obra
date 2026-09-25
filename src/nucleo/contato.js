@@ -5,6 +5,9 @@
  * "(62) 9 9999-8888", "62999998888", "+55 62 99999 8888", "062 99999-8888".
  * Aqui ele vira UMA forma só, guardada em dígitos: 55 + DDD + número.
  * É essa forma que o wa.me e o tel: entendem, e é ela que o banco valida.
+ *
+ * E o CPF/CNPJ na lista: dado pessoal que não precisa aparecer inteiro
+ * numa tabela que qualquer pessoa da equipe vê (LGPD).
  */
 
 /* DDDs em uso no Brasil (Anatel). Um DDD fora da lista é erro de digitação. */
@@ -114,7 +117,23 @@ function preencherMensagem(texto, vars = {}) {
     .trim();
 }
 
+/**
+ * CPF/CNPJ para lista: "123.456.789-09" → "***.456.789-**",
+ * "12.345.678/0001-95" → "**.345.678/0001-**". O cadastro guarda e o
+ * formulário mostra o número inteiro; a lista só o suficiente para
+ * distinguir duas pessoas. Documento fora do padrão vira "•••" + os 2
+ * últimos dígitos — nunca o texto cru.
+ */
+function ocultarDocumento(doc) {
+  const d = String(doc ?? '').replace(/\D/g, '');
+  if (!d) return '';
+  if (d.length === 11) return `***.${d.slice(3, 6)}.${d.slice(6, 9)}-**`;
+  if (d.length === 14) return `**.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-**`;
+  return `•••${d.slice(-2)}`;
+}
+
 export {
+  ocultarDocumento,
   lerModelosMensagem,
   preencherMensagem,
   DDDS,

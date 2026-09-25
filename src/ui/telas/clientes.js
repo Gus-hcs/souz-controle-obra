@@ -1,10 +1,17 @@
 /**
  * telas/clientes.js — Clientes e interessados, na linguagem nova.
  *
- * Cadastro simples, sem cálculo de domínio: só soma o valor de venda das
- * obras ligadas a cada cliente (já vem pronto de obra.fin.valorVenda).
+ * Cadastro simples: soma o valor de venda das obras ligadas a cada cliente
+ * (obra.fin.valorVenda) e mostra a saúde da obra dele em pior estado
+ * (saudeCliente) — o que interessa numa conversa com o cliente é como
+ * está a casa dele, não em que etapa do funil ele estava.
+ *
+ * CPF/CNPJ aparece mascarado na lista (LGPD); a busca acha pelo número
+ * inteiro, e o formulário mostra o número inteiro.
  */
 import { esc, fmtMoney, norm, num } from '../../nucleo/base.js';
+import { ocultarDocumento } from '../../nucleo/contato.js';
+import { saudeCliente } from '../../dominio/calculos.js';
 import { Store } from '../../dados/store.js';
 import { App, botao } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
@@ -18,7 +25,7 @@ import {
 } from './componentes.js';
 
 function kpisClientes(itens) {
-  const emProspeccao = itens.filter((c) => c.situacao === 'Prospecção').length;
+  const emRisco = itens.filter((d) => d.saude && (d.saude.nivel === 'critico' || d.saude.nivel === 'atencao')).length;
   const valorTotal = itens.reduce((s, c) => s + c.valor, 0);
   const item = (rotulo, valor, contexto, tom = '') => `<div class="kpi-item">
     <span class="kpi-rot">${esc(rotulo)}</span>
@@ -28,7 +35,7 @@ function kpisClientes(itens) {
 
   return `<div class="kpis" role="group" aria-label="Indicadores de clientes">
     ${item('Clientes e interessados', itens.length, `${itens.filter((c) => c.obras.length).length} com obra vinculada`)}
-    ${item('Em prospecção', emProspeccao, emProspeccao ? 'ainda sem contrato fechado' : 'nenhum em prospecção', emProspeccao ? 'tom-alerta' : '')}
+    ${item('Com obra em risco', emRisco, emRisco ? 'atraso, custo ou caixa — ligue antes dele' : 'nenhum cliente com obra em risco', emRisco ? 'tom-alerta' : '')}
     ${item('Valor contratado', fmtMoney(valorTotal, { dec: 0 }), 'soma do valor de venda das obras')}
   </div>`;
 }
@@ -49,13 +56,19 @@ VIEWS.clientes = () => {
   const busca = norm(f.busca || '');
   const todos = e.clientes.map((c) => {
     const obras = e.obras.filter((o) => o.clienteId === c.id);
-    return { c, obras, valor: obras.reduce((s, o) => s + num(o.fin.valorVenda), 0) };
+    return {
+      c,
+      obras,
+      saude: saudeCliente(obras),
+      valor: obras.reduce((s, o) => s + num(o.fin.valorVenda), 0),
+    };
   });
+  const buscaDig = busca.replace(/\D/g, '');
   const itens = busca
-    ? todos.filter((d) =>
-        norm(`${d.c.nome} ${d.c.contato} ${d.c.telefone} ${d.c.email} ${d.c.origem}`).includes(
-          busca,
-        ),
+    ? todos.filter(
+        (d) =>
+          norm(`${d.c.nome} ${d.c.contato} ${d.c.telefone} ${d.c.email} ${d.c.origem}`).includes(busca) ||
+          (buscaDig.length >= 3 && String(d.c.documento || '').replace(/\D/g, '').includes(buscaDig)),
       )
     : todos;
 
@@ -67,15 +80,22 @@ VIEWS.clientes = () => {
       celular: 'principal',
       valor: (d) => (d.c.nome || '').toLowerCase(),
       celula: (d) =>
-        `<div class="cel-obra"><b>${esc(d.c.nome)}</b>${d.c.documento ? `<span>${esc(d.c.documento)}</span>` : ''}</div>`,
+        `<div class="cel-obra"><b>${esc(d.c.nome)}</b>${d.c.documento ? `<span title="CPF/CNPJ completo no cadastro">${esc(ocultarDocumento(d.c.documento))}</span>` : ''}</div>`,
     },
     {
       k: 'situacao',
       rotulo: 'Situação',
       largura: '12%',
       celular: 'some',
-      valor: (d) => d.c.situacao || 'Cliente',
+      /* com obra: a saúde da pior obra (mesma célula da Carteira);
+         sem obra: a situação do cadastro */
+      valor: (d) => (d.saude ? d.saude.ordem : 10) + (d.c.situacao === 'Encerrado' ? 1 : 0),
       celula: (d) => {
+        if (d.saude) {
+          const s = d.saude;
+          const todos = s.motivos.map((m) => m.texto).join(' · ');
+          return `<span class="saude s-${s.nivel}" title="${esc(todos || s.texto)}"><i aria-hidden="true"></i>${esc(s.texto)}</span>`;
+        }
         const tom = d.c.situacao === 'Prospecção' ? 'tom-alerta' : 'tinta3';
         return `<span class="situacao-ct ${tom}"><span class="pt"></span>${esc(d.c.situacao || 'Cliente')}</span>`;
       },
