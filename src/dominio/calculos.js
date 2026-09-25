@@ -1455,6 +1455,17 @@ function saudeObra(obra, hoje = hojeISO()) {
   return { nivel, ordem: ORDEM_SAUDE[nivel], texto, motivos, faltando, prazo: p };
 }
 
+/* Alteração sensível na trilha de auditoria (migração 0003): mexe em
+   dinheiro que já saiu ou entrou — valor pago, valor recebido, valor
+   aprovado pela CAIXA — ou apaga um registro financeiro. É o filtro
+   padrão da tela: o resto (preço de um lançamento em digitação) é ruído. */
+const CAMPOS_SENSIVEIS = new Set(['valor_pago', 'valor_recebido', 'valor_aprovado']);
+
+function alteracaoSensivel(linha) {
+  if (!linha) return false;
+  return linha.operacao === 'DELETE' || CAMPOS_SENSIVEIS.has(linha.campo);
+}
+
 /* Saúde do cliente: a da obra dele em pior estado. Cliente sem obra não
    tem saúde (null) — a tela mostra a situação do cadastro. */
 function saudeCliente(obras, hoje = hojeISO()) {
@@ -1856,6 +1867,7 @@ export {
   estouroContratos,
   saudeObra,
   saudeCliente,
+  alteracaoSensivel,
   riscoCarteira,
   agendaCarteira,
   curvaSCarteira,

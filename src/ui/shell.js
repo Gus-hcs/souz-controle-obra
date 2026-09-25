@@ -86,10 +86,12 @@ const MENU = [
     { v: 'curva', t: 'Controle Financeiro', i: 'curva' },
     { v: 'fluxo', t: 'Fluxo de caixa', i: 'fluxo' },
     { v: 'alertas', t: 'Alertas', i: 'alerta' },
-    { v: 'relatorio', t: 'Relatórios', i: 'relatorio' },
-    { v: 'auditoria', t: 'Trilha de auditoria', i: 'auditoria' }
+    { v: 'relatorio', t: 'Relatórios', i: 'relatorio' }
   ] },
+  /* A trilha é por obra (`obra: true` no item), mas é consulta de
+     controle, não rotina — mora com os ajustes. */
   { grupo: 'Sistema', itens: [
+    { v: 'auditoria', t: 'Trilha de auditoria', i: 'auditoria', obra: true },
     { v: 'ajustes', t: 'Ajustes e dados', i: 'config' }
   ] },
   { grupo: 'Administração', soAdmin: true, itens: [
@@ -119,7 +121,9 @@ const TITULOS = {
   admin: ['Administração', 'Consumo por cliente e liberação de acesso por aba']
 };
 
-const VIEWS_OBRA = new Set(MENU.filter((g) => g.obra).flatMap((g) => g.itens.map((i) => i.v)));
+const VIEWS_OBRA = new Set(
+  MENU.flatMap((g) => g.itens.filter((i) => g.obra || i.obra).map((i) => i.v)),
+);
 
 /* "Casa 12 — Residencial Aurora" → ['Casa 12', 'Residencial Aurora'].
    Sem separador, a cidade vai na segunda linha. */

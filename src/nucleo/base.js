@@ -101,6 +101,24 @@ const fmtDataCurta = (iso) => (isISO(iso) ? iso.slice(8, 10) + '/' + iso.slice(5
    ("20/08" sozinho não diz se é deste ano ou do próximo). */
 const fmtDataCurtaAno = (iso) => (isISO(iso) ? fmtDataCurta(iso) + '/' + iso.slice(2, 4) : '—');
 
+/* Instante (timestamp do banco) em linguagem de gente, no fuso do
+   navegador: "hoje, 17:49", "ontem, 09:12", "22/09, 14:03" no mesmo ano,
+   "22/09/25, 14:03" em outro. "há 0d" não diz nada a ninguém. */
+function fmtQuando(instante, agora = new Date()) {
+  const d = new Date(instante);
+  if (!instante || Number.isNaN(d.getTime())) return '—';
+  const p2 = (n) => String(n).padStart(2, '0');
+  const hora = `${p2(d.getHours())}:${p2(d.getMinutes())}`;
+  const dia = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const dif = Math.round((dia(agora) - dia(d)) / 86400000);
+  if (dif === 0) return `hoje, ${hora}`;
+  if (dif === 1) return `ontem, ${hora}`;
+  const dm = `${p2(d.getDate())}/${p2(d.getMonth() + 1)}`;
+  return d.getFullYear() === agora.getFullYear()
+    ? `${dm}, ${hora}`
+    : `${dm}/${String(d.getFullYear()).slice(2)}, ${hora}`;
+}
+
 const competencia = (iso) => (isISO(iso) ? iso.slice(0, 7) : '');
 
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -474,6 +492,7 @@ export {
   fmtData,
   fmtDataCurta,
   fmtDataCurtaAno,
+  fmtQuando,
   competencia,
   MESES,
   fmtCompetencia,
