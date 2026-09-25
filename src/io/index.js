@@ -2,7 +2,7 @@
  * index.js — Entrada e saída: importação de planilha MCMV, exportação CSV e PDF.
  */
 import { addDias, competencia, fmtData, fmtDataCurta, fmtMoney, fmtNum, fmtPct, hojeISO, migrar, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, slug } from '../nucleo/base.js';
-import { basesContratuais, etapaCalc, kpisObra, lancamentoTotal, medicaoAPagar, medicaoAlerta, medicaoLiquido, pendenciasObra, pesosCronograma, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
+import { basesContratuais, etapaCalc, fotosDaSemana, kpisObra, valorAgregadoObra, lancamentoTotal, medicaoAPagar, medicaoAlerta, medicaoLiquido, pendenciasObra, pesosCronograma, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
 import { apenasErros, validarObraCompleta } from '../dominio/validacao.js';
 import { linkWhatsApp, normalizarTelefoneBR } from '../nucleo/contato.js';
 import { Store, mutar } from '../dados/store.js';
@@ -461,6 +461,35 @@ function pdfTabela(doc, y, titulo, cabecalho, corpo, opcoes = {}) {
   return doc.lastAutoTable.finalY + 8;
 }
 
+/* Grade de fotos, 3 por linha, com data e etapa embaixo. Foto que o
+   jsPDF não consegue ler é pulada — o relatório sai assim mesmo. */
+function pdfFotos(doc, y, fotos) {
+  if (!fotos.length) return y;
+  const larg = (196 - 14 - 2 * 4) / 3;
+  const alt = 44;
+  if (y + 8 + alt > 280) { doc.addPage(); y = 20; }
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(20, 24, 26);
+  doc.text('Fotos da semana', 14, y);
+  y += 4;
+  let col = 0;
+  fotos.forEach((f) => {
+    if (col === 3) { col = 0; y += alt + 10; }
+    if (y + alt > 280) { doc.addPage(); y = 20; col = 0; }
+    const x = 14 + col * (larg + 4);
+    try {
+      const p = doc.getImageProperties(f.dados);
+      const escala = Math.min(larg / p.width, alt / p.height);
+      const w = p.width * escala, h = p.height * escala;
+      doc.addImage(f.dados, /png/i.test(f.dados.slice(0, 20)) ? 'PNG' : 'JPEG', x + (larg - w) / 2, y, w, h);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(...CINZA);
+      doc.text(`${fmtDataCurta(f.data)}${f.etapa ? ' · ' + f.etapa : ''}`.slice(0, 48), x, y + alt + 4);
+      doc.setTextColor(20, 24, 26);
+      col++;
+    } catch (e) { /* foto ilegível: pula */ }
+  });
+  return y + alt + 12;
+}
+
 function pdfRodape(doc) {
   const total = doc.internal.getNumberOfPages();
   for (let i = 1; i <= total; i++) {
@@ -489,6 +518,7 @@ async function montarPdfStatus(o, { interno = false } = {}) {
   const doc = await novoPDF(o, interno ? 'Relatório interno da obra' : 'Relatório de status');
   if (!doc) return null;
   const k = kpisObra(o);
+  const va = valorAgregadoObra(o);
   let y = doc.__startY;
   const liberado = k.liberadoFinanciamento === null ? '—' : fmtPct(k.liberadoFinanciamento, 0);
   y = pdfKPIs(doc, y, interno
@@ -501,6 +531,8 @@ async function montarPdfStatus(o, { interno = false } = {}) {
     : [
       ['Obra concluída', fmtPct(k.progressoFisico, 0), `${k.etapasConcluidas} de ${k.etapasTotal} etapas`],
       ['Data contratual', fmtData(o.previsaoConclusao), 'prazo de entrega do contrato'],
+      /* no ritmo de hoje (valorAgregadoObra) — o cliente pergunta isso */
+      ['Entrega projetada', va.termino ? fmtData(va.termino) : '—', 'no ritmo atual da obra'],
       ['Financiamento liberado', liberado, `de ${fmtMoney(k.financiado, { dec: 0 })}`]
     ]);
 
@@ -519,6 +551,7 @@ async function montarPdfStatus(o, { interno = false } = {}) {
       o.recebimentos.filter((r) => r.status !== 'Cancelado').map((r) => [r.origem,
         r.etapaPci || (r.numeroMedicao ? `Medição ${r.numeroMedicao}` : ''),
         fmtDataCurta(r.dataPrevista), fmtDataCurta(r.dataRecebimento), r.status]));
+    pdfFotos(doc, y, fotosDaSemana(o));
     pdfRodape(doc);
     return doc;
   }

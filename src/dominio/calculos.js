@@ -1,7 +1,7 @@
 /**
  * calculos.js — Regras de negócio: todo cálculo do sistema vive aqui, sem tocar em DOM.
  */
-import { addMeses, capitalizarNome, competencia, diasEntre, fimDoMes, fmtData, fmtMoney, fmtNum, fmtPct, hojeISO, inicioDoMes, isISO, norm, novoTratamento, num, round2, SITUACOES_MANUAIS_CONTRATO } from '../nucleo/base.js';
+import { addDias, addMeses, capitalizarNome, competencia, diasEntre, fimDoMes, fmtData, fmtMoney, fmtNum, fmtPct, hojeISO, inicioDoMes, isISO, norm, novoTratamento, num, round2, SITUACOES_MANUAIS_CONTRATO } from '../nucleo/base.js';
 
 /* ------------------------------------------------------ CONTRATOS  */
 /* Planilha: K = SE(valor informado > 0; valor informado; qtd × preço) */
@@ -1624,6 +1624,26 @@ function alteracaoSensivel(linha) {
   return linha.operacao === 'DELETE' || CAMPOS_SENSIVEIS.has(linha.campo);
 }
 
+/* Fotos da semana para o relatório do cliente: as do diário dos últimos
+   7 dias (hoje incluído), mais recentes primeiro, só PNG/JPEG em base64
+   (o que o gerador de PDF desenha). */
+function fotosDaSemana(obra, hoje = hojeISO(), max = 6) {
+  const desde = addDias(hoje, -6);
+  const out = [];
+  (obra.diario || [])
+    .filter((d) => isISO(d.data) && d.data >= desde && d.data <= hoje)
+    .sort((a, b) => (a.data < b.data ? 1 : -1))
+    .forEach((d) => {
+      (d.fotos || []).forEach((f) => {
+        const dados = typeof f === 'string' ? f : f && f.dados;
+        if (/^data:image\/(png|jpe?g);base64,/i.test(String(dados || ''))) {
+          out.push({ dados, data: d.data, etapa: d.etapa || '' });
+        }
+      });
+    });
+  return out.slice(0, max);
+}
+
 /* Empreitada principal: área construída × preço da empreitada por m². */
 function empreitadaPrincipal(obra) {
   return round2(num(obra.areaConstruida) * num(obra.fin.precoEmpreitadaM2));
@@ -2093,6 +2113,7 @@ export {
   saudeObra,
   saudeCliente,
   empreitadaPrincipal,
+  fotosDaSemana,
   situacaoObraCalculada,
   incoerenciasObra,
   lancamentoNatureza,

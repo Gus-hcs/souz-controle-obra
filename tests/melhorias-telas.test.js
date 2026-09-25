@@ -10,6 +10,7 @@ import {
   ativacaoConta,
   coberturaPlanoMateriais,
   empreitadaPrincipal,
+  fotosDaSemana,
   incoerenciasObra,
   situacaoObraCalculada,
   lancamentoNatureza,
@@ -288,5 +289,24 @@ describe('Configuração — incoerências no topo e situação calculada', () =
   });
   it('empreitada principal: 52 m² × R$ 720', () => {
     expect(empreitadaPrincipal(casa14())).toBe(37440);
+  });
+});
+
+describe('Relatórios — fotos da semana no PDF do cliente', () => {
+  const PNG = 'data:image/png;base64,iVBORw0KGgo=';
+  it('só os últimos 7 dias, mais recentes primeiro, só PNG/JPEG', () => {
+    const o = casa14();
+    o.diario = [
+      { data: '2026-09-25', etapa: 'Pisos', fotos: [{ dados: PNG }] },
+      { data: '2026-09-19', etapa: 'Reboco', fotos: [{ dados: PNG }, { dados: 'data:image/webp;base64,AAAA' }] },
+      { data: '2026-09-18', etapa: 'Antiga', fotos: [{ dados: PNG }] },
+    ];
+    const f = fotosDaSemana(o, HOJE);
+    expect(f.map((x) => x.etapa)).toEqual(['Pisos', 'Reboco']);
+  });
+  it('limite de fotos', () => {
+    const o = casa14();
+    o.diario = [{ data: HOJE, fotos: Array.from({ length: 9 }, () => ({ dados: PNG })) }];
+    expect(fotosDaSemana(o, HOJE, 6)).toHaveLength(6);
   });
 });

@@ -1,9 +1,9 @@
 /**
  * telas-cadastros.js — Telas de cadastro: clientes, prestadores, relatórios e ajustes.
  */
-import { esc, fmtData, fmtDataCurta, fmtMoney, fmtPct, fonteImagem, hojeISO, norm, PLANOS } from '../nucleo/base.js';
+import { esc, fmtData, fmtDataCurta, fmtPct, fonteImagem, hojeISO, norm, PLANOS } from '../nucleo/base.js';
 import { ativacaoConta, diasSemAtividade, etapaCalc, kpisObra } from '../dominio/calculos.js';
-import { apenasErros, validarPerfilAdmin, validarSenhaForte, validarUsuarioNovo } from '../dominio/validacao.js';
+import { apenasErros, validarEmpresa, validarPerfilAdmin, validarSenhaForte, validarUsuarioNovo } from '../dominio/validacao.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { App, abrirModal, botao, campoBusca, cartao, chip, confirmar, fecharModal, ICO, kpi, MENU, nomeCliente, svg, toast, tomSituacao, vazio } from './shell.js';
@@ -57,16 +57,17 @@ VIEWS.relatorio = () => {
       <span class="doc-cartao-baixar">${svg(ICO.baixar, 13)} Gerar PDF</span>
     </button>`;
 
+  /* Sem KPIs no topo: esta tela é para gerar documento, não para ler a
+     obra (isso é o Painel). O que importa aqui é o que falta no documento. */
+  const avisosEmpresa = validarEmpresa(Store.estado.empresa);
+
   return `<div class="grade" style="gap:16px">
-    <div class="hero nao-imprime">
-      ${kpi('Avanço físico', fmtPct(k.progressoFisico, 0),
-        `${k.etapasConcluidas} de ${k.etapasTotal} etapas concluídas`, { destaque: true })}
-      ${kpi('Recebido', fmtMoney(k.recebido, { dec: 0 }),
-        k.liberadoFinanciamento !== null ? `financiamento ${fmtPct(k.liberadoFinanciamento, 1)} liberado de ${fmtMoney(k.financiado, { dec: 0 })}` : `pago ${fmtMoney(k.totalPago, { dec: 0 })}`,
-        { destaque: true })}
-      ${kpi('Saldo em caixa', fmtMoney(k.saldoCaixa, { dec: 0 }),
-        'recebido − pago', { destaque: true, tom: k.saldoCaixa < 0 ? 'critico' : 'ok' })}
-    </div>
+    ${
+      avisosEmpresa.length
+        ? `<div class="aviso-linha nao-imprime" role="status">${avisosEmpresa.map((p) => esc(p.mensagem)).join(' ')}
+             <button class="btn-link" data-acao="ir" data-view="ajustes">Completar em Ajustes</button></div>`
+        : ''
+    }
 
     ${cartao('Gerar documento', `
       <div class="grade g-cartoes">
