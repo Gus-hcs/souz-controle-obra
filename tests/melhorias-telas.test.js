@@ -9,6 +9,9 @@ import {
   alteracaoSensivel,
   ativacaoConta,
   coberturaPlanoMateriais,
+  empreitadaPrincipal,
+  incoerenciasObra,
+  situacaoObraCalculada,
   lancamentoNatureza,
   lancamentosDuplicados,
   materialCalc,
@@ -253,5 +256,37 @@ describe('Materiais — cobertura do plano e ocorrência do diário', () => {
     expect(materialCalc(o, rejunte).ocorrencias).toHaveLength(1);
     d.ocorrenciaStatus = 'resolvida';
     expect(materialCalc(o, rejunte).ocorrencias).toHaveLength(0);
+  });
+});
+
+describe('Configuração — incoerências no topo e situação calculada', () => {
+  it('Casa 14: cronograma termina depois da data contratual', () => {
+    const inc = incoerenciasObra(casa14());
+    expect(inc.map((x) => x.campo)).toEqual(['previsaoConclusao']);
+  });
+  it('teto abaixo da empreitada, fontes curtas e situação divergente', () => {
+    const o = casa14();
+    o.fin.custoFisicoMaxM2 = 600;
+    o.fin.valorFinanciado = 10000;
+    o.status = 'Planejada';
+    const campos = incoerenciasObra(o).map((x) => x.campo);
+    expect(campos).toContain('fin.custoFisicoMaxM2');
+    expect(campos).toContain('fin.recursosProprios');
+    expect(campos).toContain('status');
+  });
+  it('Paralisada é exceção manual: não acusa divergência', () => {
+    const o = casa14();
+    o.status = 'Paralisada';
+    expect(incoerenciasObra(o).map((x) => x.campo)).not.toContain('status');
+  });
+  it('situação pelos dados', () => {
+    expect(situacaoObraCalculada(casa14())).toBe('Em andamento');
+    expect(situacaoObraCalculada(novaObra('Vazia'))).toBe('Planejada');
+    const o = casa14();
+    o.cronograma.forEach((e) => { e.progresso = 1; });
+    expect(situacaoObraCalculada(o)).toBe('Concluída');
+  });
+  it('empreitada principal: 52 m² × R$ 720', () => {
+    expect(empreitadaPrincipal(casa14())).toBe(37440);
   });
 });

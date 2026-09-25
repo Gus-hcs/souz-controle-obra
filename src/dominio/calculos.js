@@ -1624,6 +1624,56 @@ function alteracaoSensivel(linha) {
   return linha.operacao === 'DELETE' || CAMPOS_SENSIVEIS.has(linha.campo);
 }
 
+/* Empreitada principal: área construída × preço da empreitada por m². */
+function empreitadaPrincipal(obra) {
+  return round2(num(obra.areaConstruida) * num(obra.fin.precoEmpreitadaM2));
+}
+
+/* Situação que os dados dizem: nada começou → Planejada; tudo a 100% →
+   Concluída; o resto → Em andamento. "Paralisada" não se calcula — é a
+   única que o usuário marca à mão. */
+function situacaoObraCalculada(obra) {
+  const k = kpisObra(obra);
+  const comecou =
+    k.progressoFisico > 0 ||
+    obra.cronograma.some((e) => isISO(e.inicioReal)) ||
+    obra.medicoes.some((m) => m.status !== 'Cancelado') ||
+    obra.lancamentos.length > 0;
+  if (!comecou) return 'Planejada';
+  if (obra.cronograma.length && k.progressoFisico >= 1 - 1e-9) return 'Concluída';
+  return 'Em andamento';
+}
+
+/* Incoerências da configuração, para o topo da tela: números que se
+   contradizem e que nenhum formulário isolado pega. Todas são alerta —
+   a obra pode estar certa e o dado, incompleto. */
+function incoerenciasObra(obra) {
+  const out = [];
+  const k = kpisObra(obra);
+  const teto = num(obra.fin.custoFisicoMaxM2);
+  const empM2 = num(obra.fin.precoEmpreitadaM2);
+  if (teto > 0 && empM2 > teto) {
+    out.push({ campo: 'fin.custoFisicoMaxM2', texto: `O teto de custo físico (${fmtMoney(teto)}/m²) é menor que só a empreitada (${fmtMoney(empM2)}/m²).` });
+  }
+  const fins = obra.cronograma.map((e) => e.fimPrevisto).filter(isISO).sort();
+  const fimPlano = fins[fins.length - 1];
+  if (isISO(obra.previsaoConclusao) && fimPlano && fimPlano > obra.previsaoConclusao) {
+    out.push({ campo: 'previsaoConclusao', texto: `A data contratual (${fmtData(obra.previsaoConclusao)}) é anterior ao fim do cronograma (${fmtData(fimPlano)}): o plano já entrega depois do prazo do contrato.` });
+  }
+  if (isISO(obra.dataInicio) && isISO(obra.previsaoConclusao) && obra.dataInicio > obra.previsaoConclusao) {
+    out.push({ campo: 'dataInicio', texto: 'A data de início é depois da data contratual de entrega.' });
+  }
+  const fontes = num(obra.fin.saldoInicial) + num(obra.fin.valorFinanciado) + num(obra.fin.recursosProprios);
+  if (fontes > 0 && k.custoPrevisto > fontes + 0.5) {
+    out.push({ campo: 'fin.recursosProprios', texto: `Financiado + próprios + saldo inicial (${fmtMoney(fontes, { dec: 0 })}) não cobrem o custo previsto (${fmtMoney(k.custoPrevisto, { dec: 0 })}): faltam ${fmtMoney(k.custoPrevisto - fontes, { dec: 0 })}.` });
+  }
+  const calc = situacaoObraCalculada(obra);
+  if (obra.status && obra.status !== 'Paralisada' && obra.status !== calc) {
+    out.push({ campo: 'status', texto: `A situação marcada é "${obra.status}", mas os dados dizem "${calc}".` });
+  }
+  return out;
+}
+
 /* Unidade de produção que a etapa costuma ter: fundação e estrutura em
    m³, muro e calha em m, louça e esquadria em un; o resto (alvenaria,
    reboco, piso, pintura…) em m². É só sugestão — preenche a unidade
@@ -2042,6 +2092,9 @@ export {
   estouroContratos,
   saudeObra,
   saudeCliente,
+  empreitadaPrincipal,
+  situacaoObraCalculada,
+  incoerenciasObra,
   lancamentoNatureza,
   lancamentosDuplicados,
   resumoLancamentos,

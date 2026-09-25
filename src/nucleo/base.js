@@ -201,6 +201,14 @@ const dataUriParaArquivo = (dataUri, nome) => {
 
 /* -------------------------------------------------------------- listas */
 
+/* Sugestões dos campos de texto da Configuração: lista para escolher,
+   sem proibir o que o usuário escrever. */
+const SISTEMAS_CONSTRUTIVOS = [
+  'Alvenaria convencional', 'Alvenaria estrutural', 'Parede de concreto', 'Steel frame',
+  'Wood frame', 'Pré-moldado',
+];
+const PADROES_ACABAMENTO = ['MCMV / popular', 'Baixo', 'Normal', 'Alto'];
+
 const LISTAS_PADRAO = {
   etapas: [
     'Serviços preliminares', 'Fundação', 'Estrutura', 'Fechamento/alvenaria', 'Cobertura',
@@ -476,6 +484,8 @@ function migrar(s) {
 }
 
 export {
+  SISTEMAS_CONSTRUTIVOS,
+  PADROES_ACABAMENTO,
   APP,
   uid,
   num,
