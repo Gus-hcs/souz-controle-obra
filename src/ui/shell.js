@@ -95,7 +95,7 @@ const MENU = [
     { v: 'ajustes', t: 'Ajustes e dados', i: 'config' }
   ] },
   { grupo: 'Administração', soAdmin: true, itens: [
-    { v: 'admin', t: 'Clientes e acessos', i: 'admin' }
+    { v: 'admin', t: 'Contas e acessos', i: 'admin' }
   ] }
 ];
 
@@ -118,7 +118,7 @@ const TITULOS = {
   auditoria: ['Trilha de auditoria', 'Quem alterou cada valor financeiro e quando'],
   'obra-config': ['Configuração da obra', 'Identificação, financiamento e contrato'],
   ajustes: ['Ajustes e dados', 'Empresa, listas, backup e importação'],
-  admin: ['Administração', 'Consumo por cliente e liberação de acesso por aba']
+  admin: ['Contas e acessos', 'Uso por conta e liberação de acesso por aba']
 };
 
 const VIEWS_OBRA = new Set(
@@ -523,6 +523,21 @@ function confirmar(titulo, texto, aoConfirmar, rotulo = 'Excluir') {
   modalAoSalvar = aoConfirmar;
 }
 
+/* Confirmação forte: para ação sem volta, digitar a palavra (o nome da
+   empresa, o e-mail da conta) antes de o botão funcionar. Um clique
+   distraído num "Excluir" não apaga a base. */
+function confirmarDigitando(titulo, texto, palavra, aoConfirmar, rotulo = 'Excluir') {
+  abrirModal({
+    titulo, largura: 'estreito',
+    corpo: `<p style="margin:0 0 var(--e3)">${esc(texto)}</p>
+      <div class="campo"><label for="f_confirma">Digite <b>${esc(palavra)}</b> para confirmar</label>
+      <input type="text" id="f_confirma" data-confirma="${esc(palavra)}" autocomplete="off" spellcheck="false"></div>`,
+    rodape: `<button class="btn" data-acao="fechar-modal">Cancelar</button>
+             <button class="btn perigo" data-acao="confirmar-digitado">${esc(rotulo)}</button>`
+  });
+  modalAoSalvar = aoConfirmar;
+}
+
 /* --------------------------------------------------- formulário genérico
    campos: { k, label, tipo, col, opcoes, dica, secao, ro, placeholder }
    tipos: texto | numero | dinheiro | pct | data | select | area | check | lista
@@ -694,6 +709,7 @@ export {
   fecharModal,
   abrirModal,
   confirmar,
+  confirmarDigitando,
   campoHTML,
   abrirForm,
   lerForm,

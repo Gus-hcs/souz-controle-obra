@@ -2,7 +2,7 @@
  * telas-cadastros.js — Telas de cadastro: clientes, prestadores, relatórios e ajustes.
  */
 import { esc, fmtData, fmtDataCurta, fmtMoney, fmtPct, fonteImagem, hojeISO, norm, PLANOS } from '../nucleo/base.js';
-import { etapaCalc, kpisObra } from '../dominio/calculos.js';
+import { ativacaoConta, diasSemAtividade, etapaCalc, kpisObra } from '../dominio/calculos.js';
 import { apenasErros, validarPerfilAdmin, validarSenhaForte, validarUsuarioNovo } from '../dominio/validacao.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
@@ -96,7 +96,10 @@ VIEWS.relatorio = () => {
 
 /* ===================================================== ADMINISTRAÇÃO */
 /* Só para quem tem perfis.admin = true. Lê o consumo de todos os clientes
-   pela função admin_consumo() e libera/bloqueia acesso por aba. */
+   pela função admin_consumo() e libera/bloqueia acesso por aba.
+   A lista abre pela conta parada há mais tempo (diasSemAtividade) — é
+   quem precisa de uma ligação — e mostra a ativação (ativacaoConta).
+   Excluir conta fica dentro de "Editar", não na linha. */
 const Admin = { linhas: null, erro: '', carregando: false };
 
 /* abas que o admin pode bloquear (carteira, painel e ajustes ficam sempre) */
@@ -132,17 +135,17 @@ function quandoRelativo(iso) {
 
 VIEWS.admin = () => {
   if (!SUPA.ehAdmin) {
-    return cartao('Administração', vazio('Acesso restrito', 'Esta área é só para o administrador do sistema.'));
+    return cartao('Contas e acessos', vazio('Acesso restrito', 'Esta área é só para o administrador do sistema.'));
   }
 
   carregarConsumo();
 
   if (Admin.carregando && !Admin.linhas) {
-    return cartao('Administração', vazio('Carregando…', 'Buscando o consumo dos clientes.'));
+    return cartao('Contas e acessos', vazio('Carregando…', 'Buscando o consumo dos clientes.'));
   }
   if (Admin.erro) {
     const naoInstalado = /admin_consumo.*does not exist|Could not find the function|schema cache/i.test(Admin.erro);
-    return cartao('Administração', `
+    return cartao('Contas e acessos', `
       ${vazio(naoInstalado ? 'Painel ainda não instalado' : 'Não foi possível carregar',
         naoInstalado
           ? 'Aplique db/migracoes/0005_admin_e_permissoes.sql no Supabase e marque a sua conta como admin.'
@@ -150,7 +153,13 @@ VIEWS.admin = () => {
       <div style="text-align:center;margin-top:8px">${botao('Tentar de novo', 'admin-recarregar', {}, 'btn')}</div>`);
   }
 
-  const linhas = (Admin.linhas || []).slice();
+  const agora = new Date();
+  const parada = (l) => {
+    const d = diasSemAtividade(l.ultima_atividade, agora);
+    return d == null ? Infinity : d;
+  };
+  const linhas = (Admin.linhas || []).slice().sort((a, b) => parada(b) - parada(a));
+  const paradas = linhas.filter((l) => !l.eh_admin && parada(l) >= 14).length;
   const busca = norm(App.filtros.busca || '');
   const vis = busca
     ? linhas.filter((l) => norm(l.email).includes(busca) || norm(l.empresa).includes(busca))
@@ -161,6 +170,7 @@ VIEWS.admin = () => {
   const restritos = linhas.filter((l) => l.bloqueado || (l.abas && Object.values(l.abas).some((x) => x === false))).length;
 
   const linhaHTML = (l) => {
+    const at = ativacaoConta(l);
     const abasBloqueadas = l.abas ? Object.values(l.abas).filter((x) => x === false).length : 0;
     const lim = l.limite_obras == null ? null : Number(l.limite_obras);
     const acessoTxt = [
@@ -183,14 +193,13 @@ VIEWS.admin = () => {
       <td class="num">${l.medicoes}</td>
       <td class="num">${l.lancamentos}</td>
       <td class="num">${l.fotos}</td>
-      <td>${quandoRelativo(l.ultima_atividade)}</td>
+      <td class="num" title="${esc(at.faltam.length ? 'Falta: ' + at.faltam.join(', ') : 'todos os passos')}">
+        <span class="${at.feitos <= 2 ? 'tom-alerta' : ''}">${at.feitos}/${at.total}</span></td>
+      <td class="${parada(l) >= 14 && !l.eh_admin ? 'tom-alerta' : ''}">${quandoRelativo(l.ultima_atividade)}</td>
       <td>${botao(acessoTxt || 'editar', 'admin-editar', { id: l.usuario_id }, 'btn sutil pequeno', 'lapis')}</td>
       <td class="acoes" style="opacity:1;white-space:nowrap">
-        ${l.eh_admin ? '' : `
-          ${botao(l.bloqueado ? 'liberar' : 'bloquear', 'admin-bloquear',
-            { id: l.usuario_id, para: l.bloqueado ? '0' : '1' }, l.bloqueado ? 'btn pequeno' : 'btn perigo pequeno')}
-          <button class="btn sutil pequeno" data-acao="admin-excluir" data-id="${l.usuario_id}"
-            title="Excluir conta" aria-label="Excluir conta">${svg(ICO.lixo, 14)}</button>`}
+        ${l.eh_admin ? '' : botao(l.bloqueado ? 'liberar' : 'bloquear', 'admin-bloquear',
+          { id: l.usuario_id, para: l.bloqueado ? '0' : '1' }, l.bloqueado ? 'btn pequeno' : 'btn sutil pequeno')}
       </td>
     </tr>`;
   };
@@ -199,18 +208,19 @@ VIEWS.admin = () => {
     <div class="grade g4">
       ${kpi('Clientes', linhas.length, `${ativos} no plano ativo`)}
       ${kpi('Obras na plataforma', totObras, 'somando todas as contas')}
-      ${kpi('Fotos guardadas', linhas.reduce((s, l) => s + Number(l.fotos || 0), 0), 'no diário de obra')}
+      ${kpi('Paradas há 14+ dias', paradas, paradas ? 'no topo da lista — vale uma ligação' : 'todas as contas em uso', paradas ? 'aviso' : 'ok')}
       ${kpi('Contas com restrição', restritos, 'bloqueadas ou com aba fechada', restritos ? 'aviso' : 'ok')}
     </div>
-    ${cartao('Consumo por cliente', `
+    ${cartao('Uso por conta', `
       <div class="tab-rolagem"><table class="tab">
         <thead><tr>
           <th>Cliente</th><th>Plano</th>
           <th class="num">Obras</th><th class="num">Contr.</th><th class="num">Medições</th>
           <th class="num">Lançam.</th><th class="num">Fotos</th>
+          <th class="num" title="obra, contrato, medição, gasto, diário e foto">Ativação</th>
           <th>Última atividade</th><th>Editar</th><th></th>
         </tr></thead>
-        <tbody>${vis.map(linhaHTML).join('') || `<tr><td colspan="10">${vazio('Nenhum cliente', 'Ainda não há contas cadastradas além da sua.')}</td></tr>`}</tbody>
+        <tbody>${vis.map(linhaHTML).join('') || `<tr><td colspan="11">${vazio('Nenhum cliente', 'Ainda não há contas cadastradas além da sua.')}</td></tr>`}</tbody>
       </table></div>`, {
       semPadding: true,
       acoes: `<div class="filtros">
@@ -257,11 +267,19 @@ async function admChamar(fn, msgOk) {
   }
 }
 
+/* Trocar plano mexe em cobrança e acesso: confirma antes. Cancelar
+   devolve o select ao plano atual. */
 ACOES['admin-plano'] = (el, d) => {
   const plano = el.value;
   const probs = apenasErros(validarPerfilAdmin({ plano }));
   if (probs.length) return toast(probs[0].mensagem, 'critico');
-  admChamar(() => SUPA.adminSalvarPerfil(d.id, { plano }), 'Plano atualizado.');
+  const alvo = (Admin.linhas || []).find((l) => l.usuario_id === d.id);
+  if (!alvo || alvo.plano === plano) return;
+  el.value = alvo.plano;
+  confirmar('Mudar plano',
+    `Mudar ${alvo.empresa || alvo.email || 'esta conta'} de "${alvo.plano}" para "${plano}"?`,
+    () => admChamar(() => SUPA.adminSalvarPerfil(d.id, { plano }), 'Plano atualizado.'),
+    'Mudar plano');
 };
 
 ACOES['admin-bloquear'] = (el, d) => {

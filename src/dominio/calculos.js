@@ -1455,6 +1455,75 @@ function saudeObra(obra, hoje = hojeISO()) {
   return { nivel, ordem: ORDEM_SAUDE[nivel], texto, motivos, faltando, prazo: p };
 }
 
+/* Itens das listas editáveis (Ajustes) que algum registro usa, com a
+   contagem: { etapas: Map('Pisos' → 12), unidades: Map('m²' → 30), … }.
+   Tirar da lista um item em uso deixa o registro com um valor que o
+   select não oferece — e a próxima edição o apaga sem ninguém ver. */
+const CAMPOS_DE_LISTA = {
+  etapas: [['cronograma', 'etapa'], ['lancamentos', 'etapa'], ['materiais', 'etapa'], ['diario', 'etapa']],
+  tiposSaida: [['lancamentos', 'tipo']],
+  unidades: [['contratos', 'unidade'], ['lancamentos', 'unidade'], ['materiais', 'unidade'], ['cronograma', 'unidadeProducao']],
+  formasPagamento: [['lancamentos', 'formaPagamento']],
+  regimes: [['contratos', 'regime']],
+  origensRecebimento: [['recebimentos', 'origem']],
+};
+
+function usoItensLista(estado) {
+  const uso = {};
+  const conta = (lista, valor) => {
+    const v = String(valor || '').trim();
+    if (!v) return;
+    uso[lista].set(v, (uso[lista].get(v) || 0) + 1);
+  };
+  Object.entries(CAMPOS_DE_LISTA).forEach(([lista, campos]) => {
+    uso[lista] = new Map();
+    (estado.obras || []).forEach((o) =>
+      campos.forEach(([colecao, campo]) => (o[colecao] || []).forEach((r) => conta(lista, r[campo]))),
+    );
+  });
+  uso.especialidades = new Map();
+  (estado.prestadores || []).forEach((p) => conta('especialidades', p.especialidade));
+  return uso;
+}
+
+/* Nova versão de uma lista sem perder item em uso: devolve a lista
+   pedida mais os itens em uso que ela tirava, e quais foram mantidos. */
+function listaProtegida(uso, antes, depois) {
+  const emUso = uso || new Map();
+  const mantidos = (antes || []).filter((i) => !depois.includes(i) && emUso.get(i) > 0);
+  return {
+    lista: [...depois, ...mantidos],
+    mantidos: mantidos.map((i) => ({ item: i, registros: emUso.get(i) })),
+  };
+}
+
+/* Ativação de uma conta (tela Contas e acessos, admin_consumo): quantos
+   dos passos que fazem o sistema valer a pena a conta já deu. Conta com
+   obra e sem diário é conta que vai cancelar. */
+const PASSOS_ATIVACAO = [
+  ['obras', 'cadastrou obra'],
+  ['contratos', 'lançou contrato'],
+  ['medicoes', 'mediu'],
+  ['lancamentos', 'lançou gasto'],
+  ['diario', 'usa o diário'],
+  ['fotos', 'tira foto'],
+];
+
+function ativacaoConta(linha) {
+  const l = linha || {};
+  const feitos = PASSOS_ATIVACAO.filter(([k]) => Number(l[k] || 0) > 0);
+  const faltam = PASSOS_ATIVACAO.filter(([k]) => !(Number(l[k] || 0) > 0)).map(([, t]) => t);
+  return { feitos: feitos.length, total: PASSOS_ATIVACAO.length, faltam };
+}
+
+/* Dias desde a última atividade; null se nunca houve. */
+function diasSemAtividade(instante, agora = new Date()) {
+  if (!instante) return null;
+  const t = new Date(instante).getTime();
+  if (Number.isNaN(t)) return null;
+  return Math.max(0, Math.floor((agora.getTime() - t) / 86400000));
+}
+
 /* Alteração sensível na trilha de auditoria (migração 0003): mexe em
    dinheiro que já saiu ou entrou — valor pago, valor recebido, valor
    aprovado pela CAIXA — ou apaga um registro financeiro. É o filtro
@@ -1868,6 +1937,10 @@ export {
   saudeObra,
   saudeCliente,
   alteracaoSensivel,
+  usoItensLista,
+  ativacaoConta,
+  diasSemAtividade,
+  listaProtegida,
   riscoCarteira,
   agendaCarteira,
   curvaSCarteira,

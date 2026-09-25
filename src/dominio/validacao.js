@@ -318,6 +318,20 @@ function validarTratamento(t, hoje = hojeISO()) {
   return out;
 }
 
+/* ------------------------------------------------------------- EMPRESA */
+/* Responsável técnico e CREA/CAU: o relatório para cliente e financiador
+   sai assinado por eles. Faltar é alerta, não erro — a conta nova ainda
+   não tem, e não pode ser impedida de salvar o nome da empresa. */
+function validarEmpresa(emp) {
+  const out = [];
+  const e = emp || {};
+  if (!String(e.responsavel || '').trim())
+    out.push(problema('responsavel', 'Sem responsável técnico: o relatório em PDF sai sem RT.', 'alerta'));
+  if (!String(e.creaCau || '').trim())
+    out.push(problema('creaCau', 'Sem CREA/CAU: o relatório em PDF sai sem o registro do RT.', 'alerta'));
+  return out;
+}
+
 /* --------------------------------------------- CLIENTE / PRESTADOR */
 /* Logo: data URI de imagem, opcional. Espelha o CHECK de 0008. */
 function validarLogo(v, campo = 'logo') {
@@ -539,6 +553,7 @@ export {
   validarUsuarioNovo,
   validarSenhaForte,
   validarLogo,
+  validarEmpresa,
   validarObraCompleta,
   validarEstado,
   apenasErros,

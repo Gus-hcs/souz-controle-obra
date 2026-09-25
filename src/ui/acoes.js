@@ -1,12 +1,12 @@
 /**
  * acoes.js — Ações: tudo que um clique dispara — abrir formulário, salvar, excluir.
  */
-import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, uid } from '../nucleo/base.js';
-import { alertasObra, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, materialCalc, medicaoAlerta, resumoPrestador } from '../dominio/calculos.js';
+import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, uid } from '../nucleo/base.js';
+import { alertasObra, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, listaProtegida, materialCalc, medicaoAlerta, resumoPrestador, usoItensLista } from '../dominio/calculos.js';
 import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
-import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
+import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, confirmarDigitando, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
 import { carregarAuditoria, implExpandida } from './telas-obra.js';
 
 const ACOES = {};
@@ -55,6 +55,21 @@ ACOES['fechar-modal'] = () => fecharModal();
 ACOES.imprimir = () => window.print();
 
 ACOES['confirmar-ok'] = () => {
+  const fn = modalAoSalvar;
+  fecharModal();
+  if (fn) fn();
+};
+
+/* Só confirma se o texto digitado bate (sem diferença de maiúscula,
+   acento ou espaço nas pontas). */
+ACOES['confirmar-digitado'] = () => {
+  const campo = document.getElementById('f_confirma');
+  if (!campo) return;
+  if (norm(campo.value.trim()) !== norm(campo.dataset.confirma.trim())) {
+    campo.focus();
+    toast('O texto digitado não confere.', 'aviso');
+    return;
+  }
   const fn = modalAoSalvar;
   fecharModal();
   if (fn) fn();
@@ -1098,19 +1113,32 @@ ACOES['salvar-empresa'] = () => {
   toast('Dados da empresa salvos.', 'ok');
 };
 
+/* Item em uso não sai da lista (usoItensLista): volta para o fim, e o
+   aviso diz quantos registros o usam. */
 ACOES['salvar-listas'] = () => {
   const campos = document.querySelectorAll('[data-lista]');
+  const uso = usoItensLista(Store.estado);
+  const mantidos = [];
   mutar((e) => {
     campos.forEach((c) => {
       const itens = c.value.split('\n').map((s) => s.trim()).filter(Boolean);
-      if (itens.length) e.listas[c.dataset.lista] = itens;
+      if (!itens.length) return;
+      const k = c.dataset.lista;
+      const r = listaProtegida(uso[k], e.listas[k] || [], itens);
+      e.listas[k] = r.lista;
+      mantidos.push(...r.mantidos);
     });
   });
-  toast('Listas atualizadas.', 'ok');
+  if (mantidos.length) {
+    const txt = mantidos.map((m) => `"${m.item}" (${m.registros} registro${m.registros === 1 ? '' : 's'})`).join(', ');
+    toast(`Listas atualizadas. Continuam por estarem em uso: ${txt}.`, 'aviso');
+    App.renderConteudo();
+  } else toast('Listas atualizadas.', 'ok');
 };
 
 ACOES.zerar = () => {
-  confirmar('Apagar todos os dados', 'Isso remove obras, contratos, medições, lançamentos e cadastros. Baixe um backup antes.', () => {
+  const palavra = String(Store.estado.empresa.nome || '').trim() || 'APAGAR';
+  confirmarDigitando('Apagar todos os dados', 'Isso remove obras, contratos, medições, lançamentos e cadastros. Não há como desfazer. Baixe um backup antes.', palavra, () => {
     mutar((e) => {
       e.obras = []; e.clientes = []; e.prestadores = [];
     });

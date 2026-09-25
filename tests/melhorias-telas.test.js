@@ -5,7 +5,16 @@
 import { describe, expect, it } from 'vitest';
 import { fmtQuando, novaObra } from '../src/nucleo/base.js';
 import { ocultarDocumento } from '../src/nucleo/contato.js';
-import { alteracaoSensivel, saudeCliente, saudeObra } from '../src/dominio/calculos.js';
+import {
+  alteracaoSensivel,
+  ativacaoConta,
+  diasSemAtividade,
+  listaProtegida,
+  saudeCliente,
+  saudeObra,
+  usoItensLista,
+} from '../src/dominio/calculos.js';
+import { apenasErros, validarEmpresa } from '../src/dominio/validacao.js';
 import { HOJE, casa14 } from './casa14.fixture.js';
 
 describe('Clientes — CPF/CNPJ mascarado na lista (LGPD)', () => {
@@ -67,5 +76,56 @@ describe('Trilha de auditoria — alteração sensível é o filtro padrão', ()
   it('preço em digitação não é', () => {
     expect(alteracaoSensivel({ operacao: 'UPDATE', campo: 'preco_unitario' })).toBe(false);
     expect(alteracaoSensivel(null)).toBe(false);
+  });
+});
+
+describe('Ajustes — lista do sistema não perde item em uso', () => {
+  const estado = () => ({ obras: [casa14()], prestadores: [{ especialidade: 'Pintura' }] });
+
+  it('conta quantos registros usam cada item', () => {
+    const uso = usoItensLista(estado());
+    const o = casa14();
+    const etapa = o.cronograma[0].etapa;
+    expect(uso.etapas.get(etapa)).toBeGreaterThan(0);
+    expect(uso.especialidades.get('Pintura')).toBe(1);
+  });
+
+  it('item em uso volta para a lista; item sem uso sai', () => {
+    const uso = new Map([['Pisos', 12]]);
+    const r = listaProtegida(uso, ['Pisos', 'Telhado', 'Muro'], ['Telhado']);
+    expect(r.lista).toEqual(['Telhado', 'Pisos']);
+    expect(r.mantidos).toEqual([{ item: 'Pisos', registros: 12 }]);
+  });
+
+  it('acrescentar e reordenar não é afetado', () => {
+    const r = listaProtegida(new Map([['A', 1]]), ['A', 'B'], ['C', 'A']);
+    expect(r.lista).toEqual(['C', 'A']);
+    expect(r.mantidos).toEqual([]);
+  });
+});
+
+describe('Ajustes — RT e CREA faltando é alerta, não erro', () => {
+  it('avisa o que falta sem bloquear', () => {
+    const p = validarEmpresa({ nome: 'Souz', responsavel: '', creaCau: '' });
+    expect(p.map((x) => x.campo)).toEqual(['responsavel', 'creaCau']);
+    expect(apenasErros(p)).toEqual([]);
+  });
+  it('completo não avisa', () => {
+    expect(validarEmpresa({ responsavel: 'Eng. Ana', creaCau: 'GO-12345/D' })).toEqual([]);
+  });
+});
+
+describe('Contas e acessos — ativação e conta parada', () => {
+  it('conta os passos dados e diz o que falta', () => {
+    const a = ativacaoConta({ obras: 1, contratos: 2, medicoes: 0, lancamentos: 5, diario: 0, fotos: 0 });
+    expect(a.feitos).toBe(3);
+    expect(a.total).toBe(6);
+    expect(a.faltam).toEqual(['mediu', 'usa o diário', 'tira foto']);
+  });
+  it('dias sem atividade; nunca = null', () => {
+    const agora = new Date('2026-09-25T12:00:00Z');
+    expect(diasSemAtividade('2026-09-10T12:00:00Z', agora)).toBe(15);
+    expect(diasSemAtividade('2026-09-25T08:00:00Z', agora)).toBe(0);
+    expect(diasSemAtividade(null, agora)).toBeNull();
   });
 });
