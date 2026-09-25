@@ -8,6 +8,10 @@ import { ocultarDocumento } from '../src/nucleo/contato.js';
 import {
   alteracaoSensivel,
   ativacaoConta,
+  contratoSituacao,
+  medicaoAPagar,
+  medicaoPagamento,
+  medicoesEmAberto,
   diasSemAtividade,
   listaProtegida,
   saudeCliente,
@@ -127,5 +131,54 @@ describe('Contas e acessos — ativação e conta parada', () => {
     expect(diasSemAtividade('2026-09-10T12:00:00Z', agora)).toBe(15);
     expect(diasSemAtividade('2026-09-25T08:00:00Z', agora)).toBe(0);
     expect(diasSemAtividade(null, agora)).toBeNull();
+  });
+});
+
+describe('Contratos — o atraso diz contra o quê é medido', () => {
+  it('atrasado: vs. o fim vigente do contrato', () => {
+    const s = contratoSituacao(casa14(), 'CT-001', HOJE);
+    expect(s.chave).toBe('atrasado');
+    expect(s.referencia).toEqual({ tipo: 'fim', data: '2026-08-26' });
+  });
+  it('não iniciado e atrasado: vs. o início', () => {
+    const s = contratoSituacao(casa14(), 'CT-003', HOJE);
+    expect(s.referencia.tipo).toBe('inicio');
+  });
+  it('em dia não tem referência de atraso', () => {
+    expect(contratoSituacao(casa14(), 'CT-002', HOJE).referencia).toBeUndefined();
+  });
+});
+
+describe('Medições — A pagar com a idade da conta mais antiga', () => {
+  it('Casa 14: R$ 7.000 em 2 medições, a mais antiga há 108 dias', () => {
+    const a = medicoesEmAberto(casa14(), HOJE);
+    expect(a.total).toBe(7000);
+    expect(a.itens).toHaveLength(2);
+    expect(a.maisAntiga.dias).toBe(108);
+    expect(a.maisAntiga.medicao.contratoBase).toBe('CT-002');
+  });
+  it('o KPI é a soma da coluna (já sem retenção)', () => {
+    const o = casa14();
+    const ct = o.contratos.find((c) => c.codigoBase === 'CT-001' && c.registro === 'Contrato');
+    ct.retencaoPct = 0.05;
+    const a = medicoesEmAberto(o, HOJE);
+    const coluna = o.medicoes.reduce((s, m) => s + medicaoAPagar(o, m), 0);
+    expect(a.total).toBeCloseTo(coluna, 2);
+  });
+  it('sem nada em aberto, sem mais antiga', () => {
+    const o = casa14();
+    o.medicoes = [];
+    expect(medicoesEmAberto(o, HOJE)).toEqual({ itens: [], total: 0, maisAntiga: null });
+  });
+});
+
+describe('Medições — pagamento parcial se destaca', () => {
+  it('pagou parte: parcial; nada: aberta; tudo: quitada', () => {
+    const o = casa14();
+    const por = (base, n) => o.medicoes.find((m) => m.contratoBase === base && m.numero === n);
+    expect(medicaoPagamento(o, por('CT-002', '2'))).toBe('parcial');
+    expect(medicaoPagamento(o, por('CT-001', '4'))).toBe('aberta');
+    expect(medicaoPagamento(o, por('CT-001', '1'))).toBe('quitada');
+    expect(medicaoPagamento(o, { ...por('CT-001', '4'), status: 'Cancelado' })).toBe('cancelada');
   });
 });

@@ -279,7 +279,17 @@ function celulaPrazo(l) {
   return `<div style="display:flex;flex-direction:column;line-height:1.3;gap:2px">
     <span class="tinta2">${temData ? esc(`${ini} → ${fim}`) : '<span class="tinta3">—</span>'}</span>
     ${problema ? `<span class="${TOM_SITUACAO[l.sit.chave]}" style="font-size:var(--t-peq)">${esc(l.sit.texto)}</span>` : ''}
+    ${problema && l.sit.referencia ? `<span class="tinta3" style="font-size:var(--t-peq)">${esc(baseAtraso(l.sit, false))}</span>` : ''}
   </div>`;
+}
+
+/* A base do atraso por extenso: o do contrato não é o do cronograma.
+   Na célula, sem a data (ela já está na linha de cima). */
+function baseAtraso(sit, comData = true) {
+  const r = sit.referencia;
+  if (!r || !isISO(r.data)) return '';
+  const txt = r.tipo === 'inicio' ? 'vs. início do contrato' : 'vs. prazo do contrato';
+  return comData ? `${txt} (${fmtDataCurta(r.data)})` : txt;
 }
 
 /* "37.440 + 1 aditivo − 1.500 (supressão)": o sinal de cada aditivo
@@ -485,6 +495,7 @@ function inspetorContrato(o, l) {
       <div class="inspetor-secao">
         <span class="situacao-ct ${tomSit}"><span class="pt"></span>${esc(l.sit.texto)}</span>
         ${l.sit.motivo ? `<p class="linha-cinza">${esc(l.sit.motivo)}</p>` : ''}
+        ${l.sit.referencia ? `<p class="linha-cinza">${esc(baseAtraso(l.sit))}</p>` : ''}
       </div>
       <div class="inspetor-secao"><h3>Números</h3><dl class="pares">
         ${linhaNum('Autorizado', fmtMoney(ind.autorizado, { dec: 0 }))}

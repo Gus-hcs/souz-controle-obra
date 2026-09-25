@@ -195,11 +195,25 @@ function contratoSituacao(obra, codigoBase, hoje = hojeISO()) {
     return { texto: 'Não iniciado', chave: 'nao-iniciado', atrasoDias: 0, motivo: '' };
   }
   if (isISO(inicio) && hoje >= inicio && ind.medido <= EPS_CONTRATO) {
-    return { texto: 'Não iniciado · atrasado', chave: 'nao-iniciado-atrasado', atrasoDias: 0, motivo: '' };
+    /* referencia: contra o quê o atraso é medido — a tela escreve
+       "vs. prazo do contrato", para não confundir com o do cronograma */
+    return {
+      texto: 'Não iniciado · atrasado',
+      chave: 'nao-iniciado-atrasado',
+      atrasoDias: 0,
+      motivo: '',
+      referencia: { tipo: 'inicio', data: inicio },
+    };
   }
   if (isISO(fim) && hoje > fim) {
     const dias = diasEntre(fim, hoje);
-    return { texto: `Atrasado ${dias} dias`, chave: 'atrasado', atrasoDias: dias, motivo: '' };
+    return {
+      texto: `Atrasado ${dias} dias`,
+      chave: 'atrasado',
+      atrasoDias: dias,
+      motivo: '',
+      referencia: { tipo: 'fim', data: fim },
+    };
   }
   return { texto: 'Em andamento', chave: 'em-andamento', atrasoDias: 0, motivo: '' };
 }
@@ -244,6 +258,31 @@ function medicaoRetencao(obra, m) {
 function medicaoAPagar(obra, m) {
   if (m.status === 'Cancelado') return 0;
   return Math.max(0, round2(medicaoLiquido(m) - medicaoRetencao(obra, m) - num(m.valorPago)));
+}
+
+/* Situação do pagamento de uma medição: 'cancelada', 'quitada',
+   'parcial' (pagou parte, falta parte — o caso que some na lista) ou
+   'aberta' (nada pago). */
+function medicaoPagamento(obra, m) {
+  if (m.status === 'Cancelado') return 'cancelada';
+  const falta = medicaoAPagar(obra, m);
+  if (falta <= 0.005) return 'quitada';
+  return num(m.valorPago) > 0.005 ? 'parcial' : 'aberta';
+}
+
+/* Medições com algo a pagar: o total (a mesma soma da coluna A pagar,
+   já sem a retenção) e a mais antiga, com a idade em dias — "R$ 8 mil
+   a pagar" pesa diferente se a conta tem 3 ou 60 dias. */
+function medicoesEmAberto(obra, hoje = hojeISO()) {
+  const itens = obra.medicoes.filter((m) => medicaoAPagar(obra, m) > 0.005);
+  const total = round2(itens.reduce((s, m) => s + medicaoAPagar(obra, m), 0));
+  const datadas = itens.filter((m) => isISO(m.data)).sort((a, b) => (a.data < b.data ? -1 : 1));
+  const antiga = datadas[0] || null;
+  return {
+    itens,
+    total,
+    maisAntiga: antiga ? { medicao: antiga, dias: Math.max(0, diasEntre(antiga.data, hoje)) } : null,
+  };
 }
 
 /* --------------------------------------------------- RECEBIMENTOS  */
@@ -1936,6 +1975,8 @@ export {
   estouroContratos,
   saudeObra,
   saudeCliente,
+  medicaoPagamento,
+  medicoesEmAberto,
   alteracaoSensivel,
   usoItensLista,
   ativacaoConta,
