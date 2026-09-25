@@ -10,7 +10,7 @@
 --  É a obra que acende os alertas e o painel de pendências.
 --
 --  COMO USAR: troque o e-mail em v_email, cole tudo no SQL Editor do
---  Supabase e clique em Run. Pode rodar de novo. Requer migrações até a 0013.
+--  Supabase e clique em Run. Pode rodar de novo. Requer migrações até a 0019.
 -- =====================================================================
 
 create or replace function pg_temp.demo_prestador(
@@ -226,6 +226,39 @@ begin
       'Assentamento do piso na cozinha.', 'Piso parou: falta rejunte (compra atrasada). Cliente ligou cobrando a entrega.', 'Eng. Júlio Andrade'),
     (v_uid, v_obra, 5, h -   2, 'Bom',          3, 'Reboco e requadros',
       'Retoques de reboco no banheiro.', 'Reunião com a cliente: nova data depende da aprovação do aditivo de prazo.', 'Eng. Júlio Andrade');
+
+  /* ----- recursos das migrações 0015–0019 (exigem-nas aplicadas) ----- */
+  -- financiador e parcelas por marco físico (0016)
+  update public.obras set financiador = 'CAIXA', status_enviado_em = h - 21 where id = v_obra;
+  update public.recebimentos set percent_exigido = percent_obra
+   where obra_id = v_obra and origem = 'CAIXA';
+  update public.recebimentos set data_vistoria = data_solicitacao + 2, data_aprovacao = data_solicitacao + 4
+   where obra_id = v_obra and origem = 'CAIXA' and numero_medicao in ('1', '2');
+  update public.recebimentos set data_vistoria = h - 43
+   where obra_id = v_obra and origem = 'CAIXA' and numero_medicao = '3';
+  -- etapas de cada contrato: base do medido × físico
+  update public.contratos set etapas = '["Serviços preliminares","Fundação","Estrutura","Fechamento/alvenaria","Reboco e requadros","Instalações hidrossanitárias","Eletrodutos e caixas","Pisos e revestimentos"]'::jsonb
+   where obra_id = v_obra and codigo = 'CT-001';
+  update public.contratos set etapas = '["Cobertura"]'::jsonb where obra_id = v_obra and codigo = 'CT-002';
+  update public.contratos set etapas = '["Forro/gesso"]'::jsonb where obra_id = v_obra and codigo = 'CT-003';
+  -- dependências fim→início (0017)
+  update public.cronograma c set predecessoras = (
+      select coalesce(jsonb_agg(p.id), '[]'::jsonb) from public.cronograma p
+       where p.obra_id = v_obra and p.etapa = any (case c.etapa
+         when 'Pisos e revestimentos' then array['Reboco e requadros']
+         when 'Forro/gesso'           then array['Pisos e revestimentos']
+         when 'Pintura'               then array['Forro/gesso']
+         when 'Louças e metais'       then array['Pintura']
+         else array[]::text[] end))
+   where c.obra_id = v_obra and c.etapa in ('Pisos e revestimentos', 'Forro/gesso', 'Pintura', 'Louças e metais');
+  -- a ocorrência do rejunte vira pendência ligada ao material (0015)
+  update public.diario set ocorrencia_status = 'aberta', ocorrencia_responsavel = 'Antônio Ribeiro',
+         ocorrencia_prazo = h + 2, ocorrencia_material_id = m7
+   where obra_id = v_obra and ocorrencias like 'Piso parou%';
+  -- o que a cliente deve à obra (0018)
+  insert into public.pendencias_cliente (usuario_id, obra_id, descricao, prazo, status, data_criacao)
+  values (v_uid, v_obra, 'Aprovar o aditivo de prazo', h + 5, 'aberta', h - 2),
+         (v_uid, v_obra, 'Escolher o revestimento do banheiro', h - 4, 'aberta', h - 20);
 
   raise notice 'Demo 2/5 criada: % (obra_id %)', v_nome, v_obra;
 end $$;

@@ -6,7 +6,7 @@ import { ativacaoConta, diasSemAtividade, etapaCalc, kpisObra } from '../dominio
 import { apenasErros, validarEmpresa, validarPerfilAdmin, validarSenhaForte, validarUsuarioNovo } from '../dominio/validacao.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
-import { App, abrirModal, botao, campoBusca, cartao, chip, confirmar, fecharModal, ICO, kpi, MENU, nomeCliente, svg, toast, tomSituacao, vazio } from './shell.js';
+import { App, abrirModal, botao, ehClienteDaObra, campoBusca, cartao, chip, confirmar, fecharModal, ICO, kpi, MENU, nomeCliente, svg, toast, tomSituacao, vazio } from './shell.js';
 import { VIEWS } from './telas-obra.js';
 import { ACOES } from './acoes.js';
 
@@ -60,6 +60,16 @@ VIEWS.relatorio = () => {
   /* Sem KPIs no topo: esta tela é para gerar documento, não para ler a
      obra (isso é o Painel). O que importa aqui é o que falta no documento. */
   const avisosEmpresa = validarEmpresa(Store.estado.empresa);
+
+  /* cliente: só o relatório de status, que é o feito para ele */
+  if (ehClienteDaObra(o.id)) {
+    return `<div class="grade" style="gap:16px">
+      ${cartao('Relatório da obra', `<div class="grade g-cartoes">
+        ${docCard('pdf-status', 'Relatório de status', 'Avanço, data de entrega, etapas, parcelas e o que aguarda a sua decisão.')}
+      </div>`, { classe: 'nao-imprime' })}
+      ${cartao('Prévia', previa, { semPadding: false })}
+    </div>`;
+  }
 
   return `<div class="grade" style="gap:16px">
     ${

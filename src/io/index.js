@@ -1,7 +1,7 @@
 /**
  * index.js — Entrada e saída: importação de planilha MCMV, exportação CSV e PDF.
  */
-import { addDias, competencia, fmtData, fmtDataCurta, fmtMoney, fmtNum, fmtPct, hojeISO, migrar, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, slug } from '../nucleo/base.js';
+import { addDias, competencia, fmtData, fmtDataCurta, fmtMoney, fmtNum, fmtPct, hojeISO, migrar, norm, novaEtapaCronograma, novaMedicao, novaObra, novaPendenciaCliente, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, slug } from '../nucleo/base.js';
 import { basesContratuais, etapaCalc, fotosDaSemana, kpisObra, memoriaMedicao, pendenciasDoCliente, valorAgregadoObra, lancamentoTotal, medicaoAPagar, medicaoAlerta, medicaoLiquido, pendenciasObra, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
 import { apenasErros, validarObraCompleta } from '../dominio/validacao.js';
 import { linkWhatsApp, normalizarTelefoneBR } from '../nucleo/contato.js';
@@ -755,7 +755,10 @@ ACOES.exemplo = () => {
         Object.assign(p1, { nome: 'Marcos Empreitada', especialidade: 'Empreiteiro geral', telefone: '(62) 98888-1111', avaliacao: 4 });
         const p2 = novoPrestador();
         Object.assign(p2, { nome: 'Pintura Silva', especialidade: 'Pintura', telefone: '(62) 97777-2222', avaliacao: 5 });
-        e.prestadores.push(p1, p2);
+        /* quem vende material é fornecedor, não prestador (0018) */
+        const p3 = novoPrestador();
+        Object.assign(p3, { nome: 'Depósito Central', tipo: 'fornecedor', especialidade: 'Material de construção', telefone: '(62) 3333-4444' });
+        e.prestadores.push(p1, p2, p3);
 
         const o = novaObra('Casa 12 — Residencial Aurora');
         Object.assign(o, {
@@ -767,8 +770,10 @@ ACOES.exemplo = () => {
         Object.assign(o.fin, {
           saldoInicial: 5000, valorTerreno: 45000, valorFinanciado: 180000, recursosProprios: 20000,
           precoEmpreitadaM2: 700, custoFisicoMaxM2: 1200, valorVenda: 260000, margemDesejada: 0.15,
-          contratoCaixa: '8.1234.5678901-2', dataAssinatura: addDias(hojeISO(), -190)
+          contratoCaixa: '8.1234.5678901-2', dataAssinatura: addDias(hojeISO(), -190),
+          financiador: 'CAIXA'
         });
+        o.statusEnviadoEm = addDias(hojeISO(), -18);
         const d = (n) => addDias(hojeISO(), n);
 
         const ct = novoContrato();
@@ -789,6 +794,10 @@ ACOES.exemplo = () => {
           escopo: 'Pintura geral', regime: 'Preço fechado', valorInformado: 4200,
           inicioPrevisto: d(-8), fimPrevisto: d(17), status: 'Planejado'
         });
+        /* etapas que cada contrato executa (0016): base do medido × físico */
+        ct.etapas = ['Serviços preliminares', 'Fundação', 'Estrutura', 'Fechamento/alvenaria', 'Cobertura',
+          'Reboco e requadros', 'Instalações hidrossanitárias', 'Eletrodutos e caixas', 'Pisos e revestimentos', 'Muro', 'Calçada'];
+        ct2.etapas = ['Pintura'];
         o.contratos.push(ct, ad, ct2);
 
         [[1, -161, 'Fundação e baldrame', 0.20, 12000, 500, -159, 11500, 'Pago'],
@@ -815,7 +824,10 @@ ACOES.exemplo = () => {
           Object.assign(r, {
             origem: or, numeroMedicao: n, etapaPci: et, dataPrevista: d(dp), valorPrevisto: vp,
             dataSolicitacao: ds ? d(ds) : '', percentObra: po, valorAprovado: va, descontos: de,
-            dataRecebimento: dr ? d(dr) : '', valorRecebido: vr, status: st
+            dataRecebimento: dr ? d(dr) : '', valorRecebido: vr, status: st,
+            /* parcela por marco físico (0016): % exigido e o processo */
+            percentExigido: or === 'Cliente' ? 0 : po,
+            dataVistoria: dr && or !== 'Cliente' ? d(ds + 2) : '', dataAprovacao: dr && or !== 'Cliente' ? d(ds + 4) : ''
           });
           o.recebimentos.push(r);
         });
@@ -871,9 +883,21 @@ ACOES.exemplo = () => {
           Object.assign(e2, {
             inicioPrevisto: d(ip), fimPrevisto: d(fp),
             inicioReal: ir ? d(ir) : '', fimReal: fr ? d(fr) : '',
-            progresso: pg, quantidadeExecutada: qtd, unidadeProducao: 'm²'
+            progresso: pg, quantidadeExecutada: qtd, unidadeProducao: 'm²',
+            responsavel: etapa === 'Pintura' ? 'Pintura Silva' : 'Marcos Empreitada'
           });
           o.cronograma.push(e2);
+        });
+        /* dependências fim→início (0017): o que espera o quê */
+        const idEtapa = (nome) => (o.cronograma.find((x) => x.etapa === nome) || {}).id;
+        [['Forro/gesso', ['Pisos e revestimentos']],
+         ['Instalação elétrica final', ['Forro/gesso']],
+         ['Pintura', ['Forro/gesso', 'Instalação elétrica final']],
+         ['Louças e metais', ['Pintura']],
+         ['Calçada', ['Muro']]
+        ].forEach(([etapa, antes]) => {
+          const x = o.cronograma.find((c) => c.etapa === etapa);
+          if (x) x.predecessoras = antes.map(idEtapa).filter(Boolean);
         });
 
         [[-7, 'Bom', 5, 'Pisos e revestimentos', 'Assentamento de porcelanato nas áreas sociais e quartos.', 'Falta rejunte — material chega quinta.'],
@@ -883,6 +907,22 @@ ACOES.exemplo = () => {
           Object.assign(r, { data: d(dd), clima, efetivo: ef, etapa, atividades: at, ocorrencias: oc, autor: 'Júlio César' });
           o.diario.push(r);
         });
+        /* diário de campo (0017) e ocorrência como pendência (0015) */
+        Object.assign(o.diario[0], {
+          climaManha: 'Bom', climaTarde: 'Bom', equipamentos: 'Cortadora de piso, betoneira',
+          efetivoFuncoes: [{ funcao: 'Pedreiro', qtd: 2 }, { funcao: 'Servente', qtd: 2 }, { funcao: 'Azulejista', qtd: 1 }],
+          progressoEtapa: 0.6, ocorrenciaStatus: 'aberta', ocorrenciaResponsavel: 'Marcos Empreitada', ocorrenciaPrazo: d(1)
+        });
+        Object.assign(o.diario[1], {
+          climaManha: 'Chuva fraca', climaTarde: 'Nublado', impactaPrazo: true, diasImpacto: 1,
+          efetivoFuncoes: [{ funcao: 'Gesseiro', qtd: 2 }, { funcao: 'Ajudante', qtd: 1 }], progressoEtapa: 0.4
+        });
+
+        /* o que o cliente deve à obra (0018) */
+        o.pendenciasCliente.push(
+          Object.assign(novaPendenciaCliente(), { descricao: 'Escolher a cor da fachada', prazo: d(-2), criadaEm: d(-12) }),
+          Object.assign(novaPendenciaCliente(), { descricao: 'Aprovar o layout da cozinha', prazo: d(6), criadaEm: d(-3) }),
+        );
 
         e.obras.push(o);
         App.rota.obraId = o.id;

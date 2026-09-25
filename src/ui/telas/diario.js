@@ -79,9 +79,11 @@ function kpisDiario(ind, totFotos) {
       ind.ocorrenciasAbertas,
       ind.ocorrenciasVencidas
         ? `${ind.ocorrenciasVencidas} com prazo vencido`
-        : ind.ocorrenciasResolvidas
-          ? `${ind.ocorrenciasResolvidas} resolvida${ind.ocorrenciasResolvidas === 1 ? '' : 's'}`
-          : 'nenhuma pendência',
+        : ind.ocorrenciasAbertas
+          ? 'dentro do prazo'
+          : ind.ocorrenciasResolvidas
+            ? `${ind.ocorrenciasResolvidas} resolvida${ind.ocorrenciasResolvidas === 1 ? '' : 's'}`
+            : 'nenhuma pendência',
       ind.ocorrenciasVencidas ? 'atraso' : ind.ocorrenciasAbertas ? 'tom-alerta' : '',
       true,
     )}

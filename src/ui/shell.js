@@ -122,6 +122,21 @@ const TITULOS = {
   admin: ['Contas e acessos', 'Uso por conta e liberação de acesso por aba']
 };
 
+/* Papel na obra (0004/0014). O cliente acompanha: cronograma, diário
+   com fotos e o relatório de status. Caixa, custo, margem, contratos e
+   prestadores são da construtora. Engenheiro vê tudo da obra (o que ele
+   não pode — equipe, excluir obra — a própria tela já esconde). O banco
+   é quem garante (RLS); a tela só concorda com ele. */
+const VIEWS_CLIENTE = new Set(['cronograma', 'diario', 'relatorio']);
+const papelAtual = (obraId) =>
+  Store.backend === 'supabase' && obraId ? SUPA.papelNaObra(obraId) : 'dono';
+const ehClienteDaObra = (obraId) => papelAtual(obraId) === 'cliente';
+function viewPermitida(view, obraId) {
+  return !ehClienteDaObra(obraId) || VIEWS_CLIENTE.has(view);
+}
+/* obras que entram nos números da construtora (Carteira) */
+const obrasDaConstrutora = () => Store.estado.obras.filter((o) => !ehClienteDaObra(o.id));
+
 const VIEWS_OBRA = new Set(
   MENU.flatMap((g) => g.itens.filter((i) => g.obra || i.obra).map((i) => i.v)),
 );
@@ -153,6 +168,8 @@ const App = {
       if (!primeira) { toast('Cadastre uma obra primeiro.', 'aviso'); view = 'carteira'; }
       else this.rota.obraId = primeira.id;
     }
+    /* cliente só vê o que é dele */
+    if (VIEWS_OBRA.has(view) && !viewPermitida(view, this.rota.obraId)) view = 'cronograma';
     this.rota.view = view;
     this.filtros = {};
     document.body.classList.remove('menu-aberto');
@@ -162,6 +179,9 @@ const App = {
   },
 
   render() {
+    if (VIEWS_OBRA.has(this.rota.view) && !viewPermitida(this.rota.view, this.rota.obraId)) {
+      this.rota.view = 'cronograma';
+    }
     this.renderRail();
     this.renderTopo();
     this.renderConteudo();
@@ -205,7 +225,10 @@ const App = {
     const nav = MENU.map((g) => {
       if (g.obra && !obras.length) return '';
       if (g.soAdmin && !SUPA.ehAdmin) return '';
-      const itens = g.itens.filter((it) => SUPA.abaLiberada(it.v)).map((it) => {
+      const itens = g.itens.filter((it) => SUPA.abaLiberada(it.v))
+        /* numa obra em que a pessoa é cliente, o menu mostra só o dela */
+        .filter((it) => !((g.obra || it.obra) && obra && !viewPermitida(it.v, obra.id)))
+        .map((it) => {
         const ativo = this.rota.view === it.v ? ' aria-current="page"' : '';
         let n = 0;
         let crit = false;
@@ -699,6 +722,11 @@ function selectFiltro(id, opcoes, rotulo) {
 }
 
 export {
+  VIEWS_CLIENTE,
+  papelAtual,
+  ehClienteDaObra,
+  viewPermitida,
+  obrasDaConstrutora,
   partesNomeObra,
   ICO,
   svg,

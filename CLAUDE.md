@@ -129,9 +129,9 @@ Um termo para cada coisa, em todas as telas, PDFs e alertas:
 
 ## Pendências conhecidas
 
-- **UI cega a papel.** `SUPA.papelNaObra()` / `SUPA.podeEditarObra()` existem,
-  mas nenhuma tela ramifica por papel ainda, e não há tela para convidar
-  engenheiro/cliente. O banco recusa a escrita indevida (RLS); a tela ainda não.
+- **Papel na tela.** O cliente vê só cronograma, diário e o relatório de status
+  (`viewPermitida`, `VIEWS_CLIENTE` em `ui/shell.js`); obra em que a pessoa é
+  cliente não entra na Carteira. O banco continua sendo quem garante (RLS).
 - **Offline é por aparelho.** Sem rede, o que é gravado fica no localStorage e
   vai ao banco quando a rede volta (`Store`, `public/sw.js`). Com a
   carimbo de versão (abaixo), duas pessoas editando a mesma linha offline:

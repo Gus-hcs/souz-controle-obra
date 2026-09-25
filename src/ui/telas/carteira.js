@@ -46,7 +46,7 @@ import {
 import { graficoCurvaS } from '../../graficos/index.js';
 import { fmtIndice, tomNivel } from './componentes.js';
 import { Store } from '../../dados/store.js';
-import { App, ICO, botao, nomeCliente, partesNomeObra, svg } from '../shell.js';
+import { App, ICO, botao, nomeCliente, obrasDaConstrutora, partesNomeObra, svg } from '../shell.js';
 import { VIEWS, fraseAncoraHTML, rotuloAcao } from '../telas-obra.js';
 
 /* Estado só de tela — não é dado, não vai para o Store. */
@@ -79,7 +79,8 @@ function dadosObra(o) {
    calculados sobre a base — clicar num KPI filtra a lista, não o KPI. */
 function base() {
   const busca = (App.filtros.carteiraBusca || '').trim().toLowerCase();
-  return Store.estado.obras.filter((o) => {
+  /* obra em que a pessoa é cliente não entra nos números da construtora */
+  return obrasDaConstrutora().filter((o) => {
     if (tela.filtro === 'andamento' && o.status === 'Concluída') return false;
     if (tela.filtro === 'concluidas' && o.status !== 'Concluída') return false;
     if (!busca) return true;
@@ -578,6 +579,16 @@ function baixo(obras) {
 /* ------------------------------------------------------------- tela */
 
 VIEWS.carteira = () => {
+  /* só acompanha obras como cliente: a carteira dele são essas obras */
+  if (Store.estado.obras.length && !obrasDaConstrutora().length) {
+    return `<div class="vazio" data-testid="carteira-cliente">
+      <h4>Suas obras</h4>
+      <p>Você acompanha ${Store.estado.obras.length === 1 ? 'esta obra' : 'estas obras'} como cliente: cronograma, diário com fotos e o relatório de status.</p>
+      <div class="acoes">${Store.estado.obras
+        .map((o) => botao(esc(o.nome), 'ir', { view: 'cronograma', obra: o.id }, 'btn'))
+        .join('')}</div>
+    </div>`;
+  }
   if (!Store.estado.obras.length) {
     return `<div class="vazio" data-testid="carteira-vazia">
       <h4>Nenhuma obra cadastrada</h4>
