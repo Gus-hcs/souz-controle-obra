@@ -82,6 +82,20 @@
   --inspetor-w: 300px; /* painel inspetor à direita */
   --leitura-max: 1080px; /* telas de leitura e formulário: Configuração, Ajustes, Relatório */
 
+  /* ------------------------------------------------ barras pretas
+     A lateral esquerda e a barra de cima são pretas nos DOIS temas — a
+     moldura da marca. Dentro delas vale esta paleta escura (interface.css
+     remapeia os tokens de texto e controle no #rail e no #topo). */
+  --barra-fundo: #000000;
+  --barra-tinta: #e8e8e8; /* Névoa */
+  --barra-tinta2: #adadad; /* Cinza */
+  --barra-tinta3: #8a9894;
+  --barra-acento-texto: #2fd4c4; /* Ciano Claro */
+  --barra-ctrl: #0e1a17; /* Grafite: busca, seletor de obra, segmentado */
+  --barra-ctrl-ativo: #173934;
+  --barra-separador: #1c2e2a;
+  --barra-separador-forte: #2a423d;
+
   /* ------------------------------------------------------ camadas
      Claro = o "Papel" do manual (#EDEFEE) na sidebar e nos fundos
      agrupados; conteúdo e cartão na superfície clara (#FBFCFB). */

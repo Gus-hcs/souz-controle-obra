@@ -3119,3 +3119,29 @@ table.lista td.num span {
 .pilula {
   border-radius: var(--r-btn);
 }
+
+/* ------------------------------------------------ barras pretas
+   Lateral esquerda e barra de cima pretas nos dois temas. Os tokens de
+   texto, controle e separador são remapeados aqui dentro para a paleta
+   escura da barra (tokens.css, --barra-*): no tema claro, o que está nas
+   barras fica claro sobre o preto; o resto da tela segue o tema. */
+#rail,
+#topo {
+  color-scheme: dark;
+  --fundo-lateral: var(--barra-fundo);
+  --fundo-lateral-solido: var(--barra-fundo);
+  --fundo-toolbar: var(--barra-fundo);
+  --fundo-campo: var(--barra-ctrl);
+  --fundo-ctrl: var(--barra-ctrl);
+  --fundo-ctrl-ativo: var(--barra-ctrl-ativo);
+  --fundo-hover: rgba(232, 232, 232, 0.07);
+  --tinta: var(--barra-tinta);
+  --tinta2: var(--barra-tinta2);
+  --tinta3: var(--barra-tinta3);
+  --separador: var(--barra-separador);
+  --separador-forte: var(--barra-separador-forte);
+  --acento-texto: var(--barra-acento-texto);
+  --acento-fraco: var(--barra-ctrl-ativo);
+  --foco: var(--barra-acento-texto);
+  color: var(--tinta);
+}

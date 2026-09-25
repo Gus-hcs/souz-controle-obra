@@ -73,6 +73,13 @@ const PARES = [
   ['--serie4', '--fundo-conteudo', 3],
   ['--serie5', '--fundo-conteudo', 3],
   ['--serie6', '--fundo-conteudo', 3],
+  /* barras pretas (lateral e topo), iguais nos dois temas */
+  ['--barra-tinta', '--barra-fundo', 4.5],
+  ['--barra-tinta2', '--barra-fundo', 4.5],
+  ['--barra-tinta3', '--barra-fundo', 4.5],
+  ['--barra-acento-texto', '--barra-fundo', 4.5],
+  ['--barra-tinta', '--barra-ctrl', 4.5],
+  ['--barra-tinta2', '--barra-ctrl', 4.5],
 ];
 
 for (const [tema, tabela] of [
