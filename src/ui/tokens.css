@@ -82,14 +82,16 @@
   --inspetor-w: 300px; /* painel inspetor à direita */
   --leitura-max: 1080px; /* telas de leitura e formulário: Configuração, Ajustes, Relatório */
 
-  /* ------------------------------------------------ barras pretas
-     A lateral esquerda e a barra de cima são pretas nos DOIS temas — a
-     moldura da marca. Dentro delas vale esta paleta escura (interface.css
+  /* ------------------------------------------------ barras petróleo
+     A lateral esquerda e a barra de cima são petróleo escuro nos DOIS
+     temas — a moldura da marca. Escuro o bastante para os três tons de
+     texto passarem 4,5:1 (tests/contraste.test.js); o #096a61 deixava o
+     cinza em 2,9:1. Dentro delas vale esta paleta escura (interface.css
      remapeia os tokens de texto e controle no #rail e no #topo). */
-  --barra-fundo: #000000;
+  --barra-fundo: #053f3a;
   --barra-tinta: #e8e8e8; /* Névoa */
   --barra-tinta2: #adadad; /* Cinza */
-  --barra-tinta3: #8a9894;
+  --barra-tinta3: #97a8a5; /* 4,8:1 sobre o petróleo */
   --barra-acento-texto: #2fd4c4; /* Ciano Claro */
   --barra-ctrl: #0e1a17; /* Grafite: busca, seletor de obra, segmentado */
   --barra-ctrl-ativo: #173934;

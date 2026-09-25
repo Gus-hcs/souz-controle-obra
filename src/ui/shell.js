@@ -459,12 +459,6 @@ function botao(texto, acao, dados = {}, classe = 'btn', icone = '') {
   return `<button class="${classe}" data-acao="${acao}" ${attrs}>${icone ? svg(ICO[icone], 14) : ''}${texto}</button>`;
 }
 
-function acoesLinha(tipo, id) {
-  if (Store.somenteLeitura()) return '';
-  return `<button class="btn sutil pequeno" data-acao="editar-${tipo}" data-id="${id}" title="Editar" aria-label="Editar">${svg(ICO.lapis, 13)}</button>
-          <button class="btn sutil pequeno" data-acao="excluir-${tipo}" data-id="${id}" title="Excluir" aria-label="Excluir">${svg(ICO.lixo, 13)}</button>`;
-}
-
 /* ------------------------------------------------------------- modal */
 let modalAoSalvar = null;
 let modalValidar = null;
@@ -690,7 +684,6 @@ export {
   vazio,
   cartao,
   botao,
-  acoesLinha,
   modalAoSalvar,
   modalValidar,
   mostrarAvisosForm,

@@ -3270,6 +3270,15 @@ table.lista td.num span {
   --foco: var(--barra-acento-texto);
   color: var(--tinta);
 }
+/* Segmento ativo dentro da barra: o --fundo-elevado não é remapeado e
+   continuava branco sob o texto claro — "Todas" ficava ilegível. Aqui ele
+   inverte: fundo Névoa, texto petróleo (9,6:1). */
+#rail .segmentado button[aria-pressed='true'],
+#topo .segmentado button[aria-pressed='true'] {
+  background: var(--barra-tinta);
+  color: var(--barra-fundo);
+  box-shadow: none;
+}
 
 /* ================================================================
    Campo de obra (auditoria, Onda 2) — dedo, luva e sol
