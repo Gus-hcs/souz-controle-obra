@@ -2,8 +2,8 @@
  * acoes.js — Ações: tudo que um clique dispara — abrir formulário, salvar, excluir.
  */
 import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, uid } from '../nucleo/base.js';
-import { alertasObra, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, listaProtegida, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa, usoItensLista } from '../dominio/calculos.js';
-import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
+import { alertasObra, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, listaProtegida, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa, usoItensLista } from '../dominio/calculos.js';
+import { apenasErros, validarCliente, validarContrato, validarDiario, validarEtapasContrato, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, confirmarDigitando, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
@@ -378,6 +378,10 @@ function formContrato(c, novo, aoSalvar) {
       { secao: 'Prazo' },
       { k: 'inicioPrevisto', label: 'Início previsto', tipo: 'data', col: 3 },
       { k: 'fimPrevisto', label: 'Fim previsto', tipo: 'data', col: 3 },
+      /* etapas que ele executa (0016): o físico do contrato sai delas */
+      { k: 'etapas', label: 'Etapas que este contrato executa', tipo: 'multi', col: 12,
+        opcoes: [...new Set(o.cronograma.map((e) => e.etapa).filter(Boolean))],
+        dica: 'base do "medido × físico": medir mais de 5 p.p. à frente do físico vira pendência' },
       { secao: 'Observações' },
       { k: 'observacoes', label: 'Observações', tipo: 'area', col: 12 }
     ],
@@ -392,7 +396,7 @@ function formContrato(c, novo, aoSalvar) {
           · já pago em medições: ${fmtMoney(pago)} · saldo: <b>${fmtMoney(outros + v - pago)}</b>`
       };
     },
-    validar: (d) => validarContrato(d),
+    validar: (d) => [...validarContrato(d), ...validarEtapasContrato(d, o.cronograma)],
     aoSalvar: (d) => {
       if (!d.codigo) return toast('Informe o código do contrato.', 'aviso');
       if (!d.codigoBase) d.codigoBase = d.codigo;
@@ -559,6 +563,10 @@ function formRecebimento(r, novo, aoSalvar) {
       { k: 'valorPrevisto', label: 'Valor previsto', tipo: 'dinheiro', col: 3 },
       { k: 'dataSolicitacao', label: 'Data da solicitação', tipo: 'data', col: 3 },
       { k: 'percentObra', label: '% obra informado', tipo: 'pct', col: 3 },
+      /* parcela por marco físico (0016) — qualquer financiador */
+      { k: 'percentExigido', label: '% de obra exigido', tipo: 'pct', col: 3, dica: 'o que o financiador exige para liberar' },
+      { k: 'dataVistoria', label: 'Data da vistoria', tipo: 'data', col: 3 },
+      { k: 'dataAprovacao', label: 'Data da aprovação', tipo: 'data', col: 3 },
       { k: 'valorAprovado', label: 'Valor aprovado', tipo: 'dinheiro', col: 3 },
       { k: 'descontos', label: 'Descontos / tarifas', tipo: 'dinheiro', col: 3 },
       { k: 'dataRecebimento', label: 'Data do recebimento', tipo: 'data', col: 3 },
@@ -584,7 +592,10 @@ function formRecebimento(r, novo, aoSalvar) {
 ACOES['novo-recebimento'] = () => {
   const o = App.obra();
   const r = novoRecebimento();
-  r.numeroMedicao = String(o.recebimentos.filter((x) => x.origem === 'CAIXA').length + 1);
+  /* próxima parcela do financiador, seja ele quem for */
+  r.numeroMedicao = String(o.recebimentos.filter((x) => recebimentoDoFinanciamento(x)).length + 1);
+  const fin = String(o.fin.financiador || '').trim();
+  if (fin && opcoesLista('origensRecebimento').includes(fin)) r.origem = fin;
   formRecebimento(r, true, () => { mutar(() => { o.recebimentos.push(r); }); toast('Parcela cadastrada.', 'ok'); });
 };
 ACOES['editar-recebimento'] = (el, d) => {
@@ -760,6 +771,9 @@ function formEtapa(e, novo, aoSalvar) {
       { k: 'quantidadeExecutada', label: 'Quantidade executada', tipo: 'numero', col: 3 },
       { k: 'unidadeProducao', label: 'Unidade de produção', tipo: 'select', opcoes: opcoesLista('unidades'), col: 3 },
       { k: 'peso', label: 'Peso na curva S (%)', tipo: 'pct', col: 3, dica: 'vazio = pela duração' },
+      /* planilha do financiador (0016): PLS/PCI na CAIXA, cronograma físico-financeiro nos outros */
+      { k: 'itemFinanciador', label: 'Item na planilha do financiador', tipo: 'texto', col: 3, placeholder: 'ex.: 3.2' },
+      { k: 'pesoFinanciador', label: 'Peso na planilha do financiador (%)', tipo: 'pct', col: 3 },
       { k: 'sit', label: 'Situação', tipo: 'calc', col: 12 }
     ],
     valores: e,

@@ -415,9 +415,16 @@ function competenciasObra(obra, minimo = 12) {
   return out;
 }
 
-function fluxoCaixa(obra) {
+function fluxoCaixa(obra, hoje = hojeISO()) {
   const meses = competenciasObra(obra);
   let acumulado = num(obra.fin.saldoInicial);
+  /* Parcela vencida (prevista antes de hoje, sem crédito) sai do mês
+     original: aparece como "vencido" no mês corrente, onde ainda pode
+     entrar — deixá-la em junho mentia sobre o caixa de junho. */
+  const aReceber = (r) => r.status !== 'Recebido' && r.status !== 'Cancelado' && isISO(r.dataPrevista);
+  const vencida = (r) => aReceber(r) && r.dataPrevista < hoje;
+  const valorAReceber = (r) => recebimentoLiquido(r) || num(r.valorPrevisto);
+  const ymHoje = competencia(hoje);
   return meses.map((ym) => {
     const entradas = obra.recebimentos
       .filter((r) => r.status !== 'Cancelado' && competencia(r.dataRecebimento) === ym)
@@ -432,14 +439,17 @@ function fluxoCaixa(obra) {
     const saldoMes = entradas - saidas;
     acumulado += saldoMes;
     const previstasNaoRecebidas = obra.recebimentos
-      .filter((r) => competencia(r.dataPrevista) === ym && r.status !== 'Recebido' && r.status !== 'Cancelado')
-      .reduce((s, r) => s + (recebimentoLiquido(r) || num(r.valorPrevisto)), 0);
+      .filter((r) => aReceber(r) && !vencida(r) && competencia(r.dataPrevista) === ym)
+      .reduce((s, r) => s + valorAReceber(r), 0);
+    const vencidasNaoRecebidas = ym !== ymHoje ? 0 : obra.recebimentos
+      .filter(vencida)
+      .reduce((s, r) => s + valorAReceber(r), 0);
     const medicoesNaoPagas = obra.medicoes
       .filter((m) => competencia(m.data) === ym && m.status !== 'Cancelado')
       .reduce((s, m) => s + medicaoAPagar(obra, m), 0);
     return {
       ym, entradas, medicoes, outras, saidas, saldoMes,
-      acumulado, previstasNaoRecebidas, medicoesNaoPagas
+      acumulado, previstasNaoRecebidas, vencidasNaoRecebidas, medicoesNaoPagas
     };
   });
 }
@@ -644,6 +654,11 @@ function curvaS(obra) {
   const fluxo = fluxoCaixa(obra);
   const custoTotal = k.custoPrevisto || 1;
   let acumDesembolso = 0;
+  /* liberado acumulado pelo financiador (0016): dinheiro dele que já
+     entrou até o fim do mês, sobre o valor financiado */
+  const financiado = num(obra.fin.valorFinanciado);
+  const creditos = obra.recebimentos.filter((r) =>
+    r.status !== 'Cancelado' && recebimentoDoFinanciamento(r) && isISO(r.dataRecebimento));
   return meses.map((ym, i) => {
     const ref = fimDoMes(ym);
     /* O mês corrente é medido até hoje — assim o último ponto realizado
@@ -663,9 +678,223 @@ function curvaS(obra) {
       financeiroPrevisto: fisicoPrev,
       financeiroRealizado: futuro ? null : acumDesembolso / custoTotal,
       desembolsoAcumulado: acumDesembolso,
+      liberadoFinanciador: futuro || !(financiado > 0) ? null
+        : creditos.filter((r) => r.dataRecebimento <= refReal)
+          .reduce((s, r) => s + num(r.valorRecebido), 0) / financiado,
       desvio: fisicoReal === null ? null : fisicoReal - fisicoPrev
     };
   });
+}
+
+/* ============================================ FINANCIADOR (0016)
+   Qualquer construtora, qualquer financiador: CAIXA, outro banco,
+   consórcio ou o próprio cliente pagando por marco. O dinheiro é
+   liberado em parcelas, cada uma exigindo um % de obra executada,
+   medido pela planilha do financiador (PLS/PCI na CAIXA; cronograma
+   físico-financeiro nos outros). */
+
+/* "CAIXA", "Banco do Brasil"… ou "financiador" quando não informado. */
+function nomeFinanciador(obra) {
+  return String((obra.fin && obra.fin.financiador) || '').trim() || 'financiador';
+}
+
+/* Físico pelo olhar do financiador: pelos pesos da planilha dele, se
+   cadastrados; senão, o físico da obra (pesos do cronograma). */
+function fisicoFinanciador(obra) {
+  const soma = obra.cronograma.reduce((s, e) => s + num(e.pesoFinanciador), 0);
+  if (soma <= 0) return { fisico: kpisObra(obra).progressoFisico, porPlanilha: false };
+  const f = obra.cronograma.reduce(
+    (s, e) => s + num(e.pesoFinanciador) * Math.min(1, Math.max(0, num(e.progresso))), 0) / soma;
+  return { fisico: f, porPlanilha: true };
+}
+
+/* Onde a parcela está: prevista → solicitada → vistoriada → aprovada →
+   creditada. Sai das datas (e do status, para dado antigo). */
+const PROCESSO_PARCELA = ['prevista', 'solicitada', 'vistoriada', 'aprovada', 'creditada'];
+function processoParcela(r) {
+  if (r.status === 'Cancelado') return 'cancelada';
+  if (num(r.valorRecebido) > 0.005 || r.status === 'Recebido') return 'creditada';
+  if (isISO(r.dataAprovacao) || r.status === 'Aprovado') return 'aprovada';
+  if (isISO(r.dataVistoria)) return 'vistoriada';
+  if (isISO(r.dataSolicitacao) || r.status === 'Solicitado') return 'solicitada';
+  return 'prevista';
+}
+
+/* As parcelas do financiador, em ordem, com o andamento de cada uma.
+   Vencida: passou da data prevista e não foi creditada — sai do mês
+   original e vai para "vencido" no Fluxo e em Recebimentos. */
+function parcelasFinanciador(obra, hoje = hojeISO()) {
+  return obra.recebimentos
+    .filter((r) => r.status !== 'Cancelado' && recebimentoDoFinanciamento(r))
+    .slice()
+    .sort((a, b) => String(a.dataPrevista || '9999').localeCompare(String(b.dataPrevista || '9999')) ||
+      String(a.numeroMedicao).localeCompare(String(b.numeroMedicao), 'pt', { numeric: true }))
+    .map((r) => {
+      const etapa = processoParcela(r);
+      return {
+        r,
+        etapa,
+        passo: PROCESSO_PARCELA.indexOf(etapa),
+        exigido: num(r.percentExigido),
+        valor: recebimentoLiquido(r) || num(r.valorPrevisto),
+        vencida: etapa !== 'creditada' && isISO(r.dataPrevista) && r.dataPrevista < hoje,
+        diasSolicitada: etapa !== 'creditada' && isISO(r.dataSolicitacao)
+          ? Math.max(0, diasEntre(r.dataSolicitacao, hoje)) : null,
+      };
+    });
+}
+
+/* A próxima parcela e a decisão que ela pede:
+   - 'aguardar': já pedida (solicitada/vistoriada/aprovada) — cobrar o
+     financiador, há N dias;
+   - 'pedir': o físico já passou do exigido — pedir a vistoria agora;
+   - 'concluir': falta obra — e quais etapas, na ordem de término, fecham
+     a diferença;
+   - 'sem-meta': a parcela não tem % exigido cadastrado. */
+function proximaParcelaFinanciador(obra, hoje = hojeISO()) {
+  const pendentes = parcelasFinanciador(obra, hoje).filter((p) => p.etapa !== 'creditada');
+  if (!pendentes.length) return null;
+  const p = pendentes[0];
+  const { fisico, porPlanilha } = fisicoFinanciador(obra);
+  const falta = p.exigido > 0 ? Math.max(0, p.exigido - fisico) : null;
+  let decisao;
+  if (p.passo >= 1) decisao = 'aguardar';
+  else if (p.exigido <= 0) decisao = 'sem-meta';
+  else decisao = falta <= 0.0005 ? 'pedir' : 'concluir';
+
+  /* etapas que fecham a diferença: incompletas, pela data de término */
+  const etapas = [];
+  if (decisao === 'concluir') {
+    const pesos = pesosCronograma(obra);
+    const somaFin = obra.cronograma.reduce((s, e) => s + num(e.pesoFinanciador), 0);
+    const peso = (e) => (porPlanilha ? num(e.pesoFinanciador) / somaFin : pesos.get(e.id) || 0);
+    let acum = 0;
+    obra.cronograma
+      .filter((e) => num(e.progresso) < 1 && peso(e) > 0)
+      .sort((a, b) => String(a.fimPrevisto || '9999').localeCompare(String(b.fimPrevisto || '9999')))
+      .forEach((e) => {
+        if (acum >= falta - 1e-9) return;
+        const contribui = peso(e) * (1 - Math.min(1, Math.max(0, num(e.progresso))));
+        acum += contribui;
+        etapas.push({ id: e.id, etapa: e.etapa, falta: contribui, progresso: num(e.progresso) });
+      });
+  }
+  return { ...p, fisico, porPlanilha, falta, decisao, etapas, financiador: nomeFinanciador(obra) };
+}
+
+/* Memória de medição no layout da planilha do financiador: item, serviço,
+   peso, executado e contribuição — pelos pesos do financiador quando
+   cadastrados; senão, pelos do cronograma. "A solicitar" = físico ×
+   financiado − já liberado pelo financiador (entrada do cliente não
+   abate). */
+function memoriaMedicao(obra) {
+  const k = kpisObra(obra);
+  const { fisico, porPlanilha } = fisicoFinanciador(obra);
+  const pesos = pesosCronograma(obra);
+  const somaFin = obra.cronograma.reduce((s, e) => s + num(e.pesoFinanciador), 0);
+  const linhas = obra.cronograma
+    .filter((e) => !porPlanilha || num(e.pesoFinanciador) > 0)
+    .map((e) => {
+      const peso = porPlanilha ? num(e.pesoFinanciador) / somaFin : pesos.get(e.id) || 0;
+      const executado = Math.min(1, Math.max(0, num(e.progresso)));
+      return { item: e.itemFinanciador || '', etapa: e.etapa, peso, executado, contribuicao: peso * executado,
+        situacao: etapaCalc(e).situacao };
+    })
+    .sort((a, b) => (a.item && b.item ? a.item.localeCompare(b.item, 'pt', { numeric: true }) : 0));
+  return {
+    linhas,
+    fisico,
+    porPlanilha,
+    financiador: nomeFinanciador(obra),
+    financiado: k.financiado,
+    liberado: k.recebidoFinanciamento,
+    aSolicitar: Math.max(0, round2(fisico * k.financiado - k.recebidoFinanciamento)),
+  };
+}
+
+/* Os números de Recebimentos. Parcela vencida (passou da data prevista
+   sem crédito) sai do mês original e vai para o balde "vencido" — no
+   mês dela já não vai entrar, e somar lá mentia sobre o caixa. */
+function resumoRecebimentos(obra, hoje = hojeISO()) {
+  const naoRecebido = (r) => r.status !== 'Recebido' && r.status !== 'Cancelado';
+  const atrasada = (r) => naoRecebido(r) && isISO(r.dataPrevista) && r.dataPrevista < hoje;
+  const atrasadas = obra.recebimentos.filter(atrasada);
+  const pendentes = obra.recebimentos.filter(naoRecebido);
+  const meses = new Map();
+  let vencido = 0;
+  pendentes.forEach((r) => {
+    const v = num(r.valorPrevisto);
+    if (atrasada(r)) vencido += v;
+    else if (isISO(r.dataPrevista)) {
+      const ym = competencia(r.dataPrevista);
+      meses.set(ym, (meses.get(ym) || 0) + v);
+    }
+  });
+  return {
+    atrasadas,
+    totAtrasado: round2(atrasadas.reduce((s, r) => s + num(r.valorPrevisto), 0)),
+    pendentes,
+    descontos: round2(obra.recebimentos.reduce((s, r) => s + num(r.descontos), 0)),
+    vencido: round2(vencido),
+    porMes: [...meses.entries()].sort().map(([ym, valor]) => ({ ym, valor: round2(valor) })),
+  };
+}
+
+/* Liberado × executado: quanto do financiamento já entrou contra quanto
+   da obra já foi feito. Executado à frente = a construtora está bancando
+   a diferença com caixa próprio. null sem valor financiado. */
+function liberadoExecutado(obra) {
+  const k = kpisObra(obra);
+  if (!(k.financiado > 0)) return null;
+  const { fisico } = fisicoFinanciador(obra);
+  const liberado = k.liberadoFinanciamento || 0;
+  const gap = (fisico - liberado) * k.financiado;
+  return {
+    liberado,
+    executado: fisico,
+    bancando: Math.max(0, round2(gap)),
+    adiantado: Math.max(0, round2(-gap)),
+    financiado: k.financiado,
+    financiador: nomeFinanciador(obra),
+  };
+}
+
+/* Medido × físico de um contrato. O físico é o das etapas ligadas a ele
+   (contrato.etapas); sem etapas ligadas, só a empreitada global (≥ 50%
+   do contratado da obra) compara com o físico da obra toda — subcontrato
+   pequeno sem etapas não tem com o que comparar (null). */
+function medidoFisicoContrato(obra, base) {
+  const ind = indicadoresContrato(obra, base);
+  if (!(ind.autorizado > 0.005)) return null;
+  const registros = obra.contratos.filter((c) => (c.codigoBase || c.codigo) === base);
+  const principal = registros.find((c) => c.registro === 'Contrato') || registros[0] || {};
+  const nomes = new Set((principal.etapas || []).map((n) => norm(n)));
+  const pesos = pesosCronograma(obra);
+  const sel = obra.cronograma.filter((e) => nomes.has(norm(e.etapa)));
+  let fisico;
+  let pelaObra = false;
+  if (sel.length) {
+    const soma = sel.reduce((s, e) => s + (pesos.get(e.id) || 0), 0);
+    fisico = soma > 0
+      ? sel.reduce((s, e) => s + (pesos.get(e.id) || 0) * Math.min(1, Math.max(0, num(e.progresso))), 0) / soma
+      : 0;
+  } else {
+    const contratado = kpisObra(obra).contratado;
+    if (!(contratado > 0) || ind.autorizado / contratado < 0.5) return null;
+    fisico = kpisObra(obra).progressoFisico;
+    pelaObra = true;
+  }
+  const medido = ind.medido / ind.autorizado;
+  const diferenca = medido - fisico;
+  return {
+    medido,
+    fisico,
+    pelaObra,
+    diferenca,
+    adiantado: Math.max(0, round2(diferenca * ind.autorizado)),
+    /* medido mais de 5 p.p. à frente do físico: pagou serviço não feito */
+    alerta: diferenca > 0.05,
+  };
 }
 
 /* -------------------------------------------------------- ALERTAS  */
@@ -690,6 +919,15 @@ function alertasObra(obra) {
 
   /* Contratos */
   basesContratuais(obra).forEach((b) => {
+    /* medido mais de 5 p.p. à frente do físico (0016): pagou por serviço
+       que ainda não está na obra */
+    const mf = medidoFisicoContrato(obra, b.base);
+    if (mf && mf.alerta) {
+      add('medido-adiantado', 2, 'Contratos', `Contrato ${b.base} medido à frente do físico`,
+        `Medido ${fmtPct(mf.medido, 0)} contra ${fmtPct(mf.fisico, 0)} de físico${mf.pelaObra ? ' da obra' : ' das etapas dele'} — ${fmtMoney(mf.adiantado)} adiantados.`,
+        'Segurar a próxima medição até o físico alcançar.', { view: 'contratos', id: b.base },
+        { valor: mf.adiantado });
+    }
     if (b.saldo < -0.005) {
       add('contrato-ultrapassado', 3, 'Contratos', `Contrato ${b.base} ultrapassado`,
         `Pago ${fmtMoney(b.pago)} contra ${fmtMoney(b.autorizado)} autorizados.`,
@@ -990,7 +1228,7 @@ function implantacaoObra(obra) {
     },
     {
       v: 'recebimentos', fase: 'executar', rotulo: 'Registrar um recebimento',
-      dica: 'Parcela da CAIXA, do cliente ou de recursos próprios.',
+      dica: 'Parcela do financiador, do cliente ou de recursos próprios.',
       feito: (o.recebimentos || []).length > 0,
     },
     {
@@ -2127,6 +2365,16 @@ export {
   estouroContratos,
   saudeObra,
   saudeCliente,
+  nomeFinanciador,
+  fisicoFinanciador,
+  PROCESSO_PARCELA,
+  processoParcela,
+  parcelasFinanciador,
+  proximaParcelaFinanciador,
+  liberadoExecutado,
+  resumoRecebimentos,
+  memoriaMedicao,
+  medidoFisicoContrato,
   empreitadaPrincipal,
   fotosDaSemana,
   situacaoObraCalculada,

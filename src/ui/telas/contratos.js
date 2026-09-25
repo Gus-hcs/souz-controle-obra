@@ -29,6 +29,7 @@ import {
   indicadoresContrato,
   medicaoAPagar,
   medicaoLiquido,
+  medidoFisicoContrato,
 } from '../../dominio/calculos.js';
 import { Store, mutar } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
@@ -137,6 +138,8 @@ function linhaDados(o, b) {
     ),
   ].join('\n');
   return {
+    /* medido × físico (0016): null quando não há com o que comparar */
+    mf: medidoFisicoContrato(o, b.base),
     base: b.base,
     registros,
     principal,
@@ -315,12 +318,22 @@ function celulaProgresso(l) {
   const base = l.ind.autorizado > 0 ? l.ind.autorizado : 0;
   const pctMedido = base > 0 ? Math.min(1, l.ind.medido / base) : 0;
   const pctPago = base > 0 ? Math.min(1, l.ind.pago / base) : 0;
-  return `<div class="barra-dupla">
+  /* marca do físico na barra: medir à frente dela é pagar serviço que
+     ainda não está na obra (medidoFisicoContrato, alerta acima de 5 p.p.) */
+  const mf = l.mf;
+  const marca = mf
+    ? `<b class="marca-fisico${mf.alerta ? ' acima' : ''}" style="left:${(Math.min(1, mf.fisico) * 100).toFixed(1)}%"></b>`
+    : '';
+  const titulo = mf
+    ? `físico ${fmtPct(mf.fisico, 0)}${mf.pelaObra ? ' (da obra)' : ' (das etapas do contrato)'}${mf.alerta ? ` — medido à frente: ${fmtMoney(mf.adiantado, { dec: 0 })} adiantados` : ''}`
+    : '';
+  return `<div class="barra-dupla"${titulo ? ` title="${esc(titulo)}"` : ''}>
     <span class="trilha">
       <i class="medido" style="width:${(pctMedido * 100).toFixed(1)}%"></i>
       <i class="pago" style="width:${(pctPago * 100).toFixed(1)}%"></i>
+      ${marca}
     </span>
-    <span class="txt">Medido ${fmtPct(pctMedido, 0)} · Pago ${fmtPct(pctPago, 0)}</span>
+    <span class="txt${mf && mf.alerta ? ' atraso' : ''}">Medido ${fmtPct(pctMedido, 0)} · Pago ${fmtPct(pctPago, 0)}</span>
   </div>`;
 }
 
@@ -500,6 +513,15 @@ function inspetorContrato(o, l) {
       <div class="inspetor-secao"><h3>Números</h3><dl class="pares">
         ${linhaNum('Autorizado', fmtMoney(ind.autorizado, { dec: 0 }))}
         ${linhaNum('Medido', fmtMoney(ind.medido, { dec: 0 }))}
+        ${
+          l.mf
+            ? linhaNum(
+                'Medido × físico',
+                `${fmtPct(l.mf.medido, 0)} × ${fmtPct(l.mf.fisico, 0)}${l.mf.pelaObra ? ' (obra)' : ''}${l.mf.alerta ? ` — ${fmtMoney(l.mf.adiantado, { dec: 0 })} adiantados` : ''}`,
+                l.mf.alerta ? 'atraso' : '',
+              )
+            : ''
+        }
         ${linhaNum('Pago', fmtMoney(ind.pago, { dec: 0 }))}
         ${ind.retido > 0.005 ? linhaNum('Retido', fmtMoney(ind.retido, { dec: 0 })) : ''}
         ${linhaNum('A pagar agora', fmtMoney(ind.aPagarAgora, { dec: 0 }), ind.aPagarAgora > 0.005 ? 'tom-alerta' : '')}

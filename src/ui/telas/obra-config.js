@@ -134,6 +134,10 @@ const SECOES = [
       },
       { k: 'fin.valorVenda', label: 'Valor de venda/contrato', tipo: 'dinheiro', col: 3 },
       { k: 'fin.margemDesejada', label: 'Margem desejada (%)', tipo: 'pct', col: 3 },
+      /* qualquer financiador (0016) — as telas usam este nome */
+      { k: 'fin.financiador', label: 'Financiador', tipo: 'lista', col: 4,
+        opcoes: ['CAIXA', 'Banco do Brasil', 'Itaú', 'Bradesco', 'Santander', 'Consórcio', 'Cliente (por marco)'],
+        dica: 'quem libera o dinheiro por avanço de obra' },
       { k: 'fin.contratoCaixa', label: 'Nº do contrato de financiamento', tipo: 'texto', col: 4 },
       { k: 'fin.dataAssinatura', label: 'Data da assinatura', tipo: 'data', col: 4 },
     ],

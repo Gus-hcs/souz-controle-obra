@@ -54,6 +54,9 @@ function graficoCurvaS(obraOuSerie, altura = 300) {
   const sFisPrev = serie('fisicoPrevisto');
   const sFisReal = serie('fisicoRealizado');
   const sFinReal = serie('financeiroRealizado');
+  /* liberado acumulado pelo financiador (0016): abaixo do físico = a
+     construtora está bancando a diferença */
+  const sLib = serie('liberadoFinanciador');
 
   const areaReal = sFisReal.length > 1
     ? `<path d="${caminho(sFisReal)} L ${sFisReal[sFisReal.length - 1][0].toFixed(1)} ${y0} L ${sFisReal[0][0].toFixed(1)} ${y0} Z" fill="url(#gradS)"/>` : '';
@@ -106,6 +109,7 @@ function graficoCurvaS(obraOuSerie, altura = 300) {
       `Físico previsto: ${fmtPct(d.fisicoPrevisto, 0)}`,
       d.fisicoRealizado === null ? null : `Físico realizado: ${fmtPct(d.fisicoRealizado, 0)}`,
       d.financeiroRealizado === null ? null : `Financeiro realizado: ${fmtPct(d.financeiroRealizado, 0)}`,
+      d.liberadoFinanciador == null ? null : `Liberado pelo financiador: ${fmtPct(d.liberadoFinanciador, 0)}`,
       d.financeiroRealizado === null || d.desembolsoAcumulado === undefined ? null : `Desembolso: ${fmtMoney(d.desembolsoAcumulado, { dec: 0 })}`
     ].filter(Boolean).join('<br>'))
   };
@@ -149,6 +153,7 @@ function graficoCurvaS(obraOuSerie, altura = 300) {
     <span style="color:var(--s1)"><i style="background:var(--s1)"></i>Físico realizado</span>
     <span style="color:var(--s1)"><i class="traco"></i>Físico previsto</span>
     <span style="color:var(--s3)"><i style="background:var(--s3)"></i>Financeiro realizado</span>
+    ${sLib.length > 1 ? '<span style="color:var(--serie4)"><i style="background:var(--serie4)"></i>Liberado pelo financiador</span>' : ''}
     ${legendaTendencia}
   </div>
   <div class="grafico-cx" data-grafico="${id}" style="position:relative">
@@ -162,6 +167,7 @@ function graficoCurvaS(obraOuSerie, altura = 300) {
       ${areaReal}
       ${linha(sFisPrev, 'var(--s1)', true)}
       ${tendencia}
+      ${linha(sLib, 'var(--serie4)', false, 1.6)}
       ${linha(sFinReal, 'var(--s3)', false)}
       ${linha(sFisReal, 'var(--s1)', false, 2.4)}
       ${fim(sFisReal, 'var(--s1)', ultReal ? fmtPct(ultReal.fisicoRealizado, 0) : '', ladoFis)}
@@ -379,7 +385,8 @@ function graficoGantt(obra) {
 function graficoBarras(itens, opcoes = {}) {
   const { formata = (v) => fmtMoney(v), cor = 'var(--s1)', max: maxForcado, manterZeros = false } = opcoes;
   const base = manterZeros ? itens.slice() : itens.filter((i) => num(i.valor) !== 0);
-  const lista = base.sort((a, b) => b.valor - a.valor).slice(0, opcoes.limite || 12);
+  /* manterOrdem: série no tempo (mês a mês) não se reordena por valor */
+  const lista = (opcoes.manterOrdem ? base : base.sort((a, b) => b.valor - a.valor)).slice(0, opcoes.limite || 12);
   if (!lista.length) return `<p style="color:var(--mudo);margin:0">Sem dados para exibir.</p>`;
   const max = maxForcado || Math.max(...lista.map((i) => Math.abs(i.valor))) || 1;
   return `<div style="display:flex;flex-direction:column;gap:9px">${lista.map((i) => `

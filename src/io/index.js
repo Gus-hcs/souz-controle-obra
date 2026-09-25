@@ -2,7 +2,7 @@
  * index.js — Entrada e saída: importação de planilha MCMV, exportação CSV e PDF.
  */
 import { addDias, competencia, fmtData, fmtDataCurta, fmtMoney, fmtNum, fmtPct, hojeISO, migrar, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, slug } from '../nucleo/base.js';
-import { basesContratuais, etapaCalc, fotosDaSemana, kpisObra, valorAgregadoObra, lancamentoTotal, medicaoAPagar, medicaoAlerta, medicaoLiquido, pendenciasObra, pesosCronograma, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
+import { basesContratuais, etapaCalc, fotosDaSemana, kpisObra, memoriaMedicao, valorAgregadoObra, lancamentoTotal, medicaoAPagar, medicaoAlerta, medicaoLiquido, pendenciasObra, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
 import { apenasErros, validarObraCompleta } from '../dominio/validacao.js';
 import { linkWhatsApp, normalizarTelefoneBR } from '../nucleo/contato.js';
 import { Store, mutar } from '../dados/store.js';
@@ -643,7 +643,7 @@ ACOES['pdf-prestacao'] = async () => {
   let y = doc.__startY;
   y = pdfKPIs(doc, y, [
     ['Saldo inicial', fmtMoney(k.saldoInicial, { dec: 0 }), ''],
-    ['Entradas', fmtMoney(k.recebido, { dec: 0 }), 'CAIXA, cliente e aportes'],
+    ['Entradas', fmtMoney(k.recebido, { dec: 0 }), 'financiador, cliente e aportes'],
     ['Saídas', fmtMoney(k.totalPago, { dec: 0 }), 'medições e compras'],
     ['Saldo final', fmtMoney(k.saldoCaixa, { dec: 0 }), '']
   ]);
@@ -683,33 +683,33 @@ ACOES['pdf-prestacao'] = async () => {
   await salvarPDF(doc, `prestacao-contas-${slug(o.nome)}-${hojeISO()}.pdf`);
 };
 
-/* --------------------------------- 3. memória de medição CAIXA */
+/* ------------------------ 3. memória de medição (qualquer financiador)
+   Layout da planilha do financiador — PLS/PCI na CAIXA, cronograma
+   físico-financeiro nos outros bancos. Os números são de memoriaMedicao. */
 ACOES['pdf-medicao'] = async () => {
   const o = App.obra();
   const doc = await novoPDF(o, 'Memória de medição');
   if (!doc) return;
+  const mm = memoriaMedicao(o);
   const k = kpisObra(o);
-  const pesos = pesosCronograma(o);
-  /* só o que o financiador já liberou abate — entrada do cliente não conta */
-  const aSolicitar = Math.max(0, k.progressoFisico * k.financiado - k.recebidoFinanciamento);
   let y = doc.__startY;
   y = pdfKPIs(doc, y, [
-    ['Avanço físico', fmtPct(k.progressoFisico, 1), 'ponderado pelas etapas'],
-    ['Contrato CAIXA', o.fin.contratoCaixa || '—', fmtMoney(k.financiado, { dec: 0 })],
-    ['Já liberado', fmtMoney(k.recebidoFinanciamento, { dec: 0 }), k.liberadoFinanciamento === null ? '—' : fmtPct(k.liberadoFinanciamento, 1)],
-    ['A solicitar', fmtMoney(aSolicitar, { dec: 0 }), 'pelo avanço apurado']
+    ['Avanço físico', fmtPct(mm.fisico, 1), mm.porPlanilha ? 'pela planilha do financiador' : 'ponderado pelas etapas'],
+    ['Contrato ' + mm.financiador, o.fin.contratoCaixa || '—', fmtMoney(mm.financiado, { dec: 0 })],
+    ['Já liberado', fmtMoney(mm.liberado, { dec: 0 }), k.liberadoFinanciamento === null ? '—' : fmtPct(k.liberadoFinanciamento, 1)],
+    ['A solicitar', fmtMoney(mm.aSolicitar, { dec: 0 }), 'pelo avanço apurado']
   ]);
 
-  y = pdfTabela(doc, y, 'Percentual executado por etapa',
-    ['Etapa', 'Peso', 'Executado', 'Contribuição', 'Situação'],
-    o.cronograma.map((e) => {
-      const c = etapaCalc(e);
-      const p = pesos.get(e.id) || 0;
-      return [e.etapa, fmtPct(p, 1), fmtPct(c.progresso, 0), fmtPct(p * c.progresso, 1), c.situacao];
-    }),
+  const temItem = mm.linhas.some((l) => l.item);
+  y = pdfTabela(doc, y, 'Percentual executado por item',
+    [...(temItem ? ['Item'] : []), 'Serviço', 'Peso', 'Executado', 'Contribuição', 'Situação'],
+    mm.linhas.map((l) => [...(temItem ? [l.item] : []), l.etapa, fmtPct(l.peso, 2), fmtPct(l.executado, 0),
+      fmtPct(l.contribuicao, 2), l.situacao]),
     {
-      colunas: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
-      rodape: ['Total', '100,0%', '', fmtPct(k.progressoFisico, 1), '']
+      colunas: temItem
+        ? { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
+        : { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } },
+      rodape: [...(temItem ? [''] : []), 'Total', '100,00%', '', fmtPct(mm.fisico, 2), '']
     });
 
   doc.setFontSize(9);

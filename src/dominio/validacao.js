@@ -102,6 +102,11 @@ function validarObra(o) {
   }
 
   ordemDatas(o, 'dataInicio', 'previsaoConclusao', 'Prazo da obra', out);
+
+  /* financiador (0016): nome livre, curto — CHECK chk_obra_financiador */
+  if (String(campoFin(o, 'financiador') || '').length > 80) {
+    out.push(problema('financiador', 'O nome do financiador tem no máximo 80 caracteres.'));
+  }
   return out;
 }
 
@@ -207,6 +212,19 @@ function validarRecebimento(r) {
   ], (k) => r[k], out);
 
   fracao(r, 'percentObra', 'Percentual de obra informado', out);
+  /* parcela por marco físico (0016) — CHECKs chk_receb_exigido e
+     chk_receb_processo */
+  fracao(r, 'percentExigido', 'Percentual de obra exigido', out);
+  if (isISO(r.dataVistoria) && isISO(r.dataSolicitacao) && r.dataVistoria < r.dataSolicitacao) {
+    out.push(problema('dataVistoria', 'A vistoria não pode ser antes da solicitação.'));
+  }
+  if (isISO(r.dataAprovacao) && isISO(r.dataVistoria) && r.dataAprovacao < r.dataVistoria) {
+    out.push(problema('dataAprovacao', 'A aprovação não pode ser antes da vistoria.'));
+  }
+  /* crédito antes da aprovação acontece (adiantamento): só alerta */
+  if (isISO(r.dataRecebimento) && isISO(r.dataAprovacao) && r.dataRecebimento < r.dataAprovacao) {
+    out.push(problema('dataRecebimento', 'O crédito ficou antes da aprovação — confira as datas.', 'alerta'));
+  }
 
   if (num(r.valorAprovado) > 0 && num(r.descontos) > num(r.valorAprovado)) {
     out.push(problema('descontos', 'Os descontos passam do valor aprovado.', 'alerta'));
@@ -250,8 +268,42 @@ function validarEtapa(e) {
     out.push(problema('quantidadeExecutada', 'A quantidade executada não pode ser negativa.'));
   }
   if (num(e.peso) < 0) out.push(problema('peso', 'O peso na curva S não pode ser negativo.'));
+  /* planilha do financiador (0016) — CHECKs chk_crono_peso_fin e chk_crono_item_fin */
+  fracao(e, 'pesoFinanciador', 'Peso na planilha do financiador', out);
+  if (String(e.itemFinanciador || '').length > 40) {
+    out.push(problema('itemFinanciador', 'O item do financiador tem no máximo 40 caracteres.'));
+  }
   ordemDatas(e, 'inicioPrevisto', 'fimPrevisto', 'Prazo previsto da etapa', out);
   ordemDatas(e, 'inicioReal', 'fimReal', 'Prazo real da etapa', out);
+  return out;
+}
+
+/* A planilha do financiador como um todo: os pesos precisam somar 100%
+   para o "% pelo financiador" fazer sentido. Depende do conjunto de
+   etapas (não cabe num CHECK de linha): alerta. */
+function validarPlanilhaFinanciador(cronograma) {
+  const out = [];
+  const soma = (cronograma || []).reduce((s, e) => s + num(e.pesoFinanciador), 0);
+  if (soma > 0 && Math.abs(soma - 1) > 0.005) {
+    out.push(problema('pesoFinanciador',
+      `Os pesos da planilha do financiador somam ${(soma * 100).toFixed(1)}%, não 100%.`, 'alerta'));
+  }
+  return out;
+}
+
+/* Etapas do contrato (0016): nomes que não existem no cronograma não
+   entram no físico do contrato. Lista personalizável: alerta. */
+function validarEtapasContrato(c, cronograma) {
+  const out = [];
+  if (c.etapas != null && !Array.isArray(c.etapas)) {
+    out.push(problema('etapas', 'As etapas do contrato devem ser uma lista.'));
+    return out;
+  }
+  const nomes = new Set((cronograma || []).map((e) => String(e.etapa || '').trim()));
+  const soltas = (c.etapas || []).filter((n) => !nomes.has(String(n).trim()));
+  if (soltas.length) {
+    out.push(problema('etapas', `Etapa fora do cronograma: ${soltas.join(', ')}.`, 'alerta'));
+  }
   return out;
 }
 
@@ -464,13 +516,15 @@ function validarObraCompleta(o) {
   const juntar = (lista, contexto) => lista.forEach((x) => out.push({ ...x, contexto }));
 
   juntar(validarObra(o), `Obra "${o.nome || 'sem nome'}"`);
-  (o.contratos || []).forEach((c) => juntar(validarContrato(c), `Contrato ${c.codigo || '?'}`));
+  (o.contratos || []).forEach((c) => juntar(
+    [...validarContrato(c), ...validarEtapasContrato(c, o.cronograma)], `Contrato ${c.codigo || '?'}`));
   (o.medicoes || []).forEach((m, i) => juntar(validarMedicao(m), `Medição ${m.numero || i + 1}`));
   (o.recebimentos || []).forEach((r, i) =>
     juntar(validarRecebimento(r), `Recebimento ${r.numeroMedicao || r.etapaPci || i + 1}`));
   (o.lancamentos || []).forEach((l) => juntar(validarLancamento(l), `Lançamento "${l.descricao || '?'}"`));
   (o.materiais || []).forEach((m) => juntar(validarMaterial(m), `Material "${m.material || '?'}"`));
   (o.cronograma || []).forEach((e) => juntar(validarEtapa(e), `Etapa "${e.etapa || '?'}"`));
+  juntar(validarPlanilhaFinanciador(o.cronograma), 'Planilha do financiador');
   (o.diario || []).forEach((d) => juntar(validarDiario(d), `Diário de ${d.data || '?'}`));
   (o.tratamentos || []).forEach((t) => juntar(validarTratamento(t), `Tratamento de alerta ${t.chave || '?'}`));
   return out;
@@ -554,6 +608,8 @@ export {
   validarSenhaForte,
   validarLogo,
   validarEmpresa,
+  validarPlanilhaFinanciador,
+  validarEtapasContrato,
   validarObraCompleta,
   validarEstado,
   apenasErros,

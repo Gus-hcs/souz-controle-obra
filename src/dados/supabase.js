@@ -61,7 +61,9 @@ const TABELAS_DB = [
       'fin.valorFinanciado': ['valor_financiado', 'num'], 'fin.recursosProprios': ['recursos_proprios', 'num'],
       'fin.precoEmpreitadaM2': ['preco_empreitada_m2', 'num'], 'fin.custoFisicoMaxM2': ['custo_fisico_max_m2', 'num'],
       'fin.valorVenda': ['valor_venda', 'num'], 'fin.margemDesejada': ['margem_desejada', 'num'],
-      'fin.contratoCaixa': 'contrato_caixa', 'fin.dataAssinatura': ['data_assinatura', 'data']
+      'fin.contratoCaixa': 'contrato_caixa', 'fin.dataAssinatura': ['data_assinatura', 'data'],
+      /* exige a migração 0016 */
+      'fin.financiador': 'financiador'
     }
   },
   {
@@ -80,7 +82,9 @@ const TABELAS_DB = [
       dataAprovacaoAditivo: ['data_aprovacao_aditivo', 'data'], novoPrazoAditivo: ['novo_prazo_aditivo', 'data'],
       condicaoPagamento: 'condicao_pagamento', retencaoPct: ['retencao_pct', 'num'], formaPreco: 'forma_preco',
       dataEncerramento: ['data_encerramento', 'data'], documentoUrl: 'documento_url',
-      situacaoManual: 'situacao_manual', motivoSituacaoManual: 'motivo_situacao_manual'
+      situacaoManual: 'situacao_manual', motivoSituacaoManual: 'motivo_situacao_manual',
+      /* exige a migração 0016 */
+      etapas: ['etapas', 'json']
     }
   },
   {
@@ -100,7 +104,10 @@ const TABELAS_DB = [
       dataSolicitacao: ['data_solicitacao', 'data'], percentObra: ['percent_obra', 'num'],
       valorAprovado: ['valor_aprovado', 'num'], descontos: ['descontos', 'num'],
       dataRecebimento: ['data_recebimento', 'data'], valorRecebido: ['valor_recebido', 'num'],
-      status: 'status', observacoes: 'observacoes'
+      status: 'status', observacoes: 'observacoes',
+      /* exige a migração 0016 */
+      percentExigido: ['percent_exigido', 'num'], dataVistoria: ['data_vistoria', 'data'],
+      dataAprovacao: ['data_aprovacao', 'data']
     }
   },
   {
@@ -128,7 +135,9 @@ const TABELAS_DB = [
       etapa: 'etapa', inicioPrevisto: ['inicio_previsto', 'data'], fimPrevisto: ['fim_previsto', 'data'],
       inicioReal: ['inicio_real', 'data'], fimReal: ['fim_real', 'data'], progresso: ['progresso', 'num'],
       quantidadeExecutada: ['quantidade_executada', 'num'], unidadeProducao: 'unidade_producao',
-      responsavel: 'responsavel', peso: ['peso', 'num']
+      responsavel: 'responsavel', peso: ['peso', 'num'],
+      /* exige a migração 0016 */
+      itemFinanciador: 'item_financiador', pesoFinanciador: ['peso_financiador', 'num']
     }
   },
   {

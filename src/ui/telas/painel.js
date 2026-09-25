@@ -7,11 +7,13 @@
  * na frase do topo, os números principais depois, as causas com o dinheiro
  * em jogo, os gráficos de apoio por último.
  */
-import { esc, fmtData, fmtMoney, fmtMoneyCurto, fmtPct, num } from '../../nucleo/base.js';
+import { esc, fmtData, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtPct, num } from '../../nucleo/base.js';
 import {
   historiaObra,
   implantacaoObra,
   kpisObra,
+  liberadoExecutado,
+  proximaParcelaFinanciador,
   lancamentoTotal,
   nivelIndice,
   pendenciasObra,
@@ -193,6 +195,66 @@ function caixaAndamento(o, k, va) {
 }
 
 /* ---------------------------------------------------------------- tela */
+/* Card do financiador (0016) — qualquer um: CAIXA, outro banco, o
+   cliente pagando por marco. A decisão que ele habilita: pedir a
+   vistoria agora ou concluir o serviço antes. Números de
+   proximaParcelaFinanciador e liberadoExecutado. */
+const PASSO_TEXTO = { solicitada: 'solicitada', vistoriada: 'vistoriada', aprovada: 'aprovada, aguardando crédito' };
+
+function caixaFinanciador(o) {
+  const p = proximaParcelaFinanciador(o);
+  const le = liberadoExecutado(o);
+  if (!p && !le) return '';
+  const quem = (p && p.financiador) || (le && le.financiador) || 'financiador';
+
+  let decisao = '';
+  let parcela = '';
+  if (p) {
+    const numero = p.r.numeroMedicao ? `Parcela ${esc(p.r.numeroMedicao)}` : 'Próxima parcela';
+    const quando = p.r.dataPrevista
+      ? `${p.vencida ? '<span class="atraso">' : ''}prevista para ${esc(fmtDataCurta(p.r.dataPrevista))}${p.vencida ? ' — vencida</span>' : ''}`
+      : 'sem data prevista';
+    parcela = `<p class="linha-fin"><b>${numero}</b> · ${fmtMoney(p.valor, { dec: 0 })} · ${quando}</p>`;
+    if (p.exigido > 0) {
+      const pct = (v) => Math.min(100, Math.max(0, v * 100)).toFixed(1);
+      parcela += `<div class="barra-exigido" role="img" aria-label="Físico ${fmtPct(p.fisico, 0)} contra ${fmtPct(p.exigido, 0)} exigidos">
+          <span class="trilha"><i style="width:${pct(p.fisico)}%"></i><b class="marca-exigido" style="left:${pct(p.exigido)}%"></b></span>
+          <span class="tinta2">físico ${fmtPct(p.fisico, 0)}${p.porPlanilha ? ' pela planilha do financiador' : ''} · exigido ${fmtPct(p.exigido, 0)}</span>
+        </div>`;
+    }
+    if (p.decisao === 'aguardar') {
+      decisao = `<p class="decisao-fin tom-alerta">Parcela ${esc(PASSO_TEXTO[p.etapa] || p.etapa)}${
+        p.diasSolicitada !== null ? ` há ${p.diasSolicitada} dia${p.diasSolicitada === 1 ? '' : 's'}` : ''
+      }. <b>Cobrar ${quem === 'financiador' ? 'o financiador' : esc(quem)}.</b></p>`;
+    } else if (p.decisao === 'pedir') {
+      decisao = `<p class="decisao-fin feito"><b>Pedir a vistoria agora:</b> o físico já passou do exigido.</p>`;
+    } else if (p.decisao === 'concluir') {
+      const lista = p.etapas.map((e) => `${esc(e.etapa)} (${fmtPct(e.progresso, 0)})`).join(', ');
+      decisao = `<p class="decisao-fin"><b>Concluir antes de pedir:</b> faltam ${fmtPct(p.falta, 1)} de obra${lista ? ` — ${lista}` : ''}.</p>`;
+    } else {
+      decisao = `<p class="decisao-fin tinta2">Cadastre o % de obra que ${esc(quem)} exige nesta parcela para saber quando pedir a vistoria.</p>`;
+    }
+  }
+
+  const banca = le
+    ? `<p class="linha-fin tinta2">Liberado <b>${fmtPct(le.liberado, 1)}</b> · executado <b>${fmtPct(le.executado, 1)}</b>${
+        le.bancando > 0.5
+          ? ` — <span class="tom-alerta">a construtora está bancando ${fmtMoney(le.bancando, { dec: 0 })}</span>`
+          : le.adiantado > 0.5 ? ` — ${fmtMoney(le.adiantado, { dec: 0 })} liberados à frente da obra` : ''
+      }</p>`
+    : '';
+
+  return `<div class="caixa caixa-financiador">
+    <div class="caixa-cab">
+      <h3>Financiamento${quem !== 'financiador' ? ` · ${esc(quem)}` : ''}</h3>
+      <div class="dir">${botao('Ver parcelas', 'ir', { view: 'recebimentos' }, 'btn sutil pequeno')}</div>
+    </div>
+    ${parcela}
+    ${decisao}
+    ${banca}
+  </div>`;
+}
+
 VIEWS.painel = () => {
   const o = App.obra();
   const k = kpisObra(o);
@@ -219,6 +281,7 @@ VIEWS.painel = () => {
     ${kpisPainel(o, k, va)}
     ${cartaoImplantacao(o)}
     ${caixaAcao(pend, historia)}
+    ${caixaFinanciador(o)}
 
     <div class="grade g-2-1" style="align-items:start">
       <div class="caixa">

@@ -228,7 +228,9 @@ const LISTAS_PADRAO = {
   statusContrato: ['Planejado', 'Em andamento', 'Concluído', 'Suspenso', 'Cancelado'],
   statusMaterial: ['Planejar', 'Comprar', 'Comprado parcial', 'Comprado', 'Cancelado'],
   statusRecebimento: ['Previsto', 'Solicitado', 'Aprovado', 'Recebido parcial', 'Recebido', 'Cancelado'],
-  origensRecebimento: ['CAIXA', 'Cliente', 'Recursos próprios', 'Outro'],
+  /* quem paga por avanço de obra varia: CAIXA, outro banco, consórcio,
+     o cliente. 'Cliente' e 'Recursos próprios' não são financiador. */
+  origensRecebimento: ['CAIXA', 'Banco', 'Consórcio', 'Cliente', 'Recursos próprios', 'Outro'],
   prioridades: ['Alta', 'Média', 'Baixa'],
   statusObra: ['Planejada', 'Em andamento', 'Paralisada', 'Concluída'],
   climas: ['Bom', 'Nublado', 'Chuva fraca', 'Chuva forte', 'Impraticável'],
@@ -325,7 +327,10 @@ const novaObra = (nome = 'Nova obra') => ({
     valorVenda: 0,
     margemDesejada: 0.15,
     contratoCaixa: '',
-    dataAssinatura: ''
+    dataAssinatura: '',
+    /* quem libera o dinheiro por avanço de obra: CAIXA, outro banco, o
+       próprio cliente… (0016). Vazio = sem financiador. */
+    financiador: ''
   },
   contratos: [],
   medicoes: [],
@@ -343,6 +348,9 @@ const novoContrato = () => ({
   escopo: '', regime: 'Preço fechado', quantidade: 0, unidade: 'vb', precoUnitario: 0,
   valorInformado: 0, incluiMaterial: 'Não', inicioPrevisto: '', fimPrevisto: '',
   status: 'Planejado', observacoes: '',
+  /* etapas do cronograma que este contrato executa (0016): base do
+     "medido × físico" do contrato. Vazio = compara com a obra toda. */
+  etapas: [],
   /* nota do prestador ao concluir: 1–5; 0 = não avaliado */
   avalPrazo: 0, avalQualidade: 0, avalOrganizacao: 0,
   /* aditivo (só quando registro === 'Aditivo'): tipo, status e o que ele muda.
@@ -368,7 +376,11 @@ const novaMedicao = () => ({
 const novoRecebimento = () => ({
   id: uid('rec'), origem: 'CAIXA', numeroMedicao: '', etapaPci: '', dataPrevista: '',
   valorPrevisto: 0, dataSolicitacao: '', percentObra: 0, valorAprovado: 0,
-  descontos: 0, dataRecebimento: '', valorRecebido: 0, status: 'Previsto', observacoes: ''
+  descontos: 0, dataRecebimento: '', valorRecebido: 0, status: 'Previsto', observacoes: '',
+  /* parcela por marco físico (0016): o % de obra que o financiador exige
+     para liberar, e as datas do processo (solicitada → vistoriada →
+     aprovada → creditada). */
+  percentExigido: 0, dataVistoria: '', dataAprovacao: ''
 });
 
 const novoLancamento = () => ({
@@ -386,7 +398,12 @@ const novoMaterial = () => ({
 
 const novaEtapaCronograma = (etapa = '') => ({
   id: uid('cr'), etapa, inicioPrevisto: '', fimPrevisto: '', inicioReal: '', fimReal: '',
-  progresso: 0, quantidadeExecutada: 0, unidadeProducao: '', responsavel: '', peso: 0
+  progresso: 0, quantidadeExecutada: 0, unidadeProducao: '', responsavel: '', peso: 0,
+  /* item e peso na planilha do financiador (0016) — PLS/PCI na CAIXA,
+     cronograma físico-financeiro em outro banco */
+  itemFinanciador: '', pesoFinanciador: 0,
+  /* ids das etapas que precisam terminar antes desta começar (0017) */
+  predecessoras: []
 });
 
 const novoDiario = () => ({
@@ -394,7 +411,11 @@ const novoDiario = () => ({
   atividades: '', ocorrencias: '', autor: '', fotos: [],
   /* ocorrência como pendência (0015): vazio = só registro */
   ocorrenciaStatus: '', ocorrenciaResponsavel: '', ocorrenciaPrazo: '',
-  ocorrenciaMaterialId: '', ocorrenciaResolvidaEm: ''
+  ocorrenciaMaterialId: '', ocorrenciaResolvidaEm: '',
+  /* diário de campo (0017): clima por turno, efetivo por função,
+     equipamentos, o % da etapa ao fim do dia e se o dia afeta o prazo */
+  climaManha: '', climaTarde: '', efetivoFuncoes: [], equipamentos: '',
+  progressoEtapa: 0, impactaPrazo: false, diasImpacto: 0
 });
 
 /* Tratamento de um alerta (0015). O id é determinístico — uma obra tem no
@@ -466,17 +487,35 @@ function migrar(s) {
     }
     obra.diario.forEach((d) => {
       if (!Array.isArray(d.fotos)) d.fotos = [];
+      if (!Array.isArray(d.efetivoFuncoes)) d.efetivoFuncoes = [];
+      for (const k of ['climaManha', 'climaTarde', 'equipamentos']) if (d[k] == null) d[k] = '';
+      d.progressoEtapa = num(d.progressoEtapa);
+      d.diasImpacto = num(d.diasImpacto);
+      d.impactaPrazo = d.impactaPrazo === true;
       for (const k of ['ocorrenciaStatus', 'ocorrenciaResponsavel', 'ocorrenciaPrazo', 'ocorrenciaMaterialId', 'ocorrenciaResolvidaEm']) {
         if (d[k] == null) d[k] = '';
       }
     });
     obra.tratamentos = obra.tratamentos.map((t) => Object.assign(novoTratamento(obra.id, t.chave || ''), t));
     /* vínculo com o cadastro de prestador — antes era só o nome digitado */
-    obra.contratos.forEach((c) => { if (c.prestadorId == null) c.prestadorId = ''; });
+    obra.contratos.forEach((c) => {
+      if (c.prestadorId == null) c.prestadorId = '';
+      if (!Array.isArray(c.etapas)) c.etapas = [];
+    });
+    obra.cronograma.forEach((e) => {
+      if (e.itemFinanciador == null) e.itemFinanciador = '';
+      e.pesoFinanciador = num(e.pesoFinanciador);
+      if (!Array.isArray(e.predecessoras)) e.predecessoras = [];
+    });
     obra.lancamentos.forEach((l) => { if (l.prestadorId == null) l.prestadorId = ''; });
     /* numeração sempre como texto: a planilha traz número, o banco guarda texto */
     obra.medicoes.forEach((m) => { m.numero = m.numero == null ? '' : String(m.numero); });
-    obra.recebimentos.forEach((r) => { r.numeroMedicao = r.numeroMedicao == null ? '' : String(r.numeroMedicao); });
+    obra.recebimentos.forEach((r) => {
+      r.numeroMedicao = r.numeroMedicao == null ? '' : String(r.numeroMedicao);
+      r.percentExigido = num(r.percentExigido);
+      if (r.dataVistoria == null) r.dataVistoria = '';
+      if (r.dataAprovacao == null) r.dataAprovacao = '';
+    });
     return obra;
   });
   out.meta.schema = APP.schema;

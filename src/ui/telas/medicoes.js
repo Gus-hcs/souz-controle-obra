@@ -30,6 +30,7 @@ import {
   medicaoPagamento,
   medicoesComPendencia,
   medicoesEmAberto,
+  medidoFisicoContrato,
 } from '../../dominio/calculos.js';
 import { graficoBarras } from '../../graficos/index.js';
 import { ACOES } from '../acoes.js';
@@ -168,6 +169,8 @@ VIEWS.medicoes = () => {
     );
   }
 
+  const fisicoPorContrato = new Map(bases.map((b) => [b, medidoFisicoContrato(o, b)]));
+
   /* -------------------------------------------------------- colunas */
   const colunas = [
     {
@@ -198,7 +201,7 @@ VIEWS.medicoes = () => {
     {
       k: 'descricao',
       rotulo: 'Medição',
-      largura: '17%',
+      largura: '13%',
       celular: 'principal',
       valor: (d) => d.m.descricao || '',
       /* no celular o nº e o % somem como coluna: voltam na linha de baixo */
@@ -214,13 +217,20 @@ VIEWS.medicoes = () => {
     },
     {
       k: 'progresso',
-      rotulo: '%',
-      largura: '5%',
+      rotulo: '% × físico',
+      largura: '9%',
       num: true,
       celular: 'some',
       valor: (d) => num(d.m.progresso),
-      celula: (d) =>
-        num(d.m.progresso) ? fmtPct(d.m.progresso, 0) : '<span class="tinta3">—</span>',
+      /* o % medido e, embaixo, o físico do contrato (medidoFisicoContrato):
+         medir à frente do físico é pagar o que não está na obra */
+      celula: (d) => {
+        const mf = fisicoPorContrato.get(d.m.contratoBase);
+        const pct = num(d.m.progresso) ? fmtPct(d.m.progresso, 0) : '—';
+        return mf
+          ? `<div class="cel-num-nota"><span>${pct}</span><span class="${mf.alerta ? 'atraso' : ''}">físico ${fmtPct(mf.fisico, 0)}</span></div>`
+          : num(d.m.progresso) ? pct : '<span class="tinta3">—</span>';
+      },
     },
     {
       k: 'liquido',

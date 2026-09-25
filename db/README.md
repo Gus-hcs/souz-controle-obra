@@ -96,6 +96,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0013_contratos_situacao_e_aditivos.sql` | aditivo com tipo/status/motivo/aprovação/novo prazo; contrato com condição de pagamento, retenção, forma de preço, data de encerramento e documento (Storage); situação manual (só Paralisado/Rescindido) — o resto a tela calcula; CHECKs |
 | `0014_convite_por_email.sql` | `convidar_membro()` e `membros_da_obra()` — convite de engenheiro/cliente por e-mail e listagem da equipe com e-mail (funções `security definer`, sem tabela nova) |
 | `0015_tratamento_alertas_e_ocorrencias.sql` | tabela `alertas_tratamento` (status, responsável, adiar até, nota) com RLS por obra; colunas de ocorrência como pendência em `diario`; CHECKs |
+| `0016_financiador_e_parcelas.sql` | financiador genérico: `obras.financiador`; `% exigido`, vistoria e aprovação da parcela em `recebimentos`; item e peso da planilha do financiador em `cronograma`; `contratos.etapas`; CHECKs |
 
 ### 0008 — logos
 
@@ -285,3 +286,19 @@ Como usar:
 Os telefones `(62) 9000-01xx` não existem, então o WhatsApp não chama ninguém de
 verdade. CPFs e CNPJs são fictícios, mas passam na conferência de dígitos.
 E-mails usam `@exemplo.com`.
+
+### 0016 — financiador genérico e parcelas por marco físico
+
+Blocos A (colunas novas, nascem nulas), B (diagnóstico — volta vazio), C
+(`CHECK not valid`) e D (valida). Nenhuma tabela nova: a RLS das tabelas da obra
+(0004) já cobre as colunas.
+
+Serve a qualquer financiador, não só à CAIXA: `obras.financiador` é o nome
+("CAIXA", "Banco do Brasil", "Cliente"…), e as telas dizem "financiador" quando
+ele está vazio. O % de obra que a parcela exige (`percent_exigido`) é comparado
+com o físico **pela planilha do financiador** — os pesos de `peso_financiador`,
+quando cadastrados; senão, o físico da obra. O passo da parcela (solicitada →
+vistoriada → aprovada → creditada) sai das datas, sem mudar a lista de status.
+`contratos.etapas` liga o contrato às etapas que ele executa; é a base do alerta
+"medido à frente do físico" (mais de 5 p.p.).
+

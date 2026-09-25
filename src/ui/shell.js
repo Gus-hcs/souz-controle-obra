@@ -578,6 +578,17 @@ function campoHTML(c, valores) {
         <option value="Não" ${v === 'Não' ? 'selected' : ''}>Não</option>
         <option value="Sim" ${v === 'Sim' ? 'selected' : ''}>Sim</option></select>`;
       break;
+    case 'multi': {
+      /* várias escolhas de uma lista: vira um array em lerForm */
+      const marcados = new Set(Array.isArray(v) ? v : []);
+      campo = `<div class="multi-opcoes" id="${id}" data-campo="${c.k}" data-tipo="multi" role="group" aria-label="${esc(c.label)}">${
+        (c.opcoes || []).map((o) => {
+          const [val, txt] = typeof o === 'object' ? [o.v, o.t] : [o, o];
+          return `<label class="multi-opcao"><input type="checkbox" value="${esc(val)}" ${marcados.has(val) ? 'checked' : ''}> ${esc(txt)}</label>`;
+        }).join('') || '<span class="tinta3">nada para escolher</span>'
+      }</div>`;
+      break;
+    }
     case 'lista':
       campo = `<input type="text" id="${id}" data-campo="${c.k}" data-tipo="texto" list="dl_${c.k}" value="${esc(v || '')}" ${req}>
         <datalist id="dl_${c.k}">${(c.opcoes || []).map((o) => `<option value="${esc(o)}"></option>`).join('')}</datalist>`;
@@ -621,7 +632,8 @@ function lerForm() {
   f.querySelectorAll('[data-campo]').forEach((el) => {
     const k = el.dataset.campo;
     const t = el.dataset.tipo;
-    if (t === 'numero' || t === 'dinheiro') out[k] = num(el.value);
+    if (t === 'multi') out[k] = [...el.querySelectorAll('input:checked')].map((i) => i.value);
+    else if (t === 'numero' || t === 'dinheiro') out[k] = num(el.value);
     else if (t === 'pct') out[k] = num(el.value) / 100;
     else out[k] = el.value.trim ? el.value.trim() : el.value;
   });

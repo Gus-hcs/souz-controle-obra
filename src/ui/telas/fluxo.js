@@ -137,8 +137,12 @@ VIEWS.fluxo = () => {
       largura: '20%',
       celular: 'some',
       celula: (d) => {
-        if (!d.previstasNaoRecebidas && !d.medicoesNaoPagas) return '<span class="tinta3">—</span>';
+        if (!d.previstasNaoRecebidas && !d.medicoesNaoPagas && !d.vencidasNaoRecebidas) return '<span class="tinta3">—</span>';
         return [
+          /* parcela vencida: no mês corrente, marcada — não no mês que passou */
+          d.vencidasNaoRecebidas
+            ? `<span class="atraso" title="parcelas vencidas sem crédito">+${esc(fmtMoneyCurto(d.vencidasNaoRecebidas))} vencido</span>`
+            : '',
           d.previstasNaoRecebidas
             ? `<span class="tom-alerta">+${esc(fmtMoneyCurto(d.previstasNaoRecebidas))}</span>`
             : '',
