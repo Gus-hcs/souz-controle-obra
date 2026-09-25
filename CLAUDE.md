@@ -9,10 +9,16 @@ Fale, escreva e comente **em português** — código, commits, respostas.
 ## O que o sistema faz hoje
 
 Carteira de obras com painel consolidado · contratos e aditivos por código-base ·
-medições · recebimentos da CAIXA · lançamentos · plano de materiais · cronograma
-com avanço físico ponderado · curva S · fluxo de caixa · diário de obra com fotos
-· alertas automáticos · relatório em PDF · importação de planilha MCMV · exportação
-CSV · acesso do Power BI ao PostgreSQL.
+medições · recebimentos por marco físico de **qualquer financiador** (CAIXA, outro
+banco, consórcio ou o próprio cliente) · lançamentos · plano de materiais ·
+cronograma com avanço físico ponderado, dependências e caminho crítico · curva S
+com liberado × executado · fluxo de caixa projetado com vale de caixa · diário de
+obra de campo com fotos, que funciona sem rede · pendências com tratamento e causa
+raiz · pendências do cliente · relatório em PDF · importação de planilha MCMV ·
+exportação CSV · acesso do Power BI ao PostgreSQL.
+
+O sistema atende qualquer construtora: nada na tela assume a CAIXA. O nome do
+financiador vem de `obras.financiador`; vazio, a tela diz "financiador".
 
 17 telas. JavaScript modular puro, sem framework, montado pelo Vite em um único
 `index.html`.
@@ -126,6 +132,10 @@ Um termo para cada coisa, em todas as telas, PDFs e alertas:
 - **UI cega a papel.** `SUPA.papelNaObra()` / `SUPA.podeEditarObra()` existem,
   mas nenhuma tela ramifica por papel ainda, e não há tela para convidar
   engenheiro/cliente. O banco recusa a escrita indevida (RLS); a tela ainda não.
+- **Offline é por aparelho.** Sem rede, o que é gravado fica no localStorage e
+  vai ao banco quando a rede volta (`Store`, `public/sw.js`). Com a
+  sincronização last-write-wins (abaixo), duas pessoas editando a mesma linha
+  offline: vale a última a reconectar.
 - **Sincronização e concorrência.** Ver [docs/SINCRONIZACAO.md](docs/SINCRONIZACAO.md):
   `SUPA.sincronizar()` é last-write-wins por linha inteira. Some com um usuário
   por obra; quebra com dois. Decisão pendente.
