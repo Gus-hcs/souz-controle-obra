@@ -2,7 +2,7 @@
  * supabase.js — Banco de dados: mapeamento das tabelas, sincronização e telas de acesso.
  */
 import { CFG } from '../config.js';
-import { esc, estadoInicial, isISO, migrar, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, novoTratamento, num } from '../nucleo/base.js';
+import { esc, estadoInicial, isISO, migrar, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, novaPendenciaCliente, novoTratamento, num } from '../nucleo/base.js';
 import { CHAVE_BASE_OFFLINE, CHAVE_LOCAL, Store, erroDeRede } from './store.js';
 import { App, confirmar, LOGO, toast } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
@@ -46,7 +46,9 @@ const TABELAS_DB = [
       chavePix: 'chave_pix', tipoPix: 'tipo_pix', formaContratacao: 'forma_contratacao',
       valorReferencia: ['valor_referencia', 'num'], arquivado: ['arquivado', 'bool'],
       /* exige a migração 0012 */
-      cidade: 'cidade'
+      cidade: 'cidade',
+      /* exige a migração 0018 */
+      tipo: 'tipo'
     }
   },
   {
@@ -63,7 +65,9 @@ const TABELAS_DB = [
       'fin.valorVenda': ['valor_venda', 'num'], 'fin.margemDesejada': ['margem_desejada', 'num'],
       'fin.contratoCaixa': 'contrato_caixa', 'fin.dataAssinatura': ['data_assinatura', 'data'],
       /* exige a migração 0016 */
-      'fin.financiador': 'financiador'
+      'fin.financiador': 'financiador',
+      /* exige a migração 0018 */
+      statusEnviadoEm: ['status_enviado_em', 'data']
     }
   },
   {
@@ -168,6 +172,16 @@ const TABELAS_DB = [
       adiarAte: ['adiar_ate', 'data'], nota: 'nota',
       sevMarcada: ['sev_marcada', 'num'], valorMarcado: ['valor_marcado', 'num'],
       dataMarcacao: ['data_marcacao', 'data']
+    }
+  },
+  {
+    /* O que o cliente deve à obra (0018). Opcional como a de cima: sem a
+       tabela no banco, o recurso some e o resto segue. */
+    nome: 'pendencias_cliente', colecao: 'pendenciasCliente', opcional: true,
+    novo: () => novaPendenciaCliente(),
+    campos: {
+      descricao: 'descricao', prazo: ['prazo', 'data'], status: 'status',
+      resolvidaEm: ['resolvida_em', 'data'], criadaEm: ['data_criacao', 'data']
     }
   }
 ];

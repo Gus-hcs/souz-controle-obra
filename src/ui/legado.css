@@ -400,3 +400,25 @@ details.tratados > summary {
 .fotos-botoes .btn {
   cursor: pointer;
 }
+
+/* Aguardando o cliente (0018). */
+.lista-pcli {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e2);
+}
+.lista-pcli li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--e3);
+  flex-wrap: wrap;
+  font-size: var(--t-corpo);
+}
+.lista-pcli .acoes-pcli {
+  display: inline-flex;
+  gap: var(--e1);
+}

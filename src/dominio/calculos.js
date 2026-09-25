@@ -1014,6 +1014,85 @@ function fluxoProjetadoCarteira(obras, hoje = hojeISO(), janela = 30) {
   return consolidarFluxo(saldo, eventos, hoje, janela);
 }
 
+/* Orçado × realizado por etapa (Lançamentos).
+   - orçado: o plano de materiais da etapa + o autorizado dos contratos
+     que a executam (contrato.etapas, 0016), repartido pelas etapas dele
+     na proporção do peso de cada uma no cronograma;
+   - realizado: os lançamentos da etapa + o pago em medições desses
+     contratos, repartido do mesmo jeito.
+   Contrato sem etapas ligadas cai em "Contratos sem etapa"; lançamento
+   sem etapa, em "Sem etapa" — à vista, para ser classificado. */
+function orcadoRealizadoPorEtapa(obra) {
+  const pesos = pesosCronograma(obra);
+  const porNome = new Map(obra.cronograma.map((e) => [norm(e.etapa), e]));
+  const linhas = new Map();
+  const linha = (nome) => {
+    const k = nome || 'Sem etapa';
+    if (!linhas.has(k)) linhas.set(k, { etapa: k, orcado: 0, realizado: 0 });
+    return linhas.get(k);
+  };
+  obra.materiais.forEach((m) => {
+    if (m.status === 'Cancelado') return;
+    linha(m.etapa).orcado += materialCalc(obra, m).orcamento;
+  });
+  obra.lancamentos.forEach((l) => { linha(l.etapa).realizado += lancamentoTotal(l); });
+
+  const reparte = (etapas, valor, campo) => {
+    const sel = (etapas || []).map((n) => porNome.get(norm(n))).filter(Boolean);
+    if (!sel.length) { linha('Contratos sem etapa')[campo] += valor; return; }
+    const soma = sel.reduce((s, e) => s + (pesos.get(e.id) || 0), 0);
+    sel.forEach((e) => {
+      const f = soma > 0 ? (pesos.get(e.id) || 0) / soma : 1 / sel.length;
+      linha(e.etapa)[campo] += valor * f;
+    });
+  };
+  basesContratuais(obra).forEach((b) => {
+    const registros = obra.contratos.filter((c) => (c.codigoBase || c.codigo) === b.base);
+    const principal = registros.find((c) => c.registro === 'Contrato') || registros[0] || {};
+    const ind = indicadoresContrato(obra, b.base);
+    reparte(principal.etapas, ind.autorizado, 'orcado');
+    reparte(principal.etapas, ind.pago, 'realizado');
+  });
+
+  const ordem = new Map(obra.cronograma.map((e, i) => [e.etapa, i]));
+  return [...linhas.values()]
+    .map((l) => ({
+      ...l,
+      orcado: round2(l.orcado),
+      realizado: round2(l.realizado),
+      diferenca: round2(l.realizado - l.orcado),
+      consumido: l.orcado > 0.005 ? l.realizado / l.orcado : null,
+    }))
+    .filter((l) => l.orcado > 0.005 || l.realizado > 0.005)
+    .sort((a, b) => (ordem.has(a.etapa) ? ordem.get(a.etapa) : 999) - (ordem.has(b.etapa) ? ordem.get(b.etapa) : 999));
+}
+
+/* =========================================== CLIENTE (0018)
+   O que o cliente deve à obra — aprovação, escolha, documento — e há
+   quanto tempo ele não recebe notícia dela. */
+function pendenciasDoCliente(obra, hoje = hojeISO()) {
+  const abertas = (obra.pendenciasCliente || [])
+    .filter((p) => p.status === 'aberta')
+    .sort((a, b) => String(a.prazo || '9999').localeCompare(String(b.prazo || '9999')));
+  const vencidas = abertas.filter((p) => isISO(p.prazo) && p.prazo < hoje);
+  return { abertas, vencidas, resolvidas: (obra.pendenciasCliente || []).filter((p) => p.status === 'resolvida').length };
+}
+
+/* Dias desde o último status enviado ao cliente (desde o início da obra,
+   se nunca foi enviado). null sem cliente ou obra fora de andamento. */
+function diasSemStatusCliente(obra, hoje = hojeISO()) {
+  if (!obra.clienteId || obra.status === 'Concluída' || obra.status === 'Planejada') return null;
+  const desde = isISO(obra.statusEnviadoEm) ? obra.statusEnviadoEm : isISO(obra.dataInicio) ? obra.dataInicio : '';
+  return desde ? Math.max(0, diasEntre(desde, hoje)) : null;
+}
+
+/* Último status enviado entre as obras de um cliente (tela Clientes). */
+function ultimoStatusCliente(obras, hoje = hojeISO()) {
+  const datas = obras.map((o) => o.statusEnviadoEm).filter(isISO).sort();
+  const data = datas[datas.length - 1] || '';
+  return { data, dias: data ? Math.max(0, diasEntre(data, hoje)) : null };
+}
+
 /* Onde o dinheiro foi, por etapa (Painel): lançamentos pela etapa deles,
    medições pagas pelo escopo do contrato. */
 function custoPorEtapa(obra) {
@@ -1167,6 +1246,24 @@ function alertasObra(obra) {
         { dias: c.atrasoInicio, ...raizEtapa });
     }
   });
+
+  /* Cliente (0018): decisão que o cliente deve e passou do prazo trava a
+     obra — é causa própria ("decisão do cliente"), não sintoma. */
+  pendenciasDoCliente(obra, hoje).vencidas.forEach((p) => {
+    const dias = diasEntre(p.prazo, hoje);
+    add('cliente-decisao', dias > 15 ? 3 : 2, 'Cliente',
+      `Aguardando o cliente: ${String(p.descricao).length > 60 ? String(p.descricao).slice(0, 59) + '…' : p.descricao}`,
+      `Prazo era ${fmtData(p.prazo)} — ${dias} dia(s) sem resposta.`,
+      'Cobrar a decisão do cliente e registrar no Painel.', { view: 'painel', id: p.id },
+      { dias, raiz: 'cliente-decisao', principal: true });
+  });
+  /* status para o cliente: informativo, não conta como pendência */
+  const semStatus = diasSemStatusCliente(obra, hoje);
+  if (semStatus !== null && semStatus > 14) {
+    add('status-cliente', 1, 'Cliente', `Cliente sem notícia há ${semStatus} dias`,
+      isISO(obra.statusEnviadoEm) ? `Último status enviado em ${fmtData(obra.statusEnviadoEm)}.` : 'Nenhum status enviado desde o início da obra.',
+      'Enviar o relatório de status pelo WhatsApp (Relatórios).', { view: 'relatorio' }, { dias: semStatus });
+  }
 
   /* Diário — ocorrência aberta é pendência com dono e prazo (0015). Ligada
      a material ou etapa, ela é causa: a etapa atrasada vira sintoma dela
@@ -2689,6 +2786,10 @@ export {
   fluxoProjetado,
   fluxoProjetadoCarteira,
   custoPorEtapa,
+  pendenciasDoCliente,
+  diasSemStatusCliente,
+  ultimoStatusCliente,
+  orcadoRealizadoPorEtapa,
   memoriaMedicao,
   medidoFisicoContrato,
   empreitadaPrincipal,

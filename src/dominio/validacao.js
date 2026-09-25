@@ -307,6 +307,23 @@ function validarEtapasContrato(c, cronograma) {
   return out;
 }
 
+/* Pendência do cliente (0018) — espelha os CHECKs chk_pcli_*. */
+const STATUS_PCLI = ['aberta', 'resolvida'];
+function validarPendenciaCliente(p) {
+  const out = [];
+  const desc = String(p.descricao || '').trim();
+  if (!desc) out.push(problema('descricao', 'Descreva o que o cliente precisa decidir ou entregar.'));
+  if (desc.length > 200) out.push(problema('descricao', 'No máximo 200 caracteres.'));
+  if (!STATUS_PCLI.includes(p.status)) out.push(problema('status', `Situação inválida: "${p.status}".`));
+  if (p.status === 'resolvida' && !isISO(p.resolvidaEm)) {
+    out.push(problema('resolvidaEm', 'Pendência resolvida precisa da data em que foi resolvida.'));
+  }
+  if (isISO(p.prazo) && isISO(p.criadaEm) && p.prazo < p.criadaEm) {
+    out.push(problema('prazo', 'O prazo ficou antes da criação — confira a data.', 'alerta'));
+  }
+  return out;
+}
+
 /* ------------------------------------------------------- DIÁRIO */
 function validarDiario(d) {
   const out = [];
@@ -517,6 +534,10 @@ const CIDADE_MAX = 60;
 
 function validarPrestador(p, listas = null) {
   const out = [];
+  /* serviço ou fornecedor (0018) — CHECK chk_prestador_tipo */
+  if (p.tipo != null && p.tipo !== '' && !['servico', 'fornecedor'].includes(p.tipo)) {
+    out.push(problema('tipo', 'Tipo inválido: use prestador de serviço ou fornecedor.'));
+  }
   if (!String(p.nome || '').trim()) out.push(problema('nome', 'O prestador precisa de um nome.'));
 
   const a = num(p.avaliacao);
@@ -597,6 +618,7 @@ function validarObraCompleta(o) {
   juntar(validarDependencias(o.cronograma), 'Dependências do cronograma');
   (o.diario || []).forEach((d) => juntar(validarDiario(d), `Diário de ${d.data || '?'}`));
   (o.tratamentos || []).forEach((t) => juntar(validarTratamento(t), `Tratamento de alerta ${t.chave || '?'}`));
+  (o.pendenciasCliente || []).forEach((p) => juntar(validarPendenciaCliente(p), `Pendência do cliente "${p.descricao || '?'}"`));
   return out;
 }
 
@@ -679,6 +701,7 @@ export {
   validarLogo,
   validarEmpresa,
   validarPlanilhaFinanciador,
+  validarPendenciaCliente,
   validarDependencias,
   validarDiarioCampo,
   validarEtapasContrato,

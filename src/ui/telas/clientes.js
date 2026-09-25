@@ -11,7 +11,7 @@
  */
 import { esc, fmtMoney, norm, num } from '../../nucleo/base.js';
 import { ocultarDocumento } from '../../nucleo/contato.js';
-import { saudeCliente } from '../../dominio/calculos.js';
+import { pendenciasDoCliente, saudeCliente, ultimoStatusCliente } from '../../dominio/calculos.js';
 import { Store } from '../../dados/store.js';
 import { App, botao } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
@@ -60,6 +60,12 @@ VIEWS.clientes = () => {
       c,
       obras,
       saude: saudeCliente(obras),
+      /* 0018: último status enviado e o que o cliente deve à obra */
+      status: ultimoStatusCliente(obras),
+      devendo: obras.reduce((s, o) => {
+        const pc = pendenciasDoCliente(o);
+        return { abertas: s.abertas + pc.abertas.length, vencidas: s.vencidas + pc.vencidas.length };
+      }, { abertas: 0, vencidas: 0 }),
       valor: obras.reduce((s, o) => s + num(o.fin.valorVenda), 0),
     };
   });
@@ -101,9 +107,27 @@ VIEWS.clientes = () => {
       },
     },
     {
+      k: 'ultimoStatus',
+      rotulo: 'Último status',
+      largura: '11%',
+      celular: 'some',
+      valor: (d) => (d.status.dias === null ? 9999 : d.status.dias),
+      /* notícia para o cliente: há quanto tempo, e o que ele deve */
+      celula: (d) => {
+        if (!d.obras.length) return '<span class="tinta3">—</span>';
+        const st = d.status.dias === null
+          ? '<span class="tom-alerta">nunca enviado</span>'
+          : `<span class="${d.status.dias > 14 ? 'tom-alerta' : 'tinta2'}">${d.status.dias === 0 ? 'hoje' : `há ${d.status.dias} d`}</span>`;
+        const dev = d.devendo.abertas
+          ? `<span class="${d.devendo.vencidas ? 'atraso' : 'tinta3'}">deve ${d.devendo.abertas} decis${d.devendo.abertas === 1 ? 'ão' : 'ões'}</span>`
+          : '';
+        return `<div class="cel-empilhada">${st}${dev}</div>`;
+      },
+    },
+    {
       k: 'telefone',
       rotulo: 'Telefone',
-      largura: '13%',
+      largura: '11%',
       celular: 'some',
       valor: (d) => d.c.telefone || '',
       celula: (d) => (d.c.telefone ? esc(d.c.telefone) : '<span class="tinta3">—</span>'),
@@ -111,7 +135,7 @@ VIEWS.clientes = () => {
     {
       k: 'email',
       rotulo: 'E-mail',
-      largura: '17%',
+      largura: '15%',
       celular: 'some',
       valor: (d) => d.c.email || '',
       celula: (d) => (d.c.email ? esc(d.c.email) : '<span class="tinta3">—</span>'),
@@ -119,7 +143,7 @@ VIEWS.clientes = () => {
     {
       k: 'obras',
       rotulo: 'Obras',
-      largura: '18%',
+      largura: '16%',
       valor: (d) => d.obras.length,
       /* nome longo corta com reticências; o nome inteiro fica no title */
       celula: (d) =>

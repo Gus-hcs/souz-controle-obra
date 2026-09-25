@@ -350,6 +350,8 @@ const novaObra = (nome = 'Nova obra') => ({
        próprio cliente… (0016). Vazio = sem financiador. */
     financiador: ''
   },
+  /* último relatório de status enviado ao cliente (0018) */
+  statusEnviadoEm: '',
   contratos: [],
   medicoes: [],
   recebimentos: [],
@@ -358,6 +360,7 @@ const novaObra = (nome = 'Nova obra') => ({
   cronograma: [],
   diario: [],
   tratamentos: [],
+  pendenciasCliente: [],
   criadaEm: hojeISO()
 });
 
@@ -453,8 +456,25 @@ const novoCliente = () => ({
 /* whatsapp e telefone ficam só em dígitos, no formato 55DDDNNNNNNNNN
    (normalizarTelefoneBR, nucleo/contato.js). `documento` é o CPF/CNPJ.
    `arquivado` substitui a exclusão: quem tem pagamento vinculado não some. */
+/* Quem vende material não é quem presta serviço (0018): o fornecedor
+   entra nas listas de compra; o prestador, em contratos e medições. */
+const TIPOS_PRESTADOR = [
+  { v: 'servico', t: 'Prestador de serviço' },
+  { v: 'fornecedor', t: 'Fornecedor' },
+];
+
+/* O que o cliente deve à obra (0018): aprovação, escolha de acabamento,
+   documento. Com prazo — vencida, trava a obra e vira pendência. */
+const STATUS_PENDENCIA_CLIENTE = [
+  { v: 'aberta', t: 'Aguardando o cliente' },
+  { v: 'resolvida', t: 'Resolvida' },
+];
+const novaPendenciaCliente = () => ({
+  id: uid('pcli'), descricao: '', prazo: '', status: 'aberta', resolvidaEm: '', criadaEm: hojeISO()
+});
+
 const novoPrestador = () => ({
-  id: uid('prest'), nome: '', apelido: '', especialidade: '', cidade: '',
+  id: uid('prest'), tipo: 'servico', nome: '', apelido: '', especialidade: '', cidade: '',
   whatsapp: '', temWhatsapp: true, telefone: '', documento: '',
   chavePix: '', tipoPix: '', formaContratacao: '', valorReferencia: 0,
   avaliacao: 0, observacoes: '', arquivado: false
@@ -492,6 +512,7 @@ function migrar(s) {
   out.clientes = (Array.isArray(s.clientes) ? s.clientes : []).map((c) => Object.assign(novoCliente(), c));
   out.prestadores = (Array.isArray(s.prestadores) ? s.prestadores : []).map((p) => {
     const n = Object.assign(novoPrestador(), p);
+    if (n.tipo !== 'fornecedor') n.tipo = 'servico';
     n.arquivado = n.arquivado === true;
     n.temWhatsapp = n.temWhatsapp !== false;
     return n;
@@ -500,7 +521,7 @@ function migrar(s) {
     const nova = novaObra();
     const obra = Object.assign(nova, o);
     obra.fin = Object.assign(nova.fin, o.fin || {});
-    for (const k of ['contratos', 'medicoes', 'recebimentos', 'lancamentos', 'materiais', 'cronograma', 'diario', 'tratamentos']) {
+    for (const k of ['contratos', 'medicoes', 'recebimentos', 'lancamentos', 'materiais', 'cronograma', 'diario', 'tratamentos', 'pendenciasCliente']) {
       obra[k] = Array.isArray(o[k]) ? o[k] : [];
     }
     obra.diario.forEach((d) => {
@@ -515,6 +536,8 @@ function migrar(s) {
       }
     });
     obra.tratamentos = obra.tratamentos.map((t) => Object.assign(novoTratamento(obra.id, t.chave || ''), t));
+    obra.pendenciasCliente = obra.pendenciasCliente.map((p) => Object.assign(novaPendenciaCliente(), p));
+    if (obra.statusEnviadoEm == null) obra.statusEnviadoEm = '';
     /* vínculo com o cadastro de prestador — antes era só o nome digitado */
     obra.contratos.forEach((c) => {
       if (c.prestadorId == null) c.prestadorId = '';
@@ -541,6 +564,9 @@ function migrar(s) {
 }
 
 export {
+  TIPOS_PRESTADOR,
+  STATUS_PENDENCIA_CLIENTE,
+  novaPendenciaCliente,
   lerEfetivoFuncoes,
   textoEfetivoFuncoes,
   SISTEMAS_CONSTRUTIVOS,

@@ -2,7 +2,7 @@
  * index.js — Entrada e saída: importação de planilha MCMV, exportação CSV e PDF.
  */
 import { addDias, competencia, fmtData, fmtDataCurta, fmtMoney, fmtNum, fmtPct, hojeISO, migrar, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, slug } from '../nucleo/base.js';
-import { basesContratuais, etapaCalc, fotosDaSemana, kpisObra, memoriaMedicao, valorAgregadoObra, lancamentoTotal, medicaoAPagar, medicaoAlerta, medicaoLiquido, pendenciasObra, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
+import { basesContratuais, etapaCalc, fotosDaSemana, kpisObra, memoriaMedicao, pendenciasDoCliente, valorAgregadoObra, lancamentoTotal, medicaoAPagar, medicaoAlerta, medicaoLiquido, pendenciasObra, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
 import { apenasErros, validarObraCompleta } from '../dominio/validacao.js';
 import { linkWhatsApp, normalizarTelefoneBR } from '../nucleo/contato.js';
 import { Store, mutar } from '../dados/store.js';
@@ -551,6 +551,11 @@ async function montarPdfStatus(o, { interno = false } = {}) {
       o.recebimentos.filter((r) => r.status !== 'Cancelado').map((r) => [r.origem,
         r.etapaPci || (r.numeroMedicao ? `Medição ${r.numeroMedicao}` : ''),
         fmtDataCurta(r.dataPrevista), fmtDataCurta(r.dataRecebimento), r.status]));
+    /* o que depende do cliente (0018): aparece para ele, com o prazo */
+    y = pdfTabela(doc, y, 'Aguardando sua decisão',
+      ['O quê', 'Até'],
+      pendenciasDoCliente(o).abertas.map((p) => [p.descricao, p.prazo ? fmtData(p.prazo) : '—']),
+      { colunas: { 1: { cellWidth: 30 } } });
     pdfFotos(doc, y, fotosDaSemana(o));
     pdfRodape(doc);
     return doc;
@@ -583,11 +588,19 @@ async function montarPdfStatus(o, { interno = false } = {}) {
   return doc;
 }
 
+/* status enviado ao cliente (0018): a data do último envio alimenta
+   "Cliente sem notícia há N dias" e a coluna Último status em Clientes */
+function marcarStatusEnviado(o) {
+  if (o.statusEnviadoEm === hojeISO()) return;
+  mutar(() => { o.statusEnviadoEm = hojeISO(); });
+}
+
 ACOES['pdf-status'] = async () => {
   const o = App.obra();
   const doc = await montarPdfStatus(o);
   if (!doc) return;
   await salvarPDF(doc, `status-${slug(o.nome)}-${hojeISO()}.pdf`);
+  marcarStatusEnviado(o);
 };
 
 ACOES['pdf-interno'] = async () => {
@@ -619,6 +632,7 @@ ACOES['whatsapp-status'] = async () => {
   if (arquivo && navigator.canShare && navigator.canShare({ files: [arquivo] })) {
     try {
       await navigator.share({ files: [arquivo], title: nomeArquivo, text: texto });
+      marcarStatusEnviado(o);
       return;
     } catch (e) {
       if (e && e.name === 'AbortError') return;
@@ -629,6 +643,7 @@ ACOES['whatsapp-status'] = async () => {
   await salvarPDF(doc, nomeArquivo);
   const msg = `${texto} Anexe o arquivo "${nomeArquivo}" que acabou de baixar.`;
   window.open(linkWhatsApp(numero || '', msg), '_blank', 'noopener');
+  marcarStatusEnviado(o);
   if (!numero) {
     toast('PDF baixado. Abra o WhatsApp e escolha o contato — não achei um telefone válido para o cliente.', 'aviso');
   }

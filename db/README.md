@@ -98,6 +98,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0015_tratamento_alertas_e_ocorrencias.sql` | tabela `alertas_tratamento` (status, responsável, adiar até, nota) com RLS por obra; colunas de ocorrência como pendência em `diario`; CHECKs |
 | `0016_financiador_e_parcelas.sql` | financiador genérico: `obras.financiador`; `% exigido`, vistoria e aprovação da parcela em `recebimentos`; item e peso da planilha do financiador em `cronograma`; `contratos.etapas`; CHECKs |
 | `0017_dependencias_e_diario_de_campo.sql` | `cronograma.predecessoras` (fim→início); diário de campo: clima por turno, efetivo por função, equipamentos, % da etapa, impacto no prazo; CHECKs |
+| `0018_cliente_e_fornecedor.sql` | tabela `pendencias_cliente` (o que o cliente deve à obra, com prazo) com RLS por obra; `obras.status_enviado_em`; `prestadores.tipo` (serviço × fornecedor); CHECKs |
 
 ### 0008 — logos
 
@@ -321,4 +322,18 @@ dia impacta o prazo, com quantos dias (`dias_impacto > 0` exige
 
 O sistema abre sem rede (service worker em `public/sw.js`), e o que é gravado
 sem conexão fica no aparelho até a rede voltar. Não depende de migração.
+
+### 0018 — pendências do cliente, último status e fornecedor
+
+Blocos A (tabela nova com RLS e colunas novas), B (diagnóstico — volta vazio), C
+(`CHECK not valid` em `prestadores.tipo`) e D (valida). A tabela nova nasce
+vazia, então as restrições dela entram já validadas no `create table`.
+
+`pendencias_cliente` guarda o que o **cliente** deve à obra — aprovação,
+escolha de acabamento, documento — com prazo. Vencida, vira pendência da obra
+(causa "decisão do cliente") e aparece no PDF do cliente como "Aguardando sua
+decisão". Opcional na carga, como `alertas_tratamento`: sem a tabela, o recurso
+some e o resto funciona. `status_enviado_em` é carimbado pelo app ao gerar o
+PDF de status do cliente ou compartilhá-lo pelo WhatsApp; mais de 14 dias sem
+envio numa obra em andamento vira aviso informativo.
 

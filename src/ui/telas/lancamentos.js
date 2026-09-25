@@ -27,6 +27,7 @@ import {
   lancamentosDuplicados,
   lancamentoTotal,
   ligadoAoPrestador,
+  orcadoRealizadoPorEtapa,
   resumoLancamentos,
 } from '../../dominio/calculos.js';
 import { graficoBarras } from '../../graficos/index.js';
@@ -203,6 +204,25 @@ VIEWS.lancamentos = () => {
         )
       : '';
 
+  /* orçado × realizado por etapa (orcadoRealizadoPorEtapa): plano de
+     materiais + contratos ligados às etapas, contra o que saiu */
+  const orr = orcadoRealizadoPorEtapa(o);
+  const tabelaOrcado = orr.length
+    ? secao(
+        'Orçado × realizado por etapa',
+        `<div class="tab-rolagem"><table class="tab">
+          <thead><tr><th>Etapa</th><th class="num">Orçado</th><th class="num">Realizado</th><th class="num">Diferença</th><th class="num">Consumido</th></tr></thead>
+          <tbody>${orr.map((l) => `<tr>
+            <td>${esc(l.etapa)}</td>
+            <td class="num">${l.orcado > 0.005 ? esc(fmtMoney(l.orcado, { dec: 0 })) : '<span class="tinta3">sem orçamento</span>'}</td>
+            <td class="num">${esc(fmtMoney(l.realizado, { dec: 0 }))}</td>
+            <td class="num ${l.orcado > 0.005 && l.diferenca > 0.5 ? 'atraso' : ''}">${l.orcado > 0.005 ? `${l.diferenca > 0 ? '+' : l.diferenca < 0 ? '−' : ''}${esc(fmtMoney(Math.abs(l.diferenca), { dec: 0 }))}` : '—'}</td>
+            <td class="num ${l.consumido !== null && l.consumido > 1 ? 'atraso' : ''}">${l.consumido === null ? '—' : fmtPct(l.consumido, 0)}</td>
+          </tr>`).join('')}</tbody></table></div>
+        <p class="tinta3" style="font-size:var(--t-peq);margin:var(--e2) 0 0">Orçado = plano de materiais + contratos ligados às etapas (em Contratos, "Etapas que este contrato executa").</p>`,
+      )
+    : '';
+
   return `<div class="tela-lista">
     ${resumo([
       {
@@ -269,6 +289,7 @@ VIEWS.lancamentos = () => {
       rodapeRotulo: (n) => `${n} lançamentos`,
     })}
     ${graficos}
+    ${tabelaOrcado}
   </div>`;
 };
 

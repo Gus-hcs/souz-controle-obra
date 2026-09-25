@@ -27,6 +27,7 @@ import {
   norm,
   novoPrestador,
   TIPOS_PIX,
+  TIPOS_PRESTADOR,
 } from '../../nucleo/base.js';
 import {
   formatarTelefoneBR,
@@ -57,7 +58,8 @@ import { itensPendentes } from './vinculo.js';
 import { buscaToolbar, dinheiro, lista, vazioTela } from './componentes.js';
 
 /* Estado só de tela. */
-const tela = { selecao: '', especialidade: '', comSaldo: false, arquivados: false };
+/* tipo: '' = todos · 'servico' · 'fornecedor' (0018) */
+const tela = { selecao: '', especialidade: '', comSaldo: false, arquivados: false, tipo: '' };
 
 /* Valores de prestador sem centavos: a coluna fica estreita com o inspetor
    aberto, e para contratado e pago o real inteiro basta. */
@@ -145,6 +147,7 @@ function base({ semEspecialidade = false } = {}) {
   const dig = busca.replace(/\D/g, '');
   return Store.estado.prestadores.filter((p) => {
     if (!!p.arquivado !== tela.arquivados) return false;
+    if (tela.tipo && (p.tipo || 'servico') !== tela.tipo) return false;
     if (!semEspecialidade && tela.especialidade && p.especialidade !== tela.especialidade)
       return false;
     if (!busca) return true;
@@ -321,6 +324,13 @@ function barraFiltros() {
           : semEsp.length
       }</span> ${svg(ICO.seta, 10)}
     </button>
+    ${
+      /* serviço × fornecedor (0018): só aparece quando há fornecedor */
+      Store.estado.prestadores.some((p) => p.tipo === 'fornecedor')
+        ? ['servico', 'fornecedor'].map((t) => `<button class="pilula${tela.tipo === t ? ' ativa' : ''}" data-acao="prest-tipo" data-tipo="${t}" aria-pressed="${tela.tipo === t}">
+            ${t === 'servico' ? 'Prestadores de serviço' : 'Fornecedores'} <span class="conta">${Store.estado.prestadores.filter((p) => !p.arquivado && (p.tipo || 'servico') === t).length}</span></button>`).join('')
+        : ''
+    }
     <button class="pilula${tela.comSaldo ? ' ativa' : ''}" data-acao="prest-com-saldo" aria-pressed="${tela.comSaldo}">
       A pagar agora <span class="conta">${comSaldo}</span>
     </button>
@@ -547,6 +557,11 @@ VIEWS.prestadores.toolbar = () => {
 
 /* ---------------------------------------- filtros e atalhos do inspetor */
 
+ACOES['prest-tipo'] = (el, d) => {
+  tela.tipo = tela.tipo === d.tipo ? '' : d.tipo;
+  App.renderConteudo();
+};
+
 ACOES['prest-esp-menu'] = (el) => {
   const semEsp = base({ semEspecialidade: true });
   const esp = [...new Set(semEsp.map((p) => p.especialidade).filter(Boolean))].sort((a, b) =>
@@ -615,6 +630,11 @@ function htmlForm(p, detalhes) {
     <div class="form-prest-avisos" data-avisos-prest></div>
     ${contatos ? `<button type="button" class="btn sutil pequeno importar-contato" data-acao="prest-importar-contato">${svg(ICO.contatos, 14)}Importar dos contatos</button>` : ''}
     ${campo('nome', 'Nome', `<input type="text" id="pf_nome" data-prest="nome" value="${v('nome')}" autocomplete="off" required>`)}
+    ${campo(
+      'tipo',
+      'Tipo',
+      `<select id="pf_tipo" data-prest="tipo">${TIPOS_PRESTADOR.map((t) => `<option value="${t.v}" ${(p.tipo || 'servico') === t.v ? 'selected' : ''}>${esc(t.t)}</option>`).join('')}</select>`,
+    )}
     <div class="form-prest-par">
       ${campo(
         'especialidade',

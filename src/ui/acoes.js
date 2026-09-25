@@ -617,7 +617,11 @@ ACOES['excluir-recebimento'] = (el, d) => {
 function formLancamento(l, novo, aoSalvar) {
   const o = App.obra();
   const planos = o.materiais.map((m) => ({ v: m.id, t: `${m.material} (${m.etapa})` }));
-  const fornecedores = [...new Set(o.lancamentos.map((x) => x.fornecedor).filter(Boolean))];
+  /* sugestões: fornecedores do cadastro (0018) + os já digitados */
+  const fornecedores = [...new Set([
+    ...Store.estado.prestadores.filter((p) => p.tipo === 'fornecedor' && !p.arquivado).map((p) => p.nome),
+    ...o.lancamentos.map((x) => x.fornecedor),
+  ].filter(Boolean))];
   abrirForm({
     titulo: novo ? 'Novo lançamento' : 'Editar lançamento',
     largura: 'largo',

@@ -7,7 +7,22 @@
  * na frase do topo, os números principais depois, as causas com o dinheiro
  * em jogo, os gráficos de apoio por último.
  */
-import { esc, fmtData, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtPct, hojeISO, num } from '../../nucleo/base.js';
+import {
+  esc,
+  fmtData,
+  fmtDataCurta,
+  fmtMoney,
+  fmtMoneyCurto,
+  fmtPct,
+  hojeISO,
+  novaPendenciaCliente,
+  num,
+  STATUS_PENDENCIA_CLIENTE,
+} from '../../nucleo/base.js';
+import { apenasErros, validarPendenciaCliente } from '../../dominio/validacao.js';
+import { Store, mutar } from '../../dados/store.js';
+import { SUPA } from '../../dados/supabase.js';
+import { ACOES } from '../acoes.js';
 import {
   historiaObra,
   implantacaoObra,
@@ -15,13 +30,14 @@ import {
   custoPorEtapa,
   fluxoProjetado,
   liberadoExecutado,
+  pendenciasDoCliente,
   proximaParcelaFinanciador,
   nivelIndice,
   pendenciasObra,
   valorAgregadoObra,
 } from '../../dominio/calculos.js';
 import { graficoBarras, graficoCurvaS } from '../../graficos/index.js';
-import { App, botao } from '../shell.js';
+import { App, abrirForm, botao, confirmar, fecharModal, toast } from '../shell.js';
 import { causaHTML, fraseAncoraHTML, implExpandida, VIEWS } from '../telas-obra.js';
 import { fmtIndice, tomNivel } from './componentes.js';
 
@@ -276,6 +292,82 @@ function caixaVale(k, proj) {
   </div>`;
 }
 
+/* Aguardando o cliente (0018): o que ele deve à obra — aprovação,
+   escolha, documento. Vencida vira pendência da obra (alertasObra). */
+const pcliDisponivel = () => Store.backend !== 'supabase' || SUPA.tabelaDisponivel('pendencias_cliente');
+
+function caixaCliente(o) {
+  if (!pcliDisponivel()) return '';
+  const pc = pendenciasDoCliente(o);
+  if (!o.clienteId && !pc.abertas.length) return '';
+  const hoje = hojeISO();
+  const podeEditar = !Store.somenteLeitura();
+  const linhas = pc.abertas.map((p) => {
+    const vencida = p.prazo && p.prazo < hoje;
+    return `<li class="${vencida ? 'atraso' : ''}">
+      <span><b>${esc(p.descricao)}</b>${p.prazo ? ` · até ${esc(fmtDataCurta(p.prazo))}${vencida ? ' — vencida' : ''}` : ''}</span>
+      ${podeEditar ? `<span class="acoes-pcli">${botao('Resolvida', 'resolver-pcli', { id: p.id }, 'btn sutil pequeno')}
+        ${botao('Editar', 'editar-pcli', { id: p.id }, 'btn sutil pequeno')}</span>` : ''}
+    </li>`;
+  }).join('');
+  return `<div class="caixa caixa-cliente">
+    <div class="caixa-cab">
+      <h3>Aguardando o cliente${pc.abertas.length ? ` · ${pc.abertas.length}` : ''}</h3>
+      <div class="dir">${podeEditar ? botao('Registrar', 'nova-pcli', {}, 'btn sutil pequeno', 'mais') : ''}</div>
+    </div>
+    ${linhas ? `<ul class="lista-pcli">${linhas}</ul>` : '<p class="linha-cinza">Nada pendente do lado do cliente. Registre aqui aprovações, escolhas e documentos que ele precisa entregar.</p>'}
+  </div>`;
+}
+
+function formPcli(p, nova) {
+  abrirForm({
+    titulo: nova ? 'O cliente precisa…' : 'Editar pendência do cliente',
+    campos: [
+      { k: 'descricao', label: 'O quê', tipo: 'texto', col: 12, obrigatorio: true, placeholder: 'escolher o revestimento da cozinha' },
+      { k: 'prazo', label: 'Até quando', tipo: 'data', col: 6 },
+      { k: 'status', label: 'Situação', tipo: 'select', opcoes: STATUS_PENDENCIA_CLIENTE, vazio: false, col: 6 },
+    ],
+    valores: p,
+    validar: (d) => validarPendenciaCliente({ ...p, ...d, resolvidaEm: d.status === 'resolvida' ? p.resolvidaEm || hojeISO() : '' }),
+    aoSalvar: (d) => {
+      const o = App.obra();
+      const novo = { ...p, ...d, resolvidaEm: d.status === 'resolvida' ? p.resolvidaEm || hojeISO() : '' };
+      if (apenasErros(validarPendenciaCliente(novo)).length) return;
+      mutar(() => {
+        if (nova) o.pendenciasCliente.push(novo);
+        else Object.assign(p, novo);
+      });
+      fecharModal();
+      toast(nova ? 'Pendência do cliente registrada.' : 'Pendência atualizada.', 'ok');
+    },
+  });
+  /* excluir fica dentro do formulário de edição, como nas outras telas */
+  const esq = !nova && !Store.somenteLeitura() && document.querySelector('#modal-camada footer .esq');
+  if (esq) esq.innerHTML = `<button class="btn perigo" data-acao="excluir-pcli" data-id="${esc(p.id)}">Excluir</button>`;
+}
+
+ACOES['excluir-pcli'] = (el, d) => {
+  const o = App.obra();
+  const p = (o.pendenciasCliente || []).find((x) => x.id === d.id);
+  if (!p) return;
+  confirmar('Excluir pendência', `Excluir "${p.descricao}"?`, () => {
+    mutar(() => { o.pendenciasCliente = o.pendenciasCliente.filter((x) => x.id !== p.id); });
+    toast('Pendência excluída.', 'aviso');
+  });
+};
+
+ACOES['nova-pcli'] = () => formPcli(novaPendenciaCliente(), true);
+ACOES['editar-pcli'] = (el, d) => {
+  const p = (App.obra().pendenciasCliente || []).find((x) => x.id === d.id);
+  if (p) formPcli(p, false);
+};
+ACOES['resolver-pcli'] = (el, d) => {
+  const p = (App.obra().pendenciasCliente || []).find((x) => x.id === d.id);
+  if (!p) return;
+  mutar(() => { p.status = 'resolvida'; p.resolvidaEm = hojeISO(); });
+  toast('Pendência do cliente resolvida.', 'ok');
+};
+
 VIEWS.painel = () => {
   const o = App.obra();
   const k = kpisObra(o);
@@ -292,6 +384,7 @@ VIEWS.painel = () => {
     ${cartaoImplantacao(o)}
     ${caixaAcao(pend, historia)}
     ${caixaFinanciador(o)}
+    ${caixaCliente(o)}
 
     <div class="grade g-2-1" style="align-items:start">
       <div class="caixa">

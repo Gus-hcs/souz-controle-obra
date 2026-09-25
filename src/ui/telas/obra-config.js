@@ -34,11 +34,13 @@ import {
   confirmar,
   fecharModal,
   ICO,
+  lerForm,
   opcoesLista,
   svg,
   toast,
 } from '../shell.js';
-import { Store } from '../../dados/store.js';
+import { Store, mutar } from '../../dados/store.js';
+import { apenasErros, validarObra } from '../../dominio/validacao.js';
 import { SUPA } from '../../dados/supabase.js';
 import { ACOES } from '../acoes.js';
 import { VIEWS } from '../telas-obra.js';
@@ -371,6 +373,34 @@ VIEWS['obra-config'] = () => {
     }
   </div>`;
 };
+
+/* Salvamento automático (auditoria): ao sair de um campo alterado, grava
+   — se a configuração estiver válida — sem redesenhar a tela, para não
+   tirar o foco do próximo campo. O botão "Salvar alterações" continua:
+   ele redesenha os KPIs e as incoerências. Com erro, não grava e diz. */
+let timerAutoConfig = null;
+document.addEventListener('change', (ev) => {
+  if (App.rota.view !== 'obra-config' || Store.somenteLeitura()) return;
+  if (!ev.target.closest || !ev.target.closest('.tela-lista form[data-form]')) return;
+  if (document.querySelector('#modal-camada [data-form]')) return;
+  clearTimeout(timerAutoConfig);
+  timerAutoConfig = setTimeout(() => {
+    const d = lerForm();
+    const o = App.obra();
+    if (!o) return;
+    const erros = apenasErros(validarObra(d));
+    if (erros.length) {
+      toast(`Não salvou: ${erros[0].mensagem}`, 'aviso', 4500);
+      return;
+    }
+    mutar(() => {
+      Object.keys(d).forEach((k) => {
+        if (k.startsWith('fin.')) o.fin[k.slice(4)] = d[k];
+        else o[k] = d[k];
+      });
+    }, { render: false });
+  }, 350);
+});
 
 VIEWS['obra-config'].toolbar = () => {
   const o = App.obra();
