@@ -4,6 +4,10 @@
  * Uma linha por saída, mais recente primeiro. Lançamento sem etapa é o
  * único aviso da tela: sem etapa ele não entra no custo por etapa nem na
  * curva S, e isso passa despercebido se não estiver marcado.
+ *
+ * O topo vem de resumoLancamentos; o ícone de duplicado, de
+ * lancamentosDuplicados (a mesma regra do alerta); a natureza da saída
+ * (Venda, Administração, Taxas, Terreno), de lancamentoNatureza.
  */
 import {
   competencia,
@@ -18,11 +22,17 @@ import {
   norm,
   num,
 } from '../../nucleo/base.js';
-import { lancamentoTotal, ligadoAoPrestador } from '../../dominio/calculos.js';
+import {
+  lancamentoNatureza,
+  lancamentosDuplicados,
+  lancamentoTotal,
+  ligadoAoPrestador,
+  resumoLancamentos,
+} from '../../dominio/calculos.js';
 import { graficoBarras } from '../../graficos/index.js';
 import { Store } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
-import { App, botao, opcoesEtapas, opcoesLista } from '../shell.js';
+import { App, botao, ICO, opcoesEtapas, opcoesLista, svg } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
 import {
   acoesRegistro,
@@ -52,11 +62,10 @@ VIEWS.lancamentos = () => {
     });
   }
 
-  const totGeral = todos.reduce((s, l) => s + lancamentoTotal(l), 0);
-  const totMat = todos
-    .filter((l) => l.tipo === 'Material')
-    .reduce((s, l) => s + lancamentoTotal(l), 0);
-  const semEtapa = todos.filter((l) => !l.etapa);
+  const r = resumoLancamentos(o);
+  /* id → quantos iguais existem (para o title do ícone) */
+  const duplicado = new Map();
+  lancamentosDuplicados(o).forEach((ls) => ls.forEach((l) => duplicado.set(l.id, ls.length)));
 
   /* ------------------------------------------------------- filtros */
   const fornecedores = [...new Set(todos.map((l) => l.fornecedor).filter(Boolean))].sort();
@@ -76,6 +85,8 @@ VIEWS.lancamentos = () => {
   if (f.situacao === 'plano') itens = itens.filter((d) => d.l.materialId);
   if (f.situacao === 'avulso') itens = itens.filter((d) => !d.l.materialId);
   if (f.situacao === 'sem-etapa') itens = itens.filter((d) => !d.l.etapa);
+  if (f.situacao === 'duplicados') itens = itens.filter((d) => duplicado.has(d.l.id));
+  if (f.situacao === 'nao-obra') itens = itens.filter((d) => lancamentoNatureza(d.l) !== 'Obra');
   if (busca) {
     itens = itens.filter((d) =>
       norm(`${d.l.descricao} ${d.l.fornecedor} ${d.l.documento} ${d.l.categoria}`).includes(busca),
@@ -103,12 +114,19 @@ VIEWS.lancamentos = () => {
           num(d.l.quantidade) && num(d.l.quantidade) !== 1
             ? `${fmtNum(d.l.quantidade, 2)} ${d.l.unidade || ''} × ${fmtMoney(d.l.precoUnitario)}`
             : null,
+          /* frete e desconto mudam o total: sem eles a conta da linha não fecha */
+          num(d.l.frete) ? `+${fmtMoney(d.l.frete, { dec: 0 })} frete` : null,
+          num(d.l.desconto) ? `−${fmtMoney(d.l.desconto, { dec: 0 })} desc.` : null,
           d.l.materialId ? 'do plano de materiais' : null,
           d.l.documento || null,
         ]
           .filter(Boolean)
           .join(' · ');
-        return `<div class="cel-dupla"><b>${esc(d.l.descricao || '—')}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div>`;
+        const dup = duplicado.get(d.l.id);
+        const marca = dup
+          ? `<span class="marca-duplicado" title="${dup} lançamentos iguais: mesma data, fornecedor e valor" aria-label="possível duplicado">${svg(ICO.alerta, 12)}</span>`
+          : '';
+        return `<div class="cel-dupla"><b>${marca}${esc(d.l.descricao || '—')}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div>`;
       },
     },
     {
@@ -117,7 +135,8 @@ VIEWS.lancamentos = () => {
       largura: '11%',
       celular: 'some',
       valor: (d) => d.l.tipo || '',
-      celula: (d) => `<span class="tinta2">${esc(d.l.tipo || '—')}</span>`,
+      celula: (d) =>
+        `<span class="tinta2" title="natureza: ${esc(lancamentoNatureza(d.l))}">${esc(d.l.tipo || '—')}</span>`,
     },
     {
       k: 'fornecedor',
@@ -162,14 +181,23 @@ VIEWS.lancamentos = () => {
     });
     return Object.entries(a).map(([rotulo, valor]) => ({ rotulo, valor }));
   };
-  const porTipo = soma('tipo', '—');
+  /* Por natureza (Obra, Venda, Administração, Taxas, Terreno): comissão
+     de corretor e honorário não se misturam com o custo da casa. */
+  const porNatureza = (() => {
+    const a = {};
+    itens.forEach((d) => {
+      const k = lancamentoNatureza(d.l);
+      a[k] = (a[k] || 0) + d.total;
+    });
+    return Object.entries(a).map(([rotulo, valor]) => ({ rotulo, valor }));
+  })();
   const porEtapa = soma('etapa', 'Sem etapa');
   const graficos =
-    itens.length > 1 && (porTipo.length > 1 || porEtapa.length > 1)
+    itens.length > 1 && (porNatureza.length > 1 || porEtapa.length > 1)
       ? secao(
           'Para onde foi o dinheiro',
           `<div class="grade-graficos">
-            ${porTipo.length > 1 ? `<div><h3 class="sub-grafico">Por tipo</h3>${graficoBarras(porTipo, { formata: (v) => fmtMoneyCurto(v) })}</div>` : ''}
+            ${porNatureza.length > 1 ? `<div><h3 class="sub-grafico">Por natureza</h3>${graficoBarras(porNatureza, { formata: (v) => fmtMoneyCurto(v) })}</div>` : ''}
             ${porEtapa.length > 1 ? `<div><h3 class="sub-grafico">Por etapa</h3>${graficoBarras(porEtapa, { limite: 10, formata: (v) => fmtMoneyCurto(v) })}</div>` : ''}
           </div>`,
         )
@@ -179,23 +207,22 @@ VIEWS.lancamentos = () => {
     ${resumo([
       {
         rotulo: 'Total lançado',
-        valor: fmtMoney(totGeral, { dec: 0 }),
-        nota: `${todos.length} lançamento${todos.length === 1 ? '' : 's'}`,
+        valor: fmtMoney(r.total, { dec: 0 }),
+        nota: `${r.n} lançamento${r.n === 1 ? '' : 's'}${
+          r.naoObra.valor > 0.005 ? ` · ${fmtMoney(r.naoObra.valor, { dec: 0 })} fora da obra física` : ''
+        }`,
       },
       {
         rotulo: 'Compras de material',
-        valor: fmtMoney(totMat, { dec: 0 }),
-        nota: totGeral ? `${fmtPct(totMat / totGeral, 0)} do total` : '',
+        valor: fmtMoney(r.material, { dec: 0 }),
+        nota: r.total ? `${fmtPct(r.material / r.total, 0)} do total` : '',
       },
       {
         rotulo: 'Sem etapa',
-        valor: semEtapa.length ? `${semEtapa.length}` : 'nenhum',
-        tom: semEtapa.length ? 'tom-alerta' : '',
-        nota: semEtapa.length
-          ? `${fmtMoney(
-              semEtapa.reduce((s, l) => s + lancamentoTotal(l), 0),
-              { dec: 0 },
-            )} fora do custo por etapa`
+        valor: r.semEtapa.n ? `${r.semEtapa.n}` : 'nenhum',
+        tom: r.semEtapa.n ? 'tom-alerta' : '',
+        nota: r.semEtapa.n
+          ? `${fmtMoney(r.semEtapa.valor, { dec: 0 })} fora do custo por etapa`
           : 'tudo classificado',
       },
     ])}
@@ -219,6 +246,8 @@ VIEWS.lancamentos = () => {
             ['plano', 'Do plano de materiais'],
             ['avulso', 'Avulsos'],
             ['sem-etapa', 'Sem etapa'],
+            ['duplicados', 'Possíveis duplicados'],
+            ['nao-obra', 'Fora da obra física'],
           ],
           'Qualquer origem',
         ),

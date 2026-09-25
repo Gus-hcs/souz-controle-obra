@@ -928,11 +928,19 @@ table.lista tfoot td.num {
   min-width: 0;
 }
 .cel-dupla b {
+  flex: 0 1 auto;
+  min-width: 40%;
   font-weight: var(--p-medio);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
+/* O nome tem prioridade: quem corta é a linha de baixo. */
 .cel-dupla span {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--tinta3);
   font-size: var(--t-peq);
   white-space: nowrap;

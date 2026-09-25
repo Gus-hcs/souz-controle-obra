@@ -330,8 +330,12 @@ function materialCalc(obra, mat) {
   /* Etapa em andamento esperando material: esse é o que para a frente. */
   const travaFrente = vencido && (obra.cronograma || []).some(
     (e) => norm(e.etapa) === norm(mat.etapa) && num(e.progresso) > 0 && num(e.progresso) < 1);
+  /* Ocorrências abertas no diário que apontam para este material
+     ("Piso parou: falta rejunte") — o canteiro já disse que ele trava. */
+  const ocorrencias = (obra.diario || []).filter(
+    (d) => d.ocorrenciaStatus === 'aberta' && d.ocorrenciaMaterialId === mat.id);
   return {
-    comprada, valorComprado, saldo, orcamento, vencido, etapaConcluida, travaFrente,
+    comprada, valorComprado, saldo, orcamento, vencido, etapaConcluida, travaFrente, ocorrencias,
     /* comprado acima do necessário (porcelanato 120 m² para 60 m²) */
     excesso: necessaria > 0 ? Math.max(0, comprada - necessaria) : 0,
     saldoValor: saldo * num(mat.precoPrevisto),
@@ -456,6 +460,60 @@ const TIPOS_CUSTO_NAO_FISICO = new Set([
 ]);
 function lancamentoCustoFisico(l) {
   return !TIPOS_CUSTO_NAO_FISICO.has(l.tipo);
+}
+
+/* Natureza da saída, para ler o dinheiro pelo que ele é: comissão de
+   corretor é custo de VENDA, honorário é ADMINISTRAÇÃO — nenhum dos dois
+   é obra. Casa com TIPOS_CUSTO_NAO_FISICO: 'Obra' é exatamente o custo
+   físico. */
+const NATUREZA_POR_TIPO = {
+  Terreno: 'Terreno',
+  'Comissão imobiliária': 'Venda',
+  'Honorário técnico/gestão': 'Administração',
+  'Taxa/imposto': 'Taxas',
+};
+function lancamentoNatureza(l) {
+  return NATUREZA_POR_TIPO[l.tipo] || 'Obra';
+}
+
+/* Grupos de lançamentos iguais (mesma data, fornecedor e total): a mesma
+   regra do alerta "Possível lançamento duplicado" e da marca na lista. */
+function lancamentosDuplicados(obra) {
+  const chave = new Map();
+  obra.lancamentos.forEach((l) => {
+    const k = [l.data, norm(l.fornecedor), round2(lancamentoTotal(l))].join('|');
+    if (!chave.has(k)) chave.set(k, []);
+    chave.get(k).push(l);
+  });
+  return [...chave.values()].filter((ls) => ls.length > 1 && lancamentoTotal(ls[0]) > 0);
+}
+
+/* Cobertura do plano de materiais: quanto do material comprado estava no
+   plano (ligado a um item, por id ou por etapa + descrição). Plano que
+   cobre metade das compras não serve para prever custo. null sem compra. */
+function coberturaPlanoMateriais(obra) {
+  const compras = obra.lancamentos.filter((l) => l.tipo === 'Material');
+  const total = round2(compras.reduce((s, l) => s + lancamentoTotal(l), 0));
+  if (total <= 0.005) return { total: 0, noPlano: 0, fracao: null };
+  const ids = new Set();
+  obra.materiais.forEach((m) => lancamentosDoMaterial(obra, m).forEach((l) => ids.add(l.id)));
+  const noPlano = round2(compras.filter((l) => ids.has(l.id)).reduce((s, l) => s + lancamentoTotal(l), 0));
+  return { total, noPlano, fracao: noPlano / total };
+}
+
+/* Os números do topo de Lançamentos. */
+function resumoLancamentos(obra) {
+  const soma = (ls) => round2(ls.reduce((s, l) => s + lancamentoTotal(l), 0));
+  const ls = obra.lancamentos;
+  const semEtapa = ls.filter((l) => !l.etapa);
+  const naoObra = ls.filter((l) => lancamentoNatureza(l) !== 'Obra');
+  return {
+    total: soma(ls),
+    n: ls.length,
+    material: soma(ls.filter((l) => l.tipo === 'Material')),
+    semEtapa: { n: semEtapa.length, valor: soma(semEtapa) },
+    naoObra: { n: naoObra.length, valor: soma(naoObra) },
+  };
 }
 
 function kpisObra(obra) {
@@ -795,20 +853,12 @@ function alertasObra(obra) {
   }
 
   /* Duplicidade suspeita */
-  const chave = new Map();
-  obra.lancamentos.forEach((l) => {
-    const k2 = [l.data, norm(l.fornecedor), round2(lancamentoTotal(l))].join('|');
-    if (!chave.has(k2)) chave.set(k2, []);
-    chave.get(k2).push(l);
-  });
-  chave.forEach((ls) => {
-    if (ls.length > 1 && lancamentoTotal(ls[0]) > 0) {
-      /* pagar duas vezes é dinheiro saindo: atenção, não informativo */
-      add('duplicado', 2, 'Lançamentos', 'Possível lançamento duplicado',
-        `${ls.length} lançamentos iguais de ${fmtMoney(lancamentoTotal(ls[0]))} em ${fmtData(ls[0].data)} (${ls[0].fornecedor || 'sem fornecedor'}).`,
-        'Conferir e excluir o repetido.', { view: 'lancamentos', id: ls[0].id },
-        { valor: lancamentoTotal(ls[0]) * (ls.length - 1), ids: ls.map((l) => l.id) });
-    }
+  lancamentosDuplicados(obra).forEach((ls) => {
+    /* pagar duas vezes é dinheiro saindo: atenção, não informativo */
+    add('duplicado', 2, 'Lançamentos', 'Possível lançamento duplicado',
+      `${ls.length} lançamentos iguais de ${fmtMoney(lancamentoTotal(ls[0]))} em ${fmtData(ls[0].data)} (${ls[0].fornecedor || 'sem fornecedor'}).`,
+      'Conferir e excluir o repetido.', { view: 'lancamentos', id: ls[0].id },
+      { valor: lancamentoTotal(ls[0]) * (ls.length - 1), ids: ls.map((l) => l.id) });
   });
 
   /* Cadastro incompleto */
@@ -1992,6 +2042,10 @@ export {
   estouroContratos,
   saudeObra,
   saudeCliente,
+  lancamentoNatureza,
+  lancamentosDuplicados,
+  resumoLancamentos,
+  coberturaPlanoMateriais,
   unidadeSugeridaEtapa,
   medicaoPagamento,
   medicoesEmAberto,

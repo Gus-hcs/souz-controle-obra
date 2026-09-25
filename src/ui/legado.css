@@ -288,3 +288,28 @@ details.tratados > summary {
   font-size: var(--t-peq);
   font-weight: var(--p-medio);
 }
+
+/* Lançamento possivelmente duplicado: ícone antes da descrição. */
+.marca-duplicado {
+  display: inline-flex;
+  vertical-align: -1px;
+  margin-right: var(--e1);
+  color: var(--alerta);
+}
+
+/* Materiais: "Comprar" afastado de editar/excluir. */
+.acoes-material {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e3);
+}
+.acoes-material .acoes-registro {
+  display: inline-flex;
+  gap: var(--e1);
+}
+@media (max-width: 720px) {
+  .acoes-material {
+    width: 100%;
+    justify-content: space-between;
+  }
+}

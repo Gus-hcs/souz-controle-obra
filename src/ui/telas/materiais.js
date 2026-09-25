@@ -25,7 +25,7 @@ import {
   isISO,
   norm,
 } from '../../nucleo/base.js';
-import { materialCalc } from '../../dominio/calculos.js';
+import { coberturaPlanoMateriais, materialCalc } from '../../dominio/calculos.js';
 import { graficoBarras } from '../../graficos/index.js';
 import { Store } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
@@ -44,7 +44,7 @@ import {
 } from './componentes.js';
 
 /* --------------------------------------------------------------- KPIs */
-function kpisMateriais(todos) {
+function kpisMateriais(todos, cobertura) {
   const orcTotal = todos.reduce((s, x) => s + x.c.orcamento, 0);
   const compradoTotal = todos.reduce((s, x) => s + x.c.valorComprado, 0);
   const saldoTotal = todos.reduce((s, x) => s + x.c.saldoValor, 0);
@@ -100,13 +100,17 @@ function kpisMateriais(todos) {
       comCompra.length
         ? `${desvioTotal >= 0 ? '+' : '−'}${fmtMoney(Math.abs(desvioTotal), { dec: 0 })}`
         : '—',
-      !comCompra.length
+      (!comCompra.length
         ? 'sem compras ainda'
         : desvioTotal > 0.5
           ? 'acima do previsto'
           : desvioTotal < -0.5
             ? 'abaixo do previsto'
-            : 'dentro do previsto',
+            : 'dentro do previsto') +
+        /* o desvio só mede o que está no plano: diz quanto isso é */
+        (cobertura.fracao === null
+          ? ''
+          : ` · plano cobre ${fmtPct(cobertura.fracao, 0)} das compras`),
       desvioTotal > 0.5 ? 'atraso' : '',
     )}
   </div>`;
@@ -168,6 +172,8 @@ function celulaPrazo(m, c, hoje) {
 
 function situacaoMaterial(m, c) {
   if (m.status === 'Cancelado') return { texto: 'Cancelado', tom: 'tinta3' };
+  /* o diário registrou que a falta dele parou o serviço */
+  if (c.ocorrencias.length) return { texto: 'Parou a frente (diário)', tom: 'atraso', diario: c.ocorrencias[0] };
   if (c.travaFrente) return { texto: 'Travando a etapa', tom: 'atraso' };
   if (c.vencido) return { texto: 'Vencido', tom: 'atraso' };
   if (c.excesso > 0.005) return { texto: `Comprado +${fmtNum(c.excesso, 0)} ${m.unidade || ''}`.trim(), tom: 'tom-alerta' };
@@ -179,7 +185,10 @@ function situacaoMaterial(m, c) {
 
 function celulaSituacao(m, c) {
   const s = situacaoMaterial(m, c);
-  return `<span class="situacao-ct ${s.tom}"><span class="pt"></span>${esc(s.texto)}</span>`;
+  const txt = `<span class="situacao-ct ${s.tom}"><span class="pt"></span>${esc(s.texto)}</span>`;
+  if (!s.diario) return txt;
+  const texto = String(s.diario.ocorrencias || '').trim();
+  return `<button class="btn-link" data-acao="ir" data-view="diario" title="${esc(texto || 'Ver no diário')}">${txt}</button>`;
 }
 
 const colunasMateriais = (hoje) => [
@@ -241,12 +250,14 @@ const colunasMateriais = (hoje) => [
     k: 'acoes',
     rotulo: '',
     largura: '15%',
+    /* "Comprar" separado do lápis e da lixeira: no celular, o dedo que
+       ia comprar não pode cair no excluir */
     celula: (d) =>
-      `${
+      `<span class="acoes-material">${
         !Store.somenteLeitura() && d.c.saldo > 0.005 && d.m.status !== 'Cancelado'
           ? `<button class="btn sutil pequeno" data-acao="comprar-material" data-id="${esc(d.m.id)}">Comprar</button>`
           : ''
-      }${acoesRegistro('material', d.m.id, d.m.material)}`,
+      }<span class="acoes-registro">${acoesRegistro('material', d.m.id, d.m.material)}</span></span>`,
   },
 ];
 
@@ -309,7 +320,7 @@ VIEWS.materiais = () => {
   ).map(([rotulo, valor]) => ({ rotulo, valor: Math.round(valor * 100) / 100 }));
 
   return `<div class="tela-lista">
-    ${kpisMateriais(todos)}
+    ${kpisMateriais(todos, coberturaPlanoMateriais(o))}
     ${barra}
     ${lista({
       id: 'materiais',

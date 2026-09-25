@@ -8,6 +8,11 @@ import { ocultarDocumento } from '../src/nucleo/contato.js';
 import {
   alteracaoSensivel,
   ativacaoConta,
+  coberturaPlanoMateriais,
+  lancamentoNatureza,
+  lancamentosDuplicados,
+  materialCalc,
+  resumoLancamentos,
   contratoSituacao,
   medicaoAPagar,
   medicaoPagamento,
@@ -200,5 +205,53 @@ describe('Cronograma — unidade de produção pela etapa, não m² para tudo', 
   });
   it('etapa sem nome não sugere', () => {
     expect(unidadeSugeridaEtapa('')).toBe('');
+  });
+});
+
+describe('Lançamentos — natureza, duplicados e resumo', () => {
+  it('comissão é venda, honorário é administração, material é obra', () => {
+    expect(lancamentoNatureza({ tipo: 'Comissão imobiliária' })).toBe('Venda');
+    expect(lancamentoNatureza({ tipo: 'Honorário técnico/gestão' })).toBe('Administração');
+    expect(lancamentoNatureza({ tipo: 'Taxa/imposto' })).toBe('Taxas');
+    expect(lancamentoNatureza({ tipo: 'Material' })).toBe('Obra');
+  });
+  it('Casa 14: R$ 31.742 lançados, R$ 8.262 fora da obra física, 5 sem etapa', () => {
+    const r = resumoLancamentos(casa14());
+    expect(r.total).toBe(31742);
+    expect(r.material).toBe(23480);
+    expect(r.naoObra).toEqual({ n: 4, valor: 8262 });
+    expect(r.semEtapa.n).toBe(5);
+  });
+  it('mesma data, fornecedor e total formam um grupo de duplicados', () => {
+    const o = casa14();
+    const l = o.lancamentos.find((x) => x.tipo === 'Material');
+    expect(lancamentosDuplicados(o)).toHaveLength(0);
+    o.lancamentos.push({ ...l, id: 'copia' });
+    const g = lancamentosDuplicados(o);
+    expect(g).toHaveLength(1);
+    expect(g[0].map((x) => x.id)).toContain('copia');
+  });
+});
+
+describe('Materiais — cobertura do plano e ocorrência do diário', () => {
+  it('Casa 14: só R$ 3.480 de R$ 23.480 em material estavam no plano', () => {
+    const c = coberturaPlanoMateriais(casa14());
+    expect(c.total).toBe(23480);
+    expect(c.noPlano).toBe(3480);
+    expect(c.fracao).toBeCloseTo(0.148, 3);
+  });
+  it('sem compra de material, cobertura é null', () => {
+    const o = casa14();
+    o.lancamentos = [];
+    expect(coberturaPlanoMateriais(o).fracao).toBeNull();
+  });
+  it('ocorrência aberta no diário aparece no material; resolvida, não', () => {
+    const o = casa14();
+    const rejunte = o.materiais.find((m) => m.material === 'Rejunte');
+    const d = o.diario[0];
+    Object.assign(d, { ocorrencias: 'Piso parou: falta rejunte', ocorrenciaStatus: 'aberta', ocorrenciaMaterialId: rejunte.id });
+    expect(materialCalc(o, rejunte).ocorrencias).toHaveLength(1);
+    d.ocorrenciaStatus = 'resolvida';
+    expect(materialCalc(o, rejunte).ocorrencias).toHaveLength(0);
   });
 });
