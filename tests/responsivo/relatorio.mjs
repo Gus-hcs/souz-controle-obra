@@ -25,7 +25,10 @@ if (!fs.existsSync(JSON_ENTRADA)) {
 const r = JSON.parse(fs.readFileSync(JSON_ENTRADA, 'utf8'));
 
 const esc = (s) =>
-  String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  String(s ?? '').replace(
+    /[&<>"]/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
+  );
 
 /* ------------------------------------------------------- causas raiz
    O que cada checagem costuma significar em termos de conserto. É isso
@@ -44,12 +47,14 @@ const CAUSAS = {
   },
   'zoom-no-ios': {
     titulo: 'Campo faz o iOS dar zoom sozinho',
-    causa: 'Input com fonte menor que 16px: o Safari amplia a página ao focar e o enquadramento se perde.',
+    causa:
+      'Input com fonte menor que 16px: o Safari amplia a página ao focar e o enquadramento se perde.',
     onde: 'interface.css',
   },
   'rolagem-horizontal': {
     titulo: 'A página inteira rola de lado',
-    causa: 'Algum conteúdo largo não está contido: tabela ou gráfico sem contêiner de rolagem próprio.',
+    causa:
+      'Algum conteúdo largo não está contido: tabela ou gráfico sem contêiner de rolagem próprio.',
     onde: 'interface.css',
   },
   'elemento-fora-da-viewport': {
@@ -71,6 +76,28 @@ const CAUSAS = {
     titulo: 'Gráfico maior que a caixa',
     causa: 'SVG sem largura fluida ou com viewBox de largura mínima.',
     onde: 'graficos/index.js + interface.css',
+  },
+  'kpi-largura-desigual': {
+    titulo: 'Cards de KPI com larguras diferentes na mesma linha',
+    causa:
+      'A faixa não está usando faixaKpis ou uma regra local sobrepôs a grade de colunas iguais.',
+    onde: 'ui/telas/componentes.js (faixaKpis) + ui/padrao.css',
+  },
+  'kpi-altura-desigual': {
+    titulo: 'Cards de KPI com alturas diferentes',
+    causa: 'Contexto sem o corte de duas linhas ou grade sem linhas de altura igual.',
+    onde: 'ui/padrao.css (.kpis, .kpi-ctx)',
+  },
+  'area-vazia-a-direita': {
+    titulo: 'Tela que não usa a largura disponível',
+    causa:
+      'max-width local, tabela com largura pelo conteúdo ou bloco sem par no painel de análise.',
+    onde: 'ui/padrao.css (contêiner) + a tela',
+  },
+  'painel-rolagem-horizontal': {
+    titulo: 'Gráfico ou painel lateral rolando de lado',
+    causa: 'SVG desenhado mais largo que o bloco, ou coluna fixa estreita demais para o conteúdo.',
+    onde: 'graficos/index.js (graficoAuto) + ui/padrao.css',
   },
   'largura-de-leitura': {
     titulo: 'Linha de texto longa demais no ultrawide',
@@ -113,22 +140,66 @@ const registrar = (f, contexto) => {
   if (g.exemplos.length < 8) g.exemplos.push({ ...f, ...contexto });
   porCausa.set(f.checagem, g);
 };
-for (const c of r.combinacoes) for (const f of c.falhas) registrar(f, { tela: c.tela, viewport: c.viewport, tema: c.tema, estado: c.estado });
+for (const c of r.combinacoes)
+  for (const f of c.falhas)
+    registrar(f, { tela: c.tela, viewport: c.viewport, tema: c.tema, estado: c.estado });
 for (const f of r.folhas) registrar(f, {});
 
 const causas = [...porCausa.values()].sort((a, b) => b.total - a.total);
+
+/* Antes × depois: as capturas guardadas em relatorio-responsivo/antes e
+   relatorio-responsivo/depois (tela__largura__tema.jpg), tiradas com a
+   mesma obra de demonstração. Só aparece quando as duas pastas existem. */
+function antesDepoisHTML() {
+  const pAntes = path.join(PASTA, 'antes');
+  const pDepois = path.join(PASTA, 'depois');
+  if (!fs.existsSync(pAntes) || !fs.existsSync(pDepois)) return '';
+  const nomes = fs.readdirSync(pDepois).filter((f) => f.endsWith('.jpg'));
+  const telasAD = [...new Set(nomes.map((f) => f.split('__')[0]))].sort();
+  const larguras = ['1920', '1440', '1024', '390'];
+  const bloco = (tema) => `
+<h3 style="margin:24px 0 8px">Tema ${tema === 'light' ? 'claro' : 'escuro'}</h3>
+<div class="grade"><table>
+  <thead><tr><th>Tela</th>${larguras.map((w) => `<th>${w}px</th>`).join('')}</tr></thead>
+  <tbody>${telasAD
+    .map(
+      (t) =>
+        `<tr><td><b>${esc(t)}</b></td>${larguras
+          .map((w) => {
+            const arq = `${t}__${w}__${tema}.jpg`;
+            const tem = (d) => fs.existsSync(path.join(PASTA, d, arq));
+            const fig = (d, rot) =>
+              tem(d)
+                ? `<figure><img loading="lazy" src="relatorio-responsivo/${d}/${esc(arq)}" alt="${esc(t)} ${rot} ${w}px"
+                  data-legenda="${esc(`${t} · ${rot} · ${w}px · ${tema}`)}"><figcaption>${rot}</figcaption></figure>`
+                : '';
+            return `<td><div class="ad">${fig('antes', 'antes')}${fig('depois', 'depois')}</div></td>`;
+          })
+          .join('')}</tr>`,
+    )
+    .join('')}</tbody></table></div>`;
+  return `<h2>Antes × depois</h2>
+<p class="sub">Padronização das telas (set/2026). Cada célula: antes à esquerda, depois à direita. Clique para ampliar.</p>
+${bloco('light')}${bloco('dark')}`;
+}
 
 /* Matriz tela × viewport, para a grade de screenshots. */
 const telas = [...new Set(r.combinacoes.map((c) => c.tela))].sort();
 const viewports = [];
 for (const c of r.combinacoes) {
-  if (!viewports.some((v) => v.nome === c.viewport)) viewports.push({ nome: c.viewport, w: c.largura, h: c.altura });
+  if (!viewports.some((v) => v.nome === c.viewport))
+    viewports.push({ nome: c.viewport, w: c.largura, h: c.altura });
 }
 viewports.sort((a, b) => a.w - b.w || a.h - b.h);
 
 const achar = (tela, viewport, tema, estado = 'normal', extra = '') =>
   r.combinacoes.find(
-    (c) => c.tela === tela && c.viewport === viewport && c.tema === tema && c.estado === estado && (c.extra || '') === extra,
+    (c) =>
+      c.tela === tela &&
+      c.viewport === viewport &&
+      c.tema === tema &&
+      c.estado === estado &&
+      (c.extra || '') === extra,
   );
 
 const M = r.metas;
@@ -209,6 +280,7 @@ const html = `<!doctype html>
   .pill { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 99px;
           background: var(--fundo2); color: var(--tinta2); margin-right: 4px; }
   .vazio-bom { padding: 24px; text-align: center; color: var(--ok); font-weight: 600; }
+.ad{display:flex;gap:4px}.ad figure{flex:1}
 </style>
 </head>
 <body>
@@ -244,7 +316,14 @@ ${
   <div class="corpo">
     <p class="porque">${esc((CAUSAS[g.checagem] || {}).causa || '')}</p>
     <p class="onde">Onde se corrige: <code>${esc((CAUSAS[g.checagem] || {}).onde || '—')}</code></p>
-    ${g.telas.size ? `<p class="onde">Telas atingidas: ${[...g.telas].sort().map((t) => `<span class="pill">${esc(t)}</span>`).join('')}</p>` : ''}
+    ${
+      g.telas.size
+        ? `<p class="onde">Telas atingidas: ${[...g.telas]
+            .sort()
+            .map((t) => `<span class="pill">${esc(t)}</span>`)
+            .join('')}</p>`
+        : ''
+    }
     <table>
       <thead><tr><th>Seletor culpado</th><th class="num">Ocorrências</th></tr></thead>
       <tbody>${[...g.seletores.entries()]
@@ -298,10 +377,17 @@ ${
 <p class="sub">De 1440px até 360px, de 90 em 90. Larguras onde algo estourou fora dos tamanhos “oficiais”.</p>
 <table><thead><tr><th>Tela</th><th class="num">Largura</th><th>Checagem</th><th>Seletor</th></tr></thead>
 <tbody>${r.resize
-        .flatMap((q) => q.falhas.map((f) => `<tr><td>${esc(q.tela)}</td><td class="num">${q.largura}px</td><td>${esc(f.checagem)}</td><td><code>${esc(f.seletor)}</code></td></tr>`))
+        .flatMap((q) =>
+          q.falhas.map(
+            (f) =>
+              `<tr><td>${esc(q.tela)}</td><td class="num">${q.largura}px</td><td>${esc(f.checagem)}</td><td><code>${esc(f.seletor)}</code></td></tr>`,
+          ),
+        )
         .join('')}</tbody></table>`
     : ''
 }
+
+${antesDepoisHTML()}
 
 <h2>Grade de telas</h2>
 <p class="sub">Linhas: telas. Colunas: tamanhos. Moldura vermelha = combinação com falha. Clique para ampliar.</p>
@@ -314,18 +400,19 @@ ${['light', 'dark']
   <thead><tr><th>Tela</th>${viewports.map((v) => `<th>${esc(v.nome)}<br><span class="onde">${v.w}×${v.h}</span></th>`).join('')}</tr></thead>
   <tbody>${telas
     .map(
-      (t) => `<tr><td><b>${esc(t)}</b></td>${viewports
-        .map((v) => {
-          const c = achar(t, v.nome, tema);
-          if (!c || !c.imagem) return '<td></td>';
-          const falhou = c.falhas.some((f) => f.gravidade === 'falha');
-          return `<td><figure>
+      (t) =>
+        `<tr><td><b>${esc(t)}</b></td>${viewports
+          .map((v) => {
+            const c = achar(t, v.nome, tema);
+            if (!c || !c.imagem) return '<td></td>';
+            const falhou = c.falhas.some((f) => f.gravidade === 'falha');
+            return `<td><figure>
             <img loading="lazy" class="${falhou ? 'temFalha' : ''}" src="relatorio-responsivo/${esc(c.imagem)}"
                  alt="${esc(t)} em ${esc(v.nome)}" data-legenda="${esc(`${t} · ${v.nome} (${v.w}×${v.h}) · ${tema} · ${c.falhas.length} falha(s)`)}">
             <figcaption>${falhou ? `<span class="ruim">${c.falhas.filter((f) => f.gravidade === 'falha').length} falha(s)</span>` : 'ok'}</figcaption>
           </figure></td>`;
-        })
-        .join('')}</tr>`,
+          })
+          .join('')}</tr>`,
     )
     .join('')}</tbody>
 </table>
@@ -337,11 +424,22 @@ ${['light', 'dark']
 <div class="grade">
 <table>
   <thead><tr><th>Tela</th><th>Estado</th>${['celular', 'tablet', 'desktop', 'ultrawide'].map((n) => `<th>${n}</th>`).join('')}</tr></thead>
-  <tbody>${[...new Set(r.combinacoes.filter((c) => !['normal', 'movimento-reduzido'].includes(c.estado)).map((c) => `${c.tela}|${c.estado}`))]
+  <tbody>${[
+    ...new Set(
+      r.combinacoes
+        .filter((c) => !['normal', 'movimento-reduzido'].includes(c.estado))
+        .map((c) => `${c.tela}|${c.estado}`),
+    ),
+  ]
     .sort()
     .map((chave) => {
       const [t, est] = chave.split('|');
-      return `<tr><td><b>${esc(t)}</b></td><td>${esc(est)}</td>${['celular', 'tablet', 'desktop', 'ultrawide']
+      return `<tr><td><b>${esc(t)}</b></td><td>${esc(est)}</td>${[
+        'celular',
+        'tablet',
+        'desktop',
+        'ultrawide',
+      ]
         .map((vn) => {
           const c = achar(t, vn, 'light', est);
           if (!c || !c.imagem) return '<td></td>';

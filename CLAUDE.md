@@ -14,8 +14,11 @@ banco, consórcio ou o próprio cliente) · lançamentos · plano de materiais �
 cronograma com avanço físico ponderado, dependências e caminho crítico · curva S
 com liberado × executado · fluxo de caixa projetado com vale de caixa · diário de
 obra de campo com fotos, que funciona sem rede · pendências com tratamento e causa
-raiz · pendências do cliente · relatório em PDF · importação de planilha MCMV ·
-exportação CSV · acesso do Power BI ao PostgreSQL.
+raiz · pendências do cliente · nota fiscal e comprovante (foto ou PDF, no Storage) ·
+relatórios em PDF com período, fotos, valores e observação, e histórico dos
+gerados · importação de planilha por modelo (obras, lançamentos, prestadores,
+cronograma) e da planilha MCMV · exportação CSV e Excel · acesso do Power BI ao
+PostgreSQL.
 
 O sistema atende qualquer construtora: nada na tela assume a CAIXA. O nome do
 financiador vem de `obras.financiador`; vazio, a tela diz "financiador".
@@ -47,6 +50,26 @@ estado antigo, incompleto ou corrompido e devolve algo íntegro.
 A interface não tem framework nem VDOM. Cada tela é uma função que devolve HTML
 como texto; `App.render()` troca o conteúdo. Eventos por delegação: um ouvinte no
 documento lê `data-acao` e chama a função em `ui/acoes.js`.
+
+## Padrão de tela
+
+Toda tela usa as mesmas peças (`ui/telas/componentes.js`, CSS em
+`ui/padrao.css`, carregado por último). Tela que precisa de um jeito diferente
+disso é defeito, não exceção.
+
+| Peça                     | O que é                                                                                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `faixaKpis`              | a faixa de KPIs: 3 a 5 cards de mesma largura e altura, rótulo → valor → contexto (2 linhas, texto inteiro no tooltip); card é botão só quando filtra a tela |
+| `barraFiltros`           | pílulas com contagem + menu "Mais filtros"; filtro do menu ligado vira etiqueta com ×. Nenhum `<select>` nativo de filtro                                    |
+| `lista`                  | a tabela ordenável; `grupos` agrupa linhas (Lançamentos por mês)                                                                                             |
+| `painelAnalise`          | o fim da tela: blocos em duas colunas (uma abaixo de 1200px)                                                                                                 |
+| `graficoAuto` (graficos) | gráfico desenhado na largura real do bloco; o `ResizeObserver` do shell redesenha                                                                            |
+
+Contêiner único: largura toda, 24px de margem (16px no celular), sem
+`max-width` local. Números na fonte do texto com `tabular-nums`. Telas de
+configuração (Configuração da obra, Ajustes) gravam sozinhas ao mudar — sem
+botão "Salvar". `tests/responsivo` confere KPIs iguais, área vazia à direita
+e painel com rolagem lateral.
 
 ## Regras que não se quebram
 
@@ -120,12 +143,12 @@ Todos são escritos para rodar de novo sem quebrar (`if not exists`,
 
 Um termo para cada coisa, em todas as telas, PDFs e alertas:
 
-| Use | Não use | O que é |
-|---|---|---|
-| **Pendências** | Alertas, Precisa de ação, Precisa de atenção | alerta de gravidade ≥ 2 (`pendenciasObra`); a tela `alertas` se chama Pendências |
-| **Caixa hoje** | Saldo em caixa, Saldo | `kpisObra().saldoCaixa` |
-| **Financeiro realizado** | Avanço financeiro | desembolso ÷ custo previsto, em % (curva S) |
-| **Desembolso** | — | o mesmo, em R$ acumulados |
+| Use                      | Não use                                      | O que é                                                                          |
+| ------------------------ | -------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Pendências**           | Alertas, Precisa de ação, Precisa de atenção | alerta de gravidade ≥ 2 (`pendenciasObra`); a tela `alertas` se chama Pendências |
+| **Caixa hoje**           | Saldo em caixa, Saldo                        | `kpisObra().saldoCaixa`                                                          |
+| **Financeiro realizado** | Avanço financeiro                            | desembolso ÷ custo previsto, em % (curva S)                                      |
+| **Desembolso**           | —                                            | o mesmo, em R$ acumulados                                                        |
 
 ## Pendências conhecidas
 
@@ -142,15 +165,15 @@ Um termo para cada coisa, em todas as telas, PDFs e alertas:
 
 ## Comandos
 
-| Comando | O que faz |
-|---|---|
-| `npm run dev` | sobe em modo desenvolvimento |
-| `npm run build` | gera `dist/index.html` — o sistema inteiro em um arquivo |
-| `npm test` | conferência do motor de cálculo e da validação |
-| `npm run test:e2e` | abre o sistema em navegador e percorre todas as telas |
-| `npm run lint` | análise estática |
-| `npm run formatar` | Prettier |
-| `npm run verificar` | lint + test + build + e2e — o mesmo que a CI roda |
+| Comando             | O que faz                                                |
+| ------------------- | -------------------------------------------------------- |
+| `npm run dev`       | sobe em modo desenvolvimento                             |
+| `npm run build`     | gera `dist/index.html` — o sistema inteiro em um arquivo |
+| `npm test`          | conferência do motor de cálculo e da validação           |
+| `npm run test:e2e`  | abre o sistema em navegador e percorre todas as telas    |
+| `npm run lint`      | análise estática                                         |
+| `npm run formatar`  | Prettier                                                 |
+| `npm run verificar` | lint + test + build + e2e — o mesmo que a CI roda        |
 
 O `test:e2e` precisa do Chromium do Playwright: `npx playwright install chromium`
 uma vez.

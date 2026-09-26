@@ -309,7 +309,7 @@ table.lista,
 }
 .menu-filtros .menu-grupo {
   padding: var(--e2) var(--e2) 2px;
-  font-size: var(--t-mini);
+  font-size: var(--t-peq);
   font-weight: var(--p-semi);
   color: var(--tinta2);
 }
@@ -510,9 +510,11 @@ table.lista,
 .mf-alerta .mf-medido {
   background: var(--atraso);
 }
-.tab-compact td,
-.tab-compact th {
-  white-space: nowrap;
+@media (min-width: 768px) {
+  .tab-compact td,
+  .tab-compact th {
+    white-space: nowrap;
+  }
 }
 
 /* ------------------------------------------- gráficos dos painéis */
@@ -1049,7 +1051,7 @@ table.lista tr.linha-duplicado td {
 .folha-tit span {
   display: block;
   color: var(--f-tinta2);
-  font-size: 11px;
+  font-size: 12px;
 }
 .folha-tit .dir {
   text-align: right;
@@ -1069,7 +1071,7 @@ table.lista tr.linha-duplicado td {
 }
 .folha-kpis span,
 .folha-kpis small {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--f-tinta2);
 }
 .folha-kpis b {
@@ -1084,7 +1086,7 @@ table.lista tr.linha-duplicado td {
   background: var(--f-apoio);
 }
 .folha-obs span {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--f-tinta2);
 }
@@ -1095,7 +1097,7 @@ table.lista tr.linha-duplicado td {
 .folha-tab {
   width: 100%;
   border-collapse: collapse;
-  font-size: 11px;
+  font-size: 12px;
 }
 .folha-tab th {
   padding: 4px 6px;
@@ -1117,13 +1119,13 @@ table.lista tr.linha-duplicado td {
 .folha-rodape,
 .folha-decl {
   margin: 4px 0 0;
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--f-tinta2);
   max-width: none;
 }
 .folha-decl {
   margin-top: 16px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--f-tinta);
 }
 .folha-rodape {
@@ -1166,7 +1168,7 @@ table.lista tr.linha-duplicado td {
   border-radius: 3px;
 }
 .folha-fotos figcaption {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--f-tinta2);
 }
 .folha-assina {
@@ -1178,7 +1180,7 @@ table.lista tr.linha-duplicado td {
   display: flex;
   flex-direction: column;
   min-width: 200px;
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--f-tinta2);
 }
 .folha-assina i {
@@ -1281,7 +1283,7 @@ table.lista td s,
   border-radius: var(--r-total);
   background: var(--alerta);
   color: #fff;
-  font-size: var(--t-mini);
+  font-size: var(--t-peq);
   text-align: center;
   font-variant-numeric: tabular-nums;
 }
@@ -1312,7 +1314,7 @@ table.lista td s,
 .folha.folha-mini {
   min-height: 0;
   padding: 18px 20px;
-  font-size: 11px;
+  font-size: 12px;
 }
 .folha-mini .folha-assina {
   margin-top: 18px;
@@ -1491,5 +1493,35 @@ table.lista td s,
   .ajustes-nav button,
   .listas-nav button {
     min-height: 44px;
+  }
+}
+
+/* ------------------------------------------ acessibilidade das peças novas
+   Texto dos gráficos desenhados na largura real (graficoAuto, rosca): 12px,
+   o mínimo do sistema. Pílula de filtro e etiqueta com alvo de 32px no
+   tablet (44px no celular, acima). Campo de formulário com 16px no celular:
+   abaixo disso o iOS dá zoom ao focar. */
+.grafico-auto .grafico text,
+.rosca .grafico text {
+  font-size: 12px;
+}
+.rosca .grafico .rosca-total {
+  font-size: 15px;
+}
+@media (max-width: 1199px) {
+  .filtro-barra .pilula,
+  .etiqueta-filtro {
+    min-height: 32px;
+  }
+}
+@media (max-width: 767px) {
+  #conteudo input,
+  #conteudo select,
+  #conteudo textarea,
+  #modal-camada input,
+  #modal-camada select,
+  #modal-camada textarea,
+  #topo input {
+    font-size: 16px;
   }
 }

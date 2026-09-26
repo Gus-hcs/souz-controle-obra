@@ -45,6 +45,9 @@ function checarLayout(ctx) {
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity === 0) return false;
     const r = el.getBoundingClientRect();
+    /* texto só para leitor de tela (.sr: 1×1px com clip) é invisível de
+       propósito — não é texto cortado nem fonte pequena */
+    if (r.width <= 1 && r.height <= 1) return false;
     return r.width > 0 && r.height > 0;
   };
 
@@ -289,6 +292,105 @@ function checarLayout(ctx) {
           detalhe: 'linha longa demais para ler com conforto',
         });
       }
+    }
+  }
+
+  /* ------------------------------ 9. faixa de KPIs com cards desiguais
+     Padrão de tela (padrao.css): na mesma linha, todos da mesma largura;
+     na faixa inteira, todos da mesma altura. Tolerância de 1px. */
+  for (const faixa of document.querySelectorAll('.kpis')) {
+    if (!visivel(faixa) || foraDePropósito(faixa)) continue;
+    const cards = [...faixa.querySelectorAll(':scope > .kpi-item')].filter(visivel);
+    if (cards.length < 2) continue;
+    const rs = cards.map((c) => c.getBoundingClientRect());
+    const linhas = new Map();
+    rs.forEach((r) => {
+      const k = Math.round(r.top);
+      if (!linhas.has(k)) linhas.set(k, []);
+      linhas.get(k).push(r.width);
+    });
+    for (const larguras of linhas.values()) {
+      const dif = Math.max(...larguras) - Math.min(...larguras);
+      if (dif > 1) {
+        falhas.push({
+          checagem: 'kpi-largura-desigual',
+          gravidade: 'falha',
+          seletor: seletor(faixa),
+          medido: `${larguras.map((w) => Math.round(w)).join(' / ')}px`,
+          meta: 'mesma largura na linha (±1px)',
+          detalhe: `${cards.length} cards`,
+        });
+        break;
+      }
+    }
+    const alturas = rs.map((r) => r.height);
+    if (Math.max(...alturas) - Math.min(...alturas) > 1) {
+      falhas.push({
+        checagem: 'kpi-altura-desigual',
+        gravidade: 'falha',
+        seletor: seletor(faixa),
+        medido: `${alturas.map((h) => Math.round(h)).join(' / ')}px`,
+        meta: 'mesma altura (±1px)',
+        detalhe: `${cards.length} cards`,
+      });
+    }
+  }
+
+  /* ---------------------- 10. área vazia à direita em tela larga
+     A partir de 1440px, o que está mais à direita (tabela, faixa de KPIs,
+     bloco de análise, formulário) chega perto da borda útil — ou do
+     inspetor aberto. Sobra maior que 10% da largura útil é a tela que
+     "quebra no meio". */
+  if (window.innerWidth >= 1440) {
+    const c = document.getElementById('conteudo');
+    const vazia = c && !c.querySelector('table, .kpis, form, .analise-bloco, .rel-previa') && c.querySelector('.vazio');
+    if (c && !vazia) {
+      const cs = getComputedStyle(c);
+      const rc = c.getBoundingClientRect();
+      const inspetor = [...c.querySelectorAll('.inspetor')].find((x) => visivel(x));
+      const principal = c.querySelector('.tela-principal') || c;
+      const esq = principal.getBoundingClientRect().left + parseFloat(getComputedStyle(principal).paddingLeft || 0);
+      const borda = inspetor
+        ? inspetor.getBoundingClientRect().left
+        : rc.right - parseFloat(cs.paddingRight || 0);
+      const pecas = [...c.querySelectorAll('table, .kpis, .analise-bloco, .rel-previa, form, .caixa, .cartao, .filtro-barra + .lista-cx')]
+        .filter((e) => visivel(e) && (!inspetor || !inspetor.contains(e)) && !e.closest('#modal-camada'))
+        .map((e) => e.getBoundingClientRect().right);
+      if (pecas.length) {
+        const sobra = borda - Math.max(...pecas);
+        const util = borda - esq;
+        if (util > 0 && sobra > util * 0.1) {
+          falhas.push({
+            checagem: 'area-vazia-a-direita',
+            gravidade: 'falha',
+            seletor: '#conteudo',
+            medido: `${Math.round(sobra)}px vazios (${Math.round((sobra / util) * 100)}%)`,
+            meta: '≤ 10% da largura útil',
+            detalhe: 'a tela não usa a largura disponível',
+          });
+        }
+      }
+    }
+  }
+
+  /* -------------- 11. gráfico ou painel lateral com rolagem de lado
+     Painel de análise, coluna de gráficos, painel do cronograma e prévia
+     do relatório cabem na própria largura (o Gantt rola por dentro, na
+     .tab-rolagem dele — isso não conta). */
+  for (const el of document.querySelectorAll('.painel-analise, .analise-bloco, .crono-painel, .fluxo-graficos, .fluxo-topo, .rel-previa')) {
+    if (!visivel(el) || foraDePropósito(el)) continue;
+    const cs = getComputedStyle(el);
+    const rola = /(auto|scroll)/.test(cs.overflowX);
+    const r = el.getBoundingClientRect();
+    if ((!rola && el.scrollWidth > el.clientWidth + 2) || (rola && el.scrollWidth > el.clientWidth + 2 && !el.querySelector('.tab-rolagem'))) {
+      falhas.push({
+        checagem: 'painel-rolagem-horizontal',
+        gravidade: 'falha',
+        seletor: seletor(el),
+        medido: `conteúdo ${el.scrollWidth}px em ${el.clientWidth}px`,
+        meta: 'cabe na largura do painel',
+        detalhe: `${Math.round(r.width)}px de painel`,
+      });
     }
   }
 
