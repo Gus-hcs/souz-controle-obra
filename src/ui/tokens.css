@@ -82,16 +82,16 @@
   --lateral-w: 220px; /* sidebar */
   --inspetor-w: 300px; /* painel inspetor à direita */
 
-  /* ------------------------------------------------ barras petróleo
-     A lateral esquerda e a barra de cima são petróleo escuro nos DOIS
-     temas — a moldura da marca. Escuro o bastante para os três tons de
-     texto passarem 4,5:1 (tests/contraste.test.js); o #096a61 deixava o
-     cinza em 2,9:1. Dentro delas vale esta paleta escura (interface.css
-     remapeia os tokens de texto e controle no #rail e no #topo). */
-  --barra-fundo: #053f3a;
+  /* ---------------------------------------------------- barras pretas
+     A lateral esquerda e a barra de cima são Souz Preto nos DOIS temas —
+     a moldura da marca (antes petróleo, #053f3a). Os três tons de texto
+     passam 4,5:1 (tests/contraste.test.js). Dentro delas vale esta paleta
+     escura (interface.css remapeia os tokens de texto e controle no #rail
+     e no #topo). */
+  --barra-fundo: #05100e;
   --barra-tinta: #e8e8e8; /* Névoa */
   --barra-tinta2: #adadad; /* Cinza */
-  --barra-tinta3: #97a8a5; /* 4,8:1 sobre o petróleo */
+  --barra-tinta3: #97a8a5;
   --barra-acento-texto: #2fd4c4; /* Ciano Claro */
   --barra-ctrl: #0e1a17; /* Grafite: busca, seletor de obra, segmentado */
   --barra-ctrl-ativo: #173934;
@@ -190,18 +190,17 @@
    tem pré-processador. Mexeu em um, mexa no outro — tests/tokens.test.js
    quebra o `npm test` se os dois saírem de sincronia.
 
-   No escuro a sidebar (Grafite) é mais clara que o conteúdo (Souz
-   Preto), o inverso do claro — é o que dá a leitura de "janela" do
-   macOS sem precisar de sombra. */
+   No escuro as barras (Souz Preto) são mais escuras que o conteúdo
+   (Grafite): a moldura recua e a tela fica em primeiro plano. */
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
 
-    /* a marca nasce no escuro: Souz Preto no conteúdo, Grafite na
-       sidebar e nas barras, Elevado no que flutua */
-    --fundo-janela: #05100e;
-    --fundo-conteudo: #05100e;
+    /* a marca nasce no escuro: Grafite no conteúdo, Souz Preto nas
+       barras, Elevado no que flutua */
+    --fundo-janela: #0e1a17;
+    --fundo-conteudo: #0e1a17;
     --fundo-lateral: rgba(14, 26, 23, 0.9);
     --fundo-lateral-solido: #0e1a17;
     --fundo-toolbar: rgba(14, 26, 23, 0.86);
@@ -253,10 +252,10 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  /* a marca nasce no escuro: Souz Preto no conteúdo, Grafite na
-     sidebar e nas barras, Elevado no que flutua */
-  --fundo-janela: #05100e;
-  --fundo-conteudo: #05100e;
+  /* a marca nasce no escuro: Grafite no conteúdo, Souz Preto nas
+     barras, Elevado no que flutua */
+  --fundo-janela: #0e1a17;
+  --fundo-conteudo: #0e1a17;
   --fundo-lateral: rgba(14, 26, 23, 0.9);
   --fundo-lateral-solido: #0e1a17;
   --fundo-toolbar: rgba(14, 26, 23, 0.86);

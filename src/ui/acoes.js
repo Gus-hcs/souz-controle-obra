@@ -288,10 +288,10 @@ ACOES['conta-menu'] = (el) => {
     ${logado ? '<hr><button role="menuitem" data-acao="auth-sair">Sair</button>' : ''}`;
   document.body.appendChild(menu);
 
-  /* Abre para cima, alinhado ao botão — ele fica no rodapé da lateral. */
+  /* Abre para baixo, alinhado à direita do botão — ele fica na ponta do topo. */
   const r = el.getBoundingClientRect();
-  menu.style.left = Math.max(8, r.left) + 'px';
-  menu.style.bottom = window.innerHeight - r.top + 4 + 'px';
+  menu.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+  menu.style.top = r.bottom + 4 + 'px';
   el.setAttribute('aria-expanded', 'true');
   const primeiro = menu.querySelector('button');
   if (primeiro) primeiro.focus();

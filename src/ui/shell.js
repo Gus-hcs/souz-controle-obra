@@ -247,26 +247,13 @@ const App = {
       return cab + itens;
     }).join('');
 
-    /* Conta: usuário, tema e sair num menu no rodapé da lateral — a toolbar
-       fica só com o que é da tela. */
-    const usuario = Store.backend === 'supabase' && SUPA.usuario
-      ? (SUPA.usuario.email || '').split('@')[0]
-      : 'Este navegador';
-
     document.getElementById('rail').innerHTML = `
       <div class="lateral-marca">
         <span class="marca-mark">${LOGO}</span>
         <b>SouZ</b>
       </div>
       <div class="lateral-obra">${seletorObra}</div>
-      <nav class="lateral-nav">${nav}</nav>
-      <div class="lateral-conta">
-        <button class="conta-btn" data-acao="conta-menu" aria-haspopup="menu" aria-expanded="false">
-          <span class="conta-avatar" aria-hidden="true">${esc(usuario.charAt(0).toUpperCase())}</span>
-          <span class="conta-nome">${esc(usuario)}</span>
-          ${svg(ICO.seta, 11)}
-        </button>
-      </div>`;
+      <nav class="lateral-nav">${nav}</nav>`;
   },
 
   renderTopo() {
@@ -293,16 +280,29 @@ const App = {
       console.error(e);
     }
 
-    /* "salvo 23:11" é texto discreto; o ponto colorido só aparece quando
-       há algo a saber (gravação pendente ou erro). */
+    /* A gravação é silenciosa: o topo só fala dela quando há algo a
+       saber — sem rede (fica no aparelho) ou falha ao gravar. */
+    const avisoGravacao =
+      Store.status === 'erro' || Store.status === 'offline'
+        ? `<span class="status-salvo ${st.tom}" title="${esc(Store.ultimoErro || '')}"><span class="pt"></span>${st.texto}</span>`
+        : '';
+
+    /* Conta: usuário, tema e sair num menu na ponta direita do topo. */
+    const usuario = Store.backend === 'supabase' && SUPA.usuario
+      ? (SUPA.usuario.email || '').split('@')[0]
+      : 'Este navegador';
+
     document.getElementById('topo').innerHTML = `
       <button class="btn sutil icone menu-mob" data-acao="menu" aria-label="Abrir menu">${svg(ICO.menu)}</button>
       <div class="titulo"><b>${t}</b><span>${legenda}</span></div>
       <div class="dir">
         ${acoesTela}
-        <span class="status-salvo ${st.tom}" title="${esc(Store.ultimoErro || '')}">${
-          st.tom === 'aviso' || st.tom === 'critico' ? '<span class="pt"></span>' : ''
-        }${st.texto}</span>
+        ${avisoGravacao}
+        <button class="conta-btn" data-acao="conta-menu" aria-haspopup="menu" aria-expanded="false" title="${esc(usuario)}">
+          <span class="conta-avatar" aria-hidden="true">${esc(usuario.charAt(0).toUpperCase())}</span>
+          <span class="conta-nome">${esc(usuario)}</span>
+          ${svg(ICO.seta, 11)}
+        </button>
       </div>`;
   },
 
