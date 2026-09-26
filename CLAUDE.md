@@ -65,11 +65,26 @@ disso é defeito, não exceção.
 | `painelAnalise`          | o fim da tela: blocos em duas colunas (uma abaixo de 1200px)                                                                                                 |
 | `graficoAuto` (graficos) | gráfico desenhado na largura real do bloco; o `ResizeObserver` do shell redesenha                                                                            |
 
+**Tabela** (toda tabela da interface — `lista`, `.tab`, `.mini-tab`; a folha A4
+e os PDFs têm regra própria): tudo alinhado à esquerda — cabeçalho, linhas,
+total e linha de grupo, número inclusive (`tabular-nums` mantém os dígitos na
+mesma largura; `.num` não alinha à direita). Fundo de uma cor só, o do card
+(`--fundo-conteudo`), sem zebra: cabeçalho e total se separam pelo fio
+(`--separador-forte`) e pela cor do texto. Largura pelo conteúdo, mesma régua
+de espaçamento em toda coluna. Hover e linha selecionada são estado, não
+decoração. Tabela fora disso é defeito.
+
 Contêiner único: largura toda, 24px de margem (16px no celular), sem
 `max-width` local. Números na fonte do texto com `tabular-nums`. Telas de
 configuração (Configuração da obra, Ajustes) gravam sozinhas ao mudar — sem
-botão "Salvar". `tests/responsivo` confere KPIs iguais, área vazia à direita
-e painel com rolagem lateral.
+botão "Salvar". `tests/responsivo` confere KPIs iguais, área vazia à direita,
+painel com rolagem lateral, tabela fora do padrão (alinhamento e fundo) e
+card com vão ou mais baixo que o vizinho (Painel, Fluxo, Configuração);
+`tests/responsivo/capturas.mjs` tira as imagens antes × depois do relatório.
+
+Cards lado a lado terminam juntos: o gráfico do card mais curto enche a
+altura que sobra (`graficoAuto(fn, largura, altura)` — o modo "encher"
+desenha na largura e na altura medidas), em vez de deixar vão.
 
 ## Regras que não se quebram
 

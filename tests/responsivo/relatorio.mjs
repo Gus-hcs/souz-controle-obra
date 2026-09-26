@@ -99,6 +99,24 @@ const CAUSAS = {
     causa: 'SVG desenhado mais largo que o bloco, ou coluna fixa estreita demais para o conteúdo.',
     onde: 'graficos/index.js (graficoAuto) + ui/padrao.css',
   },
+  'tabela-alinhamento': {
+    titulo: 'Célula de tabela fora da esquerda',
+    causa:
+      'text-align à direita ou ao centro (th.num, td.num, .centro), ou conteúdo empurrado por flex-end ou margin-left: auto dentro da célula.',
+    onde: 'ui/interface.css (table.lista) + ui/legado.css e estilo.css (table.tab)',
+  },
+  'tabela-fundo-unico': {
+    titulo: 'Tabela com mais de um fundo',
+    causa:
+      'Cabeçalho, total ou linha de grupo com --fundo-agrupado, ou zebra: o padrão é o fundo do card (--fundo-conteudo) em tudo.',
+    onde: 'ui/interface.css (table.lista) + ui/padrao.css (tr.grupo-linha)',
+  },
+  'card-vao-vazio': {
+    titulo: 'Card com vão vazio ou mais baixo que o vizinho',
+    causa:
+      'Cards lado a lado com alturas próprias (align-items: start), ou gráfico de altura fixa num card esticado pelo vizinho.',
+    onde: 'ui/padrao.css (painel-linha, fluxo-topo, cfg-par) + graficoAuto com altura',
+  },
   'largura-de-leitura': {
     titulo: 'Linha de texto longa demais no ultrawide',
     causa: 'Falta limite de largura de leitura no conteúdo.',
@@ -179,7 +197,7 @@ function antesDepoisHTML() {
     )
     .join('')}</tbody></table></div>`;
   return `<h2>Antes × depois</h2>
-<p class="sub">Padronização das telas (set/2026). Cada célula: antes à esquerda, depois à direita. Clique para ampliar.</p>
+<p class="sub">Padrão de tabelas e telas (rodada 3, set/2026): antes = a main anterior, depois = este ramo. Cada célula: antes à esquerda, depois à direita. Clique para ampliar.</p>
 ${bloco('light')}${bloco('dark')}`;
 }
 

@@ -394,6 +394,177 @@ function checarLayout(ctx) {
     }
   }
 
+  /* ------------------------------------------ tabelas da interface
+     Padrão de tabela (CLAUDE.md): toda tabela da interface — não a folha
+     A4 da prévia de relatório — tem tudo à esquerda e fundo de uma cor. */
+  const transparente = (c) => c === 'rgba(0, 0, 0, 0)' || c === 'transparent';
+  const tabelas = [...document.querySelectorAll('#conteudo table, #modal-camada table')].filter(
+    (t) => !t.closest('.folha') && visivel(t) && !foraDePropósito(t),
+  );
+
+  /* ----------------------------------- 12. célula fora da esquerda
+     text-align computado à esquerda, e o conteúdo começando na borda
+     esquerda da célula (pega também o alinhamento por flex ou margem
+     automática, que o text-align não mostra). O rótulo que a própria
+     célula desenha no celular (::before) conta como começo. */
+  for (const t of tabelas) {
+    let achou = null;
+    for (const c of t.querySelectorAll('th, td')) {
+      if (!visivel(c)) continue;
+      const cs = getComputedStyle(c);
+      if (!['left', 'start', '-webkit-left'].includes(cs.textAlign)) {
+        achou = { c, medido: `text-align: ${cs.textAlign}` };
+        break;
+      }
+      const rotulo = getComputedStyle(c, '::before').content;
+      if (!['none', 'normal', '""'].includes(rotulo)) continue;
+      const rc = c.getBoundingClientRect();
+      const inicio = rc.left + parseFloat(cs.paddingLeft || 0);
+      let minX = Infinity;
+      const w = document.createTreeWalker(c, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+      let n;
+      while ((n = w.nextNode())) {
+        let r = null;
+        if (n.nodeType === 3) {
+          if (!n.textContent.trim()) continue;
+          const rg = document.createRange();
+          rg.selectNodeContents(n);
+          r = rg.getBoundingClientRect();
+        } else if (
+          n.getBoundingClientRect().width > 0 &&
+          (n.tagName === 'svg' ||
+            n.tagName === 'BUTTON' ||
+            !transparente(getComputedStyle(n).backgroundColor) ||
+            getComputedStyle(n, '::before').content !== 'none')
+        ) {
+          r = n.getBoundingClientRect();
+        }
+        if (r && r.width > 0) minX = Math.min(minX, r.left);
+      }
+      if (minX !== Infinity && minX - inicio > 10) {
+        achou = { c, medido: `conteúdo começa ${Math.round(minX - inicio)}px depois da borda` };
+        break;
+      }
+    }
+    if (achou) {
+      falhas.push({
+        checagem: 'tabela-alinhamento',
+        gravidade: 'falha',
+        seletor: seletor(achou.c),
+        medido: achou.medido,
+        meta: 'tudo à esquerda (cabeçalho, linhas, total)',
+        detalhe: `"${achou.c.textContent.trim().slice(0, 30)}"`,
+      });
+    }
+  }
+
+  /* ------------------------------- 13. tabela com mais de um fundo
+     Cabeçalho, linhas, total e linha de grupo na cor do card que envolve
+     a tabela (transparente vale: herda). Hover e linha selecionada são
+     estado e ficam de fora. */
+  for (const t of tabelas) {
+    let el = t;
+    let fundoCard = 'rgba(0, 0, 0, 0)';
+    while (el && transparente(fundoCard)) {
+      fundoCard = getComputedStyle(el).backgroundColor;
+      el = el.parentElement;
+    }
+    for (const c of t.querySelectorAll('th, td')) {
+      const tr = c.parentElement;
+      if (!visivel(c) || tr.matches('[aria-selected="true"], :hover')) continue;
+      const bg = getComputedStyle(c).backgroundColor;
+      if (!transparente(bg) && bg !== fundoCard) {
+        falhas.push({
+          checagem: 'tabela-fundo-unico',
+          gravidade: 'falha',
+          seletor: seletor(c),
+          medido: bg,
+          meta: `a cor do card (${fundoCard})`,
+          detalhe: `"${c.textContent.trim().slice(0, 30)}"`,
+        });
+        break;
+      }
+    }
+  }
+
+  /* ---------------------------- 14. card com vão ou vizinho desigual
+     A partir de 1024px, nas linhas de cards lado a lado do Painel, do
+     Fluxo e da Configuração: vizinhos da mesma linha terminando juntos
+     (±1px), e nenhum card com mais de 24px vazios entre o fim do conteúdo
+     e a borda de baixo. */
+  if (window.innerWidth >= 1024) {
+    const linhasCards = document.querySelectorAll(
+      '#conteudo .painel-linha, #conteudo .painel-lado, #conteudo .fluxo-topo, #conteudo .fluxo-roscas, #conteudo .fluxo-esq, #conteudo .fluxo-graficos, #conteudo .cfg-par',
+    );
+    for (const linha of linhasCards) {
+      if (!visivel(linha)) continue;
+      const filhos = [...linha.children].filter(visivel);
+      const porTopo = new Map();
+      filhos.forEach((f) => {
+        const r = f.getBoundingClientRect();
+        const k = Math.round(r.top / 4);
+        if (!porTopo.has(k)) porTopo.set(k, []);
+        porTopo.get(k).push(r);
+      });
+      for (const rs of porTopo.values()) {
+        if (rs.length < 2) continue;
+        const fundos = rs.map((r) => r.bottom);
+        if (Math.max(...fundos) - Math.min(...fundos) > 1) {
+          falhas.push({
+            checagem: 'card-vao-vazio',
+            gravidade: 'falha',
+            seletor: seletor(linha),
+            medido: `alturas ${rs.map((r) => Math.round(r.height)).join(' / ')}px`,
+            meta: 'vizinhos da linha terminando juntos (±1px)',
+            detalhe: `${rs.length} cards lado a lado`,
+          });
+          break;
+        }
+      }
+      for (const card of filhos.filter((f) => f.matches('.caixa, .analise-bloco'))) {
+        const rc = card.getBoundingClientRect();
+        const pb = parseFloat(getComputedStyle(card).paddingBottom || 0);
+        /* o fim do que se vê — texto, gráfico, imagem, campo, barra —,
+           não o de uma caixa interna esticada até a borda (flex: 1) */
+        let fim = rc.top;
+        const w = document.createTreeWalker(card, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+          acceptNode: (n) =>
+            n.nodeType === 1 && n.parentElement && n.parentElement.closest('svg, button, select')
+              ? NodeFilter.FILTER_REJECT
+              : NodeFilter.FILTER_ACCEPT,
+        });
+        let n;
+        while ((n = w.nextNode())) {
+          let r = null;
+          if (n.nodeType === 3) {
+            if (!n.textContent.trim() || !visivel(n.parentElement)) continue;
+            const rg = document.createRange();
+            rg.selectNodeContents(n);
+            r = rg.getBoundingClientRect();
+          } else if (!visivel(n)) {
+            continue;
+          } else if (/^(svg|IMG|CANVAS|INPUT|SELECT|TEXTAREA|BUTTON)$/.test(n.tagName)) {
+            r = n.getBoundingClientRect();
+          } else if (!n.children.length && !transparente(getComputedStyle(n).backgroundColor)) {
+            r = n.getBoundingClientRect();
+          }
+          if (r && r.height > 0) fim = Math.max(fim, r.bottom);
+        }
+        const vao = rc.bottom - pb - fim;
+        if (vao > 24) {
+          falhas.push({
+            checagem: 'card-vao-vazio',
+            gravidade: 'falha',
+            seletor: seletor(card),
+            medido: `${Math.round(vao)}px vazios no fim do card`,
+            meta: '≤ 24px',
+            detalhe: (card.querySelector('h2, h3, summary') || card).textContent.trim().slice(0, 40),
+          });
+        }
+      }
+    }
+  }
+
   return falhas;
 }
 

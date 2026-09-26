@@ -1382,6 +1382,41 @@ function analiseFluxo(obra, filtro = '', hoje = hojeISO()) {
   };
 }
 
+/* A receber × a pagar nos próximos `dias` dias (padrão 90), em períodos
+   de `passo` dias (padrão 15, quinzenas) a partir de hoje. São os mesmos
+   eventos da projeção (eventosProjetados: parcela prevista, ou vencida e
+   reprogramada; medição a pagar; contrato a medir; material a comprar),
+   só que somados por período — para decidir o caixa das próximas semanas.
+   `filtro` é o da tela de Fluxo: 'futuros' deixa de fora o mês corrente
+   (como em analiseFluxo) e 'movimento' tira os períodos sem nada. */
+function receberPagarProximos(obra, filtro = '', hoje = hojeISO(), dias = 90, passo = 15) {
+  const ymHoje = competencia(hoje);
+  const limite = addDias(hoje, dias);
+  const eventos = eventosProjetados(obra, hoje).filter(
+    (e) => e.data >= hoje && e.data < limite && (filtro !== 'futuros' || competencia(e.data) > ymHoje),
+  );
+  let periodos = [];
+  for (let i = 0; i < dias; i += passo) {
+    periodos.push({ inicio: addDias(hoje, i), fim: addDias(hoje, Math.min(dias, i + passo) - 1), receber: 0, pagar: 0 });
+  }
+  eventos.forEach((e) => {
+    const p = periodos[Math.floor(diasEntre(hoje, e.data) / passo)];
+    if (!p) return;
+    if (e.valor > 0) p.receber += e.valor;
+    else p.pagar += -e.valor;
+  });
+  periodos = periodos.map((p) => ({
+    ...p,
+    receber: round2(p.receber),
+    pagar: round2(p.pagar),
+    saldo: round2(p.receber - p.pagar),
+  }));
+  if (filtro === 'futuros') periodos = periodos.filter((p) => competencia(p.fim) > ymHoje);
+  if (filtro === 'movimento') periodos = periodos.filter((p) => p.receber > 0.005 || p.pagar > 0.005);
+  const soma = (k) => round2(periodos.reduce((t, p) => t + p[k], 0));
+  return { dias, passo, periodos, totais: { receber: soma('receber'), pagar: soma('pagar'), saldo: soma('saldo') } };
+}
+
 function fluxoProjetado(obra, hoje = hojeISO(), janela = 30) {
   return consolidarFluxo(kpisObra(obra).saldoCaixa, eventosProjetados(obra, hoje), hoje, janela);
 }
@@ -3362,6 +3397,7 @@ export {
   gastoPorEtapa,
   lancamentosDuplicadosAbertos,
   analiseFluxo,
+  receberPagarProximos,
   PASSOS_FINANCIAMENTO,
   PASSOS_CLIENTE,
   andamentoParcela,

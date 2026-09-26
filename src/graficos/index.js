@@ -34,13 +34,13 @@ function caminho(pontos) {
    Com a obra, desenha também a tendência: do físico realizado de hoje
    até 100% no término projetado (valorAgregadoObra), tracejada.
    Financeiro realizado em índigo (--s3): o âmbar é da cor de alerta. */
-function graficoCurvaS(obraOuSerie, altura = 300) {
+function graficoCurvaS(obraOuSerie, altura = 300, largura = 920) {
   const ehObra = !Array.isArray(obraOuSerie);
   const dados = ehObra ? curvaS(obraOuSerie) : obraOuSerie;
   if (dados.length < 2) {
     return vazio('Sem curva S ainda', 'Cadastre o cronograma com datas previstas para gerar a curva.');
   }
-  const W = 920, H = altura, ml = 46, mr = 16, mt = 14, mb = 34;
+  const W = largura, H = altura, ml = 46, mr = 16, mt = 14, mb = 34;
   const x0 = ml, x1 = W - mr, y0 = H - mb, y1 = mt;
   const n = dados.length;
   const px = (i) => x0 + (n === 1 ? 0 : (i * (x1 - x0)) / (n - 1));
@@ -424,10 +424,14 @@ function ganttInterno(obra, largura) {
    crescer ou encolher com a tela. fn(largura) → html. */
 const AUTO = new Map();
 let seqAuto = 0;
-function graficoAuto(fn, larguraPadrao = 560) {
+/* alturaPadrao: modo "encher" — o gráfico ocupa a altura que o bloco
+   tiver (o card acompanha o vizinho de linha) e fn recebe (largura,
+   altura) da área do desenho (.grafico-cx), medidas depois do layout. */
+function graficoAuto(fn, larguraPadrao = 560, alturaPadrao = 0) {
   const id = 'ga' + (++seqAuto);
   AUTO.set(id, fn);
-  return `<div class="grafico-auto" data-auto="${id}" data-largura="${larguraPadrao}">${fn(larguraPadrao)}</div>`;
+  const encher = alturaPadrao > 0 ? ` data-encher="1" data-altura="${alturaPadrao}"` : '';
+  return `<div class="grafico-auto" data-auto="${id}" data-largura="${larguraPadrao}"${encher}>${fn(larguraPadrao, alturaPadrao || undefined)}</div>`;
 }
 function limparGraficosAuto() {
   AUTO.clear();
@@ -438,7 +442,20 @@ function ajustarGraficosAuto(raiz = document) {
   raiz.querySelectorAll('[data-auto]').forEach((el) => {
     const fn = AUTO.get(el.dataset.auto);
     const w = Math.floor(el.clientWidth);
-    if (!fn || w < 120 || Math.abs(w - Number(el.dataset.largura)) < 8) return;
+    if (!fn || w < 120) return;
+    if (el.dataset.encher) {
+      const area = el.querySelector('.grafico-cx') || el;
+      const h = Math.floor(area.clientHeight);
+      const mudouL = Math.abs(w - Number(el.dataset.largura)) >= 8;
+      const mudouA = Math.abs(h - Number(el.dataset.altura)) >= 8;
+      if (h < 80 || (!mudouL && !mudouA)) return;
+      el.dataset.largura = String(w);
+      el.dataset.altura = String(h);
+      el.innerHTML = fn(w, h);
+      n++;
+      return;
+    }
+    if (Math.abs(w - Number(el.dataset.largura)) < 8) return;
     el.dataset.largura = String(w);
     el.innerHTML = fn(w);
     n++;
@@ -625,6 +642,46 @@ function graficoSaldoProjetado(meses, menor, { altura = 240, largura = 560 } = {
     (menor ? `<p class="grafico-nota ${negativo ? 'atraso' : 'tinta2'}">menor saldo: ${fmtMoney(menor.saldo, { dec: 0 })} em ${fmtDataCurta(menor.data)}</p>` : '');
 }
 
+/* A receber × a pagar por período (receberPagarProximos): as duas colunas
+   lado a lado e, sobre elas, um traço no líquido do período (se
+   entra mais do que sai, na cor do texto; vermelho se sai mais). */
+function graficoReceberPagar(periodos, { altura = 220, largura = 440 } = {}) {
+  if (!periodos.length || !periodos.some((p) => p.receber > 0.005 || p.pagar > 0.005)) {
+    return semDados('Nada a receber nem a pagar no período.');
+  }
+  const n = periodos.length;
+  const W = largura, H = altura, ml = 58, mr = 8, mt = 12, mb = 28;
+  const x0 = ml, x1 = W - mr, y0 = H - mb, y1 = mt;
+  const maxV = Math.max(1, ...periodos.map((p) => Math.max(p.receber, p.pagar)));
+  const minV = Math.min(0, ...periodos.map((p) => p.saldo));
+  const tk = ticks(minV, maxV, 4);
+  const lo = tk[0], hi = tk[tk.length - 1];
+  const py = (v) => y0 - ((v - lo) / (hi - lo || 1)) * (y0 - y1);
+  const larg = (x1 - x0) / n;
+  const lb = Math.min(18, larg * 0.3);
+  const colunas = periodos.map((p, i) => {
+    const cx = x0 + larg * (i + 0.5);
+    const b = (v, dx, cor) => {
+      const a = Math.abs(py(v) - py(0));
+      return a < 0.6 ? '' : `<rect x="${(cx + dx).toFixed(1)}" y="${Math.min(py(v), py(0)).toFixed(1)}" width="${lb.toFixed(1)}" height="${a.toFixed(1)}" rx="2" fill="${cor}"/>`;
+    };
+    const liq = Math.abs(p.saldo) < 0.005 ? ''
+      : `<line x1="${(cx - lb - 3).toFixed(1)}" y1="${py(p.saldo).toFixed(1)}" x2="${(cx + lb + 3).toFixed(1)}" y2="${py(p.saldo).toFixed(1)}" stroke="${p.saldo < 0 ? 'var(--critico)' : 'var(--tinta)'}" stroke-width="2.5" stroke-linecap="round"/>`;
+    return b(p.receber, -lb - 1, 'var(--serie1)') + b(p.pagar, 1, 'var(--serie2)') + liq;
+  }).join('');
+  const zero = lo < 0 ? `<line x1="${x0}" y1="${py(0).toFixed(1)}" x2="${x1}" y2="${py(0).toFixed(1)}" stroke="var(--linha-forte)" stroke-width="1"/>` : '';
+  const passo = Math.max(1, Math.ceil(n / Math.max(2, Math.floor((x1 - x0) / 56))));
+  const eixoX = periodos.map((p, i) => (i % passo === 0 || i === n - 1)
+    ? `<text x="${(x0 + larg * (i + 0.5)).toFixed(1)}" y="${y0 + 16}" text-anchor="middle">${esc(fmtDataCurta(p.inicio))}</text>` : '').join('');
+  const id = 'gr' + (++seqGrafico);
+  GRAFICOS[id] = { modo: 'colunas', x0, x1, n, W, linhas: periodos.map((p) => `<b>${esc(fmtDataCurta(p.inicio))} a ${esc(fmtDataCurta(p.fim))}</b><br>
+    A receber: ${fmtMoney(p.receber, { dec: 0 })}<br>A pagar: ${fmtMoney(p.pagar, { dec: 0 })}<br>Líquido: ${fmtMoney(p.saldo, { dec: 0 })}`) };
+  return legendaHTML([['A receber', 'var(--serie1)'], ['A pagar', 'var(--serie2)'], ['Líquido', 'var(--tinta)']]) +
+    caixaGrafico(id, W, H, 'A receber e a pagar por quinzena',
+      `${eixoY(tk, x0, x1, py, (v) => fmtMoneyCurto(v))}${zero}${colunas}<line class="eixo" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y0}"/>${eixoX}`,
+      true, y1, y0);
+}
+
 /* ------------------------------------------------- BARRAS HORIZONTAIS */
 function graficoBarras(itens, opcoes = {}) {
   const { formata = (v) => fmtMoney(v), cor = 'var(--s1)', max: maxForcado, manterZeros = false } = opcoes;
@@ -633,7 +690,11 @@ function graficoBarras(itens, opcoes = {}) {
   const lista = (opcoes.manterOrdem ? base : base.sort((a, b) => b.valor - a.valor)).slice(0, opcoes.limite || 12);
   if (!lista.length) return `<p style="color:var(--mudo);margin:0">Sem dados para exibir.</p>`;
   const max = maxForcado || Math.max(...lista.map((i) => Math.abs(i.valor))) || 1;
-  return `<div style="display:flex;flex-direction:column;gap:9px">${lista.map((i) => `
+  const cols = opcoes.colunas > 1 ? opcoes.colunas : 1;
+  const caixa = cols > 1
+    ? `<div class="barras-cols" style="--linhas:${Math.ceil(lista.length / cols)};--cols:${cols}">`
+    : '<div style="display:flex;flex-direction:column;gap:9px">';
+  return `${caixa}${lista.map((i) => `
     <div>
       <div style="display:flex;gap:8px;font-size:12.5px;margin-bottom:3px">
         <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(i.rotulo)}</span>
@@ -767,6 +828,7 @@ export {
   graficoColunas,
   graficoRosca,
   graficoSaldoProjetado,
+  graficoReceberPagar,
   fatiasRosca,
   ajustarGantt,
   GRAFICOS,

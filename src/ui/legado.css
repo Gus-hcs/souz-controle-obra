@@ -115,7 +115,7 @@ table.tab tr {
 table.tab th {
   height: var(--alt-ctrl);
   padding: 0 var(--e3);
-  background: var(--fundo-agrupado);
+  background: var(--fundo-conteudo);
 }
 table.tab td {
   padding: var(--e1) var(--e3);
