@@ -1243,6 +1243,13 @@ table.lista tfoot td.num {
     content: attr(data-rotulo) ' ';
     color: var(--tinta3);
   }
+  /* Valor com nota embaixo (duas linhas): a célula vira bloco. Inline, a
+     margem dela sobrava na linha seguinte e empurrava o próximo número
+     12px para dentro. */
+  table.lista tbody td.num:has(.cel-num-nota) {
+    display: block;
+    margin-right: 0;
+  }
 
   /* Repetida depois da regra de `.num`, que é igualmente específica: sem
      isto, uma coluna numérica escondida voltaria a aparecer. */
