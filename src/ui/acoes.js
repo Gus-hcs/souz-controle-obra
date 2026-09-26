@@ -156,12 +156,20 @@ function formObra(obra, aoConcluir) {
   });
 }
 
-/* Teto de obras da conta (definido pelo admin). O banco também recusa,
-   mas aqui a mensagem é clara e a obra não chega a ser criada. */
+/* Teto de obras (definido pelo admin): da construtora, somando a equipe
+   (0021), ou da conta, antes dela. O banco também recusa, mas aqui a
+   mensagem é clara e a obra não chega a ser criada. Conta sem construtora
+   (cliente final, cadastro avulso) não cria obra. */
 function limiteObrasAtingido() {
-  const restantes = SUPA.obrasRestantes(Store.estado.obras.length);
+  if (Store.backend === 'supabase' && SUPA.construtorasNoBanco && !SUPA.construtora && !SUPA.ehAdmin) {
+    toast('Esta conta não faz parte de uma construtora. Fale com o administrador para liberar o acesso.', 'aviso', 6000);
+    return true;
+  }
+  const daEquipe = Store.estado.obras.filter((o) => SUPA.papelNaObra(o.id) !== 'cliente').length;
+  const restantes = SUPA.obrasRestantes(daEquipe);
   if (restantes !== null && restantes <= 0) {
-    toast(`Sua conta permite ${SUPA.limiteObras} obra${SUPA.limiteObras === 1 ? '' : 's'}. Fale com o administrador para aumentar.`, 'aviso', 6000);
+    const quem = SUPA.construtora ? `A construtora ${SUPA.construtora.nome}` : 'Sua conta';
+    toast(`${quem} permite ${SUPA.limiteObras} obra${SUPA.limiteObras === 1 ? '' : 's'}. Fale com o administrador para aumentar.`, 'aviso', 6000);
     return true;
   }
   return false;

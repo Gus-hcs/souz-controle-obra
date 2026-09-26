@@ -27,6 +27,7 @@ import {
   TIPOS_RELATORIO,
   isISO,
   num,
+  PAPEIS_CONSTRUTORA,
   PAPEIS_OBRA,
   PLANOS,
   SITUACOES_MANUAIS_CONTRATO,
@@ -740,11 +741,66 @@ function validarUsuarioNovo(u) {
   return out;
 }
 
+/* Construtora (0021) — a conta de empresa que o admin cria. Espelha os
+   CHECKs de empresas (chk_emp_nome, chk_emp_plano, chk_emp_limite_usuarios,
+   chk_emp_limite_obras, chk_emp_cnpj — este só o formato; os dígitos,
+   aqui). "Não abaixo do que está em uso" também é conferido pelo banco
+   (admin_salvar_empresa). `uso`: { usuarios, obras } de hoje. */
+const vazioOuNulo = (v) => v === '' || v === null || v === undefined;
+
+function validarConstrutora(c, uso = {}) {
+  const out = [];
+  const x = c || {};
+  const nome = String(x.nome || '').trim();
+  if (!nome) out.push(problema('nome', 'Informe o nome da construtora.'));
+  else if (nome.length > 120) out.push(problema('nome', 'O nome passa de 120 caracteres.'));
+  if (String(x.cnpj || '').trim()) {
+    out.push(...validarEmpresa({ cnpj: x.cnpj, responsavel: '-', creaCau: '-' }).filter((p) => p.campo === 'cnpj'));
+  }
+  if (x.plano !== undefined && !PLANOS.includes(x.plano)) {
+    out.push(problema('plano', `Plano inválido: "${x.plano}".`));
+  }
+  if (!vazioOuNulo(x.limiteUsuarios)) {
+    const n = num(x.limiteUsuarios);
+    if (!Number.isInteger(n) || n < 1) {
+      out.push(problema('limiteUsuarios', 'O limite de acessos é um número inteiro de 1 ou mais (vazio = sem limite).'));
+    } else if (uso.usuarios && n < uso.usuarios) {
+      out.push(problema('limiteUsuarios', `A construtora já tem ${uso.usuarios} acesso(s) em uso. Bloqueie ou mova alguém antes de baixar para ${n}.`));
+    }
+  }
+  if (!vazioOuNulo(x.limiteObras)) {
+    const n = num(x.limiteObras);
+    if (!Number.isInteger(n) || n < 0) {
+      out.push(problema('limiteObras', 'O limite de obras é um número inteiro de 0 ou mais (vazio = sem limite).'));
+    } else if (uso.obras && n < uso.obras) {
+      out.push(problema('limiteObras', `A construtora já tem ${uso.obras} obra(s). O limite não pode ficar abaixo disso.`));
+    }
+  }
+  return out;
+}
+
+/* Acesso novo numa construtora: a conta (e-mail e senha, como
+   validarUsuarioNovo), o papel e a vaga — gestor e engenheiro ocupam vaga;
+   cliente final não. `vagas` vem de vagasConstrutora. O banco confere a
+   vaga de novo (gatilho perfil_checa_vaga). */
+function validarNovoAcesso(u, vagas = null) {
+  const out = validarUsuarioNovo(u);
+  const papeis = PAPEIS_CONSTRUTORA.map((p) => p.v);
+  if (!papeis.includes(u.papel)) {
+    out.push(problema('papel', 'Escolha o papel: gestor, engenheiro ou cliente final.'));
+  } else if (u.papel !== 'cliente' && vagas && vagas.cheia) {
+    out.push(problema('papel', `A construtora está sem vaga (${vagas.usados} de ${vagas.limite} acessos). Aumente o limite ou bloqueie alguém.`));
+  }
+  return out;
+}
+
 /* filtra só o que bloqueia gravação */
 const apenasErros = (lista) => (lista || []).filter((x) => x.sev === 'erro');
 const apenasAlertas = (lista) => (lista || []).filter((x) => x.sev === 'alerta');
 
 export {
+  validarConstrutora,
+  validarNovoAcesso,
   validarRelatorioGerado,
   anexoValido,
   validarObra,

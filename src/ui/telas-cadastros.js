@@ -2,12 +2,25 @@
  * telas-cadastros.js — Contas e acessos (administração do sistema).
  * Relatórios moram em telas/relatorios.js.
  */
-import { esc, norm, PLANOS } from '../nucleo/base.js';
-import { ativacaoConta, diasSemAtividade } from '../dominio/calculos.js';
-import { apenasErros, validarPerfilAdmin, validarSenhaForte, validarUsuarioNovo } from '../dominio/validacao.js';
+import { esc, norm, PAPEIS_CONSTRUTORA, PAPEIS_EQUIPE, PLANOS } from '../nucleo/base.js';
+import {
+  ativacaoConta,
+  diasSemAtividade,
+  obrasConstrutora,
+  resumoConstrutoras,
+  vagasConstrutora,
+} from '../dominio/calculos.js';
+import {
+  apenasErros,
+  validarConstrutora,
+  validarNovoAcesso,
+  validarPerfilAdmin,
+  validarSenhaForte,
+  validarUsuarioNovo,
+} from '../dominio/validacao.js';
 import { SUPA } from '../dados/supabase.js';
 import { App, abrirModal, botao, cartao, chip, confirmar, fecharModal, MENU, toast, vazio } from './shell.js';
-import { buscaToolbar, faixaKpis } from './telas/componentes.js';
+import { buscaToolbar, faixaKpis, lista } from './telas/componentes.js';
 import { VIEWS } from './telas-obra.js';
 import { ACOES } from './acoes.js';
 
@@ -19,7 +32,11 @@ import { ACOES } from './acoes.js';
    A lista abre pela conta parada há mais tempo (diasSemAtividade) — é
    quem precisa de uma ligação — e mostra a ativação (ativacaoConta).
    Excluir conta fica dentro de "Editar", não na linha. */
-const Admin = { linhas: null, erro: '', carregando: false };
+/* construtoras: lista de admin_empresas() (0021) — null enquanto a
+   migração não estiver aplicada: aí a tela é a de antes, conta por conta.
+   sel: a construtora aberta embaixo da lista. */
+const Admin = { linhas: null, construtoras: null, sel: '', erro: '', carregando: false };
+const semFuncao = (e) => /Could not find the function|schema cache|does not exist/i.test(String((e && e.message) || e));
 
 /* abas que o admin pode bloquear (carteira, painel e ajustes ficam sempre) */
 const ABAS_CONTROLAVEIS = MENU
@@ -32,8 +49,17 @@ function carregarConsumo(forcar = false) {
   Admin.linhas = null;
   Admin.erro = '';
   Admin.carregando = true;
-  SUPA.lerConsumo()
-    .then((l) => { Admin.linhas = l; })
+  Promise.all([
+    SUPA.lerConsumo(),
+    SUPA.lerConstrutoras().catch((e) => {
+      if (semFuncao(e)) return null; // 0021 ainda não aplicada
+      throw e;
+    }),
+  ])
+    .then(([l, c]) => {
+      Admin.linhas = l;
+      Admin.construtoras = c;
+    })
     .catch((e) => { Admin.erro = String((e && e.message) || e); })
     .finally(() => {
       Admin.carregando = false;
@@ -71,6 +97,8 @@ VIEWS.admin = () => {
           : Admin.erro)}
       <div style="text-align:center;margin-top:8px">${botao('Tentar de novo', 'admin-recarregar', {}, 'btn')}</div>`);
   }
+
+  if (Admin.construtoras) return telaConstrutoras();
 
   const agora = new Date();
   const parada = (l) => {
@@ -159,6 +187,11 @@ VIEWS.admin = () => {
 /* busca, atualizar e novo cliente na toolbar, como nas outras telas */
 VIEWS.admin.toolbar = () => {
   if (!SUPA.ehAdmin || !Admin.linhas) return '';
+  if (Admin.construtoras) {
+    return `${buscaToolbar('Buscar construtora, CNPJ ou e-mail…', 'busca-contas')}
+    ${botao('Atualizar', 'admin-recarregar', {}, 'btn sutil pequeno')}
+    ${botao('<span class="rotulo-btn">Nova construtora</span>', 'admin-nova-construtora', {}, 'btn primario', 'mais')}`;
+  }
   return `${buscaToolbar('Buscar por e-mail ou empresa…', 'busca-contas')}
     ${botao('Atualizar', 'admin-recarregar', {}, 'btn sutil pequeno')}
     ${botao('<span class="rotulo-btn">Novo cliente</span>', 'admin-novo', {}, 'btn primario', 'mais')}`;
@@ -243,12 +276,24 @@ ACOES['admin-editar'] = async (el, d) => {
   const abas = (alvo.abas && typeof alvo.abas === 'object') ? alvo.abas : {};
   const lim = alvo.limite_obras == null ? '' : Number(alvo.limite_obras);
   const v = (x) => esc(perfil[x] || '');
-  abrirModal({
-    titulo: 'Editar cliente',
-    corpo: `
-      <p style="margin:0 0 14px;font-size:12px;color:var(--mudo)">${esc(alvo.email || '')}</p>
-
-      <div class="secao-form"><span class="rotulo">Dados da empresa</span></div>
+  /* Com construtoras (0021), dados da empresa, plano e limite de obras são
+     da construtora: aqui fica só a construtora e o papel desta conta. */
+  const comConstrutoras = !!Admin.construtoras;
+  const blocoConta = comConstrutoras
+    ? `<div class="secao-form"><span class="rotulo">Construtora e papel</span></div>
+      <div class="form-grade">
+        <div class="campo c6"><label for="adm_emp_id">Construtora</label>
+          <select id="adm_emp_id" ${alvo.eh_admin ? 'disabled' : ''}>
+            <option value="">sem construtora</option>
+            ${(Admin.construtoras || []).map((c) => `<option value="${esc(c.id)}" ${c.id === alvo.empresa_id ? 'selected' : ''}>${esc(c.nome)} · ${esc(vagasConstrutora(c).texto)} acessos</option>`).join('')}
+          </select></div>
+        <div class="campo c6"><label for="adm_papel">Papel</label>
+          <select id="adm_papel" ${alvo.eh_admin ? 'disabled' : ''}>
+            ${PAPEIS_CONSTRUTORA.map((p) => `<option value="${p.v}" ${p.v === (alvo.papel_empresa || 'engenheiro') ? 'selected' : ''}>${esc(p.t)}</option>`).join('')}
+          </select>
+          <span class="dica">Gestor e engenheiro ocupam vaga; cliente final não.</span></div>
+      </div>`
+    : `<div class="secao-form"><span class="rotulo">Dados da empresa</span></div>
       <div class="form-grade">
         <div class="campo c8"><label for="adm_emp">Empresa</label>
           <input type="text" id="adm_emp" value="${v('empresa_nome')}"></div>
@@ -272,7 +317,13 @@ ACOES['admin-editar'] = async (el, d) => {
         <div class="campo c6"><label for="adm_lim">Limite de obras</label>
           <input type="number" id="adm_lim" min="0" value="${lim}" placeholder="sem limite">
           <span class="dica">Vazio = sem limite. Tem ${alvo.obras} obra(s) hoje.</span></div>
-      </div>
+      </div>`;
+  abrirModal({
+    titulo: comConstrutoras ? 'Editar acesso' : 'Editar cliente',
+    corpo: `
+      <p style="margin:0 0 14px;font-size:12px;color:var(--mudo)">${esc(alvo.email || '')}</p>
+
+      ${blocoConta}
 
       <div class="secao-form"><span class="rotulo">Abas liberadas</span></div>
       <p style="margin:4px 0 10px;font-size:12px;color:var(--mudo)">Desmarque o que este cliente <b>não</b> deve ver.</p>
@@ -304,7 +355,9 @@ ACOES['admin-editar'] = async (el, d) => {
       <div class="secao-form"><span class="rotulo" style="color:var(--critico)">Zona de perigo</span></div>
       <div style="border:1px solid color-mix(in srgb, var(--critico) 40%, transparent);border-radius:var(--r);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap">
         <span style="font-size:12.5px;color:var(--tinta2)">
-          Apaga a conta e, em cascata, <b>${alvo.obras} obra(s)</b>, contratos, medições, lançamentos e fotos. Não dá para desfazer.
+          ${comConstrutoras
+            ? 'Apaga o login desta pessoa. As obras e os registros que ela fez continuam com a construtora. Não dá para desfazer.'
+            : `Apaga a conta e, em cascata, <b>${alvo.obras} obra(s)</b>, contratos, medições, lançamentos e fotos. Não dá para desfazer.`}
         </span>
         ${botao('Excluir conta', 'admin-excluir', { id: d.id }, 'btn perigo pequeno')}
       </div>`}`,
@@ -315,6 +368,30 @@ ACOES['admin-editar'] = async (el, d) => {
 
 ACOES['admin-salvar-editar'] = (el, d) => {
   const val = (id) => (document.getElementById(id)?.value || '').trim();
+  const abasMarcadas = {};
+  document.querySelectorAll('#modal-camada [data-aba]').forEach((c) => {
+    if (!c.checked) abasMarcadas[c.dataset.aba] = false;
+  });
+  /* Com construtoras: abas desta conta, e a construtora/papel se mudaram. */
+  if (Admin.construtoras) {
+    const alvo = (Admin.linhas || []).find((l) => l.usuario_id === d.id);
+    if (!alvo) return;
+    const emp = val('adm_emp_id');
+    const papel = val('adm_papel');
+    const mudou = !alvo.eh_admin && (emp !== (alvo.empresa_id || '') || (emp && papel !== alvo.papel_empresa));
+    const c = emp ? construtora(emp) : null;
+    if (mudou && c && papel !== 'cliente' && !(PAPEIS_EQUIPE.includes(alvo.papel_empresa) && alvo.empresa_id === emp && !alvo.bloqueado)) {
+      if (vagasConstrutora(c).cheia) {
+        return toast(`${c.nome} está sem vaga (${vagasConstrutora(c).texto}). Aumente o limite ou escolha cliente final.`, 'critico', 7000);
+      }
+    }
+    fecharModal();
+    if (emp) Admin.sel = emp;
+    return admChamar(async () => {
+      await SUPA.adminSalvarPerfil(d.id, { abas: abasMarcadas });
+      if (mudou) await SUPA.adminLigarUsuario(d.id, emp || null, papel);
+    }, 'Acesso atualizado.');
+  }
   const info = {
     empresa_nome: val('adm_emp'),
     crea_cau: val('adm_crea'),
@@ -376,11 +453,14 @@ ACOES['admin-excluir'] = (el, d) => {
     titulo: 'Excluir conta',
     largura: 'estreito',
     corpo: `
-      <p style="margin:0 0 12px;font-size:13px;line-height:1.5">
-        Isto apaga <b>${esc(alvo.empresa || email)}</b> e, em cascata,
+      <p style="margin:0 0 12px;font-size:13px;line-height:1.5">${
+        Admin.construtoras
+          ? `Isto apaga o login de <b>${esc(email)}</b>. As obras e os registros que a pessoa fez
+        continuam com a construtora. Não dá para desfazer.`
+          : `Isto apaga <b>${esc(alvo.empresa || email)}</b> e, em cascata,
         <b>${alvo.obras} obra(s)</b>, ${alvo.contratos} contrato(s), ${alvo.medicoes} medição(ões),
-        ${alvo.lancamentos} lançamento(s) e ${alvo.fotos} foto(s). Não dá para desfazer.
-      </p>
+        ${alvo.lancamentos} lançamento(s) e ${alvo.fotos} foto(s). Não dá para desfazer.`
+      }</p>
       <div class="campo c12">
         <label for="adm_del_confirma">Digite <b>${esc(email)}</b> para confirmar</label>
         <input type="text" id="adm_del_confirma" autocomplete="off" placeholder="${esc(email)}">
@@ -447,4 +527,540 @@ ACOES['admin-criar'] = async (el) => {
     if (el) el.disabled = false;
     toast('Não foi possível criar a conta: ' + ((e && e.message) || e), 'critico', 7000);
   }
+};
+
+/* ===================================================== CONSTRUTORAS (0021)
+   A construtora é o cliente que compra o sistema: um nome, um plano, um
+   limite de acessos (gestor + engenheiros) e de obras. Em cima, a lista
+   das construtoras; embaixo, os usuários da que estiver aberta. O banco
+   confere a vaga e o limite de obras de novo — aqui é para a mensagem
+   sair antes, clara. */
+const PAPEL_ROTULO = Object.fromEntries(PAPEIS_CONSTRUTORA.map((p) => [p.v, p.t]));
+
+function situacaoConstrutora(c) {
+  if (c.bloqueada) return { t: 'Bloqueada', tom: 'atraso' };
+  if (vagasConstrutora(c).cheia) return { t: 'Sem vaga', tom: 'tom-alerta' };
+  if (c.plano !== 'ativo') {
+    return { t: c.plano === 'trial' ? 'Em teste' : 'Plano ' + c.plano, tom: 'tom-alerta' };
+  }
+  return { t: 'Ativa', tom: '' };
+}
+
+function telaConstrutoras() {
+  const cs = Admin.construtoras || [];
+  const contas = Admin.linhas || [];
+  const usuariosDe = (id) => contas.filter((l) => l.empresa_id === id);
+  const busca = norm(App.filtros.busca || '');
+  const visiveis = busca
+    ? cs.filter(
+        (c) =>
+          norm(c.nome).includes(busca) ||
+          norm(c.cnpj || '').includes(busca) ||
+          usuariosDe(c.id).some((u) => norm(u.email).includes(busca)),
+      )
+    : cs;
+  if (!visiveis.some((c) => c.id === Admin.sel)) Admin.sel = (visiveis[0] || {}).id || '';
+  const aberta = cs.find((c) => c.id === Admin.sel);
+  const soltas = contas.filter((l) => !l.empresa_id);
+  const r = resumoConstrutoras(cs);
+  const atencao = r.semVaga + r.bloqueadas + r.foraDoAtivo;
+  const s = (n, um, varios) => (n === 1 ? um : varios);
+
+  const kpis = faixaKpis(
+    [
+      {
+        rotulo: 'Construtoras',
+        valor: r.total,
+        contexto: `${r.ativas} ${s(r.ativas, 'ativa', 'ativas')}${
+          r.bloqueadas ? ` · ${r.bloqueadas} ${s(r.bloqueadas, 'bloqueada', 'bloqueadas')}` : ''
+        }`,
+      },
+      {
+        rotulo: 'Acessos em uso',
+        valor: r.acessosUsados,
+        contexto: r.acessosContratados
+          ? `${r.acessosUsadosComLimite} de ${r.acessosContratados} contratados${
+              r.semLimite ? ` · ${r.semLimite} ${s(r.semLimite, 'construtora', 'construtoras')} sem limite` : ''
+            }`
+          : 'nenhuma construtora com limite definido',
+      },
+      {
+        rotulo: 'Obras',
+        valor: r.obras,
+        contexto: `${r.clientesFinais} ${s(r.clientesFinais, 'cliente final', 'clientes finais')} acompanhando`,
+      },
+      {
+        rotulo: 'Pedem atenção',
+        valor: atencao,
+        contexto:
+          [
+            r.semVaga ? `${r.semVaga} sem vaga` : '',
+            r.bloqueadas ? `${r.bloqueadas} ${s(r.bloqueadas, 'bloqueada', 'bloqueadas')}` : '',
+            r.foraDoAtivo ? `${r.foraDoAtivo} fora do plano ativo` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ') || 'todas em dia',
+        tom: atencao ? 'tom-alerta' : '',
+      },
+    ],
+    { rotulo: 'Indicadores das construtoras' },
+  );
+
+  const colunas = [
+    {
+      k: 'nome',
+      rotulo: 'Construtora',
+      largura: '28%',
+      celular: 'principal',
+      valor: (c) => c.nome,
+      celula: (c) =>
+        `<div class="cel-dupla"><b title="${esc(c.nome)}">${esc(c.nome)}</b><span>${
+          c.cnpj ? esc(c.cnpj) : 'sem CNPJ'
+        }</span></div>`,
+    },
+    { k: 'plano', rotulo: 'Plano', largura: '10%', valor: (c) => c.plano, celula: (c) => esc(c.plano) },
+    {
+      k: 'acessos',
+      rotulo: 'Acessos',
+      largura: '14%',
+      num: true,
+      valor: (c) => vagasConstrutora(c).usados,
+      celula: (c) => {
+        const v = vagasConstrutora(c);
+        return `<span class="${v.cheia ? 'tom-alerta' : ''}">${esc(v.texto)}</span>`;
+      },
+    },
+    {
+      k: 'obras',
+      rotulo: 'Obras',
+      largura: '14%',
+      num: true,
+      valor: (c) => obrasConstrutora(c).usadas,
+      celula: (c) => {
+        const o = obrasConstrutora(c);
+        return `<span class="${o.cheia ? 'tom-alerta' : ''}">${esc(o.texto)}</span>`;
+      },
+    },
+    {
+      k: 'clientes',
+      rotulo: 'Clientes finais',
+      largura: '10%',
+      num: true,
+      celular: 'some',
+      valor: (c) => Number(c.clientes_finais || 0),
+      celula: (c) => String(Number(c.clientes_finais || 0)),
+    },
+    {
+      k: 'atividade',
+      rotulo: 'Última atividade',
+      largura: '12%',
+      celular: 'some',
+      valor: (c) => c.ultima_atividade || '',
+      celula: (c) => quandoRelativo(c.ultima_atividade),
+    },
+    {
+      k: 'situacao',
+      rotulo: 'Situação',
+      largura: '12%',
+      valor: (c) => situacaoConstrutora(c).t,
+      celula: (c) => {
+        const st = situacaoConstrutora(c);
+        return `<span class="${st.tom}">${esc(st.t)}</span>`;
+      },
+    },
+  ];
+
+  const tabela = cs.length
+    ? lista({
+        id: 'admin-construtoras',
+        testid: 'lista-construtoras',
+        colunas,
+        itens: visiveis,
+        ordemPadrao: { col: 'nome', dir: 1 },
+        rodapeRotulo: (n) => `${n} ${s(n, 'construtora', 'construtoras')}`,
+        linhaAttrs: (c) =>
+          `data-acao="admin-construtora" data-id="${esc(c.id)}"${
+            c.id === Admin.sel ? ' aria-selected="true"' : ''
+          }`,
+      })
+    : vazio('Nenhuma construtora', 'Crie a primeira em "Nova construtora".');
+
+  return `<div class="tela-lista tela-construtoras">
+    ${kpis}
+    ${tabela}
+    ${aberta ? secaoUsuarios(aberta, usuariosDe(aberta.id)) : ''}
+    ${soltas.length ? secaoSoltas(soltas) : ''}
+  </div>`;
+}
+
+/* Os usuários da construtora aberta: papel editável, situação, ativação. */
+function secaoUsuarios(c, usuarios) {
+  const v = vagasConstrutora(c);
+  const o = obrasConstrutora(c);
+  const ordem = { gestor: 0, engenheiro: 1, cliente: 2 };
+  const us = usuarios
+    .slice()
+    .sort(
+      (a, b) =>
+        (ordem[a.papel_empresa] ?? 3) - (ordem[b.papel_empresa] ?? 3) ||
+        String(a.email).localeCompare(String(b.email)),
+    );
+  const linhaU = (u) => {
+    const at = ativacaoConta(u);
+    const equipe = PAPEIS_EQUIPE.includes(u.papel_empresa);
+    const papel = u.eh_admin
+      ? esc(PAPEL_ROTULO[u.papel_empresa] || '—')
+      : `<select data-acao="admin-papel" data-id="${esc(u.usuario_id)}" aria-label="Papel de ${esc(u.email || '')}" style="width:auto;min-width:130px">
+          ${PAPEIS_CONSTRUTORA.map(
+            (p) => `<option value="${p.v}" ${p.v === u.papel_empresa ? 'selected' : ''}>${esc(p.t)}</option>`,
+          ).join('')}
+        </select>`;
+    return `<tr>
+      <td><div class="cel-dupla"><b title="${esc(u.email || '')}">${esc(u.email || '—')}</b>${
+        u.eh_admin ? '<span>admin do sistema</span>' : ''
+      }</div></td>
+      <td>${papel}</td>
+      <td>${u.bloqueado ? '<span class="atraso">Bloqueado</span>' : equipe ? 'Ativo · ocupa vaga' : 'Ativo'}</td>
+      <td title="${esc(at.faltam.length ? 'Falta: ' + at.faltam.join(', ') : 'todos os passos')}"><span class="${
+        at.feitos <= 2 ? 'tom-alerta' : ''
+      }">${at.feitos}/${at.total}</span></td>
+      <td>${quandoRelativo(u.ultima_atividade)}</td>
+      <td class="acoes" style="opacity:1;white-space:nowrap">
+        ${botao('Editar', 'admin-editar', { id: u.usuario_id }, 'btn sutil pequeno', 'lapis')}
+        ${
+          u.eh_admin
+            ? ''
+            : botao(
+                u.bloqueado ? 'Liberar' : 'Bloquear',
+                'admin-bloquear',
+                { id: u.usuario_id, para: u.bloqueado ? '0' : '1' },
+                u.bloqueado ? 'btn pequeno' : 'btn sutil pequeno',
+              )
+        }
+      </td>
+    </tr>`;
+  };
+  return `<section class="caixa secao-construtora" data-testid="usuarios-construtora">
+    <div class="caixa-cab">
+      <h3>${esc(c.nome)} <span class="tinta2" style="font-weight:400">· ${esc(v.texto)} acessos · ${esc(
+        o.texto,
+      )} obras · plano ${esc(c.plano)}</span></h3>
+      <div class="dir">
+        ${botao('Editar construtora', 'admin-editar-construtora', { id: c.id }, 'btn sutil pequeno', 'lapis')}
+        ${botao(
+          c.bloqueada ? 'Liberar construtora' : 'Bloquear construtora',
+          'admin-bloquear-construtora',
+          { id: c.id },
+          c.bloqueada ? 'btn pequeno' : 'btn sutil pequeno',
+        )}
+        ${botao('Novo acesso', 'admin-novo-acesso', { id: c.id }, 'btn primario pequeno', 'mais')}
+      </div>
+    </div>
+    ${
+      v.cheia
+        ? `<p class="aviso-discreto tom-alerta">Sem vaga: ${esc(v.texto)} acessos em uso. Engenheiro ou gestor novo só depois de aumentar o limite ou bloquear alguém. Cliente final não ocupa vaga.</p>`
+        : ''
+    }
+    ${
+      us.length
+        ? `<div class="tab-rolagem"><table class="tab tab-contas" data-testid="lista-usuarios-construtora">
+      <thead><tr><th>Usuário</th><th>Papel</th><th>Situação</th><th title="obra, contrato, medição, gasto, diário e foto">Ativação</th><th>Última atividade</th><th></th></tr></thead>
+      <tbody>${us.map(linhaU).join('')}</tbody></table></div>`
+        : '<p class="linha-cinza">Nenhum usuário ainda. Crie o primeiro acesso — o gestor da construtora.</p>'
+    }
+  </section>`;
+}
+
+/* Contas sem construtora: cadastro feito pela tela de entrada ou conta
+   desligada. Não criam obra (0021); o admin liga a uma construtora. */
+function secaoSoltas(soltas) {
+  const linhaS = (u) => `<tr>
+        <td><b>${esc(u.email || '—')}</b></td>
+        <td>${quandoRelativo(u.criado_em)}</td>
+        <td>${quandoRelativo(u.ultima_atividade)}</td>
+        <td class="acoes" style="opacity:1;white-space:nowrap">
+          ${botao('Ligar a uma construtora', 'admin-ligar', { id: u.usuario_id }, 'btn pequeno')}
+          ${botao('Editar', 'admin-editar', { id: u.usuario_id }, 'btn sutil pequeno', 'lapis')}
+        </td>
+      </tr>`;
+  return `<section class="caixa" data-testid="contas-sem-construtora">
+    <div class="caixa-cab"><h3>Contas sem construtora <span class="tinta2" style="font-weight:400">· ${soltas.length}</span></h3></div>
+    <p class="aviso-discreto">Não criam obra nem veem dados de construtora. Ligue a uma construtora ou exclua.</p>
+    <div class="tab-rolagem"><table class="tab tab-contas">
+      <thead><tr><th>Conta</th><th>Criada</th><th>Última atividade</th><th></th></tr></thead>
+      <tbody>${soltas.map(linhaS).join('')}</tbody></table></div>
+  </section>`;
+}
+
+const construtora = (id) => (Admin.construtoras || []).find((c) => c.id === id);
+const usoDe = (c) => ({ usuarios: vagasConstrutora(c).usados, obras: obrasConstrutora(c).usadas });
+
+ACOES['admin-construtora'] = (el, d) => {
+  Admin.sel = d.id;
+  App.renderConteudo();
+};
+
+/* --------------------------------------------- criar e editar construtora */
+function formConstrutora(c) {
+  const nova = !c;
+  const x = c || { nome: '', cnpj: '', plano: 'ativo', limite_usuarios: null, limite_obras: null };
+  const uso = nova ? null : usoDe(x);
+  abrirModal({
+    titulo: nova ? 'Nova construtora' : `Editar ${x.nome}`,
+    largura: 'estreito',
+    corpo: `
+      <div class="form-grade">
+        <div class="campo c12"><label for="cst_nome">Nome</label>
+          <input type="text" id="cst_nome" value="${esc(x.nome)}" placeholder="Construtora Sonho Real" maxlength="120"></div>
+        <div class="campo c6"><label for="cst_cnpj">CNPJ</label>
+          <input type="text" id="cst_cnpj" value="${esc(x.cnpj || '')}" placeholder="00.000.000/0000-00" inputmode="numeric"></div>
+        <div class="campo c6"><label for="cst_plano">Plano</label>
+          <select id="cst_plano">${PLANOS.map(
+            (p) => `<option value="${p}" ${p === x.plano ? 'selected' : ''}>${p}</option>`,
+          ).join('')}</select></div>
+        <div class="campo c6"><label for="cst_lim_u">Acessos contratados</label>
+          <input type="number" id="cst_lim_u" min="1" value="${x.limite_usuarios ?? ''}" placeholder="sem limite">
+          <span class="dica">Gestor + engenheiros. Cliente final não conta.${
+            uso ? ` Em uso: ${uso.usuarios}.` : ''
+          }</span></div>
+        <div class="campo c6"><label for="cst_lim_o">Limite de obras</label>
+          <input type="number" id="cst_lim_o" min="0" value="${x.limite_obras ?? ''}" placeholder="sem limite">
+          <span class="dica">Somando a equipe toda.${uso ? ` Hoje: ${uso.obras}.` : ''}</span></div>
+      </div>
+      ${
+        nova
+          ? '<p class="aviso-discreto" style="margin-top:var(--e3)">Depois de criar, abra a construtora e crie o primeiro acesso — o gestor.</p>'
+          : `<div class="zona-risco">
+        <b>Excluir construtora</b>
+        <p>Só dá para excluir a construtora vazia: sem usuários, obras, clientes e prestadores.</p>
+        ${botao('Excluir construtora', 'admin-excluir-construtora', { id: x.id }, 'btn perigo pequeno', 'lixo')}
+      </div>`
+      }`,
+    rodape: `<button class="btn" data-acao="fechar-modal">Cancelar</button>
+             <button class="btn primario" data-acao="admin-salvar-construtora" data-id="${esc(x.id || '')}">${
+               nova ? 'Criar construtora' : 'Salvar'
+             }</button>`,
+  });
+}
+
+ACOES['admin-nova-construtora'] = () => formConstrutora(null);
+ACOES['admin-editar-construtora'] = (el, d) => {
+  const c = construtora(d.id);
+  if (c) formConstrutora(c);
+};
+
+ACOES['admin-salvar-construtora'] = async (el, d) => {
+  const val = (id) => (document.getElementById(id)?.value || '').trim();
+  const atual = d.id ? construtora(d.id) : null;
+  const dados = {
+    nome: val('cst_nome'),
+    cnpj: val('cst_cnpj'),
+    plano: val('cst_plano'),
+    limiteUsuarios: val('cst_lim_u'),
+    limiteObras: val('cst_lim_o'),
+    bloqueada: atual ? !!atual.bloqueada : false,
+  };
+  const probs = apenasErros(validarConstrutora(dados, atual ? usoDe(atual) : {}));
+  if (probs.length) return toast(probs[0].mensagem, 'critico', 6000);
+  if (el) el.disabled = true;
+  try {
+    const id = await SUPA.adminSalvarConstrutora(d.id || null, dados);
+    fecharModal();
+    if (id) Admin.sel = id;
+    carregarConsumo(true);
+    toast(
+      d.id
+        ? 'Construtora atualizada.'
+        : `Construtora ${dados.nome} criada. Agora crie o primeiro acesso — o gestor.`,
+      'ok',
+      7000,
+    );
+  } catch (e) {
+    if (el) el.disabled = false;
+    toast('Não foi possível salvar: ' + ((e && e.message) || e), 'critico', 7000);
+  }
+};
+
+ACOES['admin-bloquear-construtora'] = (el, d) => {
+  const c = construtora(d.id);
+  if (!c) return;
+  const bloquear = !c.bloqueada;
+  confirmar(
+    bloquear ? 'Bloquear construtora' : 'Liberar construtora',
+    bloquear
+      ? `Toda a equipe da ${esc(c.nome)} deixa de conseguir entrar até ser liberada. Os dados ficam guardados. Confirmar?`
+      : `Liberar o acesso de toda a equipe da ${esc(c.nome)}?`,
+    () =>
+      admChamar(
+        () =>
+          SUPA.adminSalvarConstrutora(c.id, {
+            nome: c.nome,
+            cnpj: c.cnpj,
+            plano: c.plano,
+            limiteUsuarios: c.limite_usuarios,
+            limiteObras: c.limite_obras,
+            bloqueada: bloquear,
+          }),
+        bloquear ? 'Construtora bloqueada.' : 'Construtora liberada.',
+      ),
+    bloquear ? 'Bloquear' : 'Liberar',
+  );
+};
+
+ACOES['admin-excluir-construtora'] = (el, d) => {
+  const c = construtora(d.id);
+  if (!c) return;
+  fecharModal();
+  confirmar(
+    'Excluir construtora',
+    `Excluir ${esc(c.nome)}? Só funciona com ela vazia: sem usuários, obras e cadastros.`,
+    () => {
+      Admin.sel = '';
+      admChamar(() => SUPA.adminExcluirConstrutora(c.id), 'Construtora excluída.');
+    },
+    'Excluir',
+  );
+};
+
+/* ------------------------------------------------------------ acessos */
+function opcoesPapel(nome, selecionado, vagas) {
+  return `<div class="escolha-papel" role="radiogroup" aria-label="Papel">
+    ${PAPEIS_CONSTRUTORA.map((p) => {
+      const semVaga = p.v !== 'cliente' && vagas && vagas.cheia;
+      return `<label class="escolha-papel-item${semVaga ? ' sem-vaga' : ''}">
+        <input type="radio" name="${nome}" value="${p.v}" ${p.v === selecionado ? 'checked' : ''}>
+        <span><b>${esc(p.t)}</b><span class="tinta2">${esc(p.desc)}${semVaga ? ' — sem vaga agora' : ''}</span></span>
+      </label>`;
+    }).join('')}
+  </div>`;
+}
+
+/* a construtora ainda não tem gestor: o primeiro acesso sugerido é ele */
+function semGestor(c) {
+  return !(Admin.linhas || []).some((l) => l.empresa_id === c.id && l.papel_empresa === 'gestor');
+}
+
+ACOES['admin-novo-acesso'] = (el, d) => {
+  const c = construtora(d.id);
+  if (!c) return;
+  const v = vagasConstrutora(c);
+  const sugerido = v.cheia ? 'cliente' : semGestor(c) ? 'gestor' : 'engenheiro';
+  abrirModal({
+    titulo: `Novo acesso · ${c.nome}`,
+    largura: 'estreito',
+    corpo: `
+      <p style="margin:0 0 var(--e3);font-size:var(--t-peq);color:var(--tinta2)">
+        ${esc(v.texto)} acessos em uso${v.limite !== null ? ` · ${v.livres} ${v.livres === 1 ? 'livre' : 'livres'}` : ''}.
+        A pessoa entra com este e-mail e a senha provisória, e troca a senha depois em <b>Ajustes</b>.
+      </p>
+      ${opcoesPapel('acs_papel', sugerido, v)}
+      <div class="form-grade" style="margin-top:var(--e3)">
+        <div class="campo c12"><label for="acs_email">E-mail de acesso</label>
+          <input type="email" id="acs_email" autocomplete="off" placeholder="nome@construtora.com"></div>
+        <div class="campo c12"><label for="acs_senha">Senha provisória</label>
+          <div style="display:flex;gap:6px">
+            <input type="text" id="acs_senha" autocomplete="off" value="${senhaProvisoria()}">
+            ${botao('Gerar', 'admin-gerar-senha-acesso', {}, 'btn pequeno')}
+          </div>
+          <span class="dica">Anote e passe à pessoa. 12+ caracteres, com maiúscula, número e símbolo.</span></div>
+      </div>
+      <p class="aviso-discreto" style="margin-top:var(--e2)">Cliente final: depois de criar, o gestor convida para a obra em Configuração → Equipe.</p>`,
+    rodape: `<button class="btn" data-acao="fechar-modal">Cancelar</button>
+             <button class="btn primario" data-acao="admin-criar-acesso" data-id="${esc(c.id)}">Criar acesso</button>`,
+  });
+};
+
+ACOES['admin-gerar-senha-acesso'] = () => {
+  const inp = document.getElementById('acs_senha');
+  if (inp) inp.value = senhaProvisoria();
+};
+
+ACOES['admin-criar-acesso'] = async (el, d) => {
+  const c = construtora(d.id);
+  if (!c) return;
+  const email = (document.getElementById('acs_email')?.value || '').trim();
+  const senha = document.getElementById('acs_senha')?.value || '';
+  const papel = document.querySelector('#modal-camada input[name="acs_papel"]:checked')?.value || '';
+  const probs = apenasErros(validarNovoAcesso({ email, senha, papel }, vagasConstrutora(c)));
+  if (probs.length) return toast(probs[0].mensagem, 'critico', 6000);
+  if (el) el.disabled = true;
+  try {
+    await SUPA.adminCriarAcesso({ email, senha, empresaId: c.id, empresaNome: c.nome, papel });
+    fecharModal();
+    carregarConsumo(true);
+    toast(
+      `Acesso criado: ${email} (${PAPEL_ROTULO[papel]}), senha provisória ${senha}. Passe à pessoa.`,
+      'ok',
+      16000,
+    );
+  } catch (e) {
+    if (el) el.disabled = false;
+    toast('Não foi possível criar o acesso: ' + ((e && e.message) || e), 'critico', 8000);
+  }
+};
+
+/* Troca de papel na tabela. Virar gestor ou engenheiro ocupa vaga: o
+   banco recusa se não houver. Cancelar devolve o select. */
+ACOES['admin-papel'] = (el, d) => {
+  const u = (Admin.linhas || []).find((l) => l.usuario_id === d.id);
+  if (!u || !u.empresa_id || el.value === u.papel_empresa) return;
+  const papel = el.value;
+  el.value = u.papel_empresa;
+  const c = construtora(u.empresa_id) || {};
+  let efeito = '.';
+  if (papel === 'cliente') {
+    efeito =
+      '. Deixa de ver as obras da construtora e perde os convites de equipe; como cliente final, vê só a obra para a qual for convidado.';
+  } else if (u.papel_empresa === 'cliente') {
+    efeito = `, ocupando uma vaga (${esc(vagasConstrutora(c).texto)} em uso).`;
+  }
+  confirmar(
+    'Mudar papel',
+    `${esc(u.email)} passa de ${esc(PAPEL_ROTULO[u.papel_empresa] || '—')} para ${esc(PAPEL_ROTULO[papel])}${efeito}`,
+    () => admChamar(() => SUPA.adminLigarUsuario(u.usuario_id, u.empresa_id, papel), 'Papel alterado.'),
+    'Mudar',
+  );
+};
+
+/* Liga uma conta sem construtora a uma construtora, com um papel. */
+ACOES['admin-ligar'] = (el, d) => {
+  const u = (Admin.linhas || []).find((l) => l.usuario_id === d.id);
+  const cs = Admin.construtoras || [];
+  if (!u) return;
+  if (!cs.length) return toast('Crie uma construtora antes.', 'aviso');
+  abrirModal({
+    titulo: 'Ligar a uma construtora',
+    largura: 'estreito',
+    corpo: `
+      <p style="margin:0 0 var(--e3);font-size:var(--t-peq);color:var(--tinta2)">${esc(u.email || '')}</p>
+      <div class="form-grade">
+        <div class="campo c12"><label for="lig_emp">Construtora</label>
+          <select id="lig_emp">${cs
+            .map(
+              (c) =>
+                `<option value="${esc(c.id)}">${esc(c.nome)} · ${esc(vagasConstrutora(c).texto)} acessos</option>`,
+            )
+            .join('')}</select></div>
+      </div>
+      <div style="margin-top:var(--e3)">${opcoesPapel('lig_papel', 'engenheiro', null)}</div>`,
+    rodape: `<button class="btn" data-acao="fechar-modal">Cancelar</button>
+             <button class="btn primario" data-acao="admin-ligar-ok" data-id="${esc(u.usuario_id)}">Ligar</button>`,
+  });
+};
+
+ACOES['admin-ligar-ok'] = (el, d) => {
+  const emp = document.getElementById('lig_emp')?.value || '';
+  const papel = document.querySelector('#modal-camada input[name="lig_papel"]:checked')?.value || '';
+  const c = construtora(emp);
+  if (!c || !papel) return toast('Escolha a construtora e o papel.', 'critico');
+  if (papel !== 'cliente' && vagasConstrutora(c).cheia) {
+    return toast(
+      `${c.nome} está sem vaga (${vagasConstrutora(c).texto}). Aumente o limite ou ligue como cliente final.`,
+      'critico',
+      7000,
+    );
+  }
+  fecharModal();
+  Admin.sel = c.id;
+  admChamar(() => SUPA.adminLigarUsuario(d.id, c.id, papel), `Conta ligada à ${c.nome}.`);
 };

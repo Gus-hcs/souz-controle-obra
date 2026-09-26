@@ -18,9 +18,11 @@
 import { esc, fmtData, fonteImagem, hojeISO } from '../../nucleo/base.js';
 import {
   listaProtegida,
+  obrasConstrutora,
   renomearItemLista,
   saudeDados,
   usoItensLista,
+  vagasConstrutora,
 } from '../../dominio/calculos.js';
 import { apenasErros, validarEmpresa } from '../../dominio/validacao.js';
 import { Store, horaCurta, mutar } from '../../dados/store.js';
@@ -133,9 +135,18 @@ function previaCabecalho(emp) {
 function secaoEmpresa(e) {
   const emp = e.empresa;
   const avisos = validarEmpresa(emp).filter((p) => p.sev === 'alerta');
+  /* Construtora (0021): estes dados e as listas são dela — iguais para a
+     equipe toda. Plano, acessos e obras só o administrador muda. */
+  const c = SUPA.construtora;
+  const faixaConstrutora = c
+    ? `<p class="aviso-discreto" data-testid="ajustes-construtora">Construtora <b>${esc(c.nome)}</b> · plano ${esc(c.plano)} · ${esc(
+        vagasConstrutora(c).texto,
+      )} acessos · ${esc(obrasConstrutora(c).texto)} obras. Os dados abaixo valem para toda a equipe; plano, acessos e limite de obras, só o administrador do sistema muda.</p>`
+    : '';
   return `<section class="ajustes-secao" aria-label="Empresa">
-    <h2>Empresa</h2>
+    <h2>${c ? 'Construtora' : 'Empresa'}</h2>
     <p class="tinta2 ajustes-lead">Sai no cabeçalho e na assinatura dos relatórios. O responsável técnico daqui vale para as obras que não têm o próprio (Configuração da obra). Grava sozinho ao mudar.</p>
+    ${faixaConstrutora}
     ${avisos.length ? `<p class="aviso-linha" role="status">${avisos.map((p) => esc(p.mensagem)).join(' ')}</p>` : ''}
     <div class="ajustes-empresa">
       <form class="form-grade" data-form="1" data-empresa="1" onsubmit="return false">

@@ -18,7 +18,9 @@ raiz · pendências do cliente · nota fiscal e comprovante (foto ou PDF, no Sto
 relatórios em PDF com período, fotos, valores e observação, e histórico dos
 gerados · importação de planilha por modelo (obras, lançamentos, prestadores,
 cronograma) e da planilha MCMV · exportação CSV e Excel · acesso do Power BI ao
-PostgreSQL.
+PostgreSQL · construtoras (a conta de empresa que se vende): equipe com limite
+de acessos e de obras, cliente final que acompanha a obra sem ocupar vaga,
+tudo criado e controlado pelo administrador do sistema.
 
 O sistema atende qualquer construtora: nada na tela assume a CAIXA. O nome do
 financiador vem de `obras.financiador`; vazio, a tela diz "financiador".
@@ -101,10 +103,13 @@ desenha na largura e na altura medidas), em vez de deixar vão.
 3. **Toda tabela nova precisa de isolamento por usuário via RLS.**
    Nunca crie tabela sem isolamento. Tabela ligada a uma obra: coluna `obra_id`
    e políticas por comando chamando `pode_ler_obra()` / `pode_escrever_obra()`
-   (migração 0004). Tabela de cadastro do usuário: `usuario_id` e política
-   `using (usuario_id = auth.uid()) with check (mesmo)`.
+   (0004; desde a 0021 elas também liberam a equipe da construtora dona da
+   obra). Tabela de cadastro: `empresa_id` preenchido pelo gatilho
+   `registro_define_empresa` e política `using (usuario_id = auth.uid() or
+empresa_id = public.minha_empresa())` com o mesmo `with check` (0021).
    `usuario_id` significa **quem criou/alterou** a linha, não "dono" — o acesso
-   é pela obra, via `obra_membros`.
+   é pela obra (`obra_membros`) e pela construtora; excluir a conta não apaga a
+   linha (`on delete set null`).
 
 4. **Toda regra de negócio precisa de teste.** Cálculo se prova em `tests/`, não
    na tela.
@@ -147,12 +152,20 @@ Todos são escritos para rodar de novo sem quebrar (`if not exists`,
 - **`obra_membros`** também fica fora do `TABELAS_DB`: `SUPA.carregarPapeis()`
   lê os papéis do usuário no login para `SUPA.papeis`, e `SUPA.lerMembros()`
   serve a futura tela de equipe. Não há gravação de membro pela tela ainda.
-- **Administração (`VIEWS.admin`)**: só aparece quando `SUPA.ehAdmin` (lido do
-  `perfis.admin` no login). Lê `admin_consumo()` por um leitor dedicado; grava
-  em `perfis` de outros usuários por `SUPA.adminSalvarPerfil`. O controle de
-  acesso por aba vive em `perfis.abas` e a RLS de `0005` — a tela só reflete
-  o que o banco já garante (`SUPA.abaLiberada`, filtro no menu, guarda no
-  `App.ir`).
+- **Administração (`VIEWS.admin`, "Contas e acessos")**: só aparece quando
+  `SUPA.ehAdmin` (lido do `perfis.admin` no login). Com a 0021, é a tela das
+  construtoras: `admin_empresas()` e `admin_consumo()` por leitores dedicados;
+  cria e altera construtora (`admin_salvar_empresa`), liga conta e papel
+  (`admin_definir_usuario_empresa`) e cria acesso (conta pela função
+  `admin-usuario` + ligação; se a ligação falhar, a conta recém-criada é
+  apagada). Sem a 0021, a tela de antes, conta por conta. O controle de acesso
+  por aba vive em `perfis.abas` e a RLS de `0005` — a tela só reflete o que o
+  banco já garante (`SUPA.abaLiberada`, filtro no menu, guarda no `App.ir`).
+- **Construtora no app**: `SUPA.carregarConstrutora()` lê `minha_construtora()`
+  no login; dados da empresa e listas passam a ser da construtora (gravados em
+  `empresas`), e `SUPA.papelNaObra` cai no papel da construtora quando não há
+  convite (gestor = dono). Vaga e limite de obras são conferidos no banco; a
+  tela só antecipa a mensagem.
 
 ## Vocabulário
 

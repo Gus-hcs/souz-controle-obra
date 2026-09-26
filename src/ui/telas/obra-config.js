@@ -241,8 +241,12 @@ function equipeHTML(o) {
 }
 
 ACOES['equipe-convidar'] = (el, d) => {
+  /* Obra de construtora (0021): a equipe já vê todas as obras — engenheiro
+     novo é um acesso da construtora, liberado pelo administrador. Aqui só
+     o cliente final (o banco recusa o resto). */
+  const soCliente = !!SUPA.construtora;
   abrirForm({
-    titulo: 'Convidar para a obra',
+    titulo: soCliente ? 'Convidar o cliente para a obra' : 'Convidar para a obra',
     campos: [
       {
         k: 'email',
@@ -250,21 +254,25 @@ ACOES['equipe-convidar'] = (el, d) => {
         tipo: 'texto',
         col: 12,
         obrigatorio: true,
-        dica: 'a pessoa precisa já ter uma conta no sistema — não há e-mail de convite',
+        dica: soCliente
+          ? 'o cliente precisa já ter um acesso — peça ao administrador do sistema um acesso de cliente final'
+          : 'a pessoa precisa já ter uma conta no sistema — não há e-mail de convite',
       },
       {
         k: 'papel',
         label: 'Papel',
         tipo: 'select',
         vazio: false,
-        opcoes: [
-          { v: 'engenheiro', t: 'Engenheiro — lança, mede, edita' },
-          { v: 'cliente', t: 'Cliente — só acompanha (leitura)' },
-        ],
+        opcoes: soCliente
+          ? [{ v: 'cliente', t: 'Cliente — só acompanha (leitura)' }]
+          : [
+              { v: 'engenheiro', t: 'Engenheiro — lança, mede, edita' },
+              { v: 'cliente', t: 'Cliente — só acompanha (leitura)' },
+            ],
         col: 12,
       },
     ],
-    valores: { papel: 'engenheiro' },
+    valores: { papel: soCliente ? 'cliente' : 'engenheiro' },
     aoSalvar: async (dados) => {
       try {
         await SUPA.convidarMembro(d.obra, dados.email, dados.papel);
@@ -389,7 +397,11 @@ VIEWS['obra-config'] = () => {
       </div>
       ${equipeHTML(o)}
       <p class="tinta3" style="font-size:var(--t-peq);margin:var(--e3) 0 0">
-        Engenheiro lança, mede e edita, mas não gerencia equipe nem exclui a obra. Cliente só acompanha.
+        ${
+          SUPA.construtora
+            ? `A equipe da ${esc(SUPA.construtora.nome)} já vê todas as obras. Aqui entra só o cliente, que acompanha esta obra sem editar.`
+            : 'Engenheiro lança, mede e edita, mas não gerencia equipe nem exclui a obra. Cliente só acompanha.'
+        }
       </p>
     </div>`
         : ''

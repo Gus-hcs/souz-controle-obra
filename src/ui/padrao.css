@@ -1734,3 +1734,61 @@ table.lista td s,
     grid-auto-flow: row;
   }
 }
+
+/* ------------------------------------------------ construtoras (admin)
+   Escolha do papel ao criar ou ligar um acesso: as três opções com o que
+   cada uma pode, uma embaixo da outra. Sem vaga, gestor e engenheiro
+   ficam apagados (o cliente final não ocupa vaga). */
+.escolha-papel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e1);
+}
+.escolha-papel-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--e2);
+  padding: var(--e2) var(--e3);
+  border: var(--fio) solid var(--separador);
+  border-radius: var(--r-campo);
+  cursor: pointer;
+}
+.escolha-papel-item:has(input:checked) {
+  border-color: var(--acento);
+  background: color-mix(in srgb, var(--acento) 8%, var(--fundo-conteudo));
+}
+.escolha-papel-item input {
+  width: auto;
+  margin-top: 3px;
+}
+.escolha-papel-item > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--t-peq);
+}
+.escolha-papel-item.sem-vaga {
+  opacity: 0.55;
+}
+.tela-construtoras {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e4);
+}
+.tela-construtoras > *,
+.tela-construtoras > .kpis-cx,
+.tela-construtoras > .caixa {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+/* o título (nome · acessos · obras · plano) quebra antes dos botões */
+.secao-construtora .caixa-cab {
+  flex-wrap: wrap;
+}
+.secao-construtora .caixa-cab h3 {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.secao-construtora .caixa-cab .dir {
+  flex-wrap: wrap;
+}

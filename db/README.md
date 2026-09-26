@@ -8,9 +8,10 @@ já calculados para o Power BI.
 
 | Tabela | Guarda |
 |---|---|
-| `perfis` | dados da empresa, listas, e o controle de conta (admin, plano, bloqueio, abas liberadas) |
-| `clientes` · `prestadores` | cadastros compartilhados entre obras |
-| `obras` | a obra e seus parâmetros financeiros |
+| `empresas` | a construtora (0021): dados da empresa, listas, plano, limite de acessos e de obras, bloqueio |
+| `perfis` | a conta: construtora e papel nela (gestor/engenheiro/cliente), admin, bloqueio, abas liberadas; os dados da empresa de antes da 0021 |
+| `clientes` · `prestadores` | cadastros da construtora, compartilhados entre as obras e a equipe dela |
+| `obras` | a obra e seus parâmetros financeiros; `empresa_id` = a construtora dona |
 | `obra_membros` | quem participa de cada obra e com que papel (dono/engenheiro/cliente) |
 | `contratos` | contratos e aditivos, agrupados por `codigo_base` |
 | `medicoes` | medições do empreiteiro e seus pagamentos |
@@ -101,6 +102,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0018_cliente_e_fornecedor.sql` | tabela `pendencias_cliente` (o que o cliente deve à obra, com prazo) com RLS por obra; `obras.status_enviado_em`; `prestadores.tipo` (serviço × fornecedor); CHECKs |
 | `0019_anexo_nf_e_funcoes_fechadas.sql` | `lancamentos.anexo_nf` (foto da nota, CHECK de imagem ≤ 1,5 MB); `EXECUTE` revogado de `anon` em todas as `SECURITY DEFINER` e de todos nas funções de gatilho |
 | `0020_padronizacao_telas.sql` | `obras.padrao` só Econômico/Médio/Alto (MCMV é programa); `obras.crea_cau`; `recebimentos.comprovante`; `anexo_nf` aceita PDF e Storage; bucket privado `anexos` com RLS por obra; tabela `relatorios_gerados` (histórico de relatórios, RLS por obra); `perfis.cnpj` |
+| `0021_construtoras.sql` | tabela `empresas` (a construtora que compra o sistema) com RLS; `perfis.empresa_id` + `papel_empresa`; `empresa_id` em obras, clientes e prestadores; a equipe da construtora vê tudo dela; vaga (limite de acessos) e limite de obras conferidos no banco; convite só de cliente em obra de construtora; `usuario_id` sem cascata (excluir conta não apaga registro); funções de admin; corrige `convidar_membro` e a permissão de `perfis.logo`/`cnpj` |
 
 ### 0008 — logos
 
@@ -383,3 +385,50 @@ barraria quem digitasse "MCMV":
    novo o diagnóstico do padrão (BLOCO B, primeira parte), o BLOCO C se
    algo tiver voltado, e só então `chk_obra_padrao` (`not valid` e validate).
 
+
+### 0020f — permissão de logo e CNPJ (correção)
+
+A 0020 criou `perfis.cnpj` sem `grant update` — e o `grant update (logo)` da
+0008 não estava valendo em produção. Como o app grava o perfil inteiro de uma
+vez (dados da empresa e listas), **toda** gravação de Ajustes → Empresa e
+Listas falhava com "permission denied" desde o deploy da padronização. Uma
+linha, aplicada à parte: `grant update (logo, cnpj) on public.perfis to
+authenticated;` (repetida no início da 0021).
+
+### 0021 — construtoras
+
+A construtora (`empresas`) passa a ser o dono dos dados: a equipe dela
+(gestor e engenheiros ativos) vê e edita todas as obras, clientes,
+prestadores, listas e dados da empresa dela. O cliente final (papel
+`cliente`) acompanha só a obra para a qual foi convidado e não ocupa vaga.
+
+- **Acesso** (`pode_ler_obra`, `pode_escrever_obra`, `eh_dono_obra`): o
+  convite de `obra_membros`, como antes, **ou** a obra ser da construtora
+  de quem está logado (`minha_empresa()` — só equipe ativa, construtora sem
+  bloqueio). O gestor é dono de todas as obras da construtora.
+- **Quem define o quê**: a construtora do registro é a de quem cria
+  (gatilho `registro_define_empresa`); construtora e papel da conta, plano,
+  limites e bloqueio da construtora, só o admin (gatilhos de trava; as
+  funções `admin_*` conferem `pode_admin()`).
+- **Vaga**: gatilho `perfil_checa_vaga` — gestor + engenheiros ativos ≤
+  `limite_usuarios`. **Obras**: `obra_checa_limite` — soma da construtora ≤
+  `limite_obras`; conta sem construtora não cria obra.
+- **Saída**: `admin_definir_usuario_empresa` tira os convites de equipe de
+  quem sai da construtora. `usuario_id` passa a `on delete set null` em
+  todas as tabelas de dados — excluir a conta de um engenheiro não apaga o
+  que ele registrou.
+- **Correções**: `convidar_membro` (0014) falhava sempre — "column reference
+  usuario_id is ambiguous" (a coluna de retorno tem o nome da coluna do
+  `on conflict`); agora `#variable_conflict use_column`.
+- **Conversão** (bloco C, só na primeira vez): uma construtora por nome de
+  empresa; dono de obra vira gestor; quem só tem convites entra na
+  construtora do dono da obra, como cliente ou engenheiro. Limite de acessos
+  nenhum — o admin define na tela Contas e acessos.
+
+O app funciona com e sem a 0021: sem ela, `minha_construtora()` não existe e
+tudo segue pelo perfil, como antes; com ela, a carga, os dados da empresa e
+a tela de administração passam para a construtora.
+
+Conferida numa bancada com PostgreSQL em memória (PGlite): as migrações
+0001–0021 em ordem sobre o cenário de produção, 41 verificações de acesso,
+vaga, limite, convite, bloqueio, exclusão e reexecução.

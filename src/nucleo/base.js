@@ -510,6 +510,16 @@ const novoPrestador = () => ({
 const PAPEIS_OBRA = ['dono', 'engenheiro', 'cliente'];
 const PLANOS = ['trial', 'ativo', 'suspenso', 'cancelado'];
 
+/* Papel na construtora (0021). Gestor e engenheiro são a equipe: ocupam
+   vaga e veem tudo da construtora. O cliente final acompanha só a obra
+   para a qual foi convidado e não ocupa vaga. */
+const PAPEIS_CONSTRUTORA = [
+  { v: 'gestor', t: 'Gestor', desc: 'vê e edita tudo da construtora, exclui obras e convida o cliente' },
+  { v: 'engenheiro', t: 'Engenheiro', desc: 'vê e edita tudo da construtora; não exclui obra de outro' },
+  { v: 'cliente', t: 'Cliente final', desc: 'acompanha só a obra para a qual for convidado; não ocupa vaga' },
+];
+const PAPEIS_EQUIPE = ['gestor', 'engenheiro'];
+
 const novoMembro = (papel = 'engenheiro') => ({
   id: uid('mbr'), obraId: '', usuarioId: '', papel, criadoEm: hojeISO()
 });
@@ -665,6 +675,8 @@ export {
   SITUACOES_MANUAIS_CONTRATO,
   PAPEIS_OBRA,
   PLANOS,
+  PAPEIS_CONSTRUTORA,
+  PAPEIS_EQUIPE,
   novoMembro,
   novaObra,
   novoContrato,
