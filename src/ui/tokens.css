@@ -99,9 +99,10 @@
   --barra-separador-forte: #2a423d;
 
   /* ------------------------------------------------------ camadas
-     Claro = o "Papel" do manual (#EDEFEE) na sidebar e nos fundos
-     agrupados; conteúdo e cartão na superfície clara (#FBFCFB). */
-  --fundo-janela: #fbfcfb;
+     Claro = branco gelo (#F2F5F7) no fundo da página; conteúdo e cartão
+     na superfície clara (#FBFCFB), que se destaca sobre o gelo; o "Papel"
+     do manual (#EDEFEE) nos fundos agrupados. */
+  --fundo-janela: #f2f5f7;
   --fundo-conteudo: #fbfcfb;
   --fundo-lateral: rgba(237, 239, 238, 0.86); /* Papel, translúcido */
   --fundo-lateral-solido: #edefee; /* fallback sem backdrop-filter */
@@ -190,17 +191,17 @@
    tem pré-processador. Mexeu em um, mexa no outro — tests/tokens.test.js
    quebra o `npm test` se os dois saírem de sincronia.
 
-   No escuro as barras (Souz Preto) são mais escuras que o conteúdo
-   (Grafite): a moldura recua e a tela fica em primeiro plano. */
+   No escuro as barras (Souz Preto) são mais escuras que a página
+   (chumbo): a moldura recua e a tela fica em primeiro plano. */
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
 
-    /* a marca nasce no escuro: Grafite no conteúdo, Souz Preto nas
-       barras, Elevado no que flutua */
-    --fundo-janela: #0e1a17;
-    --fundo-conteudo: #0e1a17;
+    /* a marca nasce no escuro: chumbo no fundo da página, cartão um tom
+       acima, Souz Preto nas barras, Elevado no que flutua */
+    --fundo-janela: #121416;
+    --fundo-conteudo: #181b1e;
     --fundo-lateral: rgba(14, 26, 23, 0.9);
     --fundo-lateral-solido: #0e1a17;
     --fundo-toolbar: rgba(14, 26, 23, 0.86);
@@ -252,10 +253,10 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  /* a marca nasce no escuro: Grafite no conteúdo, Souz Preto nas
-     barras, Elevado no que flutua */
-  --fundo-janela: #0e1a17;
-  --fundo-conteudo: #0e1a17;
+  /* a marca nasce no escuro: chumbo no fundo da página, cartão um tom
+     acima, Souz Preto nas barras, Elevado no que flutua */
+  --fundo-janela: #121416;
+  --fundo-conteudo: #181b1e;
   --fundo-lateral: rgba(14, 26, 23, 0.9);
   --fundo-lateral-solido: #0e1a17;
   --fundo-toolbar: rgba(14, 26, 23, 0.86);
