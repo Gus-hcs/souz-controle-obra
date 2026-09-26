@@ -1330,6 +1330,11 @@ table.lista tfoot td.num {
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* Pares embrulhados em .par (Caixa projetado, cartões do painel): cada um
+   é uma linha inteira, com o layout próprio do .par. */
+.pares > .par {
+  grid-column: 1 / -1;
+}
 
 /* Pendência: linha clicável que leva direto à tela onde se resolve. */
 .pend-lista {

@@ -22,8 +22,8 @@ import {
   fmtMoneyCurto,
   hojeISO,
 } from '../../nucleo/base.js';
-import { analiseFluxo, fluxoCaixa, fluxoProjetado, kpisObra } from '../../dominio/calculos.js';
-import { graficoAuto, graficoRosca, graficoSaldoProjetado } from '../../graficos/index.js';
+import { analiseFluxo, fluxoCaixa, fluxoProjetado, kpisObra, receberPagarProximos } from '../../dominio/calculos.js';
+import { graficoAuto, graficoReceberPagar, graficoRosca, graficoSaldoProjetado } from '../../graficos/index.js';
 import { App } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
 import { barraFiltros, dinheiro, faixaKpis, lista } from './componentes.js';
@@ -215,14 +215,20 @@ VIEWS.fluxo = () => {
       <div class="analise-cab"><h2>${esc(titulo)}</h2>${nota ? `<span class="tinta3">${esc(nota)}</span>` : ''}</div>
       <div class="analise-corpo">${conteudo}</div>
     </section>`;
-  /* à direita as duas roscas; o saldo projetado fica embaixo dos próximos
-     movimentos, largo — três gráficos empilhados numa coluna estreita
-     deixavam a tabela com um vão vazio da altura de dois deles */
+  /* À direita as duas roscas e, embaixo delas, a receber × a pagar dos
+     próximos 90 dias; à esquerda os próximos movimentos e o saldo
+     projetado. O último gráfico de cada coluna enche a altura que sobrar
+     (graficoAuto com altura): as duas colunas terminam juntas, sem vão. */
+  const rp = receberPagarProximos(o, f.situacao || '', hojeISO());
+  const notaRp = `${fmtMoneyCurto(rp.totais.receber)} a receber · ${fmtMoneyCurto(rp.totais.pagar)} a pagar · por quinzena`;
   const graficos = `<div class="fluxo-graficos">
-      ${bloco('Saídas por categoria', periodo, graficoRosca(an.saidasPorCategoria, { centro: 'saídas', rotulo: 'Saídas por categoria' }))}
-      ${bloco('Entradas por origem', periodo, graficoRosca(an.entradasPorOrigem, { centro: 'entradas', rotulo: 'Entradas por origem' }))}
+      <div class="fluxo-roscas">
+        ${bloco('Saídas por categoria', periodo, graficoRosca(an.saidasPorCategoria, { centro: 'saídas', rotulo: 'Saídas por categoria' }))}
+        ${bloco('Entradas por origem', periodo, graficoRosca(an.entradasPorOrigem, { centro: 'entradas', rotulo: 'Entradas por origem' }))}
+      </div>
+      ${bloco('A receber × a pagar — próximos 90 dias', notaRp, graficoAuto((w, h) => graficoReceberPagar(rp.periodos, { largura: w, altura: h || 220 }), 440, 220))}
     </div>`;
-  const saldo = bloco('Saldo projetado', `entradas × saídas por mês · ${periodo}`, graficoAuto((w) => graficoSaldoProjetado(an.meses, an.menor, { largura: w, altura: 240 }), 760));
+  const saldo = bloco('Saldo projetado', `entradas × saídas por mês · ${periodo}`, graficoAuto((w, h) => graficoSaldoProjetado(an.meses, an.menor, { largura: w, altura: h || 240 }), 760, 240));
 
   return `<div class="tela-lista">
     ${kpisFluxo(k, tot, proj)}

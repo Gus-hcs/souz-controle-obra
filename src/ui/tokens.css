@@ -207,7 +207,7 @@
     --fundo-toolbar: rgba(24, 27, 30, 0.86);
     --fundo-agrupado: #202326; /* cabeçalho de tabela, total: preto um tom acima do cartão */
     --fundo-elevado: #0e2824;
-    --fundo-campo: #0e1a17;
+    --fundo-campo: #121416; /* chumbo, um tom abaixo do card: campo afundado */
     --fundo-ctrl: #0e2824;
     --fundo-ctrl-ativo: #173934;
     --fundo-zebra: rgba(232, 232, 232, 0.022);
@@ -262,7 +262,7 @@
   --fundo-toolbar: rgba(24, 27, 30, 0.86);
   --fundo-agrupado: #202326; /* cabeçalho de tabela, total: preto um tom acima do cartão */
   --fundo-elevado: #0e2824;
-  --fundo-campo: #0e1a17;
+  --fundo-campo: #121416; /* chumbo, um tom abaixo do card: campo afundado */
   --fundo-ctrl: #0e2824;
   --fundo-ctrl-ativo: #173934;
   --fundo-zebra: rgba(232, 232, 232, 0.022);

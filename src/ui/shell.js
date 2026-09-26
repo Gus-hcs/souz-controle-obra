@@ -571,7 +571,7 @@ function confirmarDigitando(titulo, texto, palavra, aoConfirmar, rotulo = 'Exclu
 }
 
 /* --------------------------------------------------- formulário genérico
-   campos: { k, label, tipo, col, opcoes, dica, secao, ro, placeholder }
+   campos: { k, label, tipo, col, largo, opcoes, dica, secao, ro, placeholder }
    tipos: texto | numero | dinheiro | pct | data | select | area | check | lista
 */
 function campoHTML(c, valores) {
@@ -637,7 +637,7 @@ function campoHTML(c, valores) {
       campo = `<input type="text" id="${id}" data-campo="${c.k}" data-tipo="texto" value="${esc(v ?? '')}" placeholder="${esc(c.placeholder || '')}" ${req}>`;
   }
   /* c.detalhe: campo que só aparece em "Mais detalhes" (formulário rápido) */
-  return `<div class="campo ${col}${c.detalhe ? ' campo-detalhe' : ''}">
+  return `<div class="campo ${col}${c.largo ? ' largo' : ''}${c.detalhe ? ' campo-detalhe' : ''}">
     <label for="${id}">${esc(c.label)}</label>
     ${campo}
     ${c.dica ? `<span class="dica">${esc(c.dica)}</span>` : ''}

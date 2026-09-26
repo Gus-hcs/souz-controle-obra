@@ -36,7 +36,7 @@ import {
   pendenciasObra,
   valorAgregadoObra,
 } from '../../dominio/calculos.js';
-import { graficoBarras, graficoCurvaS } from '../../graficos/index.js';
+import { graficoAuto, graficoBarras, graficoCurvaS } from '../../graficos/index.js';
 import { App, abrirForm, botao, confirmar, fecharModal, toast } from '../shell.js';
 import { causaHTML, fraseAncoraHTML, implExpandida, VIEWS } from '../telas-obra.js';
 import { faixaKpis, fmtIndice, tomNivel } from './componentes.js';
@@ -379,7 +379,7 @@ VIEWS.painel = () => {
 
   const proj = fluxoProjetado(o);
 
-  return `<div class="tela-lista">
+  return `<div class="tela-lista tela-painel">
     ${fraseAncoraHTML(historia, { status: o.status })}
     ${kpisPainel(o, k, va)}
     ${cartaoImplantacao(o)}
@@ -387,24 +387,27 @@ VIEWS.painel = () => {
     ${caixaFinanciador(o)}
     ${caixaCliente(o)}
 
-    <div class="grade g-2-1" style="align-items:start">
-      <div class="caixa">
+    <!-- Curva S à esquerda; à direita, Andamento e Caixa projetado
+         empilhados, dividindo a altura: as duas colunas terminam juntas e
+         o gráfico ocupa a altura que a coluna da direita pede. -->
+    <div class="painel-linha">
+      <div class="caixa caixa-curva">
         <div class="caixa-cab">
           <h3>Curva S — avanço físico x financeiro</h3>
           <div class="dir">${botao('Ver detalhes', 'ir', { view: 'curva' }, 'btn sutil pequeno')}</div>
         </div>
-        <div class="nao-celular">${graficoCurvaS(o, 280)}</div>
+        <div class="nao-celular painel-curva">${graficoAuto((w, h) => graficoCurvaS(o, h || 280, w), 920, 280)}</div>
         <p class="so-celular numeros-celular">Físico <b>${fmtPct(k.progressoFisico, 0)}</b> (previsto ${fmtPct(va.previsto, 0)}) · IDP <b>${fmtIndice(va.idp)}</b> · IDC <b>${fmtIndice(va.idc)}</b></p>
       </div>
-      ${caixaAndamento(o, k, va)}
+      <div class="painel-lado">
+        ${caixaAndamento(o, k, va)}
+        ${caixaVale(k, proj)}
+      </div>
     </div>
 
-    <div class="grade g-2-1">
-      ${caixaVale(k, proj)}
-      <div class="caixa">
-        <div class="caixa-cab"><h3>Onde o dinheiro foi</h3></div>
-        ${graficoBarras(custoPorEtapa(o), { limite: 8 })}
-      </div>
+    <div class="caixa">
+      <div class="caixa-cab"><h3>Onde o dinheiro foi</h3></div>
+      ${graficoBarras(custoPorEtapa(o), { limite: 8, colunas: 2 })}
     </div>
   </div>`;
 };

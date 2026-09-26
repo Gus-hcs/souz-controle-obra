@@ -57,9 +57,31 @@ table.lista,
     grid-column: span 6;
   }
   #conteudo .form-grade > .c8,
-  #conteudo .form-grade > .c9 {
+  #conteudo .form-grade > .c9,
+  #conteudo .form-grade > .largo {
     grid-column: span 12;
   }
+}
+/* Rótulo, campo e texto de ajuda alinhados por linha: cada campo é uma
+   subgrade de três linhas da grade do formulário. O rótulo que quebra em
+   duas linhas e a ajuda longa ocupam a altura da linha inteira, e os
+   vizinhos acompanham — nenhum campo começa mais abaixo que o do lado. */
+#conteudo .form-grade {
+  row-gap: var(--e1);
+}
+#conteudo .form-grade > .campo {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  gap: var(--e1);
+  align-content: start;
+}
+#conteudo .form-grade > .campo > label {
+  align-self: end;
+  padding-top: var(--e2);
+}
+#conteudo .form-grade > .campo > .dica {
+  align-self: start;
 }
 
 /* ---------------------------------------------------- faixa de KPIs
@@ -826,21 +848,44 @@ table.lista tr.linha-duplicado td {
   gap: var(--e4);
   min-width: 0;
 }
+/* O último bloco de cada coluna cresce até o fim da coluna, e o gráfico
+   dele (graficoAuto com altura) enche o que sobrar: as duas colunas
+   terminam juntas, sem vão, qualquer que seja o conteúdo. */
 .fluxo-esq > .analise-bloco:last-child,
 .fluxo-graficos > .analise-bloco:last-child {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.fluxo-esq > .analise-bloco:last-child > .analise-corpo,
+.fluxo-graficos > .analise-bloco:last-child > .analise-corpo {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.analise-corpo > .grafico-auto[data-encher] {
+  flex: 1 1 auto;
+}
+/* As duas roscas com a mesma altura (linhas iguais), mesmo diâmetro. */
+.fluxo-roscas {
+  display: grid;
+  grid-auto-rows: 1fr;
+  gap: var(--e4);
+}
+.fluxo-roscas > .analise-bloco {
+  margin: 0;
 }
 @media (max-width: 1439px) {
   .fluxo-topo {
     grid-template-columns: minmax(0, 1fr);
   }
-  .fluxo-graficos {
-    display: grid;
+  .fluxo-roscas {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 767px) {
-  .fluxo-graficos {
+  .fluxo-roscas {
     grid-template-columns: minmax(0, 1fr);
   }
 }
@@ -1522,5 +1567,166 @@ table.lista td s,
   #modal-camada textarea,
   #topo input {
     font-size: 16px;
+  }
+}
+
+/* ------------------------------------------- configuração da obra
+   Seções com o mesmo cabeçalho recolhível; as curtas (Prazo e
+   Financiamento) lado a lado a partir de 1440px, na proporção do número
+   de campos de cada uma — os campos das duas saem com a mesma largura —,
+   e com a mesma altura. Abaixo disso, uma embaixo da outra. */
+.tela-config form[data-form] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e3);
+}
+.cfg-secao > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--e2);
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--t-medio);
+  font-weight: var(--p-semi);
+  color: var(--tinta);
+}
+.cfg-secao > summary::-webkit-details-marker {
+  display: none;
+}
+/* o mesmo triângulo de recolher em todas as seções: aponta para a
+   direita fechada e para baixo aberta; gira, não troca de lugar */
+.cfg-secao > summary::before {
+  content: '';
+  flex: none;
+  width: 0;
+  height: 0;
+  border-left: 6px solid var(--tinta2);
+  border-top: 4.5px solid transparent;
+  border-bottom: 4.5px solid transparent;
+  transition: transform var(--mov-rapido) var(--curva);
+}
+.cfg-secao[open] > summary::before {
+  transform: rotate(90deg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cfg-secao > summary::before {
+    transition: none;
+  }
+}
+.cfg-secao[open] > summary {
+  margin-bottom: var(--e2);
+}
+.cfg-secao > .tab {
+  margin-top: var(--e2);
+}
+/* o espaço entre seções é o gap do formulário: a margem de ".caixa +
+   .caixa" somaria com ele e desalinharia o par lado a lado */
+.tela-config form[data-form] > .caixa,
+.cfg-par > .caixa {
+  margin: 0;
+}
+.cfg-par {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--e3);
+  align-items: stretch;
+}
+@media (min-width: 1440px) {
+  .cfg-par {
+    grid-template-columns: var(--cfg-par, 1fr 1fr);
+  }
+}
+
+/* ------------------------------------------------------ painel da obra
+   Um espaçamento só entre os blocos (o gap), na vertical e na horizontal;
+   as margens herdadas (".caixa + .caixa", faixa de KPIs) saem. A linha da
+   Curva S: o gráfico à esquerda enche a altura da coluna da direita
+   (Andamento + Caixa projetado), e os dois cards da direita dividem essa
+   altura — as colunas terminam juntas, sem vão. */
+.tela-painel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e4);
+}
+.tela-painel > *,
+.tela-painel > .kpis-cx,
+.tela-painel > .caixa,
+.painel-lado > .caixa {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.painel-linha {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--e4);
+  align-items: stretch;
+}
+.caixa-curva {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.painel-curva {
+  flex: 1 1 auto;
+  display: flex;
+  min-height: 0;
+}
+.painel-curva > .grafico-auto {
+  flex: 1 1 auto;
+}
+.painel-lado {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e4);
+  min-width: 0;
+}
+.painel-lado > .caixa {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+/* o conteúdo do card da direita se distribui na altura que sobrar */
+.painel-lado > .caixa > :last-child {
+  margin-top: auto;
+}
+@media (max-width: 1199px) {
+  .painel-linha {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Gráfico que enche a altura do bloco (graficoAuto com alturaPadrao): a
+   área do desenho é flexível e o SVG, absoluto dentro dela, é redesenhado
+   na largura e na altura medidas — o texto nunca é esticado. */
+.grafico-auto[data-encher] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.grafico-auto[data-encher] > .grafico-cx {
+  flex: 1 1 auto;
+  min-height: 240px;
+}
+.grafico-auto[data-encher] > .grafico-cx > svg.grafico {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Barras horizontais em colunas (graficoBarras com colunas): a lista desce
+   pela primeira coluna e continua na segunda; no celular, uma coluna. */
+.barras-cols {
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--linhas, 4), auto);
+  grid-auto-flow: column;
+  gap: 9px var(--e6);
+}
+@media (max-width: 767px) {
+  .barras-cols {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-auto-flow: row;
   }
 }

@@ -76,12 +76,19 @@ function kpisConfig(o, k) {
   );
 }
 
+/* Seções do formulário. Grade da página (padrao.css): 4 colunas a partir
+   de 1440px, 2 de 768 a 1439px, 1 no celular — todo campo ocupa 1 coluna
+   (c3); só o Endereço é largo (2 colunas; a linha toda na grade de 2) e as
+   Observações ocupam a linha inteira. As contas fecham sem buraco:
+   Identificação = 12 colunas + Observações; Valores = 8. "Prazo" (2) e
+   "Financiamento" (3) são curtas: ficam lado a lado (par: true), na
+   proporção 2:3, com a mesma altura. */
 const SECOES = [
   {
     titulo: 'Identificação',
     aberta: true,
     campos: (clientes) => [
-      { k: 'nome', label: 'Nome da obra', tipo: 'texto', col: 6, obrigatorio: true },
+      { k: 'nome', label: 'Nome da obra', tipo: 'texto', col: 3, obrigatorio: true },
       {
         k: 'clienteId',
         label: 'Cliente',
@@ -99,8 +106,8 @@ const SECOES = [
         vazio: false,
         dica: `pelos dados: ${situacaoObraCalculada(App.obra())} — marque à mão só "Paralisada"`,
       },
-      { k: 'cidade', label: 'Cidade/UF', tipo: 'texto', col: 4 },
-      { k: 'endereco', label: 'Endereço', tipo: 'texto', col: 8 },
+      { k: 'cidade', label: 'Cidade/UF', tipo: 'texto', col: 3 },
+      { k: 'endereco', label: 'Endereço', tipo: 'texto', col: 6, largo: true },
       { k: 'areaConstruida', label: 'Área construída (m²)', tipo: 'numero', col: 3 },
       { k: 'areaMuro', label: 'Área de muro (m²)', tipo: 'numero', col: 3 },
       { k: 'sistema', label: 'Sistema construtivo', tipo: 'lista', opcoes: SISTEMAS_CONSTRUTIVOS, col: 3 },
@@ -112,7 +119,7 @@ const SECOES = [
         placeholder: 'não informado',
         col: 3,
       },
-      { k: 'responsavel', label: 'Responsável técnico', tipo: 'texto', col: 6,
+      { k: 'responsavel', label: 'Responsável técnico', tipo: 'texto', col: 3,
         dica: 'sai nos relatórios desta obra; vazio, vale o da empresa' },
       { k: 'creaCau', label: 'CREA/CAU do responsável', tipo: 'texto', col: 3 },
       { k: 'observacoes', label: 'Observações', tipo: 'area', col: 12 },
@@ -121,13 +128,28 @@ const SECOES = [
   {
     titulo: 'Prazo',
     aberta: true,
+    par: true,
     campos: () => [
-      { k: 'dataInicio', label: 'Data de início', tipo: 'data', col: 3 },
-      { k: 'previsaoConclusao', label: 'Data contratual de entrega', tipo: 'data', col: 3 },
+      { k: 'dataInicio', label: 'Data de início', tipo: 'data', col: 6 },
+      { k: 'previsaoConclusao', label: 'Data contratual de entrega', tipo: 'data', col: 6 },
     ],
   },
   {
-    titulo: 'Financeiro e contrato',
+    titulo: 'Financiamento',
+    aberta: true,
+    par: true,
+    campos: () => [
+      /* qualquer financiador (0016) — as telas usam este nome */
+      { k: 'fin.financiador', label: 'Financiador', tipo: 'lista', col: 4,
+        opcoes: ['CAIXA', 'Banco do Brasil', 'Itaú', 'Bradesco', 'Santander', 'Consórcio', 'Cliente (por marco)'],
+        dica: 'quem libera o dinheiro por avanço de obra' },
+      { k: 'fin.dataAssinatura', label: 'Data da assinatura', tipo: 'data', col: 4 },
+      /* largo: na grade de 2 colunas fica sozinho na linha, e a seção fecha sem buraco */
+      { k: 'fin.contratoCaixa', label: 'Nº do contrato de financiamento', tipo: 'texto', col: 4, largo: true },
+    ],
+  },
+  {
+    titulo: 'Valores',
     aberta: true,
     campos: () => [
       { k: 'fin.saldoInicial', label: 'Saldo inicial da obra', tipo: 'dinheiro', col: 3 },
@@ -144,12 +166,6 @@ const SECOES = [
       },
       { k: 'fin.valorVenda', label: 'Valor de venda/contrato', tipo: 'dinheiro', col: 3 },
       { k: 'fin.margemDesejada', label: 'Margem desejada (%)', tipo: 'pct', col: 3 },
-      /* qualquer financiador (0016) — as telas usam este nome */
-      { k: 'fin.financiador', label: 'Financiador', tipo: 'lista', col: 4,
-        opcoes: ['CAIXA', 'Banco do Brasil', 'Itaú', 'Bradesco', 'Santander', 'Consórcio', 'Cliente (por marco)'],
-        dica: 'quem libera o dinheiro por avanço de obra' },
-      { k: 'fin.contratoCaixa', label: 'Nº do contrato de financiamento', tipo: 'texto', col: 4 },
-      { k: 'fin.dataAssinatura', label: 'Data da assinatura', tipo: 'data', col: 4 },
     ],
   },
 ];
@@ -320,28 +336,40 @@ VIEWS['obra-config'] = () => {
     }),
   );
 
-  const secoesHtml = SECOES.map(
-    (s) => `<details class="caixa"${s.aberta ? ' open' : ''}>
-      <summary style="cursor:pointer;font-weight:var(--p-semi);font-size:var(--t-medio)">${esc(s.titulo)}</summary>
-      <div class="form-grade" style="margin-top:var(--e3)">${s
+  const secaoHtml = (s) => `<details class="caixa cfg-secao"${s.aberta ? ' open' : ''}>
+      <summary>${esc(s.titulo)}</summary>
+      <div class="form-grade">${s
         .campos(clientes)
         .map((c) => campoHTML(c, valores))
         .join('')}</div>
-    </details>`,
-  ).join('');
+    </details>`;
+  /* seções curtas consecutivas (par: true) vão lado a lado */
+  const blocos = [];
+  SECOES.forEach((s) => {
+    const ultimo = blocos[blocos.length - 1];
+    if (s.par && Array.isArray(ultimo)) ultimo.push(s);
+    else blocos.push(s.par ? [s] : s);
+  });
+  const secoesHtml = blocos
+    .map((b) =>
+      Array.isArray(b)
+        ? `<div class="cfg-par" style="--cfg-par:${b.map((s) => `${s.campos(clientes).length}fr`).join(' ')}">${b.map(secaoHtml).join('')}</div>`
+        : secaoHtml(b),
+    )
+    .join('');
 
   return `<div class="tela-lista tela-config">
     <div id="cfg-kpis">${kpisConfig(o, k)}</div>
     <div id="cfg-avisos">${avisosConfig(o)}</div>
-    <form data-form="1" onsubmit="return false" style="display:flex;flex-direction:column;gap:var(--e3)">
+    <form data-form="1" onsubmit="return false">
       ${secoesHtml}
     </form>
 
     ${
       mcmv
-        ? `<details class="caixa">
-      <summary class="secao-form-toggle">Escopo típico da empreitada financiada (MCMV)</summary>
-      <table class="tab" style="margin-top:10px"><tbody>
+        ? `<details class="caixa cfg-secao">
+      <summary>Escopo típico da empreitada financiada (MCMV)</summary>
+      <table class="tab"><tbody>
         <tr><td style="width:190px"><b>Incluído</b></td><td>Parte cinza, hidráulica e sanitário sem fossa, eletrodutos e caixas, assentamento de piso e revestimento</td></tr>
         <tr><td><b>Separado</b></td><td>Pintura, elétrica final, gesso/forro e demais prestadores específicos</td></tr>
         <tr><td><b>Aditivos comuns</b></td><td>Fossa, calçada e muro</td></tr>
@@ -370,8 +398,8 @@ VIEWS['obra-config'] = () => {
     ${
       ehDono
         ? `<div class="caixa">
-      <span class="tinta2" style="font-size:var(--t-peq);font-weight:var(--p-semi)">Ações da obra</span>
-      <div style="display:flex;gap:var(--e2);flex-wrap:wrap;margin-top:var(--e3)">
+      <div class="caixa-cab"><h3>Ações da obra</h3></div>
+      <div style="display:flex;gap:var(--e2);flex-wrap:wrap">
         ${botao('Duplicar esta obra', 'duplicar-obra', {}, 'btn')}
         ${botao('Excluir obra', 'excluir-obra', {}, 'btn perigo', 'lixo')}
       </div>
