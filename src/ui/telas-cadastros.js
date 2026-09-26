@@ -1,109 +1,17 @@
 /**
- * telas-cadastros.js — Telas de cadastro: clientes, prestadores, relatórios e ajustes.
+ * telas-cadastros.js — Contas e acessos (administração do sistema).
+ * Relatórios moram em telas/relatorios.js.
  */
-import { esc, fmtData, fmtDataCurta, fmtPct, fonteImagem, hojeISO, norm, PLANOS } from '../nucleo/base.js';
-import { ativacaoConta, diasSemAtividade, etapaCalc, kpisObra } from '../dominio/calculos.js';
-import { apenasErros, validarEmpresa, validarPerfilAdmin, validarSenhaForte, validarUsuarioNovo } from '../dominio/validacao.js';
-import { Store } from '../dados/store.js';
+import { esc, norm, PLANOS } from '../nucleo/base.js';
+import { ativacaoConta, diasSemAtividade } from '../dominio/calculos.js';
+import { apenasErros, validarPerfilAdmin, validarSenhaForte, validarUsuarioNovo } from '../dominio/validacao.js';
 import { SUPA } from '../dados/supabase.js';
-import { App, abrirModal, botao, ehClienteDaObra, campoBusca, cartao, chip, confirmar, fecharModal, ICO, kpi, MENU, nomeCliente, svg, toast, tomSituacao, vazio } from './shell.js';
+import { App, abrirModal, botao, cartao, chip, confirmar, fecharModal, MENU, toast, vazio } from './shell.js';
+import { buscaToolbar, faixaKpis } from './telas/componentes.js';
 import { VIEWS } from './telas-obra.js';
 import { ACOES } from './acoes.js';
 
-/* ========================================================= RELATÓRIOS */
-VIEWS.relatorio = () => {
-  const o = App.obra();
-  const k = kpisObra(o);
-  const hoje = fmtData(hojeISO());
-  const MAX_ETAPAS = 6;
-
-  const etapasVis = o.cronograma.slice(0, MAX_ETAPAS);
-  const cliente = Store.estado.clientes.find((c) => c.id === o.clienteId);
-  const logos = [
-    Store.estado.empresa.logo ? `<img src="${fonteImagem(Store.estado.empresa.logo)}" alt="Logo da empresa">` : '',
-    cliente && cliente.logo ? `<img src="${fonteImagem(cliente.logo)}" alt="Logo do cliente">` : '',
-  ].filter(Boolean).join('');
-  const previa = `
-  <div class="relatorio" id="previa-relatorio">
-    ${logos ? `<div class="relatorio-logos" style="margin-bottom:12px">${logos}</div>` : ''}
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid var(--linha-forte);padding-bottom:10px;margin-bottom:14px">
-      <div>
-        <h2 style="font-size:21px;margin:0">${esc(o.nome)}</h2>
-        <div style="font-size:12px;color:var(--mudo)">${esc([nomeCliente(o.clienteId), o.cidade, o.endereco].filter(Boolean).join(' · '))}</div>
-      </div>
-      <div style="text-align:right;font-size:12px;color:var(--mudo)">
-        <b style="font-family:'Space Grotesk','Inter',sans-serif;font-size:15px;color:var(--tinta)">${esc(Store.estado.empresa.nome || 'Souz Controle de Obra')}</b><br>
-        Relatório de status · ${hoje}
-      </div>
-    </div>
-    <h3 style="margin:4px 0 6px">Situação das etapas</h3>
-    <table class="tab"><thead><tr><th>Etapa</th><th>Previsto</th><th class="num">Progresso</th><th>Situação</th></tr></thead>
-      <tbody>${etapasVis.map((e) => {
-        const c = etapaCalc(e);
-        return `<tr><td>${esc(e.etapa)}</td><td class="mono">${fmtDataCurta(e.inicioPrevisto)} → ${fmtDataCurta(e.fimPrevisto)}</td>
-          <td class="num mono">${fmtPct(c.progresso, 0)}</td><td>${chip(c.situacao, tomSituacao(c.situacao))}</td></tr>`;
-      }).join('') || '<tr><td colspan="4">Cronograma não cadastrado.</td></tr>'}</tbody></table>
-    ${o.cronograma.length > MAX_ETAPAS ? `<p style="margin:6px 0 0;font-size:12px;color:var(--mudo)">+ ${o.cronograma.length - MAX_ETAPAS} etapa(s) no documento completo</p>` : ''}
-    <p style="margin:14px 0 0;font-size:13px">Obra <b>${fmtPct(k.progressoFisico, 0)}</b> concluída · data contratual de entrega <b>${fmtData(o.previsaoConclusao)}</b>${k.liberadoFinanciamento !== null ? ` · financiamento <b>${fmtPct(k.liberadoFinanciamento, 0)}</b> liberado` : ''}.</p>
-  </div>`;
-
-  const docCard = (acao, titulo, texto) => `
-    <button class="obra-cartao doc-cartao" data-acao="${acao}">
-      <div class="doc-cartao-topo">
-        <h4>${titulo}</h4>
-        <span class="chip marca">PDF</span>
-      </div>
-      <p>${texto}</p>
-      <span class="doc-cartao-baixar">${svg(ICO.baixar, 13)} Gerar PDF</span>
-    </button>`;
-
-  /* Sem KPIs no topo: esta tela é para gerar documento, não para ler a
-     obra (isso é o Painel). O que importa aqui é o que falta no documento. */
-  const avisosEmpresa = validarEmpresa(Store.estado.empresa);
-
-  /* cliente: só o relatório de status, que é o feito para ele */
-  if (ehClienteDaObra(o.id)) {
-    return `<div class="grade" style="gap:16px">
-      ${cartao('Relatório da obra', `<div class="grade g-cartoes">
-        ${docCard('pdf-status', 'Relatório de status', 'Avanço, data de entrega, etapas, parcelas e o que aguarda a sua decisão.')}
-      </div>`, { classe: 'nao-imprime' })}
-      ${cartao('Prévia', previa, { semPadding: false })}
-    </div>`;
-  }
-
-  return `<div class="grade" style="gap:16px">
-    ${
-      avisosEmpresa.length
-        ? `<div class="aviso-linha nao-imprime" role="status">${avisosEmpresa.map((p) => esc(p.mensagem)).join(' ')}
-             <button class="btn-link" data-acao="ir" data-view="ajustes">Completar em Ajustes</button></div>`
-        : ''
-    }
-
-    ${cartao('Gerar documento', `
-      <div class="grade g-cartoes">
-        ${docCard('pdf-status', 'Relatório de status para o cliente',
-          'Avanço, data de entrega, etapas e parcelas. Sem caixa, custos, margem nem valores de prestadores.')}
-        ${docCard('pdf-interno', 'Relatório interno da obra',
-          'Caixa, custo, contratos com valores e pendências. Uso da construtora — não enviar ao cliente.')}
-        ${docCard('pdf-prestacao', 'Prestação de contas',
-          'Todas as entradas e saídas lançadas, medição a medição e nota a nota, com saldo final.')}
-        ${docCard('pdf-medicao', 'Memória de medição',
-          'Percentual por etapa e o valor a solicitar na próxima medição — no formato que o financiador (CAIXA e outros) espera.')}
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;border-top:1px solid var(--linha);padding-top:14px">
-        ${botao('Exportar lançamentos (CSV)', 'csv-lancamentos', {}, 'btn', 'baixar')}
-        ${botao('Exportar medições (CSV)', 'csv-medicoes', {}, 'btn', 'baixar')}
-        ${botao('Exportar recebimentos (CSV)', 'csv-recebimentos', {}, 'btn', 'baixar')}
-        ${botao('Imprimir a prévia', 'imprimir', {}, 'btn sutil')}
-        ${botao('Compartilhar status por WhatsApp', 'whatsapp-status', {}, 'btn', 'whatsapp')}
-      </div>`, { classe: 'nao-imprime' })}
-
-    ${cartao('Prévia — amostra do relatório de status', previa, {
-      semPadding: false,
-      sub: 'o PDF traz a obra completa; abaixo é só uma amostra',
-    })}
-  </div>`;
-};
+/* Relatórios: telas/relatorios.js */
 
 /* ===================================================== ADMINISTRAÇÃO */
 /* Só para quem tem perfis.admin = true. Lê o consumo de todos os clientes
@@ -215,32 +123,45 @@ VIEWS.admin = () => {
     </tr>`;
   };
 
-  return `<div class="grade" style="gap:16px">
-    <div class="grade g4">
-      ${kpi('Clientes', linhas.length, `${ativos} no plano ativo`)}
-      ${kpi('Obras na plataforma', totObras, 'somando todas as contas')}
-      ${kpi('Paradas há 14+ dias', paradas, paradas ? 'no topo da lista — vale uma ligação' : 'todas as contas em uso', paradas ? 'aviso' : 'ok')}
-      ${kpi('Contas com restrição', restritos, 'bloqueadas ou com aba fechada', restritos ? 'aviso' : 'ok')}
-    </div>
-    ${cartao('Uso por conta', `
-      <div class="tab-rolagem"><table class="tab">
-        <thead><tr>
-          <th>Cliente</th><th>Plano</th>
-          <th class="num">Obras</th><th class="num">Contr.</th><th class="num">Medições</th>
-          <th class="num">Lançam.</th><th class="num">Fotos</th>
-          <th class="num" title="obra, contrato, medição, gasto, diário e foto">Ativação</th>
-          <th>Última atividade</th><th>Editar</th><th></th>
-        </tr></thead>
-        <tbody>${vis.map(linhaHTML).join('') || `<tr><td colspan="11">${vazio('Nenhum cliente', 'Ainda não há contas cadastradas além da sua.')}</td></tr>`}</tbody>
-      </table></div>`, {
-      semPadding: true,
-      acoes: `<div class="filtros">
-        ${campoBusca('busca', 'Buscar por e-mail ou empresa…')}
-        ${botao('Atualizar', 'admin-recarregar', {}, 'btn sutil pequeno')}
-        ${botao('Novo cliente', 'admin-novo', {}, 'btn primario pequeno', 'mais')}
-      </div>`,
-    })}
+  return `<div class="tela-lista">
+    ${faixaKpis(
+      [
+        { rotulo: 'Clientes', valor: linhas.length, contexto: `${ativos} no plano ativo` },
+        { rotulo: 'Obras na plataforma', valor: totObras, contexto: 'somando todas as contas' },
+        {
+          rotulo: 'Paradas há 14+ dias',
+          valor: paradas,
+          contexto: paradas ? 'no topo da lista — vale uma ligação' : 'todas as contas em uso',
+          tom: paradas ? 'tom-alerta' : '',
+        },
+        {
+          rotulo: 'Contas com restrição',
+          valor: restritos,
+          contexto: 'bloqueadas ou com aba fechada',
+          tom: restritos ? 'tom-alerta' : '',
+        },
+      ],
+      { rotulo: 'Indicadores das contas' },
+    )}
+    <div class="lista-cx"><div class="tab-rolagem"><table class="tab tab-contas" data-testid="lista-contas">
+      <thead><tr>
+        <th>Cliente</th><th>Plano</th>
+        <th class="num">Obras</th><th class="num">Contr.</th><th class="num">Medições</th>
+        <th class="num">Lançam.</th><th class="num">Fotos</th>
+        <th class="num" title="obra, contrato, medição, gasto, diário e foto">Ativação</th>
+        <th>Última atividade</th><th>Editar</th><th></th>
+      </tr></thead>
+      <tbody>${vis.map(linhaHTML).join('') || `<tr><td colspan="11">${vazio('Nenhum cliente', busca ? 'Nenhuma conta com essa busca.' : 'Ainda não há contas cadastradas além da sua.')}</td></tr>`}</tbody>
+    </table></div></div>
   </div>`;
+};
+
+/* busca, atualizar e novo cliente na toolbar, como nas outras telas */
+VIEWS.admin.toolbar = () => {
+  if (!SUPA.ehAdmin || !Admin.linhas) return '';
+  return `${buscaToolbar('Buscar por e-mail ou empresa…', 'busca-contas')}
+    ${botao('Atualizar', 'admin-recarregar', {}, 'btn sutil pequeno')}
+    ${botao('<span class="rotulo-btn">Novo cliente</span>', 'admin-novo', {}, 'btn primario', 'mais')}`;
 };
 
 /* senha provisória em 3 blocos de 4, com minúscula, maiúscula, número e

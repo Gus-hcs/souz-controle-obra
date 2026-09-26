@@ -70,20 +70,18 @@ for (const v of telas) {
   if (info.chars <= 40) erros.push(`tela ${v} praticamente vazia`);
 }
 
-/* Largura das telas a 1920 px (regra única em interface.css):
-   - lista e tabela: o que está mais à direita (tabela, faixa de KPIs,
-     coluna principal) chega à borda útil — ou ao inspetor, se ele estiver
-     aberto. Faixa vazia maior que a tolerância é falha;
-   - leitura e formulário: as três com a mesma largura, alinhadas à
-     esquerda, e sem passar do limite. */
+/* Largura das telas a 1920 px (padrao.css, contêiner único): em TODAS as
+   telas — lista, tabela, leitura e formulário — o que está mais à direita
+   (tabela, faixa de KPIs, formulário, cartão) chega à borda útil, ou ao
+   inspetor, se ele estiver aberto. Faixa vazia maior que a tolerância é
+   falha: é a tela que "quebra no meio". */
 const LISTAS = ['carteira', 'contratos', 'medicoes', 'recebimentos', 'lancamentos', 'materiais',
-  'cronograma', 'prestadores', 'clientes', 'alertas', 'auditoria', 'painel', 'diario', 'curva', 'fluxo'];
-const LEITURA = ['obra-config', 'ajustes', 'relatorio'];
+  'cronograma', 'prestadores', 'clientes', 'alertas', 'auditoria', 'painel', 'diario', 'curva', 'fluxo',
+  'obra-config', 'ajustes', 'relatorio'];
 const TOLERANCIA = 40; // gutter da coluna principal + folga de borda
 await pagina.setViewportSize({ width: 1920, height: 1080 });
 console.log('\n  largura a 1920 px:');
-const leitura = [];
-for (const v of [...LISTAS, ...LEITURA].filter((x) => telas.includes(x))) {
+for (const v of LISTAS.filter((x) => telas.includes(x))) {
   await pagina.click(`#rail [data-view="${v}"]`);
   await pagina.waitForTimeout(260);
   const m = await pagina.evaluate(() => {
@@ -96,33 +94,23 @@ for (const v of [...LISTAS, ...LEITURA].filter((x) => telas.includes(x))) {
     const borda = inspetor ? inspetor.getBoundingClientRect().left : r.right - parseFloat(cs.paddingRight);
     /* só o que tem conteúdo: o contêiner de layout (.tela-principal) ocupa
        tudo sempre e esconderia uma tabela limitada lá dentro */
-    const pecas = [...c.querySelectorAll('table, .kpis, .resumo, .tela-lista')]
+    /* a prévia do relatório é a folha A4 centrada num painel que vai até a
+       borda: mede o painel, não a folha */
+    const pecas = [...c.querySelectorAll('table, .kpis, .tela-lista, form, .caixa, .cartao, .analise-bloco, .rel-previa')]
       .filter((e) => !inspetor || !inspetor.contains(e))
       .map((e) => e.getBoundingClientRect())
       .filter((b) => b.width > 0);
     const direita = Math.max(...pecas.map((b) => b.right));
-    const coluna = c.firstElementChild.getBoundingClientRect();
-    const vazia = !c.querySelector('table, .kpis, .resumo') && !!c.querySelector('.vazio');
-    return { vazia, faixa: Math.round(borda - direita), largura: Math.round(coluna.width), esquerda: Math.round(coluna.left) };
+    const vazia = !c.querySelector('table, .kpis, form, .caixa, .cartao, .rel-previa') && !!c.querySelector('.vazio');
+    return { vazia, faixa: Math.round(borda - direita) };
   });
-  if (LEITURA.includes(v)) {
-    leitura.push({ v, ...m });
-    console.log(`    ${v.padEnd(14)} leitura: ${m.largura}px a partir de x=${m.esquerda}`);
-  } else if (m.vazia) {
+  if (m.vazia) {
     console.log(`    --  ${v.padEnd(14)} estado vazio, sem tabela para medir`);
   } else {
     const ok = m.faixa <= TOLERANCIA;
     console.log(`    ${ok ? 'ok ' : 'FAIXA'} ${v.padEnd(14)} sobra à direita: ${m.faixa}px`);
     if (!ok) erros.push(`tela ${v} deixa faixa vazia de ${m.faixa}px a 1920 px`);
   }
-}
-if (leitura.length > 1) {
-  const larguras = new Set(leitura.map((x) => x.largura));
-  const esquerdas = new Set(leitura.map((x) => x.esquerda));
-  if (larguras.size > 1 || esquerdas.size > 1) {
-    erros.push(`telas de leitura com largura ou alinhamento diferentes: ${JSON.stringify(leitura)}`);
-  }
-  if (leitura.some((x) => x.largura > 1200)) erros.push('tela de leitura passou do limite de largura');
 }
 await pagina.setViewportSize({ width: 1280, height: 720 });
 

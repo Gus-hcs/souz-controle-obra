@@ -721,52 +721,6 @@ textarea:disabled {
   color: var(--atraso);
 }
 
-/* ------------------------------------------------- faixa de resumo
-   Substitui a grade de KPIs. Três ou quatro números numa linha, com
-   hierarquia: o primeiro manda, os outros apoiam. Sem cartão nenhum. */
-.resumo {
-  display: flex;
-  align-items: stretch;
-  gap: var(--e6);
-  padding: 0 0 var(--e3);
-  margin-bottom: var(--e3);
-  border-bottom: var(--fio) solid var(--separador);
-  flex-wrap: wrap;
-}
-.resumo-item {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-.resumo-rot {
-  font-size: var(--t-mini);
-  color: var(--tinta2);
-}
-.resumo-val {
-  font-size: var(--t-medio);
-  font-weight: var(--p-semi);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-.resumo-item.principal .resumo-val {
-  font-size: var(--t-tela);
-}
-.resumo-nota {
-  font-size: var(--t-mini);
-  color: var(--tinta3);
-}
-.resumo-val.atraso {
-  color: var(--atraso);
-}
-.resumo-val.tom-alerta {
-  color: var(--alerta);
-}
-/* O empurrão que joga o resto do resumo para a direita. */
-.resumo-espaco {
-  margin-left: auto;
-}
-
 /* ------------------------------------------------- seção e cabeçalho */
 .secao + .secao {
   margin-top: var(--e6);
@@ -1230,19 +1184,6 @@ table.lista tfoot td.num {
   .busca {
     width: 150px;
   }
-
-  /* No estreito o resumo empilha em duas colunas, sem virar cartão. */
-  .resumo {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--e3) var(--e4);
-  }
-  .resumo-espaco {
-    margin-left: 0;
-  }
-  .resumo-item.principal {
-    grid-column: 1 / -1;
-  }
 }
 
 /* No celular a lista continua sendo LISTA — duas linhas por obra, como
@@ -1672,20 +1613,15 @@ tr:focus-within .acoes-linha .btn {
      Auditoria, e também Painel, Diário, Curva S e Fluxo, que são tabela e
      gráfico): ocupam toda a largura disponível, com ou sem inspetor — a
      faixa de KPIs e a tabela juntas, da mesma largura;
-   - leitura e formulário (Configuração, Ajustes, Relatório): a mesma
-     largura máxima confortável (--leitura-max), alinhadas à esquerda como
-     as listas.
+   - leitura e formulário (Configuração, Ajustes, Relatório) também: o
+     formulário é que se arranja em colunas (padrao.css), nunca uma coluna
+     estreita com o resto da tela vazio.
    O legado limitava #conteudo a 1500px — e a 1780px em Carteira e Painel,
    por body[data-view], que por isso também é zerado aqui. Parágrafo
    continua com 88ch (legado.css): texto corrido não ganha com largura. */
 #conteudo,
 body[data-view] #conteudo {
   max-width: none;
-}
-body[data-view='obra-config'] #conteudo > *,
-body[data-view='ajustes'] #conteudo > *,
-body[data-view='relatorio'] #conteudo > * {
-  max-width: var(--leitura-max);
 }
 
 @media (max-width: 720px) {
@@ -1739,79 +1675,6 @@ body[data-view='relatorio'] #conteudo > * {
 /* ================================================================
    Carteira — faixa de KPIs, saúde, painel de ação, agenda
    ================================================================ */
-
-/* Cinco KPIs com o mesmo peso. Sem cartão nem sombra: fio entre eles.
-   Cada um é um botão — clicar filtra a lista pelas obras daquele número. */
-.kpis {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  border: var(--fio) solid var(--separador);
-  border-radius: var(--r-cartao);
-  margin-bottom: var(--e4);
-  overflow: hidden;
-}
-.kpi-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  padding: var(--e3) var(--e4);
-  background: none;
-  border: 0;
-  border-left: var(--fio) solid var(--separador);
-  color: var(--tinta);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color var(--mov-rapido) var(--curva);
-}
-.kpi-item:first-child {
-  border-left: 0;
-}
-.kpi-item:hover {
-  background: var(--fundo-hover);
-}
-.kpi-item:active {
-  background: var(--fundo-ctrl-ativo);
-  transition: none;
-}
-.kpi-item.ativo {
-  background: var(--acento-fraco);
-  box-shadow: inset 0 -2px 0 var(--acento);
-}
-.kpi-rot {
-  font-size: var(--t-peq);
-  color: var(--tinta2);
-}
-.kpi-item.ativo .kpi-rot {
-  color: var(--acento-texto);
-}
-.kpi-val {
-  font-size: var(--t-grande);
-  font-weight: var(--p-semi);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.kpi-comp {
-  font-size: var(--t-peq);
-  color: var(--tinta2);
-  font-variant-numeric: tabular-nums;
-}
-.kpi-ctx {
-  font-size: var(--t-peq);
-  color: var(--tinta3);
-  line-height: 1.35;
-}
-.kpi-val.atraso,
-.kpi-comp.atraso {
-  color: var(--atraso);
-}
-.kpi-val.tom-alerta,
-.kpi-comp.tom-alerta {
-  color: var(--alerta);
-}
 
 .filtro-ativo {
   display: flex;
@@ -2206,12 +2069,6 @@ table.lista-carteira tbody td {
 }
 
 /* -------------------------------------------------- responsivo */
-@media (max-width: 1280px) {
-  .kpi-item {
-    padding: var(--e3);
-  }
-}
-
 /* Abaixo de 1100px o inspetor não cabe ao lado: desce para baixo da
    lista, e o conteúdo inteiro rola junto. Antes ele sumia — e com ele o
    painel "Pendências". */
@@ -2238,28 +2095,8 @@ table.lista-carteira tbody td {
   }
 }
 
-/* Celular: KPIs viram carrossel de dois por vez; a lista, cartões. */
+/* Celular: a lista da carteira vira cartões. */
 @media (max-width: 767px) {
-  .kpis {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: calc((100% - var(--e2)) / 2);
-    gap: var(--e2);
-    overflow-x: auto;
-    scroll-snap-type: x mandatory;
-    border: 0;
-    border-radius: 0;
-    scrollbar-width: none;
-  }
-  .kpis::-webkit-scrollbar {
-    display: none;
-  }
-  .kpi-item,
-  .kpi-item:first-child {
-    scroll-snap-align: start;
-    border: var(--fio) solid var(--separador);
-    border-radius: var(--r-cartao);
-  }
   .lista-cx:has(.lista-carteira) {
     border: 0;
     overflow: visible;
@@ -2310,10 +2147,6 @@ table.lista-carteira td.cel-saude {
   font-size: var(--t-peq);
   color: var(--tinta3);
 }
-.kpi-item {
-  padding: var(--e3);
-}
-
 /* Painel de ação: o botão aparece por cima do texto ao passar o mouse, em
    vez de reservar a largura dele o tempo todo e espremer o texto. */
 .acao-item {
@@ -3215,15 +3048,16 @@ table.lista td.cel-sem-contrato {
    Manual da marca Souz v1.0 — o que não cabe só nos tokens
    ================================================================ */
 
-/* Prancha 03: tudo que alinha em coluna vai em IBM Plex Mono tabular —
-   valor, total, código, data. Peso 500, como no manual. */
+/* Números: a MESMA fonte do texto (Archivo), com algarismos tabulares —
+   é o tabular que alinha a coluna, não a fonte monoespaçada. O Plex Mono
+   saiu dos números em set/2026: pesava mais que o texto em volta e, por ser
+   mais largo, obrigava a tabela a um corpo menor. O código (chave PIX,
+   atalho) continua em --fonte-mono. */
 table.lista td.num,
 table.lista tfoot td.num,
 table.tab td.num,
 .mini-tab td.num,
 .kpi-val,
-.kpi .valor,
-.resumo-val,
 .par dd,
 .cel-num-nota,
 .agenda-data,
@@ -3232,32 +3066,13 @@ table.tab td.num,
 .pilula .conta,
 .tabular,
 .mono {
-  font-family: var(--fonte-mono);
+  font-family: var(--fonte);
   font-variant-numeric: tabular-nums;
 }
-.kpi-val,
-.kpi .valor,
-.resumo-val {
-  font-weight: var(--p-medio);
-  letter-spacing: -0.01em;
-}
-/* O Plex Mono é mais largo que o Archivo: na tabela, o número vai no
-   tamanho secundário e um pouco mais junto, para caber na coluna sem
-   reticências (a Carteira com o painel de ação aberto é o caso-limite). */
-table.lista td.num,
-table.lista tfoot td.num,
-table.tab td.num,
-.mini-tab td.num,
-.cel-num-nota {
-  font-size: var(--t-peq);
-  letter-spacing: -0.03em;
-}
 /* a linha de baixo da célula de número ("76% de 120,7 mil") é apoio, não
-   valor de coluna: volta para o Archivo, mais estreito, no menor tamanho */
+   valor de coluna: vai no menor tamanho */
 table.lista td.num span {
-  font-family: var(--fonte);
   font-size: var(--t-mini);
-  letter-spacing: 0;
 }
 
 /* Título quanto maior, mais fechado: −2,2% no título da tela, −1,2% no

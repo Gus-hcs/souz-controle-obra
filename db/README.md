@@ -100,6 +100,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0017_dependencias_e_diario_de_campo.sql` | `cronograma.predecessoras` (fim→início); diário de campo: clima por turno, efetivo por função, equipamentos, % da etapa, impacto no prazo; CHECKs |
 | `0018_cliente_e_fornecedor.sql` | tabela `pendencias_cliente` (o que o cliente deve à obra, com prazo) com RLS por obra; `obras.status_enviado_em`; `prestadores.tipo` (serviço × fornecedor); CHECKs |
 | `0019_anexo_nf_e_funcoes_fechadas.sql` | `lancamentos.anexo_nf` (foto da nota, CHECK de imagem ≤ 1,5 MB); `EXECUTE` revogado de `anon` em todas as `SECURITY DEFINER` e de todos nas funções de gatilho |
+| `0020_padronizacao_telas.sql` | `obras.padrao` só Econômico/Médio/Alto (MCMV é programa); `obras.crea_cau`; `recebimentos.comprovante`; `anexo_nf` aceita PDF e Storage; bucket privado `anexos` com RLS por obra; tabela `relatorios_gerados` (histórico de relatórios, RLS por obra); `perfis.cnpj` |
 
 ### 0008 — logos
 
@@ -349,8 +350,36 @@ executa as que o app chama por RPC (`admin_consumo`, `admin_definir_perfil`,
 Postgres só confere `EXECUTE` de gatilho ao criá-lo, então eles continuam
 disparando (conferido em produção com uma transação desfeita).
 
+### 0020 — padronização das telas
+
+Blocos A (estrutura, bucket `anexos` e as políticas do Storage, tabela
+`relatorios_gerados`), B (diagnóstico), C (correção sugerida do padrão de
+acabamento: a mesma tradução de `normalizarPadrao`), D (`CHECK`s `not valid`) e
+E (validação). O anexo (nota fiscal, comprovante da parcela, PDF do relatório)
+vai para o Storage na pasta da obra — `<obra_id>/<lancamentos|recebimentos|relatorios>/<arquivo>` —
+e a RLS do Storage usa a primeira pasta com `pode_ler_obra`/`pode_escrever_obra`.
+Sem a 0020 aplicada, o app continua gravando a foto (ou o PDF de até 1 MB) no
+próprio registro, e a lista de relatórios gerados some (tabela opcional).
+
+Junto com ela, o app passou a ler e gravar `perfis.logo` (existia desde a 0008,
+mas a carga e a gravação do perfil ignoravam o campo — a logo da empresa sumia
+ao entrar de novo com login). Os itens arquivados das listas ficam dentro de
+`perfis.listas` (`listas.arquivados`), sem coluna nova.
+
 ### Aplicadas em produção
 
 0015–0019 aplicadas em 25/09/2026, bloco a bloco, com o diagnóstico de cada uma
 vazio antes das restrições.
+
+0020 aplicada em 26/09/2026 em etapas, porque a versão no ar ainda tinha o
+padrão de acabamento como texto livre — `chk_obra_padrao` antes do deploy
+barraria quem digitasse "MCMV":
+
+1. Bloco A inteiro; bloco D e E **sem** `chk_obra_padrao` (as outras quatro
+   restrições validadas, diagnóstico vazio).
+2. Bloco C: 6 obras traduzidas (MCMV → Econômico ×4, Alto padrão → Alto,
+   Comercial → vazio, com "Padrão anterior: Comercial" nas observações).
+3. **Falta**, depois que o código da padronização estiver no ar: rodar de
+   novo o diagnóstico do padrão (BLOCO B, primeira parte), o BLOCO C se
+   algo tiver voltado, e só então `chk_obra_padrao` (`not valid` e validate).
 

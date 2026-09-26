@@ -225,7 +225,18 @@ const SISTEMAS_CONSTRUTIVOS = [
   'Alvenaria convencional', 'Alvenaria estrutural', 'Parede de concreto', 'Steel frame',
   'Wood frame', 'Pré-moldado',
 ];
-const PADROES_ACABAMENTO = ['MCMV / popular', 'Baixo', 'Normal', 'Alto'];
+/* Padrão de acabamento é econômico, médio ou alto — MCMV é PROGRAMA de
+   financiamento, não padrão. normalizarPadrao traduz o que vinha antes
+   ('MCMV', 'popular', 'normal'…) e a planilha importada. */
+const PADROES_ACABAMENTO = ['Econômico', 'Médio', 'Alto'];
+function normalizarPadrao(v) {
+  const t = String(v ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (!t) return '';
+  if (/mcmv|popular|baix|econ|simples/.test(t)) return 'Econômico';
+  if (/alto|lux/.test(t)) return 'Alto';
+  if (/normal|medi|padrao/.test(t)) return 'Médio';
+  return '';
+}
 
 const LISTAS_PADRAO = {
   etapas: [
@@ -332,6 +343,9 @@ const novaObra = (nome = 'Nova obra') => ({
   dataInicio: '',
   previsaoConclusao: '',
   responsavel: '',
+  /* registro do responsável técnico DA OBRA (0020) — o relatório usa o
+     RT da obra e só cai no da empresa quando a obra não tem */
+  creaCau: '',
   status: 'Planejada',
   observacoes: '',
   cor: '',
@@ -361,6 +375,8 @@ const novaObra = (nome = 'Nova obra') => ({
   diario: [],
   tratamentos: [],
   pendenciasCliente: [],
+  /* histórico de relatórios gerados (0020) */
+  relatoriosGerados: [],
   criadaEm: hojeISO()
 });
 
@@ -401,7 +417,9 @@ const novoRecebimento = () => ({
   /* parcela por marco físico (0016): o % de obra que o financiador exige
      para liberar, e as datas do processo (solicitada → vistoriada →
      aprovada → creditada). */
-  percentExigido: 0, dataVistoria: '', dataAprovacao: ''
+  percentExigido: 0, dataVistoria: '', dataAprovacao: '',
+  /* comprovante do crédito (0020): foto/PDF ou referência ao Storage */
+  comprovante: ''
 });
 
 const novoLancamento = () => ({
@@ -471,6 +489,13 @@ const STATUS_PENDENCIA_CLIENTE = [
   { v: 'aberta', t: 'Aguardando o cliente' },
   { v: 'resolvida', t: 'Resolvida' },
 ];
+/* Relatório gerado (0020): tipo, as opções usadas, quem e quando, e o PDF
+   no Storage quando deu para guardar ("baixar de novo"). */
+const TIPOS_RELATORIO = ['status', 'interno', 'prestacao', 'medicao'];
+const novoRelatorioGerado = () => ({
+  id: uid('rel'), tipo: 'status', opcoes: {}, geradoPor: '', geradoEm: new Date().toISOString(), arquivo: ''
+});
+
 const novaPendenciaCliente = () => ({
   id: uid('pcli'), descricao: '', prazo: '', status: 'aberta', resolvidaEm: '', criadaEm: hojeISO()
 });
@@ -491,7 +516,7 @@ const novoMembro = (papel = 'engenheiro') => ({
 
 const estadoInicial = () => ({
   meta: { schema: APP.schema, versao: APP.versao, savedAt: new Date().toISOString(), autor: '' },
-  empresa: { nome: 'Souz Engenharia', responsavel: '', creaCau: '', telefone: '', email: '', logo: '' },
+  empresa: { nome: 'Souz Engenharia', cnpj: '', responsavel: '', creaCau: '', telefone: '', email: '', logo: '' },
   listas: JSON.parse(JSON.stringify(LISTAS_PADRAO)),
   clientes: [],
   prestadores: [],
@@ -511,6 +536,15 @@ function migrar(s) {
       out.listas[k] = LISTAS_PADRAO[k].slice();
     }
   }
+  /* itens arquivados de cada lista (0020): somem das escolhas, mas o
+     registro antigo continua mostrando o valor dele */
+  const arq = out.listas.arquivados;
+  out.listas.arquivados = {};
+  if (arq && typeof arq === 'object' && !Array.isArray(arq)) {
+    Object.entries(arq).forEach(([k, v]) => {
+      if (Array.isArray(v)) out.listas.arquivados[k] = v.filter((x) => x !== null && x !== undefined && x !== '').map(String);
+    });
+  }
   out.clientes = (Array.isArray(s.clientes) ? s.clientes : []).map((c) => Object.assign(novoCliente(), c));
   out.prestadores = (Array.isArray(s.prestadores) ? s.prestadores : []).map((p) => {
     const n = Object.assign(novoPrestador(), p);
@@ -523,7 +557,7 @@ function migrar(s) {
     const nova = novaObra();
     const obra = Object.assign(nova, o);
     obra.fin = Object.assign(nova.fin, o.fin || {});
-    for (const k of ['contratos', 'medicoes', 'recebimentos', 'lancamentos', 'materiais', 'cronograma', 'diario', 'tratamentos', 'pendenciasCliente']) {
+    for (const k of ['contratos', 'medicoes', 'recebimentos', 'lancamentos', 'materiais', 'cronograma', 'diario', 'tratamentos', 'pendenciasCliente', 'relatoriosGerados']) {
       obra[k] = Array.isArray(o[k]) ? o[k] : [];
     }
     obra.diario.forEach((d) => {
@@ -540,6 +574,13 @@ function migrar(s) {
     obra.tratamentos = obra.tratamentos.map((t) => Object.assign(novoTratamento(obra.id, t.chave || ''), t));
     obra.pendenciasCliente = obra.pendenciasCliente.map((p) => Object.assign(novaPendenciaCliente(), p));
     if (obra.statusEnviadoEm == null) obra.statusEnviadoEm = '';
+    obra.padrao = normalizarPadrao(obra.padrao);
+    if (obra.creaCau == null) obra.creaCau = '';
+    obra.relatoriosGerados = obra.relatoriosGerados.map((r) => {
+      const n = Object.assign(novoRelatorioGerado(), r);
+      if (!n.opcoes || typeof n.opcoes !== 'object' || Array.isArray(n.opcoes)) n.opcoes = {};
+      return n;
+    });
     /* vínculo com o cadastro de prestador — antes era só o nome digitado */
     obra.contratos.forEach((c) => {
       if (c.prestadorId == null) c.prestadorId = '';
@@ -561,6 +602,7 @@ function migrar(s) {
       r.percentExigido = num(r.percentExigido);
       if (r.dataVistoria == null) r.dataVistoria = '';
       if (r.dataAprovacao == null) r.dataAprovacao = '';
+      if (r.comprovante == null) r.comprovante = '';
     });
     return obra;
   });
@@ -569,6 +611,8 @@ function migrar(s) {
 }
 
 export {
+  TIPOS_RELATORIO,
+  novoRelatorioGerado,
   TIPOS_PRESTADOR,
   STATUS_PENDENCIA_CLIENTE,
   novaPendenciaCliente,
@@ -576,6 +620,7 @@ export {
   textoEfetivoFuncoes,
   SISTEMAS_CONSTRUTIVOS,
   PADROES_ACABAMENTO,
+  normalizarPadrao,
   APP,
   uid,
   num,

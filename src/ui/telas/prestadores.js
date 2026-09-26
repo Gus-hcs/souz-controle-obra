@@ -43,6 +43,7 @@ import {
   CRITERIOS_AVAL,
   compararPrestadorAPagar,
   duplicadosPrestador,
+  indicadoresPrestadores,
   pontualidadePrestador,
   prestadoresPagosSemContrato,
   resumoPrestador,
@@ -55,7 +56,7 @@ import { ACOES } from '../acoes.js';
 import { App, ICO, abrirModal, botao, fecharModal, svg, toast } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
 import { itensPendentes } from './vinculo.js';
-import { buscaToolbar, dinheiro, lista, vazioTela } from './componentes.js';
+import { buscaToolbar, dinheiro, faixaKpis, lista, vazioTela } from './componentes.js';
 
 /* Estado só de tela. */
 /* tipo: '' = todos · 'servico' · 'fornecedor' (0018) */
@@ -343,6 +344,57 @@ function barraFiltros() {
   </div>`;
 }
 
+/* Faixa de KPIs (indicadoresPrestadores): quantos, quanto já foi pago,
+   o que está a pagar agora (clicar filtra) e a pontualidade de todos. */
+function kpisPrestadores() {
+  const k = indicadoresPrestadores(Store.estado);
+  const pont = k.pontualidade;
+  return faixaKpis(
+    [
+      {
+        chave: 'ativos',
+        rotulo: 'Prestadores ativos',
+        valor: k.ativos,
+        contexto: k.fornecedores
+          ? `${k.servico} de serviço · ${plural(k.fornecedores, 'fornecedor', 'fornecedores')}`
+          : 'todos de serviço',
+        filtra: false,
+      },
+      {
+        chave: 'pago',
+        rotulo: 'Pago',
+        valor: fmtMoney(k.pago, { dec: 0 }),
+        contexto: 'medições pagas e lançamentos, em todas as obras',
+        filtra: false,
+      },
+      {
+        chave: 'apagar',
+        rotulo: 'A pagar agora',
+        valor: fmtMoney(k.aPagarAgora, { dec: 0 }),
+        contexto: k.comSaldo
+          ? `${plural(k.comSaldo, 'prestador', 'prestadores')}${k.esperaMaisAntiga !== null ? ` · o mais antigo espera há ${plural(k.esperaMaisAntiga, 'dia', 'dias')}` : ''}`
+          : 'ninguém esperando pagamento',
+        tom: k.aPagarAgora > 0.005 ? (k.esperaMaisAntiga > 60 ? 'atraso' : 'tom-alerta') : '',
+      },
+      {
+        chave: 'prazo',
+        rotulo: 'Entregas no prazo',
+        valor: pont === null ? '—' : fmtPct(pont, 0),
+        contexto:
+          pont === null
+            ? 'nenhuma entrega com prazo ainda'
+            : `${k.noPrazo} de ${k.entregas}${k.atrasadasAgora ? ` · ${plural(k.atrasadasAgora, 'atrasada agora', 'atrasadas agora')}` : ''}`,
+        tom: pont === null ? '' : pont < 0.5 ? 'atraso' : pont < 0.8 ? 'tom-alerta' : '',
+        filtra: false,
+      },
+    ],
+    { rotulo: 'Indicadores de prestadores', acao: 'prest-kpi', ativo: tela.comSaldo ? 'apagar' : '' },
+  );
+}
+ACOES['prest-kpi'] = (el, d) => {
+  if (d.kpi === 'apagar') ACOES['prest-com-saldo']();
+};
+
 /* Faixa acima da lista: quem recebeu sem contrato ligado. */
 function faixaSemContrato() {
   if (tela.arquivados) return '';
@@ -528,6 +580,7 @@ VIEWS.prestadores = () => {
   );
   return `<div class="tela-prestadores">
     <div class="tela-principal">
+      ${kpisPrestadores()}
       ${barraFiltros()}
       ${faixaSemContrato()}
       ${lista({

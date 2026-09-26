@@ -7,6 +7,11 @@
  * Para a frente, fluxoProjetado: o vale de caixa (menor saldo projetado
  * e a data) e os próximos eventos — parcelas, medições a pagar, saldo a
  * medir dos contratos e material a comprar — com o saldo depois de cada um.
+ *
+ * Ao lado dos próximos movimentos, os gráficos (analiseFluxo): saídas
+ * por categoria e entradas por origem na coluna; embaixo da tabela, o
+ * saldo mês a mês com o menor saldo previsto. O período dos gráficos é o
+ * do filtro da tela.
  */
 import {
   competencia,
@@ -17,41 +22,51 @@ import {
   fmtMoneyCurto,
   hojeISO,
 } from '../../nucleo/base.js';
-import { fluxoCaixa, fluxoProjetado, kpisObra } from '../../dominio/calculos.js';
-import { graficoFluxo } from '../../graficos/index.js';
+import { analiseFluxo, fluxoCaixa, fluxoProjetado, kpisObra } from '../../dominio/calculos.js';
+import { graficoAuto, graficoRosca, graficoSaldoProjetado } from '../../graficos/index.js';
 import { App } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
-import { barraFiltros, dinheiro, lista, secao, seletor } from './componentes.js';
+import { barraFiltros, dinheiro, faixaKpis, lista } from './componentes.js';
 
 function kpisFluxo(k, tot, proj) {
-  const item = (rotulo, valor, contexto, tom = '') => `<div class="kpi-item">
-    <span class="kpi-rot">${esc(rotulo)}</span>
-    <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
-    <span class="kpi-ctx">${contexto}</span>
-  </div>`;
-
-  return `<div class="kpis" role="group" aria-label="Indicadores de fluxo de caixa">
-    ${item(
-      'Caixa hoje',
-      fmtMoney(k.saldoCaixa, { dec: 0 }),
-      `inicial ${fmtMoneyCurto(k.saldoInicial)} + ${fmtMoneyCurto(tot.e)} − ${fmtMoneyCurto(tot.s)}`,
-      k.saldoCaixa < 0 ? 'atraso' : '',
-    )}
-    ${item(
-      'Vale de caixa',
-      fmtMoney(proj.vale.saldo, { dec: 0 }),
-      proj.vale.data === hojeISO() ? 'o menor saldo é hoje' : `menor saldo projetado, em ${fmtDataCurta(proj.vale.data)}`,
-      proj.vale.saldo < 0 ? 'atraso' : proj.vale.saldo < k.saldoCaixa * 0.5 ? 'tom-alerta' : '',
-    )}
-    ${item('A receber', fmtMoney(k.previstoNaoRecebido, { dec: 0 }), 'parcelas previstas não creditadas')}
-    ${item('A pagar', fmtMoney(k.medicoesNaoPagas, { dec: 0 }), 'medições em aberto', k.medicoesNaoPagas > 0.005 ? 'tom-alerta' : '')}
-    ${item(
-      'Posição no fim da obra',
-      fmtMoney(k.posicaoProjetada, { dec: 0 }),
-      `saldo + a receber − ${fmtMoneyCurto(k.custoAIncorrer)} ainda a gastar`,
-      k.posicaoProjetada < 0 ? 'atraso' : '',
-    )}
-  </div>`;
+  return faixaKpis(
+    [
+      {
+        rotulo: 'Caixa hoje',
+        valor: fmtMoney(k.saldoCaixa, { dec: 0 }),
+        contexto: `inicial ${fmtMoneyCurto(k.saldoInicial)} + ${fmtMoneyCurto(tot.e)} − ${fmtMoneyCurto(tot.s)}`,
+        tom: k.saldoCaixa < 0 ? 'atraso' : '',
+      },
+      {
+        rotulo: 'Vale de caixa',
+        valor: fmtMoney(proj.vale.saldo, { dec: 0 }),
+        contexto:
+          proj.vale.data === hojeISO()
+            ? 'o menor saldo é hoje'
+            : `menor saldo projetado, em ${fmtDataCurta(proj.vale.data)}`,
+        tom:
+          proj.vale.saldo < 0 ? 'atraso' : proj.vale.saldo < k.saldoCaixa * 0.5 ? 'tom-alerta' : '',
+      },
+      {
+        rotulo: 'A receber',
+        valor: fmtMoney(k.previstoNaoRecebido, { dec: 0 }),
+        contexto: 'parcelas previstas não creditadas',
+      },
+      {
+        rotulo: 'A pagar',
+        valor: fmtMoney(k.medicoesNaoPagas, { dec: 0 }),
+        contexto: 'medições em aberto',
+        tom: k.medicoesNaoPagas > 0.005 ? 'tom-alerta' : '',
+      },
+      {
+        rotulo: 'Posição no fim da obra',
+        valor: fmtMoney(k.posicaoProjetada, { dec: 0 }),
+        contexto: `saldo + a receber − ${fmtMoneyCurto(k.custoAIncorrer)} ainda a gastar`,
+        tom: k.posicaoProjetada < 0 ? 'atraso' : '',
+      },
+    ],
+    { rotulo: 'Indicadores de fluxo de caixa' },
+  );
 }
 
 /* Os próximos eventos projetados, com o saldo depois de cada um; o do
@@ -64,7 +79,7 @@ const TIPO_EVENTO = {
   material: 'Material',
 };
 function tabelaProjetada(proj) {
-  const linhas = proj.eventos.slice(0, 15);
+  const linhas = proj.eventos.slice(0, 20);
   return `<div class="tab-rolagem"><table class="tab tab-projetada">
     <thead><tr><th>Data</th><th>Movimento</th><th class="num">Valor</th><th class="num">Saldo depois</th></tr></thead>
     <tbody>${linhas.map((e) => {
@@ -193,25 +208,54 @@ VIEWS.fluxo = () => {
     },
   ];
 
+  /* a coluna de gráficos, no período do filtro */
+  const an = analiseFluxo(o, f.situacao || '', hojeISO());
+  const periodo = f.situacao === 'futuros' ? 'meses futuros' : f.situacao === 'movimento' ? 'meses com movimento' : 'a obra toda';
+  const bloco = (titulo, nota, conteudo) => `<section class="analise-bloco">
+      <div class="analise-cab"><h2>${esc(titulo)}</h2>${nota ? `<span class="tinta3">${esc(nota)}</span>` : ''}</div>
+      <div class="analise-corpo">${conteudo}</div>
+    </section>`;
+  /* à direita as duas roscas; o saldo projetado fica embaixo dos próximos
+     movimentos, largo — três gráficos empilhados numa coluna estreita
+     deixavam a tabela com um vão vazio da altura de dois deles */
+  const graficos = `<div class="fluxo-graficos">
+      ${bloco('Saídas por categoria', periodo, graficoRosca(an.saidasPorCategoria, { centro: 'saídas', rotulo: 'Saídas por categoria' }))}
+      ${bloco('Entradas por origem', periodo, graficoRosca(an.entradasPorOrigem, { centro: 'entradas', rotulo: 'Entradas por origem' }))}
+    </div>`;
+  const saldo = bloco('Saldo projetado', `entradas × saídas por mês · ${periodo}`, graficoAuto((w) => graficoSaldoProjetado(an.meses, an.menor, { largura: w, altura: 240 }), 760));
+
   return `<div class="tela-lista">
     ${kpisFluxo(k, tot, proj)}
-    ${secao('Movimento mensal', graficoFluxo(o, 280))}
-    ${proj.eventos.length ? secao('Próximos movimentos · projetado', tabelaProjetada(proj)) : ''}
     ${barraFiltros({
-      mostrar: dados.length > 1,
-      controles: [
-        seletor(
-          'situacao',
-          [
-            ['movimento', 'Só com movimento'],
-            ['futuros', 'Só meses futuros'],
-          ],
-          'Todos os meses',
-        ),
-      ],
+      pilulas: {
+        chave: 'situacao',
+        todos: 'Todos os meses',
+        total: dados.length,
+        opcoes: [
+          {
+            valor: 'movimento',
+            rotulo: 'Com movimento',
+            n: dados.filter((d) => d.entradas || d.saidas).length,
+          },
+          { valor: 'futuros', rotulo: 'Futuros', n: dados.filter((d) => d.ym > hojeM).length },
+        ],
+      },
       filtrados: itens.length,
       total: dados.length,
     })}
+    <div class="fluxo-topo">
+      <div class="fluxo-esq">
+        ${bloco(
+          'Próximos movimentos planejados',
+          proj.eventos.length ? `${proj.eventos.length} movimentos · saldo depois de cada um` : '',
+          proj.eventos.length
+            ? tabelaProjetada(proj)
+            : '<p class="tinta2 painel-vazio">Nada planejado: sem parcela a receber, medição a pagar, contrato a medir ou material a comprar.</p>',
+        )}
+        ${saldo}
+      </div>
+      ${graficos}
+    </div>
     ${lista({
       id: 'fluxo',
       testid: 'lista-fluxo',

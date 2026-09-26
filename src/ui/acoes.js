@@ -2,12 +2,13 @@
  * acoes.js — Ações: tudo que um clique dispara — abrir formulário, salvar, excluir.
  */
 import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, lerEfetivoFuncoes, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, textoEfetivoFuncoes, uid } from '../nucleo/base.js';
-import { alertasObra, efeitoDiarioNaEtapa, efetivoDiario, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, listaProtegida, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa, usoItensLista } from '../dominio/calculos.js';
-import { apenasErros, validarCliente, validarContrato, validarDependencias, validarDiario, validarEtapasContrato, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
+import { alertasObra, efeitoDiarioNaEtapa, efetivoDiario, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa } from '../dominio/calculos.js';
+import { validarCliente, validarContrato, validarDependencias, validarDiario, validarEtapasContrato, validarEtapa, validarLancamento, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, confirmarDigitando, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
 import { carregarAuditoria, implExpandida } from './telas-obra.js';
+import { campoAnexo, comprimirImagem, htmlAnexo } from './anexos.js';
 
 const ACOES = {};
 
@@ -107,16 +108,6 @@ ACOES['salvar-form'] = () => {
   fn(dados);
 };
 
-/* Gate de validação para os formulários que não passam por 'salvar-form'
-   (a configuração da obra tem o próprio botão). */
-function barrar(problemas, alvo) {
-  const erros = apenasErros(problemas);
-  if (!erros.length) return false;
-  const lista = erros.map((p) => '• ' + p.mensagem).join('\n');
-  toast((alvo ? alvo + ':\n' : '') + lista, 'critico', 6000);
-  return true;
-}
-
 /* ============================================================== OBRA */
 function formObra(obra, aoConcluir) {
   const clientes = Store.estado.clientes.map((c) => ({ v: c.id, t: c.nome }));
@@ -186,18 +177,6 @@ ACOES['nova-obra'] = () => {
   });
 };
 
-ACOES['salvar-obra-config'] = () => {
-  const d = lerForm();
-  const o = App.obra();
-  if (barrar(validarObra(d), 'Configuração da obra')) return;
-  mutar(() => {
-    Object.keys(d).forEach((k) => {
-      if (k.startsWith('fin.')) o.fin[k.slice(4)] = d[k];
-      else o[k] = d[k];
-    });
-  });
-  toast('Configuração salva.', 'ok');
-};
 
 ACOES['duplicar-obra'] = () => {
   if (limiteObrasAtingido()) return;
@@ -614,96 +593,132 @@ ACOES['excluir-recebimento'] = (el, d) => {
 };
 
 /* ======================================================= LANÇAMENTOS */
+/* Lançamento em modo rápido: item do plano, descrição, valor, tipo, etapa
+   e data — o que se sabe na hora da compra. "Mais detalhes" abre o resto
+   (quantidade, frete, fornecedor, NF…). Editar um lançamento que já tem
+   detalhe abre tudo. Escolher o item do plano preenche descrição, etapa,
+   unidade, tipo e o preço previsto. */
 function formLancamento(l, novo, aoSalvar) {
   const o = App.obra();
-  const planos = o.materiais.map((m) => ({ v: m.id, t: `${m.material} (${m.etapa})` }));
+  const planos = o.materiais.map((m) => ({ v: m.id, t: `${m.material}${m.etapa ? ` (${m.etapa})` : ''}` }));
   /* sugestões: fornecedores do cadastro (0018) + os já digitados */
   const fornecedores = [...new Set([
     ...Store.estado.prestadores.filter((p) => p.tipo === 'fornecedor' && !p.arquivado).map((p) => p.nome),
     ...o.lancamentos.map((x) => x.fornecedor),
   ].filter(Boolean))];
+  const temDetalhe = !novo && (num(l.quantidade) !== 1 || num(l.frete) || num(l.desconto) ||
+    l.fornecedor || l.documento || l.prestadorId || l.observacoes || l.categoria || l.anexoNf);
   abrirForm({
     titulo: novo ? 'Novo lançamento' : 'Editar lançamento',
     largura: 'largo',
     campos: [
-      { k: 'data', label: 'Data', tipo: 'data', col: 3, obrigatorio: true },
-      { k: 'tipo', label: 'Tipo de saída', tipo: 'select', opcoes: opcoesLista('tiposSaida'), col: 3, vazio: false },
-      { k: 'etapa', label: 'Etapa', tipo: 'select', opcoes: opcoesEtapas(), col: 3 },
-      { k: 'categoria', label: 'Categoria', tipo: 'texto', col: 3, placeholder: 'Cimento, aço, taxas…' },
+      ...(planos.length
+        ? [{ k: 'materialId', label: 'Item do plano de materiais', tipo: 'select', opcoes: planos, col: 12,
+            placeholder: 'não é do plano', dica: 'escolher o item preenche descrição, etapa e unidade' }]
+        : []),
       { k: 'descricao', label: 'Descrição', tipo: 'texto', col: 6, obrigatorio: true },
-      { k: 'fornecedor', label: 'Fornecedor', tipo: 'lista', opcoes: fornecedores, col: 4 },
-      { k: 'documento', label: 'Documento', tipo: 'texto', col: 2, placeholder: 'NF 1201' },
-      { k: 'quantidade', label: 'Quantidade', tipo: 'numero', col: 2 },
-      { k: 'unidade', label: 'Unidade', tipo: 'select', opcoes: opcoesLista('unidades'), col: 2, vazio: false },
-      { k: 'precoUnitario', label: 'Preço unitário', tipo: 'dinheiro', col: 2 },
-      { k: 'desconto', label: 'Desconto', tipo: 'dinheiro', col: 2 },
-      { k: 'frete', label: 'Frete / acréscimo', tipo: 'dinheiro', col: 2 },
-      { k: 'formaPagamento', label: 'Pagamento', tipo: 'select', opcoes: opcoesLista('formasPagamento'), col: 2, vazio: false },
-      { k: 'materialId', label: 'Item do plano de materiais', tipo: 'select', opcoes: planos, col: 6, placeholder: 'não vincular' },
+      { k: 'precoUnitario', label: 'Valor', tipo: 'dinheiro', col: 3, dica: 'por unidade, se houver quantidade' },
+      { k: 'data', label: 'Data', tipo: 'data', col: 3, obrigatorio: true },
+      { k: 'tipo', label: 'Tipo de saída', tipo: 'select', opcoes: opcoesLista('tiposSaida'), col: 6, vazio: false },
+      { k: 'etapa', label: 'Etapa', tipo: 'select', opcoes: opcoesEtapas(), col: 6, placeholder: 'sem etapa' },
+      { k: 'quantidade', label: 'Quantidade', tipo: 'numero', col: 3, detalhe: true },
+      { k: 'unidade', label: 'Unidade', tipo: 'select', opcoes: opcoesLista('unidades'), col: 3, vazio: false, detalhe: true },
+      { k: 'frete', label: 'Frete / acréscimo', tipo: 'dinheiro', col: 3, detalhe: true },
+      { k: 'desconto', label: 'Desconto', tipo: 'dinheiro', col: 3, detalhe: true },
+      { k: 'fornecedor', label: 'Fornecedor', tipo: 'lista', opcoes: fornecedores, col: 6, detalhe: true },
+      { k: 'documento', label: 'Documento', tipo: 'texto', col: 3, placeholder: 'NF 1201', detalhe: true },
+      { k: 'formaPagamento', label: 'Pagamento', tipo: 'select', opcoes: opcoesLista('formasPagamento'), col: 3, vazio: false, detalhe: true },
       { k: 'prestadorId', label: 'Pago a prestador', tipo: 'select', opcoes: opcoesPrestador(l.prestadorId), col: 6,
-        placeholder: 'não é pagamento a prestador', dica: 'diária ou serviço pago direto, sem medição' },
-      { k: 'observacoes', label: 'Observações', tipo: 'texto', col: 12 },
+        placeholder: 'não é pagamento a prestador', dica: 'diária ou serviço pago direto, sem medição', detalhe: true },
+      { k: 'categoria', label: 'Categoria', tipo: 'texto', col: 6, placeholder: 'Cimento, aço, taxas…', detalhe: true },
+      { k: 'observacoes', label: 'Observações', tipo: 'texto', col: 12, detalhe: true },
       { k: 'total', label: 'Total do lançamento', tipo: 'calc', col: 12 }
     ],
-    valores: l,
+    valores: { ...l, quantidade: novo && !num(l.quantidade) ? 1 : l.quantidade },
     calcular: (d) => ({
       total: `Total: <b>${fmtMoney(Math.max(0, num(d.quantidade) * num(d.precoUnitario) - num(d.desconto) + num(d.frete)))}</b>
-        &nbsp;(${fmtNum(d.quantidade, 2)} × ${fmtMoney(d.precoUnitario)} − ${fmtMoney(d.desconto)} + ${fmtMoney(d.frete)})`
+        ${num(d.quantidade) !== 1 || num(d.desconto) || num(d.frete)
+          ? `&nbsp;(${fmtNum(d.quantidade, 2)} × ${fmtMoney(d.precoUnitario)} − ${fmtMoney(d.desconto)} + ${fmtMoney(d.frete)})`
+          : ''}`
     }),
-    validar: (d) => validarLancamento({ ...d, anexoNf: window.__nf || '' }),
+    validar: (d) => validarLancamento({ ...d, anexoNf: notaEmEdicao.ref }),
+    rodapeExtra: '<button type="button" class="btn sutil pequeno" data-acao="lanc-detalhes" aria-expanded="false">Mais detalhes</button>',
     aoSalvar: (d) => {
       if (!d.descricao) return toast('Informe a descrição do lançamento.', 'aviso');
+      if (!num(d.quantidade)) d.quantidade = 1;
       if (d.prestadorId && !d.fornecedor) d.fornecedor = nomeDoPrestador(d.prestadorId, '');
-      Object.assign(l, d, { anexoNf: window.__nf || '' });
+      Object.assign(l, d, { anexoNf: notaEmEdicao.ref });
       fecharModal();
       aoSalvar(l);
     }
   });
+  notaEmEdicao.ref = l.anexoNf || '';
   anexarNfAoForm(l);
+  const form = document.querySelector('#modal-camada [data-form]');
+  if (!form) return;
+  /* a NF entra junto com os detalhes */
+  const blocoNf = form.lastElementChild;
+  if (blocoNf) blocoNf.classList.add('campo-detalhe');
+  if (temDetalhe) mostrarDetalhesLanc(true);
+  const sel = form.querySelector('#f_materialId');
+  if (sel) {
+    sel.addEventListener('change', () => {
+      const m = o.materiais.find((x) => x.id === sel.value);
+      if (!m) return;
+      const preencher = (k, v) => {
+        const el = form.querySelector(`#f_${k}`);
+        if (el && v !== undefined && v !== null && v !== '') el.value = v;
+      };
+      const desc = form.querySelector('#f_descricao');
+      if (desc && !desc.value.trim()) desc.value = m.material || '';
+      preencher('etapa', m.etapa);
+      preencher('unidade', m.unidade);
+      preencher('tipo', 'Material');
+      const preco = form.querySelector('#f_precoUnitario');
+      if (preco && !num(preco.value) && num(m.precoPrevisto)) preco.value = fmtNum(m.precoPrevisto, 2);
+      form.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
 }
+
+function mostrarDetalhesLanc(abrir) {
+  const form = document.querySelector('#modal-camada [data-form]');
+  const botao = document.querySelector('#modal-camada [data-acao="lanc-detalhes"]');
+  if (!form) return;
+  form.classList.toggle('mostrar-detalhes', abrir);
+  if (botao) {
+    botao.setAttribute('aria-expanded', String(abrir));
+    botao.textContent = abrir ? 'Menos detalhes' : 'Mais detalhes';
+  }
+}
+ACOES['lanc-detalhes'] = () => {
+  const form = document.querySelector('#modal-camada [data-form]');
+  mostrarDetalhesLanc(!(form && form.classList.contains('mostrar-detalhes')));
+};
 
 /* Foto da nota fiscal (0019): câmera direto no celular ou galeria. Só o
    anexo — sem leitura automática. Reduzida como as fotos do diário. */
+/* Nota fiscal do lançamento: foto ou PDF (ui/anexos.js). */
 function anexarNfAoForm(l) {
-  window.__nf = l.anexoNf || '';
   const form = document.querySelector('#modal-camada [data-form]');
   if (!form) return;
-  const bloco = document.createElement('div');
-  bloco.className = 'campo c12';
-  const desenhar = () => {
-    bloco.innerHTML = `<label>Foto da nota fiscal</label>
-      ${window.__nf
-        ? `<div class="nf-anexo"><img src="${fonteImagem(window.__nf)}" alt="Nota fiscal"><button type="button" class="btn sutil pequeno" data-nf-remover="1">Remover</button></div>`
-        : `<div class="fotos-botoes">
-            <label class="btn pequeno">Fotografar a nota<input type="file" accept="image/*" capture="environment" data-nf="1" hidden></label>
-            <label class="btn sutil pequeno">Da galeria<input type="file" accept="image/*" data-nf="1" hidden></label>
-          </div>
-          <span class="dica">comprovante preso ao lançamento — a imagem é reduzida para não pesar a base</span>`}`;
-    bloco.querySelectorAll('[data-nf]').forEach((inp) => inp.addEventListener('change', async (ev) => {
-      const f = ev.target.files && ev.target.files[0];
-      if (!f) return;
-      try {
-        window.__nf = await comprimirImagem(f, 1600, 0.7);
-      } catch (e) {
-        toast('Não foi possível ler a imagem da nota.', 'critico');
-      }
-      desenhar();
-    }));
-    const rm = bloco.querySelector('[data-nf-remover]');
-    if (rm) rm.addEventListener('click', () => { window.__nf = ''; desenhar(); });
-  };
-  desenhar();
-  form.appendChild(bloco);
+  campoAnexo(form, notaEmEdicao, {
+    rotulo: 'Nota fiscal',
+    destino: { obraId: App.obra().id, pasta: 'lancamentos', id: l.id },
+    dica: 'foto ou PDF da nota, presa ao lançamento',
+  });
 }
+const notaEmEdicao = { ref: '' };
 
-ACOES['ver-nf'] = (el, d) => {
+ACOES['ver-nf'] = async (el, d) => {
   const l = App.obra().lancamentos.find((x) => x.id === d.id);
   if (!l || !l.anexoNf) return;
-  abrirModal({
-    titulo: `Nota — ${l.descricao || 'lançamento'}${l.documento ? ` · ${l.documento}` : ''}`,
-    largura: 'largo',
-    corpo: `<img src="${fonteImagem(l.anexoNf)}" alt="Nota fiscal de ${esc(l.descricao || '')}" style="width:100%;border-radius:4px">`,
-  });
+  const titulo = `Nota — ${l.descricao || 'lançamento'}${l.documento ? ` · ${l.documento}` : ''}`;
+  try {
+    abrirModal({ titulo, largura: 'largo', corpo: await htmlAnexo(l.anexoNf, `Nota fiscal de ${l.descricao || ''}`) });
+  } catch (e) {
+    toast('Não foi possível abrir a nota: ' + ((e && e.message) || e), 'critico');
+  }
 };
 
 ACOES['novo-lancamento'] = () => {
@@ -920,7 +935,13 @@ const LOGO_ALVOS = {
   cliente: { get: () => window.__logo || '', set: (v) => { window.__logo = v; } },
   empresa: {
     get: () => (document.getElementById('emp_logo_val') || {}).value || '',
-    set: (v) => { const h = document.getElementById('emp_logo_val'); if (h) h.value = v; },
+    /* Ajustes grava sozinho: a logo avisa com um change, como os campos */
+    set: (v) => {
+      const h = document.getElementById('emp_logo_val');
+      if (!h) return;
+      h.value = v;
+      h.dispatchEvent(new Event('change', { bubbles: true }));
+    },
   },
 };
 
@@ -966,27 +987,6 @@ function anexarCampoLogo(valorInicial, label) {
 }
 
 /* ============================================================ DIÁRIO */
-async function comprimirImagem(file, maxLado = 1280, qualidade = 0.66) {
-  const dataUrl = await new Promise((res, rej) => {
-    const fr = new FileReader();
-    fr.onload = () => res(fr.result);
-    fr.onerror = rej;
-    fr.readAsDataURL(file);
-  });
-  const img = await new Promise((res, rej) => {
-    const i = new Image();
-    i.onload = () => res(i);
-    i.onerror = rej;
-    i.src = dataUrl;
-  });
-  const escala = Math.min(1, maxLado / Math.max(img.width, img.height));
-  const cv = document.createElement('canvas');
-  cv.width = Math.round(img.width * escala);
-  cv.height = Math.round(img.height * escala);
-  cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-  return cv.toDataURL('image/jpeg', qualidade);
-}
-
 function formDiario(reg, novo, aoSalvar) {
   window.__fotos = (reg.fotos || []).slice();
   const render = () => {
@@ -1255,37 +1255,6 @@ ACOES['excluir-prestador'] = (el, d) => {
 };
 
 /* =========================================================== AJUSTES */
-ACOES['salvar-empresa'] = () => {
-  const d = lerForm();
-  const probs = apenasErros(validarLogo(d.logo, 'logo'));
-  if (probs.length) return toast(probs[0].mensagem, 'critico');
-  mutar((e) => { Object.assign(e.empresa, d); });
-  toast('Dados da empresa salvos.', 'ok');
-};
-
-/* Item em uso não sai da lista (usoItensLista): volta para o fim, e o
-   aviso diz quantos registros o usam. */
-ACOES['salvar-listas'] = () => {
-  const campos = document.querySelectorAll('[data-lista]');
-  const uso = usoItensLista(Store.estado);
-  const mantidos = [];
-  mutar((e) => {
-    campos.forEach((c) => {
-      const itens = c.value.split('\n').map((s) => s.trim()).filter(Boolean);
-      if (!itens.length) return;
-      const k = c.dataset.lista;
-      const r = listaProtegida(uso[k], e.listas[k] || [], itens);
-      e.listas[k] = r.lista;
-      mantidos.push(...r.mantidos);
-    });
-  });
-  if (mantidos.length) {
-    const txt = mantidos.map((m) => `"${m.item}" (${m.registros} registro${m.registros === 1 ? '' : 's'})`).join(', ');
-    toast(`Listas atualizadas. Continuam por estarem em uso: ${txt}.`, 'aviso');
-    App.renderConteudo();
-  } else toast('Listas atualizadas.', 'ok');
-};
-
 ACOES.zerar = () => {
   const palavra = String(Store.estado.empresa.nome || '').trim() || 'APAGAR';
   confirmarDigitando('Apagar todos os dados', 'Isso remove obras, contratos, medições, lançamentos e cadastros. Não há como desfazer. Baixe um backup antes.', palavra, () => {

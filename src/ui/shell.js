@@ -6,7 +6,7 @@ import { pendenciasCarteira, pendenciasObra } from '../dominio/calculos.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { VIEWS } from './telas-obra.js';
-import { desenharGraficosPendentes } from '../graficos/index.js';
+import { ajustarGantt, ajustarGraficosAuto, desenharGraficosPendentes, limparGraficosAuto } from '../graficos/index.js';
 
 const ICO = {
   carteira: '<path d="M2 3h5v5H2zM9 3h5v5H9zM2 10h5v3H2zM9 10h5v3H9z"/>',
@@ -32,6 +32,7 @@ const ICO = {
   tema: '<circle cx="8" cy="8" r="5.6"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor" stroke="none"/>',
   x: '<path d="M4 4l8 8M12 4l-8 8"/>',
   baixar: '<path d="M8 2v8M4.5 7 8 10.5 11.5 7M2.5 13.5h11"/>',
+  vinculo: '<path d="M6.8 9.2a2.6 2.6 0 0 0 3.7 0l2.1-2.1a2.6 2.6 0 0 0-3.7-3.7l-.9.9"/><path d="M9.2 6.8a2.6 2.6 0 0 0-3.7 0L3.4 8.9a2.6 2.6 0 0 0 3.7 3.7l.9-.9"/>',
   clipe: '<path d="M11.5 7.5 7 12a2.5 2.5 0 0 1-3.5-3.5L9 3a1.7 1.7 0 0 1 2.4 2.4L6 10.8a.8.8 0 0 1-1.1-1.1L9.5 5"/>',
   lapis: '<path d="M11 2.5 13.5 5 5.5 13H3v-2.5z"/>',
   lixo: '<path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 10h6.6L12 4"/>',
@@ -312,6 +313,7 @@ const App = {
     /* Telas com inspetor cuidam da própria rolagem: o conteúdo vira um
        contêiner de painéis lado a lado em vez de um bloco que rola inteiro. */
     alvo.classList.toggle('paineis', !!(fn && fn.paineis));
+    limparGraficosAuto();
     try {
       alvo.innerHTML = fn ? fn() : '<div class="vazio">Tela não encontrada.</div>';
     } catch (e) {
@@ -331,6 +333,7 @@ const App = {
     }
     prepararTabelas(alvo);
     desenharGraficosPendentes();
+    observarGantt(alvo);
     /* Linha do tempo que não cabe (Gantt no celular): abre rolada até hoje,
        com um terço da largura de passado à esquerda — antes abria no
        primeiro mês da obra e a linha de hoje ficava fora da tela. */
@@ -405,6 +408,44 @@ function aplicarOrdenacao(tab, col, dir, numerico) {
   });
 }
 
+/* Gantt e gráficos na largura disponível: um ResizeObserver por tela.
+   Mudou a largura (janela, inspetor, menu recolhido), a escala é
+   recalculada e o gráfico redesenhado — sem esticar o SVG. */
+let obsGantt = null;
+let obsAuto = null;
+function observarGantt(alvo) {
+  if (obsAuto) obsAuto.disconnect();
+  obsAuto = null;
+  const autos = alvo.querySelectorAll('[data-auto]');
+  if (autos.length && typeof ResizeObserver !== 'undefined') {
+    let q = 0;
+    obsAuto = new ResizeObserver(() => {
+      cancelAnimationFrame(q);
+      q = requestAnimationFrame(() => {
+        if (ajustarGraficosAuto(alvo)) desenharGraficosPendentes();
+      });
+    });
+    autos.forEach((el) => obsAuto.observe(el));
+  }
+  if (obsGantt) obsGantt.disconnect();
+  obsGantt = null;
+  const cx = alvo.querySelector('[data-gantt]');
+  if (!cx || typeof ResizeObserver === 'undefined') return;
+  let quadro = 0;
+  obsGantt = new ResizeObserver(() => {
+    cancelAnimationFrame(quadro);
+    quadro = requestAnimationFrame(() => {
+      const obra = Store.estado.obras.find((o) => o.id === cx.dataset.gantt);
+      if (!ajustarGantt(cx, obra)) return;
+      desenharGraficosPendentes();
+      cx.querySelectorAll('[data-rolar-para]').forEach((el) => {
+        el.scrollLeft = Math.max(0, Number(el.dataset.rolarPara) - el.clientWidth / 3);
+      });
+    });
+  });
+  obsGantt.observe(cx);
+}
+
 /* ======================================================== componentes */
 
 function toast(msg, tom = 'ok', ms = 3600) {
@@ -414,39 +455,6 @@ function toast(msg, tom = 'ok', ms = 3600) {
   el.textContent = msg;
   cx.appendChild(el);
   setTimeout(() => el.remove(), ms);
-}
-
-/* kpi(rotulo, valor, sub, opts)
-   opts: string de tom ('ok'|'aviso'|'critico') OU
-         { tom, visual (svg de sparkline/anel), destaque (true = card grande) } */
-function kpi(rotulo, valor, sub, opts = '') {
-  const o = typeof opts === 'string' ? { tom: opts } : (opts || {});
-  return `<div class="kpi ${o.tom || ''}${o.visual ? ' com-visual' : ''}${o.destaque ? ' destaque' : ''}">
-    <span class="faixa"></span>
-    <div class="kpi-txt">
-      <span class="rotulo">${rotulo}</span>
-      <span class="valor">${valor}</span>
-      ${sub ? `<span class="sub">${sub}</span>` : ''}
-    </div>
-    ${o.visual ? `<div class="kpi-vis">${o.visual}</div>` : ''}
-  </div>`;
-}
-
-/* mini-gráfico de linha (tendência). tom: 'marca'|'ok'|'aviso'|'critico' */
-function sparkline(valores, tom = 'marca') {
-  const v = (valores || []).map((x) => (isFinite(+x) ? +x : 0));
-  if (v.length < 2) return '';
-  const min = Math.min(...v), max = Math.max(...v), rng = (max - min) || 1;
-  const W = 104, H = 36;
-  const pts = v.map((y, i) => [(i / (v.length - 1)) * W, H - 3 - ((y - min) / rng) * (H - 6)]);
-  const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
-  const cor = `var(--${tom})`;
-  const [ex, ey] = pts[pts.length - 1];
-  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
-    <path d="${d} L ${W} ${H} L 0 ${H} Z" fill="${cor}" opacity=".09"/>
-    <path d="${d}" fill="none" stroke="${cor}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linecap="round" stroke-linejoin="round"/>
-    <circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="2.4" fill="${cor}" vector-effect="non-scaling-stroke"/>
-  </svg>`;
 }
 
 /* anel de progresso com rótulo central */
@@ -585,15 +593,20 @@ function campoHTML(c, valores) {
     case 'data':
       campo = `<input type="date" id="${id}" data-campo="${c.k}" data-tipo="data" value="${esc(v || '')}" ${req}>`;
       break;
-    case 'select':
+    case 'select': {
+      /* valor que não está mais entre as opções (item arquivado, lista
+         editada): continua na lista deste registro, senão salvar o apagaria */
+      const vals = (c.opcoes || []).map((o) => String(typeof o === 'object' ? o.v : o));
+      const extra = v !== undefined && v !== null && v !== '' && !vals.includes(String(v)) ? [String(v)] : [];
       campo = `<select id="${id}" data-campo="${c.k}" data-tipo="texto" ${req}>
         ${(c.vazio !== false) ? `<option value="">${esc(c.placeholder || '—')}</option>` : ''}
-        ${(c.opcoes || []).map((o) => {
+        ${[...(c.opcoes || []), ...extra].map((o) => {
           const val = typeof o === 'object' ? o.v : o;
           const txt = typeof o === 'object' ? o.t : o;
           return `<option value="${esc(val)}" ${String(val) === String(v ?? '') ? 'selected' : ''}>${esc(txt)}</option>`;
         }).join('')}</select>`;
       break;
+    }
     case 'area':
       campo = `<textarea id="${id}" data-campo="${c.k}" data-tipo="texto" rows="${c.linhas || 3}">${esc(v || '')}</textarea>`;
       break;
@@ -623,7 +636,8 @@ function campoHTML(c, valores) {
     default:
       campo = `<input type="text" id="${id}" data-campo="${c.k}" data-tipo="texto" value="${esc(v ?? '')}" placeholder="${esc(c.placeholder || '')}" ${req}>`;
   }
-  return `<div class="campo ${col}">
+  /* c.detalhe: campo que só aparece em "Mais detalhes" (formulário rápido) */
+  return `<div class="campo ${col}${c.detalhe ? ' campo-detalhe' : ''}">
     <label for="${id}">${esc(c.label)}</label>
     ${campo}
     ${c.dica ? `<span class="dica">${esc(c.dica)}</span>` : ''}
@@ -675,8 +689,13 @@ function rodarCalcForm() {
 }
 
 /* -------------------------------------------------------- utilitários */
-const opcoesEtapas = () => Store.estado.listas.etapas;
-const opcoesLista = (k) => Store.estado.listas[k] || [];
+/* item arquivado (Ajustes → Listas) não aparece para escolher */
+const semArquivados = (k) => {
+  const arq = (Store.estado.listas.arquivados || {})[k] || [];
+  return (Store.estado.listas[k] || []).filter((i) => !arq.includes(i));
+};
+const opcoesEtapas = () => semArquivados('etapas');
+const opcoesLista = (k) => semArquivados(k);
 
 function nomeCliente(id) {
   const c = Store.estado.clientes.find((x) => x.id === id);
@@ -736,8 +755,6 @@ export {
   VIEWS_OBRA,
   App,
   toast,
-  kpi,
-  sparkline,
   anel,
   chip,
   barra,

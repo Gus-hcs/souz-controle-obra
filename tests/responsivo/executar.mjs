@@ -32,7 +32,7 @@ import {
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ = path.resolve(AQUI, '../..');
 const SAIDA = path.join(RAIZ, 'docs', 'relatorio-responsivo');
-const PORTA = 4310;
+const PORTA = Number(process.env.PORTA) || 4310;
 
 const args = process.argv.slice(2);
 const RAPIDO = args.includes('--rapido');
@@ -140,7 +140,12 @@ async function irPara(pagina, view) {
 }
 
 function nomeArquivo(...partes) {
-  return partes.filter(Boolean).join('__').replace(/[^\w.-]+/g, '-') + '.jpg';
+  return (
+    partes
+      .filter(Boolean)
+      .join('__')
+      .replace(/[^\w.-]+/g, '-') + '.jpg'
+  );
 }
 
 /* ====================================================== passada principal */
@@ -158,7 +163,8 @@ async function passada({ rotuloEstado, dados, viewports, temas, estado = null, e
       const errosConsole = [];
       pagina.on('pageerror', (e) => errosConsole.push('exceção: ' + e.message));
       pagina.on('console', (m) => {
-        if (m.type() === 'error' && !RUIDO.test(m.text())) errosConsole.push('console: ' + m.text());
+        if (m.type() === 'error' && !RUIDO.test(m.text()))
+          errosConsole.push('console: ' + m.text());
       });
 
       await pagina.goto(`http://127.0.0.1:${PORTA}/`, { waitUntil: 'load' });
@@ -256,7 +262,7 @@ console.log('\n\n4/6  Movimento reduzido');
   });
   const pagina = await ctx.newPage();
   await pagina.goto(`http://127.0.0.1:${PORTA}/`, { waitUntil: 'load' });
-      await conferirFixture(pagina);
+  await conferirFixture(pagina);
   await pagina.waitForTimeout(700);
   for (const view of await telasDisponiveis(pagina)) {
     await irPara(pagina, view);
@@ -363,7 +369,7 @@ console.log('\n\n6/6  Folhas de estilo e redimensionamento ao vivo');
   });
   const pagina = await ctx.newPage();
   await pagina.goto(`http://127.0.0.1:${PORTA}/`, { waitUntil: 'load' });
-      await conferirFixture(pagina);
+  await conferirFixture(pagina);
   await pagina.waitForTimeout(700);
   resultado.folhas = await pagina.evaluate(checarFolhasDeEstilo);
 
@@ -395,8 +401,13 @@ await navegador.close();
 servidor.close();
 
 /* ------------------------------------------------------------ resumo */
-const totalFalhas = resultado.combinacoes.reduce((s, c) => s + c.falhas.filter((f) => f.gravidade === 'falha').length, 0);
-const combFalhas = resultado.combinacoes.filter((c) => c.falhas.some((f) => f.gravidade === 'falha')).length;
+const totalFalhas = resultado.combinacoes.reduce(
+  (s, c) => s + c.falhas.filter((f) => f.gravidade === 'falha').length,
+  0,
+);
+const combFalhas = resultado.combinacoes.filter((c) =>
+  c.falhas.some((f) => f.gravidade === 'falha'),
+).length;
 const fluidezRuim = resultado.fluidez.filter(
   (f) =>
     f.cls > METAS.cls ||

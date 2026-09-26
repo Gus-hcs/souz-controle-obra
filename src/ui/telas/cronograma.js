@@ -21,16 +21,20 @@ import {
 } from '../../nucleo/base.js';
 import {
   agendaCronograma,
+  agendaObra,
   etapaCalc,
   kpisObra,
   nivelIndice,
   prazoObra,
+  responsaveisCronograma,
   temDependencias,
   valorAgregadoObra,
 } from '../../dominio/calculos.js';
 import { graficoGantt } from '../../graficos/index.js';
+import { linkWhatsApp } from '../../nucleo/contato.js';
+import { Store } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
-import { App, botao } from '../shell.js';
+import { App, botao, ICO, svg } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
 import {
   acoesRegistro,
@@ -38,9 +42,8 @@ import {
   botaoNovo,
   buscaToolbar,
   fmtIndice,
+  faixaKpis,
   lista,
-  secao,
-  seletor,
   tomNivel,
   vazioTela,
 } from './componentes.js';
@@ -70,55 +73,52 @@ function kpisCronograma(o) {
   const proxima = abertas[0];
   const nTravadas = k.etapasAtrasadas + k.etapasInicioAtrasado;
 
-  const item = (chave, rotulo, valor, contexto, tom = '', filtravel = false) => {
-    const ativo = filtravel && App.filtros.kpiCrono === chave;
-    return `<div class="kpi-item${ativo ? ' ativo' : ''}"${filtravel ? ` data-acao="crono-kpi" data-kpi="${chave}" role="button" tabindex="0" aria-pressed="${ativo}" title="Filtrar a lista"` : ''}>
-      <span class="kpi-rot">${esc(rotulo)}</span>
-      <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
-      <span class="kpi-ctx">${contexto}</span>
-    </div>`;
-  };
   const atraso = va.atrasoProjetado;
 
-  return `<div class="kpis" role="group" aria-label="Indicadores do cronograma">
-    ${item(
-      'entrega',
-      'Término projetado',
-      va.termino ? fmtData(va.termino) : '—',
-      `${prazo.fimPrevisto ? `contrato ${fmtDataCurta(prazo.fimPrevisto)}` : 'sem data contratual'}${
-        atraso > 0 ? ` · +${atraso} d` : ''
-      }`,
-      atraso > 0 ? (atraso >= 30 ? 'atraso' : 'tom-alerta') : '',
-    )}
-    ${item(
-      'fisico',
-      'Avanço físico',
-      fmtPct(k.progressoFisico, 0),
-      `previsto ${fmtPct(va.previsto, 0)} · IDP ${fmtIndice(va.idp)}`,
-      tomNivel(nivelIndice(va.idp, 'idp')),
-    )}
-    ${item(
-      'atrasadas',
-      'Etapas atrasadas',
-      nTravadas,
-      nTravadas
-        ? [
-            k.etapasAtrasadas ? `${k.etapasAtrasadas} com fim vencido` : '',
-            k.etapasInicioAtrasado ? `${k.etapasInicioAtrasado} sem começar` : '',
-          ]
-            .filter(Boolean)
-            .join(' · ')
-        : 'tudo no prazo',
-      nTravadas ? 'atraso' : '',
-      true,
-    )}
-    ${item(
-      'proxima',
-      'Próxima entrega',
-      proxima ? esc(proxima.etapa || '—') : '—',
-      proxima ? fmtDataCurta(proxima.fimPrevisto) : 'nada com fim à frente',
-    )}
-  </div>`;
+  return faixaKpis(
+    [
+      {
+        chave: 'entrega',
+        rotulo: 'Término projetado',
+        valor: va.termino ? fmtData(va.termino) : '—',
+        contexto: `${prazo.fimPrevisto ? `contrato ${fmtDataCurta(prazo.fimPrevisto)}` : 'sem data contratual'}${
+          atraso > 0 ? ` · +${atraso} d` : ''
+        }`,
+        tom: atraso > 0 ? (atraso >= 30 ? 'atraso' : 'tom-alerta') : '',
+        filtra: false,
+      },
+      {
+        chave: 'fisico',
+        rotulo: 'Avanço físico',
+        valor: fmtPct(k.progressoFisico, 0),
+        contexto: `previsto ${fmtPct(va.previsto, 0)} · IDP ${fmtIndice(va.idp)}`,
+        tom: tomNivel(nivelIndice(va.idp, 'idp')),
+        filtra: false,
+      },
+      {
+        chave: 'atrasadas',
+        rotulo: 'Etapas atrasadas',
+        valor: nTravadas,
+        contexto: nTravadas
+          ? [
+              k.etapasAtrasadas ? `${k.etapasAtrasadas} com fim vencido` : '',
+              k.etapasInicioAtrasado ? `${k.etapasInicioAtrasado} sem começar` : '',
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : 'tudo no prazo',
+        tom: nTravadas ? 'atraso' : '',
+      },
+      {
+        chave: 'proxima',
+        rotulo: 'Próxima entrega',
+        valor: proxima ? esc(proxima.etapa || '—') : '—',
+        contexto: proxima ? fmtDataCurta(proxima.fimPrevisto) : 'nada com fim à frente',
+        filtra: false,
+      },
+    ],
+    { rotulo: 'Indicadores do cronograma', acao: 'crono-kpi', ativo: App.filtros.kpiCrono },
+  );
 }
 
 ACOES['crono-kpi'] = (el, d) => {
@@ -133,6 +133,69 @@ ACOES['ir-diario-etapa'] = (el, d) => {
   App.filtros = { etapa: d.etapa };
   App.renderConteudo();
 };
+
+/* ------------------------------------------------ painel da linha do tempo
+   Ao lado do Gantt (≥ 1440px), abaixo dele no tablet: o que acontece nos
+   próximos 14 dias (agendaObra) e com quem cobrar (responsaveisCronograma). */
+const TIPO_AGENDA = {
+  'etapa-inicio': 'Etapa',
+  'etapa-fim': 'Etapa',
+  material: 'Material',
+  medicao: 'Medição',
+};
+
+function blocoProximos(o) {
+  const itens = agendaObra(o, hojeISO(), 14);
+  const corpo = itens.length
+    ? `<ul class="agenda-lista">${itens
+        .map(
+          (a) => `<li>
+            <span class="agenda-data">${esc(fmtDataCurta(a.data))}</span>
+            <span class="agenda-txt"><b>${esc(a.texto)}</b>${a.quem ? `<span class="tinta2">${esc(a.quem)}</span>` : ''}</span>
+            <span class="agenda-tipo tinta3">${esc(TIPO_AGENDA[a.tipo] || '')}</span>
+          </li>`,
+        )
+        .join('')}</ul>`
+    : '<p class="tinta2 painel-vazio">Nada previsto nos próximos 14 dias.</p>';
+  return `<section class="analise-bloco crono-bloco" aria-label="Próximos 14 dias">
+    <div class="analise-cab"><h2>Próximos 14 dias</h2><span class="tinta3">${itens.length || ''}</span></div>
+    <div class="analise-corpo">${corpo}</div>
+  </section>`;
+}
+
+function blocoResponsaveis(o) {
+  const grupos = responsaveisCronograma(o, Store.estado.prestadores, hojeISO());
+  const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+  const corpo = grupos.length
+    ? `<ul class="resp-lista">${grupos
+        .map((g) => {
+          const partes = [
+            g.emAndamento ? `${g.emAndamento} em andamento` : '',
+            g.atrasadas
+              ? `<span class="atraso">${plural(g.atrasadas, 'atrasada', 'atrasadas')} · até ${plural(g.maiorAtraso, 'dia', 'dias')}</span>`
+              : 'em dia',
+          ].filter(Boolean);
+          const zap = g.prestador && g.prestador.whatsapp && g.prestador.temWhatsapp !== false;
+          const texto = `Olá, ${g.nome.split(' ')[0]}! Sobre a obra ${o.nome}: ${
+            g.atrasadas ? 'precisamos alinhar o que está atrasado' : 'como está o andamento'
+          } (${g.etapas.join(', ')}).`;
+          return `<li>
+            <span class="resp-txt"><b>${esc(g.nome)}</b><span class="tinta2">${partes.join(' · ')}</span></span>
+            ${
+              zap
+                ? `<a class="btn sutil pequeno" href="${esc(linkWhatsApp(g.prestador.whatsapp, texto))}" target="_blank"
+                    rel="noopener" data-acao="abrir-externo" title="${esc(texto)}" aria-label="WhatsApp para ${esc(g.nome)}">${svg(ICO.whatsapp, 13)}WhatsApp</a>`
+                : '<span class="tinta3 resp-sem">sem WhatsApp</span>'
+            }
+          </li>`;
+        })
+        .join('')}</ul>`
+    : '<p class="tinta2 painel-vazio">Nenhuma etapa aberta com responsável.</p>';
+  return `<section class="analise-bloco crono-bloco" aria-label="Por responsável">
+    <div class="analise-cab"><h2>Por responsável</h2></div>
+    <div class="analise-corpo">${corpo}</div>
+  </section>`;
+}
 
 /* -------------------------------------------------------------- tabela */
 function celulaEtapa(e, nomes) {
@@ -275,21 +338,35 @@ VIEWS.cronograma = () => {
   if (f.kpiCrono === 'atrasadas') itens = itens.filter((d) => atrasadaOuTravada(d.c));
   if (busca) itens = itens.filter((d) => norm(`${d.e.etapa} ${d.e.responsavel}`).includes(busca));
 
+  /* situação em pílula, com a contagem; responsável no "Mais filtros" */
+  const todasEtapas = o.cronograma.map((e) => ({ e, c: etapaCalc(e), ag: porId.get(e.id) || null }));
+  const conta = (fn) => todasEtapas.filter(fn).length;
   const barra = barraFiltros({
-    mostrar: o.cronograma.length > 1,
-    controles: [
-      responsaveis.length > 1 ? seletor('responsavel', responsaveis, 'Todos os responsáveis') : '',
-      seletor(
-        'situacao',
-        [
-          ['atrasadas', 'Atrasadas'],
-          ['andamento', 'Em andamento'],
-          ['nao-iniciadas', 'Não iniciadas'],
-          ['concluidas', 'Concluídas'],
-          ...(agenda ? [['criticas', 'Caminho crítico']] : []),
-        ],
-        'Situação: todas',
-      ),
+    pilulas: {
+      chave: 'situacao',
+      todos: 'Todas',
+      total: o.cronograma.length,
+      opcoes: [
+        { valor: 'atrasadas', rotulo: 'Atrasadas', n: conta((d) => atrasadaOuTravada(d.c)) },
+        { valor: 'andamento', rotulo: 'Em andamento', n: conta((d) => d.c.situacao === 'EM ANDAMENTO') },
+        {
+          valor: 'nao-iniciadas',
+          rotulo: 'Não iniciadas',
+          n: conta((d) => d.c.situacao === 'NÃO INICIADO' || d.c.situacao === 'NÃO PLANEJADO'),
+        },
+        { valor: 'concluidas', rotulo: 'Concluídas', n: conta((d) => d.c.situacao === 'CONCLUÍDO') },
+        ...(agenda
+          ? [{ valor: 'criticas', rotulo: 'Caminho crítico', n: conta((d) => d.ag && d.ag.critica) }]
+          : []),
+      ],
+    },
+    mais: [
+      {
+        chave: 'responsavel',
+        rotulo: 'Responsável',
+        todos: 'Todos os responsáveis',
+        opcoes: responsaveis.map((r) => [r, r, conta((d) => d.e.responsavel === r)]),
+      },
     ],
     filtrados: itens.length,
     total: o.cronograma.length,
@@ -297,7 +374,16 @@ VIEWS.cronograma = () => {
 
   return `<div class="tela-lista">
     ${kpisCronograma(o)}
-    ${secao('Linha do tempo', graficoGantt(o))}
+    <div class="crono-topo">
+      <section class="analise-bloco crono-linha" aria-label="Linha do tempo">
+        <div class="analise-cab"><h2>Linha do tempo</h2></div>
+        <div class="analise-corpo">${graficoGantt(o)}</div>
+      </section>
+      <div class="crono-painel"><div class="crono-painel-in">
+        ${blocoProximos(o)}
+        ${blocoResponsaveis(o)}
+      </div></div>
+    </div>
     ${barra}
     ${lista({
       id: 'cronograma',

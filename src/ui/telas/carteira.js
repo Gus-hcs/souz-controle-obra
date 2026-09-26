@@ -44,7 +44,7 @@ import {
   valorAgregadoObra,
 } from '../../dominio/calculos.js';
 import { graficoCurvaS } from '../../graficos/index.js';
-import { fmtIndice, tomNivel } from './componentes.js';
+import { faixaKpis, fmtIndice, tomNivel } from './componentes.js';
 import { Store } from '../../dados/store.js';
 import { App, ICO, botao, nomeCliente, obrasDaConstrutora, partesNomeObra, svg } from '../shell.js';
 import { VIEWS, fraseAncoraHTML, rotuloAcao } from '../telas-obra.js';
@@ -208,68 +208,72 @@ function kpis(obras) {
     .map(([k, r]) => `${r} ${pend.porTipo[k]}`)
     .join(' · ');
 
-  const item = (chave, rotulo, valor, comparacao, contexto, tom = '', tomComp = '') => {
-    const ativo = tela.kpi === chave;
-    return `<button class="kpi-item${ativo ? ' ativo' : ''}" data-acao="carteira-kpi" data-kpi="${chave}"
-        aria-pressed="${ativo}" title="Filtrar a lista: ${esc(FILTROS_KPI[chave].rotulo)}">
-      <span class="kpi-rot">${esc(rotulo)}</span>
-      <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
-      <span class="kpi-comp${tomComp ? ' ' + tomComp : ''}">${comparacao}</span>
-      <span class="kpi-ctx">${contexto}</span>
-    </button>`;
-  };
+  /* comparação (com a cor dela) e contexto dividem as duas linhas do card */
+  const item = (chave, rotulo, valor, comparacao, contexto, tom = '', tomComp = '') => ({
+    chave,
+    rotulo,
+    valor,
+    tom,
+    contexto: `<span class="${tomComp}">${comparacao}</span> · ${contexto}`,
+    dica: `${semTags(comparacao)} · ${semTags(contexto)} — clique para filtrar: ${FILTROS_KPI[chave].rotulo}`,
+  });
 
-  return `<div class="kpis" role="group" aria-label="Indicadores da carteira">
-    ${item(
-      'caixa',
-      'Vale de caixa · 30 dias',
-      fmtMoney(vale.saldo, { dec: 0 }),
-      vale.data <= hojeISO() ? 'o menor saldo é hoje' : `em ${fmtDataCurta(vale.data)}`,
-      `caixa hoje ${fmtMoneyCurto(caixa.saldo)}${caixa.saldoInicial ? ` · inclui ${fmtMoneyCurto(caixa.saldoInicial)} de saldo inicial` : ''}`,
-      vale.saldo < -0.005 ? 'atraso' : '',
-      vale.saldo < -0.005 ? 'atraso' : '',
-    )}
-    ${item(
-      'resultado',
-      'Resultado projetado',
-      res.resultado === null ? 'sem dados' : fmtMoney(res.resultado, { dec: 0 }),
-      res.margem === null ? 'informe o valor de venda' : `margem ${fmtPct(res.margem)}`,
-      res.obrasSemVenda
-        ? `${res.obrasSemVenda} sem valor de venda, fora da conta`
-        : 'todas as obras na conta',
-      res.resultado !== null && res.resultado < -0.005 ? 'atraso' : '',
-      res.margem !== null && res.margem < 0 ? 'atraso' : '',
-    )}
-    ${item(
-      'avanco',
-      'Avanço físico',
-      av.obras ? fmtPct(av.realizado, 0) : 'sem dados',
-      av.obras
-        ? `previsto ${fmtPct(av.previsto, 0)} · ${pp(av.desvio)}`
-        : 'nenhuma obra com cronograma',
-      `ponderado pelo custo${av.fora ? ` · ${av.fora} fora da conta` : ''}`,
-      '',
-      tomDesvio,
-    )}
-    ${item(
-      'risco',
-      'Obras em risco',
-      `${risco.total} de ${risco.de}`,
-      risco.total ? `prazo ${risco.prazo} · custo ${risco.custo}` : 'nenhuma em risco',
-      risco.incompletas ? `${risco.incompletas} com cadastro incompleto` : 'todas configuradas',
-      risco.total ? 'tom-alerta' : '',
-    )}
-    ${item(
-      'pendencias',
-      'Pendências',
-      `${pend.total}`,
-      pend.criticas ? `${pend.criticas} crítica${pend.criticas > 1 ? 's' : ''}` : 'nenhuma crítica',
-      porTipo || 'nada pedindo ação',
-      '',
-      pend.criticas ? 'atraso' : '',
-    )}
-  </div>`;
+  return faixaKpis(
+    [
+      item(
+        'caixa',
+        'Vale de caixa · 30 dias',
+        fmtMoney(vale.saldo, { dec: 0 }),
+        vale.data <= hojeISO() ? 'o menor saldo é hoje' : `em ${fmtDataCurta(vale.data)}`,
+        `caixa hoje ${fmtMoneyCurto(caixa.saldo)}${caixa.saldoInicial ? ` · inclui ${fmtMoneyCurto(caixa.saldoInicial)} de saldo inicial` : ''}`,
+        vale.saldo < -0.005 ? 'atraso' : '',
+        vale.saldo < -0.005 ? 'atraso' : '',
+      ),
+      item(
+        'resultado',
+        'Resultado projetado',
+        res.resultado === null ? 'sem dados' : fmtMoney(res.resultado, { dec: 0 }),
+        res.margem === null ? 'informe o valor de venda' : `margem ${fmtPct(res.margem)}`,
+        res.obrasSemVenda
+          ? `${res.obrasSemVenda} sem valor de venda, fora da conta`
+          : 'todas as obras na conta',
+        res.resultado !== null && res.resultado < -0.005 ? 'atraso' : '',
+        res.margem !== null && res.margem < 0 ? 'atraso' : '',
+      ),
+      item(
+        'avanco',
+        'Avanço físico',
+        av.obras ? fmtPct(av.realizado, 0) : 'sem dados',
+        av.obras
+          ? `previsto ${fmtPct(av.previsto, 0)} · ${pp(av.desvio)}`
+          : 'nenhuma obra com cronograma',
+        `ponderado pelo custo${av.fora ? ` · ${av.fora} fora da conta` : ''}`,
+        '',
+        tomDesvio,
+      ),
+      item(
+        'risco',
+        'Obras em risco',
+        `${risco.total} de ${risco.de}`,
+        risco.total ? `prazo ${risco.prazo} · custo ${risco.custo}` : 'nenhuma em risco',
+        risco.incompletas ? `${risco.incompletas} com cadastro incompleto` : 'todas configuradas',
+        risco.total ? 'tom-alerta' : '',
+      ),
+      item(
+        'pendencias',
+        'Pendências',
+        `${pend.total}`,
+        pend.criticas ? `${pend.criticas} crítica${pend.criticas > 1 ? 's' : ''}` : 'nenhuma crítica',
+        porTipo || 'nada pedindo ação',
+        '',
+        pend.criticas ? 'atraso' : '',
+      ),
+    ],
+    { rotulo: 'Indicadores da carteira', acao: 'carteira-kpi', ativo: tela.kpi },
+  );
 }
+
+const semTags = (html) => String(html).replace(/<[^>]+>/g, '');
 
 /* ------------------------------------------------------------ lista */
 

@@ -44,37 +44,36 @@ import { apenasErros, validarObra } from '../../dominio/validacao.js';
 import { SUPA } from '../../dados/supabase.js';
 import { ACOES } from '../acoes.js';
 import { VIEWS } from '../telas-obra.js';
+import { faixaKpis } from './componentes.js';
 
 function kpisConfig(o, k) {
   const alvo = num(o.fin.margemDesejada);
-  const item = (rotulo, valor, contexto, tom = '') => `<div class="kpi-item">
-    <span class="kpi-rot">${esc(rotulo)}</span>
-    <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
-    <span class="kpi-ctx">${contexto}</span>
-  </div>`;
-
-  return `<div class="kpis" role="group" aria-label="Indicadores da configuração">
-    ${item(
-      'Empreitada principal',
-      fmtMoney(empreitadaPrincipal(o), { dec: 0 }),
-      num(o.areaConstruida)
-        ? `${fmtNum(o.areaConstruida, 2)} m² × ${fmtMoney(o.fin.precoEmpreitadaM2, { dec: 0 })}/m²`
-        : 'informe a área construída',
-    )}
-    ${item(
-      'Custo previsto total',
-      fmtMoney(k.custoPrevisto, { dec: 0 }),
-      `obra física ${fmtMoney(k.custoFisicoPrevisto, { dec: 0 })} · terreno, taxas e comissão ${fmtMoney(k.custoNaoFisico, { dec: 0 })}`,
-    )}
-    ${item(
-      'Resultado projetado',
-      k.resultado === null ? '—' : fmtMoney(k.resultado, { dec: 0 }),
-      k.margem === null
-        ? 'informe o valor de venda'
-        : `margem de ${fmtPct(k.margem)}${alvo ? ` · alvo ${fmtPct(alvo)}` : ''}`,
-      k.margem === null ? '' : k.margem < alvo ? 'tom-alerta' : '',
-    )}
-  </div>`;
+  return faixaKpis(
+    [
+      {
+        rotulo: 'Empreitada principal',
+        valor: fmtMoney(empreitadaPrincipal(o), { dec: 0 }),
+        contexto: num(o.areaConstruida)
+          ? `${fmtNum(o.areaConstruida, 2)} m² × ${fmtMoney(o.fin.precoEmpreitadaM2, { dec: 0 })}/m²`
+          : 'informe a área construída',
+      },
+      {
+        rotulo: 'Custo previsto total',
+        valor: fmtMoney(k.custoPrevisto, { dec: 0 }),
+        contexto: `obra física ${fmtMoney(k.custoFisicoPrevisto, { dec: 0 })} · terreno, taxas e comissão ${fmtMoney(k.custoNaoFisico, { dec: 0 })}`,
+      },
+      {
+        rotulo: 'Resultado projetado',
+        valor: k.resultado === null ? '—' : fmtMoney(k.resultado, { dec: 0 }),
+        contexto:
+          k.margem === null
+            ? 'informe o valor de venda'
+            : `margem de ${fmtPct(k.margem)}${alvo ? ` · alvo ${fmtPct(alvo)}` : ''}`,
+        tom: k.margem === null ? '' : k.margem < alvo ? 'tom-alerta' : '',
+      },
+    ],
+    { rotulo: 'Indicadores da configuração' },
+  );
 }
 
 const SECOES = [
@@ -105,8 +104,17 @@ const SECOES = [
       { k: 'areaConstruida', label: 'Área construída (m²)', tipo: 'numero', col: 3 },
       { k: 'areaMuro', label: 'Área de muro (m²)', tipo: 'numero', col: 3 },
       { k: 'sistema', label: 'Sistema construtivo', tipo: 'lista', opcoes: SISTEMAS_CONSTRUTIVOS, col: 3 },
-      { k: 'padrao', label: 'Padrão de acabamento', tipo: 'lista', opcoes: PADROES_ACABAMENTO, col: 3 },
-      { k: 'responsavel', label: 'Responsável técnico', tipo: 'texto', col: 6 },
+      {
+        k: 'padrao',
+        label: 'Padrão de acabamento',
+        tipo: 'select',
+        opcoes: PADROES_ACABAMENTO,
+        placeholder: 'não informado',
+        col: 3,
+      },
+      { k: 'responsavel', label: 'Responsável técnico', tipo: 'texto', col: 6,
+        dica: 'sai nos relatórios desta obra; vazio, vale o da empresa' },
+      { k: 'creaCau', label: 'CREA/CAU do responsável', tipo: 'texto', col: 3 },
       { k: 'observacoes', label: 'Observações', tipo: 'area', col: 12 },
     ],
   },
@@ -285,13 +293,23 @@ ACOES['equipe-remover'] = (el, d) => {
 
 ACOES['equipe-recarregar'] = (el, d) => carregarEquipe(d.obra, true);
 
+/* "Confira:" — as incoerências da configuração (incoerenciasObra) */
+function avisosConfig(o) {
+  const incoerencias = incoerenciasObra(o);
+  return incoerencias.length
+    ? `<div class="aviso-linha" role="status" style="margin-bottom:var(--e3)"><b>Confira:</b>
+        <ul style="margin:var(--e1) 0 0;padding-left:var(--e5)">${incoerencias.map((x) => `<li>${esc(x.texto)}</li>`).join('')}</ul></div>`
+    : '';
+}
+
 /* ---------------------------------------------------------------- tela */
 VIEWS['obra-config'] = () => {
   const o = App.obra();
   const clientes = Store.estado.clientes.map((c) => ({ v: c.id, t: c.nome }));
   const k = kpisObra(o);
-  const mcmv =
-    /MCMV/i.test(o.padrao || '') || o.fin.contratoCaixa || num(o.fin.valorFinanciado) > 0;
+  /* MCMV é programa de financiamento, não padrão de acabamento: o quadro
+     do escopo aparece quando a obra é financiada */
+  const mcmv = o.fin.contratoCaixa || num(o.fin.valorFinanciado) > 0;
 
   const ehDono = Store.backend !== 'supabase' || SUPA.papelNaObra(o.id) === 'dono';
 
@@ -312,16 +330,9 @@ VIEWS['obra-config'] = () => {
     </details>`,
   ).join('');
 
-  const incoerencias = incoerenciasObra(o);
-
-  return `<div class="tela-lista">
-    ${kpisConfig(o, k)}
-    ${
-      incoerencias.length
-        ? `<div class="aviso-linha" role="status" style="margin-bottom:var(--e3)"><b>Confira:</b>
-            <ul style="margin:var(--e1) 0 0;padding-left:var(--e5)">${incoerencias.map((x) => `<li>${esc(x.texto)}</li>`).join('')}</ul></div>`
-        : ''
-    }
+  return `<div class="tela-lista tela-config">
+    <div id="cfg-kpis">${kpisConfig(o, k)}</div>
+    <div id="cfg-avisos">${avisosConfig(o)}</div>
     <form data-form="1" onsubmit="return false" style="display:flex;flex-direction:column;gap:var(--e3)">
       ${secoesHtml}
     </form>
@@ -374,10 +385,11 @@ VIEWS['obra-config'] = () => {
   </div>`;
 };
 
-/* Salvamento automático (auditoria): ao sair de um campo alterado, grava
-   — se a configuração estiver válida — sem redesenhar a tela, para não
-   tirar o foco do próximo campo. O botão "Salvar alterações" continua:
-   ele redesenha os KPIs e as incoerências. Com erro, não grava e diz. */
+/* Um modelo só de salvamento: automático. Ao sair de um campo alterado,
+   grava — se a configuração estiver válida — sem redesenhar o formulário,
+   para não tirar o foco do próximo campo; só a faixa de KPIs e o
+   "Confira:" são redesenhados. O estado da gravação aparece no topo
+   ("salvando…", "salvo"). Com erro, não grava, marca o campo e diz. */
 let timerAutoConfig = null;
 document.addEventListener('change', (ev) => {
   if (App.rota.view !== 'obra-config' || Store.somenteLeitura()) return;
@@ -389,7 +401,12 @@ document.addEventListener('change', (ev) => {
     const o = App.obra();
     if (!o) return;
     const erros = apenasErros(validarObra(d));
+    document.querySelectorAll('.tela-config .campo.invalido').forEach((c) => c.classList.remove('invalido'));
     if (erros.length) {
+      erros.forEach((e) => {
+        const campo = document.querySelector(`.tela-config [id="f_${e.campo}"], .tela-config [id="f_fin.${e.campo}"]`);
+        if (campo && campo.closest('.campo')) campo.closest('.campo').classList.add('invalido');
+      });
       toast(`Não salvou: ${erros[0].mensagem}`, 'aviso', 4500);
       return;
     }
@@ -399,11 +416,9 @@ document.addEventListener('change', (ev) => {
         else o[k] = d[k];
       });
     }, { render: false });
+    const kpis = document.getElementById('cfg-kpis');
+    const avisos = document.getElementById('cfg-avisos');
+    if (kpis) kpis.innerHTML = kpisConfig(o, kpisObra(o));
+    if (avisos) avisos.innerHTML = avisosConfig(o);
   }, 350);
 });
-
-VIEWS['obra-config'].toolbar = () => {
-  const o = App.obra();
-  if (!o || Store.somenteLeitura()) return '';
-  return botao('Salvar alterações', 'salvar-obra-config', {}, 'btn primario');
-};

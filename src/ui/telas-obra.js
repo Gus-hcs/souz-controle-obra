@@ -157,7 +157,7 @@ function fraseAncoraHTML(h, { status = '', mostrarObra = false } = {}) {
    carregarAuditoria e este módulo não pode importar telas/auditoria.js —
    ele importa componentes.js, que importa acoes.js, e fecharia um ciclo).
    O resto — formatação e a tela em si — está em telas/auditoria.js. */
-const Auditoria = { chave: '', linhas: null, erro: '', carregando: false };
+const Auditoria = { chave: '', linhas: null, erro: '', carregando: false, pessoas: new Map() };
 
 function carregarAuditoria(chave, forcar = false) {
   if (Auditoria.carregando) return;
@@ -166,6 +166,13 @@ function carregarAuditoria(chave, forcar = false) {
   Auditoria.linhas = null;
   Auditoria.erro = '';
   Auditoria.carregando = true;
+  /* nome de quem mexeu: os e-mails da equipe da obra (membros_da_obra);
+     sem permissão para ler a equipe, fica "outra pessoa" */
+  SUPA.lerMembros(chave)
+    .then((ms) => {
+      Auditoria.pessoas = new Map((ms || []).map((m) => [m.usuario_id, m.email]));
+    })
+    .catch(() => {});
   SUPA.lerAuditoria(chave)
     .then((linhas) => {
       Auditoria.linhas = linhas;
@@ -176,7 +183,8 @@ function carregarAuditoria(chave, forcar = false) {
     .finally(() => {
       Auditoria.carregando = false;
       const o = App.obra();
-      if (App.rota.view === 'auditoria' && o && o.id === chave) App.renderConteudo();
+      /* a trilha também aparece no inspetor de Lançamentos */
+      if (['auditoria', 'lancamentos'].includes(App.rota.view) && o && o.id === chave) App.renderConteudo();
     });
 }
 

@@ -39,59 +39,60 @@ import {
 import { graficoBarras, graficoCurvaS } from '../../graficos/index.js';
 import { App, abrirForm, botao, confirmar, fecharModal, toast } from '../shell.js';
 import { causaHTML, fraseAncoraHTML, implExpandida, VIEWS } from '../telas-obra.js';
-import { fmtIndice, tomNivel } from './componentes.js';
+import { faixaKpis, fmtIndice, tomNivel } from './componentes.js';
 
 /* -------------------------------------------------------------- kpis */
 function kpisPainel(o, k, va) {
-  const item = (rotulo, valor, contexto, tom = '') => `<div class="kpi-item">
-    <span class="kpi-rot">${esc(rotulo)}</span>
-    <span class="kpi-val${tom ? ' ' + tom : ''}">${valor}</span>
-    <span class="kpi-ctx">${contexto}</span>
-  </div>`;
-
   const tomMargem =
     k.margem === null ? '' : k.margem < num(o.fin.margemDesejada) ? 'tom-alerta' : '';
 
-  return `<div class="kpis" role="group" aria-label="Indicadores principais da obra">
-    ${item(
-      'Caixa hoje',
-      fmtMoney(k.saldoCaixa, { dec: 0 }),
-      `recebido ${fmtMoneyCurto(k.recebido)} · pago ${fmtMoneyCurto(k.totalPago)}`,
-      k.saldoCaixa < 0 ? 'atraso' : '',
-    )}
-    ${item(
-      'Resultado projetado',
-      k.resultado === null ? '—' : fmtMoney(k.resultado, { dec: 0 }),
-      k.margem === null
-        ? 'informe o valor de venda'
-        : `margem ${fmtPct(k.margem)} · alvo ${fmtPct(o.fin.margemDesejada)}`,
-      tomMargem,
-    )}
-    ${item(
-      'Avanço físico',
-      fmtPct(k.progressoFisico, 0),
-      va.idp === null
-        ? `orçamento consumido ${fmtPct(k.progressoFinanceiro, 0)}`
-        : `previsto ${fmtPct(va.previsto, 0)} · IDP ${fmtIndice(va.idp)} · IDC ${fmtIndice(va.idc)}`,
-      tomNivel(nivelIndice(va.idp, 'idp')),
-    )}
-    ${item(
-      'Saldo contratual',
-      fmtMoney(k.saldoContratual, { dec: 0 }),
-      `de ${fmtMoneyCurto(k.contratado)} contratados${k.aditivosPendentes ? ` · ${fmtMoneyCurto(k.aditivosPendentes)} em aditivo pendente` : ''}`,
-      k.saldoContratual < 0 ? 'atraso' : '',
-    )}
-    ${item(
-      'Custo físico/m²',
-      o.areaConstruida ? fmtMoney(k.custoFisicoPrevistoM2, { dec: 0 }) : '—',
-      num(o.fin.custoFisicoMaxM2) > 0
-        ? `previsto · teto ${fmtMoney(o.fin.custoFisicoMaxM2, { dec: 0 })}/m²`
-        : 'previsto, sem terreno, taxas e comissão',
-      num(o.fin.custoFisicoMaxM2) > 0 && k.custoFisicoPrevistoM2 > num(o.fin.custoFisicoMaxM2)
-        ? 'tom-alerta'
-        : '',
-    )}
-  </div>`;
+  return faixaKpis(
+    [
+      {
+        rotulo: 'Caixa hoje',
+        valor: fmtMoney(k.saldoCaixa, { dec: 0 }),
+        contexto: `recebido ${fmtMoneyCurto(k.recebido)} · pago ${fmtMoneyCurto(k.totalPago)}`,
+        tom: k.saldoCaixa < 0 ? 'atraso' : '',
+      },
+      {
+        rotulo: 'Resultado projetado',
+        valor: k.resultado === null ? '—' : fmtMoney(k.resultado, { dec: 0 }),
+        contexto:
+          k.margem === null
+            ? 'informe o valor de venda'
+            : `margem ${fmtPct(k.margem)} · alvo ${fmtPct(o.fin.margemDesejada)}`,
+        tom: tomMargem,
+      },
+      {
+        rotulo: 'Avanço físico',
+        valor: fmtPct(k.progressoFisico, 0),
+        contexto:
+          va.idp === null
+            ? `orçamento consumido ${fmtPct(k.progressoFinanceiro, 0)}`
+            : `previsto ${fmtPct(va.previsto, 0)} · IDP ${fmtIndice(va.idp)} · IDC ${fmtIndice(va.idc)}`,
+        tom: tomNivel(nivelIndice(va.idp, 'idp')),
+      },
+      {
+        rotulo: 'Saldo contratual',
+        valor: fmtMoney(k.saldoContratual, { dec: 0 }),
+        contexto: `de ${fmtMoneyCurto(k.contratado)} contratados${k.aditivosPendentes ? ` · ${fmtMoneyCurto(k.aditivosPendentes)} em aditivo pendente` : ''}`,
+        tom: k.saldoContratual < 0 ? 'atraso' : '',
+      },
+      {
+        rotulo: 'Custo físico/m²',
+        valor: o.areaConstruida ? fmtMoney(k.custoFisicoPrevistoM2, { dec: 0 }) : '—',
+        contexto:
+          num(o.fin.custoFisicoMaxM2) > 0
+            ? `previsto · teto ${fmtMoney(o.fin.custoFisicoMaxM2, { dec: 0 })}/m²`
+            : 'previsto, sem terreno, taxas e comissão',
+        tom:
+          num(o.fin.custoFisicoMaxM2) > 0 && k.custoFisicoPrevistoM2 > num(o.fin.custoFisicoMaxM2)
+            ? 'tom-alerta'
+            : '',
+      },
+    ],
+    { rotulo: 'Indicadores principais da obra' },
+  );
 }
 
 /* ------------------------------------------------------ implantação */
