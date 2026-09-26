@@ -266,6 +266,11 @@ const ordens = new Map(); // id da lista -> { col, dir }
 /* linhaAttrs(item): atributos extras da <tr> (ex.: data-acao para
    selecionar a linha e abrir o inspetor). tabelaClasse: classe a mais na
    <table>, para ajustes de uma tela só. */
+/* grupos: { de(item) → chave, cabecalho(chave, itens) → html, ordem(a, b) }
+   — agrupa as linhas (Lançamentos por mês): cada grupo com uma linha de
+   cabeçalho recolhível; a ordem da coluna vale dentro do grupo. */
+const recolhidos = new Set(); // `${lista}:${grupo}`
+
 function lista({
   id,
   colunas,
@@ -276,6 +281,7 @@ function lista({
   linhaClasse,
   linhaAttrs,
   tabelaClasse,
+  grupos,
 }) {
   const ordem = ordens.get(id) || ordemPadrao || { col: colunas[0].k, dir: 1 };
   const col = colunas.find((c) => c.k === ordem.col && c.valor);
@@ -335,18 +341,36 @@ function lista({
       .join('');
   };
 
-  const corpo = ordenados.length
-    ? ordenados
-        .map(
-          (it) =>
-            `<tr${linhaClasse ? ` class="${linhaClasse(it) || ''}"` : ''}${linhaAttrs ? ' ' + linhaAttrs(it) : ''}>${linha(
-              (c) => c.celula(it),
-              (c) => classeTd(c),
-            )}</tr>`,
-        )
-        .join('')
-    : `<tr><td colspan="${colunas.length}" class="tinta2" style="text-align:center;height:56px">
+  const linhaHTML = (it) =>
+    `<tr${linhaClasse ? ` class="${linhaClasse(it) || ''}"` : ''}${linhaAttrs ? ' ' + linhaAttrs(it) : ''}>${linha(
+      (c) => c.celula(it),
+      (c) => classeTd(c),
+    )}</tr>`;
+  let corpo;
+  if (!ordenados.length) {
+    corpo = `<tr><td colspan="${colunas.length}" class="tinta2" style="text-align:center;height:56px">
          Nada com esse filtro.</td></tr>`;
+  } else if (grupos) {
+    const mapa = new Map();
+    ordenados.forEach((it) => {
+      const k = grupos.de(it);
+      if (!mapa.has(k)) mapa.set(k, []);
+      mapa.get(k).push(it);
+    });
+    corpo = [...mapa.keys()]
+      .sort(grupos.ordem || ((a, b) => String(b).localeCompare(String(a))))
+      .map((k) => {
+        const chave = `${id}:${k}`;
+        const aberto = !recolhidos.has(chave);
+        return `<tr class="grupo-linha"><td colspan="${colunas.length}">
+            <button type="button" class="grupo-botao" data-acao="lista-grupo" data-chave="${esc(chave)}"
+              aria-expanded="${aberto}">${grupos.cabecalho(k, mapa.get(k))}</button></td></tr>
+          ${aberto ? mapa.get(k).map(linhaHTML).join('') : ''}`;
+      })
+      .join('');
+  } else {
+    corpo = ordenados.map(linhaHTML).join('');
+  }
 
   const temTotal = colunas.some((c) => c.total);
   const rodape =
@@ -382,6 +406,12 @@ ACOES['lista-ordenar'] = (el, d) => {
   const atual = ordens.get(d.lista);
   if (atual && atual.col === d.col) ordens.set(d.lista, { col: d.col, dir: -atual.dir });
   else ordens.set(d.lista, { col: d.col, dir: d.num === '1' ? -1 : 1 });
+  App.renderConteudo();
+};
+
+ACOES['lista-grupo'] = (el, d) => {
+  if (recolhidos.has(d.chave)) recolhidos.delete(d.chave);
+  else recolhidos.add(d.chave);
   App.renderConteudo();
 };
 

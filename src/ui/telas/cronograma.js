@@ -21,16 +21,20 @@ import {
 } from '../../nucleo/base.js';
 import {
   agendaCronograma,
+  agendaObra,
   etapaCalc,
   kpisObra,
   nivelIndice,
   prazoObra,
+  responsaveisCronograma,
   temDependencias,
   valorAgregadoObra,
 } from '../../dominio/calculos.js';
 import { graficoGantt } from '../../graficos/index.js';
+import { linkWhatsApp } from '../../nucleo/contato.js';
+import { Store } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
-import { App, botao } from '../shell.js';
+import { App, botao, ICO, svg } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
 import {
   acoesRegistro,
@@ -40,7 +44,6 @@ import {
   fmtIndice,
   faixaKpis,
   lista,
-  secao,
   tomNivel,
   vazioTela,
 } from './componentes.js';
@@ -130,6 +133,69 @@ ACOES['ir-diario-etapa'] = (el, d) => {
   App.filtros = { etapa: d.etapa };
   App.renderConteudo();
 };
+
+/* ------------------------------------------------ painel da linha do tempo
+   Ao lado do Gantt (≥ 1440px), abaixo dele no tablet: o que acontece nos
+   próximos 14 dias (agendaObra) e com quem cobrar (responsaveisCronograma). */
+const TIPO_AGENDA = {
+  'etapa-inicio': 'Etapa',
+  'etapa-fim': 'Etapa',
+  material: 'Material',
+  medicao: 'Medição',
+};
+
+function blocoProximos(o) {
+  const itens = agendaObra(o, hojeISO(), 14);
+  const corpo = itens.length
+    ? `<ul class="agenda-lista">${itens
+        .map(
+          (a) => `<li>
+            <span class="agenda-data">${esc(fmtDataCurta(a.data))}</span>
+            <span class="agenda-txt"><b>${esc(a.texto)}</b>${a.quem ? `<span class="tinta2">${esc(a.quem)}</span>` : ''}</span>
+            <span class="agenda-tipo tinta3">${esc(TIPO_AGENDA[a.tipo] || '')}</span>
+          </li>`,
+        )
+        .join('')}</ul>`
+    : '<p class="tinta2 painel-vazio">Nada previsto nos próximos 14 dias.</p>';
+  return `<section class="analise-bloco crono-bloco" aria-label="Próximos 14 dias">
+    <div class="analise-cab"><h2>Próximos 14 dias</h2><span class="tinta3">${itens.length || ''}</span></div>
+    <div class="analise-corpo">${corpo}</div>
+  </section>`;
+}
+
+function blocoResponsaveis(o) {
+  const grupos = responsaveisCronograma(o, Store.estado.prestadores, hojeISO());
+  const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+  const corpo = grupos.length
+    ? `<ul class="resp-lista">${grupos
+        .map((g) => {
+          const partes = [
+            g.emAndamento ? `${g.emAndamento} em andamento` : '',
+            g.atrasadas
+              ? `<span class="atraso">${plural(g.atrasadas, 'atrasada', 'atrasadas')} · até ${plural(g.maiorAtraso, 'dia', 'dias')}</span>`
+              : 'em dia',
+          ].filter(Boolean);
+          const zap = g.prestador && g.prestador.whatsapp && g.prestador.temWhatsapp !== false;
+          const texto = `Olá, ${g.nome.split(' ')[0]}! Sobre a obra ${o.nome}: ${
+            g.atrasadas ? 'precisamos alinhar o que está atrasado' : 'como está o andamento'
+          } (${g.etapas.join(', ')}).`;
+          return `<li>
+            <span class="resp-txt"><b>${esc(g.nome)}</b><span class="tinta2">${partes.join(' · ')}</span></span>
+            ${
+              zap
+                ? `<a class="btn sutil pequeno" href="${esc(linkWhatsApp(g.prestador.whatsapp, texto))}" target="_blank"
+                    rel="noopener" data-acao="abrir-externo" title="${esc(texto)}" aria-label="WhatsApp para ${esc(g.nome)}">${svg(ICO.whatsapp, 13)}WhatsApp</a>`
+                : '<span class="tinta3 resp-sem">sem WhatsApp</span>'
+            }
+          </li>`;
+        })
+        .join('')}</ul>`
+    : '<p class="tinta2 painel-vazio">Nenhuma etapa aberta com responsável.</p>';
+  return `<section class="analise-bloco crono-bloco" aria-label="Por responsável">
+    <div class="analise-cab"><h2>Por responsável</h2></div>
+    <div class="analise-corpo">${corpo}</div>
+  </section>`;
+}
 
 /* -------------------------------------------------------------- tabela */
 function celulaEtapa(e, nomes) {
@@ -308,7 +374,16 @@ VIEWS.cronograma = () => {
 
   return `<div class="tela-lista">
     ${kpisCronograma(o)}
-    ${secao('Linha do tempo', graficoGantt(o))}
+    <div class="crono-topo">
+      <section class="analise-bloco crono-linha" aria-label="Linha do tempo">
+        <div class="analise-cab"><h2>Linha do tempo</h2></div>
+        <div class="analise-corpo">${graficoGantt(o)}</div>
+      </section>
+      <div class="crono-painel"><div class="crono-painel-in">
+        ${blocoProximos(o)}
+        ${blocoResponsaveis(o)}
+      </div></div>
+    </div>
     ${barra}
     ${lista({
       id: 'cronograma',

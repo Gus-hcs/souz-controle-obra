@@ -176,7 +176,8 @@ function carregarAuditoria(chave, forcar = false) {
     .finally(() => {
       Auditoria.carregando = false;
       const o = App.obra();
-      if (App.rota.view === 'auditoria' && o && o.id === chave) App.renderConteudo();
+      /* a trilha também aparece no inspetor de Lançamentos */
+      if (['auditoria', 'lancamentos'].includes(App.rota.view) && o && o.id === chave) App.renderConteudo();
     });
 }
 

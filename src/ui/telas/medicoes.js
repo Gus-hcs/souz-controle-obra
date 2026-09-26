@@ -21,7 +21,6 @@ import {
   isISO,
   norm,
   num,
-  round2,
 } from '../../nucleo/base.js';
 import {
   medicaoAPagar,
@@ -31,6 +30,7 @@ import {
   medicoesComPendencia,
   medicoesEmAberto,
   medidoFisicoContrato,
+  resumoMedicoes,
 } from '../../dominio/calculos.js';
 import { graficoBarras } from '../../graficos/index.js';
 import { ACOES } from '../acoes.js';
@@ -118,6 +118,27 @@ ACOES['med-kpi'] = (el, d) => {
   App.renderConteudo();
 };
 
+/* Medido × físico: duas barras por contrato — o que foi medido e o físico
+   das etapas dele. Medido mais de 5 p.p. à frente fica em destaque, com o
+   valor adiantado. */
+function blocoMedidoFisico(linhas) {
+  if (!linhas.length) {
+    return '<p class="tinta2 painel-vazio">Sem contrato com etapas ou físico para comparar.</p>';
+  }
+  const barra = (v, classe) =>
+    `<span class="mf-trilha"><i class="${classe}" style="width:${(Math.max(0, Math.min(1, v)) * 100).toFixed(1)}%"></i></span>`;
+  return `<ul class="mf-lista">${linhas
+    .map(
+      (l) => `<li class="${l.alerta ? 'mf-alerta' : ''}">
+        <div class="mf-cab"><b>${esc(l.base)}</b><span class="tinta2">${esc(l.prestador || '')}</span>
+          <span class="mf-dif ${l.alerta ? 'atraso' : 'tinta2'}">${l.alerta ? `medido ${Math.round(l.diferenca * 100)} p.p. à frente · ${fmtMoney(l.adiantado, { dec: 0 })} adiantados` : l.diferenca < -0.05 ? 'físico à frente' : 'em linha'}</span></div>
+        <div class="mf-linha"><span class="tinta2">Medido</span>${barra(l.medido, 'mf-medido')}<span class="num">${fmtPct(l.medido, 0)}</span></div>
+        <div class="mf-linha"><span class="tinta2">Físico${l.pelaObra ? ' da obra' : ''}</span>${barra(l.fisico, 'mf-fisico')}<span class="num">${fmtPct(l.fisico, 0)}</span></div>
+      </li>`,
+    )
+    .join('')}</ul>`;
+}
+
 VIEWS.medicoes = () => {
   const o = App.obra();
   const f = App.filtros;
@@ -142,9 +163,10 @@ VIEWS.medicoes = () => {
   }
 
   /* -------------------------------------------------------- totais */
+  const rm = resumoMedicoes(o);
   const ativas = o.medicoes.filter((m) => m.status !== 'Cancelado');
-  const totMed = ativas.reduce((s, m) => s + medicaoLiquido(m), 0);
-  const totPago = ativas.reduce((s, m) => s + num(m.valorPago), 0);
+  const totMed = rm.medido;
+  const totPago = rm.pago;
   const aberto = medicoesEmAberto(o);
   /* Mesma regra do menu e da tela de Alertas (pendenciasObra): conta também
      a medição em aberto há muito tempo, não só o erro de valor. */
@@ -313,14 +335,10 @@ VIEWS.medicoes = () => {
   ];
 
   /* ------------------------------------------------ a pagar por contrato */
-  const porContrato = bases
-    .map((base) => ({
-      rotulo: `${base} · ${prestadorDe(base) || '—'}`,
-      valor: round2(
-        ativas.filter((m) => m.contratoBase === base).reduce((s, m) => s + medicaoAPagar(o, m), 0),
-      ),
-    }))
-    .filter((x) => x.valor > 0.005);
+  const porContrato = rm.aPagarPorContrato.map((x) => ({
+    rotulo: `${x.base} · ${x.prestador || '—'}`,
+    valor: x.valor,
+  }));
 
   return `<div class="tela-lista">
     ${kpisMedicoes(ativas, totMed, totPago, aberto, comAlerta)}
@@ -379,10 +397,14 @@ VIEWS.medicoes = () => {
     ${painelAnalise([
       {
         titulo: 'A pagar por contrato',
-        conteudo:
-          porContrato.length > 1
-            ? graficoBarras(porContrato, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--serie2)' })
-            : '',
+        conteudo: porContrato.length
+          ? graficoBarras(porContrato, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--serie2)' })
+          : '<p class="tinta2 painel-vazio">Nada a pagar.</p>',
+      },
+      {
+        titulo: 'Medido × físico por contrato',
+        nota: 'medido à frente do físico = pagou serviço ainda não feito',
+        conteudo: blocoMedidoFisico(rm.medidoFisico),
       },
     ])}
   </div>`;

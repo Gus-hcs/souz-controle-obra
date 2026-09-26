@@ -94,12 +94,14 @@ for (const v of LISTAS.filter((x) => telas.includes(x))) {
     const borda = inspetor ? inspetor.getBoundingClientRect().left : r.right - parseFloat(cs.paddingRight);
     /* só o que tem conteúdo: o contêiner de layout (.tela-principal) ocupa
        tudo sempre e esconderia uma tabela limitada lá dentro */
-    const pecas = [...c.querySelectorAll('table, .kpis, .tela-lista, form, .caixa, .cartao')]
+    /* a prévia do relatório é a folha A4 centrada num painel que vai até a
+       borda: mede o painel, não a folha */
+    const pecas = [...c.querySelectorAll('table, .kpis, .tela-lista, form, .caixa, .cartao, .analise-bloco, .rel-previa')]
       .filter((e) => !inspetor || !inspetor.contains(e))
       .map((e) => e.getBoundingClientRect())
       .filter((b) => b.width > 0);
     const direita = Math.max(...pecas.map((b) => b.right));
-    const vazia = !c.querySelector('table, .kpis, form, .caixa, .cartao') && !!c.querySelector('.vazio');
+    const vazia = !c.querySelector('table, .kpis, form, .caixa, .cartao, .rel-previa') && !!c.querySelector('.vazio');
     return { vazia, faixa: Math.round(borda - direita) };
   });
   if (m.vazia) {

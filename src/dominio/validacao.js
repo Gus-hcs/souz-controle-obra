@@ -23,6 +23,8 @@
 import {
   CONDICOES_PAGAMENTO,
   FORMAS_PRECO,
+  PADROES_ACABAMENTO,
+  TIPOS_RELATORIO,
   isISO,
   num,
   PAPEIS_OBRA,
@@ -102,6 +104,16 @@ function validarObra(o) {
   }
 
   ordemDatas(o, 'dataInicio', 'previsaoConclusao', 'Prazo da obra', out);
+
+  /* CREA/CAU do RT da obra (0020) — CHECK chk_obra_crea */
+  if (String(o.creaCau || '').length > 40) {
+    out.push(problema('creaCau', 'O CREA/CAU tem no máximo 40 caracteres.'));
+  }
+
+  /* padrão de acabamento (0020): econômico, médio ou alto — CHECK chk_obra_padrao */
+  if (o.padrao && !PADROES_ACABAMENTO.includes(o.padrao)) {
+    out.push(problema('padrao', 'Padrão de acabamento é Econômico, Médio ou Alto (MCMV é programa, não padrão).'));
+  }
 
   /* financiador (0016): nome livre, curto — CHECK chk_obra_financiador */
   if (String(campoFin(o, 'financiador') || '').length > 80) {
@@ -229,6 +241,25 @@ function validarRecebimento(r) {
   if (num(r.valorAprovado) > 0 && num(r.descontos) > num(r.valorAprovado)) {
     out.push(problema('descontos', 'Os descontos passam do valor aprovado.', 'alerta'));
   }
+  /* comprovante do crédito (0020) — CHECK chk_receb_comprovante */
+  validarAnexo(r.comprovante, 'comprovante', 'O comprovante', out);
+  return out;
+}
+
+/* ------------------------------------------------- RELATÓRIO GERADO */
+/* Espelha chk_rel_tipo, chk_rel_opcoes, chk_rel_arquivo e chk_rel_obs (0020). */
+function validarRelatorioGerado(r) {
+  const out = [];
+  if (!TIPOS_RELATORIO.includes(r.tipo)) out.push(problema('tipo', 'Tipo de relatório desconhecido.'));
+  if (!r.opcoes || typeof r.opcoes !== 'object' || Array.isArray(r.opcoes)) {
+    out.push(problema('opcoes', 'As opções do relatório estão num formato inválido.'));
+  } else if (String(r.opcoes.observacao || '').length > 600) {
+    out.push(problema('observacao', 'A observação para o cliente tem no máximo 600 caracteres.'));
+  }
+  const arq = String(r.arquivo || '');
+  if (arq && !(ANEXO_STORAGE.test(arq) && arq.length <= 300)) {
+    out.push(problema('arquivo', 'O arquivo do relatório precisa estar no armazenamento da obra.'));
+  }
   return out;
 }
 
@@ -244,12 +275,25 @@ function validarLancamento(l) {
     ['desconto', 'Desconto'],
     ['frete', 'Frete / acréscimo'],
   ], (k) => l[k], out);
-  /* foto da NF (0019) — espelha o CHECK chk_lanc_anexo_nf */
-  const nf = String(l.anexoNf || '');
-  if (nf && (!/^data:image\//.test(nf) || nf.length > 1500000)) {
-    out.push(problema('anexoNf', 'A foto da nota precisa ser uma imagem de até 1,5 MB.'));
-  }
+  /* nota fiscal (0019/0020) — espelha o CHECK chk_lanc_anexo_nf */
+  validarAnexo(l.anexoNf, 'anexoNf', 'A nota fiscal', out);
   return out;
+}
+
+/* Anexo (0020): vazio, foto ou PDF guardado no registro (data URI de até
+   1,5 MB) ou referência ao Storage ("storage:<obra>/<pasta>/<arquivo>").
+   Espelha os CHECKs chk_lanc_anexo_nf e chk_receb_comprovante. */
+const ANEXO_STORAGE = /^storage:[A-Za-z0-9_-]+\/(lancamentos|recebimentos|relatorios)\/[A-Za-z0-9._-]+$/;
+function anexoValido(ref) {
+  const s = String(ref || '');
+  if (!s) return true;
+  if (ANEXO_STORAGE.test(s)) return s.length <= 300;
+  return /^data:(image\/|application\/pdf)/.test(s) && s.length <= 1500000;
+}
+function validarAnexo(ref, campo, rotulo, out) {
+  if (!anexoValido(ref)) {
+    out.push(problema(campo, `${rotulo} precisa ser uma foto ou um PDF de até 1,5 MB.`));
+  }
 }
 
 /* -------------------------------------------------------- MATERIAL */
@@ -685,6 +729,8 @@ const apenasErros = (lista) => (lista || []).filter((x) => x.sev === 'erro');
 const apenasAlertas = (lista) => (lista || []).filter((x) => x.sev === 'alerta');
 
 export {
+  validarRelatorioGerado,
+  anexoValido,
   validarObra,
   validarContrato,
   validarMedicao,

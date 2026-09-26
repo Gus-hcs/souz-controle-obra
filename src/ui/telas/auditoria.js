@@ -77,6 +77,37 @@ function audDataHora(iso) {
 
 const chaveRegistro = (l) => `${l.tabela}:${l.registro_id}`;
 
+/* Histórico de UM registro, para o inspetor de outra tela (Lançamentos):
+   quem mudou o quê, de quanto para quanto, mais recente primeiro. */
+function historicoDoRegistro(o, tabela, id) {
+  if (Store.backend !== 'supabase') {
+    return '<p class="linha-cinza">A trilha de alterações aparece quando você entra com a sua conta.</p>';
+  }
+  carregarAuditoria(o.id);
+  if (Auditoria.carregando && !Auditoria.linhas) return '<p class="linha-cinza">Carregando…</p>';
+  if (Auditoria.erro) return '<p class="linha-cinza">Trilha indisponível.</p>';
+  const linhas = (Auditoria.linhas || []).filter((l) => l.tabela === tabela && l.registro_id === id);
+  if (!linhas.length) return '<p class="linha-cinza">Nenhuma alteração de valor registrada.</p>';
+  return `<ul class="hist-lista">${linhas
+    .slice(0, 12)
+    .map((l) => {
+      const [nome, tipo] = AUD_CAMPOS[l.campo] || [l.campo, 'numero'];
+      return `<li><span class="tinta2">${audDataHora(l.criado_em)} · ${audQuem(l.usuario_id)}</span>
+        <span>${esc(OP_TEXTO[l.operacao] || '')}${l.operacao === 'UPDATE' ? ` ${esc(nome.toLowerCase())}` : ''}: ${transicaoHTML(l, tipo)}</span></li>`;
+    })
+    .join('')}</ul>`;
+}
+
+/* "— → R$ 7.900,00" na criação; "R$ 7.900 → R$ 8.100" na alteração, com
+   o antigo riscado em cinza; o valor que saiu, riscado, na exclusão. */
+function transicaoHTML(l, tipo) {
+  const antes = audValor(l.valor_antes, tipo);
+  const depois = audValor(l.valor_depois, tipo);
+  if (l.operacao === 'INSERT') return `<span class="tinta3">—</span> → <b>${depois}</b>`;
+  if (l.operacao === 'DELETE') return `<s class="tinta3">${antes}</s> → <span class="tinta3">—</span>`;
+  return `<s class="tinta3">${antes}</s> → <b>${depois}</b>`;
+}
+
 ACOES['aud-registro'] = (el, d) => {
   App.filtros.audRegistro = App.filtros.audRegistro === d.chave ? '' : d.chave;
   App.renderConteudo();
@@ -322,3 +353,5 @@ VIEWS.auditoria.toolbar = () => {
   return `${buscaToolbar('Buscar registro ou pessoa…', 'busca-auditoria')}
     ${botao('Atualizar', 'recarregar-auditoria', {}, 'btn sutil pequeno')}`;
 };
+
+export { historicoDoRegistro };

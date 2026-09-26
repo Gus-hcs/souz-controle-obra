@@ -259,9 +259,33 @@ function renderFluxo(dados, altura = 280) {
    sob o cursor (ver desenharGraficosPendentes). Fase 3: quando o diário
    tem fotos citando a etapa (mesmo texto em d.etapa), a linha ganha um
    selo com a contagem — clicar leva ao Diário já filtrado pela etapa. */
+/* A escala de meses se ajusta à largura disponível: a linha do tempo tem
+   a largura da área que sobra ao lado dos nomes, sem faixa vazia à
+   direita. A largura medida fica guardada (larguraGantt) para o próximo
+   desenho já nascer certo; o ResizeObserver do shell chama ajustarGantt
+   quando a área muda. Abaixo de GANTT_MIN a linha do tempo rola de lado. */
+const GANTT_ROTULOS = 168;
+const GANTT_MIN = 420;
+let larguraGantt = 760;
+
 function graficoGantt(obra) {
   const etapas = obra.cronograma.filter((e) => isISO(e.inicioPrevisto) || isISO(e.inicioReal));
   if (!etapas.length) return vazio('Cronograma sem datas', 'Informe início e fim previstos das etapas.');
+  return `<div class="gantt" data-gantt="${esc(obra.id)}" data-largura="${larguraGantt}">${ganttInterno(obra, larguraGantt)}</div>`;
+}
+
+/* Redesenha o Gantt se a área mudou de largura. Devolve true se redesenhou. */
+function ajustarGantt(cx, obra) {
+  const w = Math.max(GANTT_MIN, Math.floor(cx.clientWidth - GANTT_ROTULOS));
+  if (!obra || !cx.clientWidth || Math.abs(w - Number(cx.dataset.largura)) < 6) return false;
+  larguraGantt = w;
+  cx.dataset.largura = String(w);
+  cx.innerHTML = ganttInterno(obra, w);
+  return true;
+}
+
+function ganttInterno(obra, largura) {
+  const etapas = obra.cronograma.filter((e) => isISO(e.inicioPrevisto) || isISO(e.inicioReal));
   const datas = [];
   etapas.forEach((e) => ['inicioPrevisto', 'fimPrevisto', 'inicioReal', 'fimReal'].forEach((k) => { if (isISO(e[k])) datas.push(e[k]); }));
   datas.push(hojeISO());
@@ -272,7 +296,7 @@ function graficoGantt(obra) {
      fica fixa fora do .tab-rolagem, só a linha do tempo rola. Antes as
      duas viviam na mesma <svg> e rolar para ver setembro fazia o nome da
      etapa sumir pela esquerda junto — no celular isso quebrava a leitura. */
-  const ml = 168, WT = 760, mr = 14, linhaH = 28, mt = 26;
+  const ml = GANTT_ROTULOS, WT = Math.max(GANTT_MIN, largura), mr = 14, linhaH = 28, mt = 26;
   const H = mt + etapas.length * linhaH + 12;
   const x0 = 0, x1 = WT - mr;
   const px = (d) => x0 + (diasEntre(ini, d) / span) * (x1 - x0);
@@ -290,7 +314,7 @@ function graficoGantt(obra) {
     const d = inicioDoMes(m);
     if (d < ini) return '';
     return `<line class="grade-l" x1="${px(d).toFixed(1)}" y1="${mt - 8}" x2="${px(d).toFixed(1)}" y2="${H - 6}"/>
-            <text x="${px(d).toFixed(1)}" y="${mt - 12}" text-anchor="middle">${fmtCompetencia(m)}</text>`;
+            <text x="${px(d).toFixed(1)}" y="${mt - 12}" text-anchor="${px(d) < 22 ? 'start' : px(d) > x1 - 22 ? 'end' : 'middle'}">${fmtCompetencia(m)}</text>`;
   }).join('');
 
   const tooltips = [];
@@ -389,6 +413,218 @@ function graficoGantt(obra) {
     </div>`;
 }
 
+/* =============================================== GRÁFICOS DE APOIO
+   Os quatro gráficos dos painéis de análise (Recebimentos, Fluxo): linhas
+   no tempo, colunas verticais, rosca e saldo projetado. SVG próprio, cores
+   dos tokens, tooltip no hover e no toque (desenharGraficosPendentes), sem
+   animação — nada a desligar para prefers-reduced-motion. */
+/* Gráfico na largura do bloco: desenha com uma largura provável e o
+   ResizeObserver do shell (ajustarGraficosAuto) redesenha com a largura
+   medida — o texto fica sempre do mesmo tamanho, em vez de o SVG inteiro
+   crescer ou encolher com a tela. fn(largura) → html. */
+const AUTO = new Map();
+let seqAuto = 0;
+function graficoAuto(fn, larguraPadrao = 560) {
+  const id = 'ga' + (++seqAuto);
+  AUTO.set(id, fn);
+  return `<div class="grafico-auto" data-auto="${id}" data-largura="${larguraPadrao}">${fn(larguraPadrao)}</div>`;
+}
+function limparGraficosAuto() {
+  AUTO.clear();
+}
+/* Redesenha os que mudaram de largura; devolve quantos redesenhou. */
+function ajustarGraficosAuto(raiz = document) {
+  let n = 0;
+  raiz.querySelectorAll('[data-auto]').forEach((el) => {
+    const fn = AUTO.get(el.dataset.auto);
+    const w = Math.floor(el.clientWidth);
+    if (!fn || w < 120 || Math.abs(w - Number(el.dataset.largura)) < 8) return;
+    el.dataset.largura = String(w);
+    el.innerHTML = fn(w);
+    n++;
+  });
+  return n;
+}
+
+const semDados = (txt = 'Sem dados para exibir.') => `<p class="tinta2 painel-vazio">${esc(txt)}</p>`;
+const eixoY = (tk, x0, x1, py, formata) => tk.map((v) =>
+  `<line class="grade-l" x1="${x0}" y1="${py(v).toFixed(1)}" x2="${x1}" y2="${py(v).toFixed(1)}"/>
+   <text x="${x0 - 6}" y="${(py(v) + 3.5).toFixed(1)}" text-anchor="end">${esc(formata(v))}</text>`).join('');
+const legendaHTML = (itens) => `<div class="legenda" style="margin-bottom:8px">${itens
+  .map(([nome, cor, tracejada]) => `<span style="color:var(--tinta2)"><i style="background:${cor}${tracejada ? ';opacity:.6' : ''}"></i>${esc(nome)}</span>`)
+  .join('')}</div>`;
+const caixaGrafico = (id, W, H, rotulo, miolo, cursor = true, y1 = 0, y0 = H) => `
+  <div class="grafico-cx" data-grafico="${id}" style="position:relative">
+    <svg class="grafico" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(rotulo)}">
+      ${miolo}
+      ${cursor ? `<line class="cursor" x1="0" y1="${y1}" x2="0" y2="${y0}" stroke="var(--linha-forte)" stroke-width="1" style="display:none"/>` : ''}
+    </svg>
+    <div class="tt" style="display:none"></div>
+  </div>`;
+
+/* Linhas no tempo. rotulos: ['2026-03', …]; series: [{ nome, cor, valores,
+   tracejada }] (null = sem valor naquele mês); hoje: 'AAAA-MM-DD'. */
+function graficoLinhas({ rotulos, series, formata = (v) => fmtMoneyCurto(v), hoje = hojeISO(), altura = 220, largura = 560, rotulo = 'Gráfico de linhas' }) {
+  const n = rotulos.length;
+  if (n < 2) return semDados('Poucos meses para desenhar a linha.');
+  const W = largura, H = altura, ml = 66, mr = 12, mt = 12, mb = 28;
+  const x0 = ml, x1 = W - mr, y0 = H - mb, y1 = mt;
+  const todos = series.flatMap((s) => s.valores.filter((v) => v !== null && v !== undefined));
+  const tk = ticks(Math.min(0, ...todos), Math.max(1, ...todos), 4);
+  const lo = tk[0], hi = tk[tk.length - 1];
+  const px = (i) => x0 + (i * (x1 - x0)) / (n - 1);
+  const py = (v) => y0 - ((v - lo) / (hi - lo || 1)) * (y0 - y1);
+  const linhas = series.map((s) => {
+    const pts = s.valores.map((v, i) => (v === null || v === undefined ? null : [px(i), py(v)])).filter(Boolean);
+    if (!pts.length) return '';
+    const [fx, fy] = pts[pts.length - 1];
+    return `<path d="${caminho(pts)}" fill="none" stroke="${s.cor}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"${s.tracejada ? ' stroke-dasharray="6 4"' : ''}/>
+      <circle cx="${fx.toFixed(1)}" cy="${fy.toFixed(1)}" r="3.5" fill="${s.cor}" stroke="var(--sup)" stroke-width="1.5"/>`;
+  }).join('');
+  const iHoje = rotulos.indexOf(competencia(hoje));
+  let marca = '';
+  if (iHoje >= 0) {
+    const ym = rotulos[iHoje];
+    const fr = (diasEntre(inicioDoMes(ym), hoje) + 1) / (diasEntre(inicioDoMes(ym), fimDoMes(ym)) + 1);
+    const xh = Math.min(x1, px(iHoje) + fr * ((x1 - x0) / (n - 1)));
+    marca = `<line x1="${xh.toFixed(1)}" y1="${y1}" x2="${xh.toFixed(1)}" y2="${y0}" stroke="var(--critico)" stroke-width="1.2" stroke-dasharray="4 3"/>
+      <text x="${xh.toFixed(1)}" y="${y1 + 9}" text-anchor="middle" style="fill:var(--critico)">hoje</text>`;
+  }
+  const passo = Math.max(1, Math.ceil(n / Math.max(3, Math.floor(W / 70))));
+  const eixoX = rotulos.map((ym, i) => (i % passo === 0 || i === n - 1)
+    ? `<text x="${px(i).toFixed(1)}" y="${y0 + 16}" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}">${fmtCompetencia(ym)}</text>` : '').join('');
+  const id = 'gr' + (++seqGrafico);
+  GRAFICOS[id] = {
+    x0, x1, n, W,
+    linhas: rotulos.map((ym, i) => [`<b>${fmtCompetencia(ym)}</b>`, ...series.map((s) =>
+      s.valores[i] === null || s.valores[i] === undefined ? null : `${esc(s.nome)}: ${esc(formata(s.valores[i]))}`)]
+      .filter(Boolean).join('<br>')),
+  };
+  return legendaHTML(series.map((s) => [s.nome, s.cor, s.tracejada])) + caixaGrafico(id, W, H, rotulo,
+    `${eixoY(tk, x0, x1, py, formata)}${linhas}${marca}<line class="eixo" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y0}"/>${eixoX}`,
+    true, y1, y0);
+}
+
+/* Colunas verticais: itens [{ rotulo, valor, cor?, dica? }], na ordem dada. */
+function graficoColunas(itens, { formata = (v) => fmtMoneyCurto(v), cor = 'var(--serie1)', altura = 220, largura = 560, rotulo = 'Gráfico de colunas' } = {}) {
+  const lista = itens.filter((i) => Math.abs(num(i.valor)) > 0.005);
+  if (!lista.length) return semDados();
+  const n = lista.length;
+  const W = largura, H = altura, ml = 66, mr = 12, mt = 16, mb = 28;
+  const x0 = ml, x1 = W - mr, y0 = H - mb, y1 = mt;
+  const tk = ticks(0, Math.max(1, ...lista.map((i) => i.valor)), 4);
+  const hi = tk[tk.length - 1];
+  const py = (v) => y0 - (v / (hi || 1)) * (y0 - y1);
+  const larg = (x1 - x0) / n;
+  const lb = Math.min(56, larg * 0.62);
+  const colunas = lista.map((it, i) => {
+    const cx = x0 + larg * (i + 0.5);
+    const y = py(it.valor);
+    return `<rect x="${(cx - lb / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${lb.toFixed(1)}" height="${Math.max(1, y0 - y).toFixed(1)}" rx="2" fill="${it.cor || cor}"/>
+      ${n <= 8 ? `<text x="${cx.toFixed(1)}" y="${(y - 5).toFixed(1)}" text-anchor="middle" style="font-weight:600">${esc(formata(it.valor))}</text>` : ''}`;
+  }).join('');
+  const passo = Math.max(1, Math.ceil(n / 8));
+  const eixoX = lista.map((it, i) => (i % passo === 0 || i === n - 1)
+    ? `<text x="${(x0 + larg * (i + 0.5)).toFixed(1)}" y="${y0 + 16}" text-anchor="middle">${esc(it.rotulo)}</text>` : '').join('');
+  const id = 'gr' + (++seqGrafico);
+  GRAFICOS[id] = { modo: 'colunas', x0, x1, n, W, linhas: lista.map((it) => `<b>${esc(it.rotulo)}</b><br>${esc(formata(it.valor))}${it.dica ? `<br>${esc(it.dica)}` : ''}`) };
+  return caixaGrafico(id, W, H, rotulo,
+    `${eixoY(tk, x0, x1, py, formata)}${colunas}<line class="eixo" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y0}"/>${eixoX}`,
+    true, y1, y0);
+}
+
+/* Rosca: no máximo `max` fatias + "Outros", o total no centro e a legenda
+   com valor e %. fatias: [{ rotulo, valor, cor? }]. */
+const CORES_FATIA = ['var(--serie1)', 'var(--serie2)', 'var(--serie3)', 'var(--serie4)', 'var(--serie5)', 'var(--serie6)'];
+function fatiasRosca(itens, max = 5) {
+  const pos = itens.filter((i) => num(i.valor) > 0.005).sort((a, b) => b.valor - a.valor);
+  if (pos.length <= max + 1) return pos;
+  const resto = pos.slice(max).reduce((s, i) => s + i.valor, 0);
+  return [...pos.slice(0, max), { rotulo: 'Outros', valor: round2(resto), cor: 'var(--serie6)' }];
+}
+function graficoRosca(itens, { formata = (v) => fmtMoneyCurto(v), centro = 'total', max = 5, rotulo = 'Gráfico de rosca' } = {}) {
+  const fatias = fatiasRosca(itens, max);
+  if (!fatias.length) return semDados();
+  const total = fatias.reduce((s, f) => s + f.valor, 0);
+  const S = 160, c = S / 2, rExt = 74, rInt = 50;
+  let ang = -Math.PI / 2;
+  const ponto = (r, a) => `${(c + r * Math.cos(a)).toFixed(2)} ${(c + r * Math.sin(a)).toFixed(2)}`;
+  const arcos = fatias.map((f, i) => {
+    const cor = f.cor || CORES_FATIA[i % CORES_FATIA.length];
+    const frac = f.valor / total;
+    if (frac >= 0.9999) {
+      return `<circle cx="${c}" cy="${c}" r="${(rExt + rInt) / 2}" fill="none" stroke="${cor}" stroke-width="${rExt - rInt}" data-fatia="${i}"/>`;
+    }
+    const a0 = ang, a1 = ang + frac * Math.PI * 2;
+    ang = a1;
+    const grande = a1 - a0 > Math.PI ? 1 : 0;
+    return `<path data-fatia="${i}" fill="${cor}" stroke="var(--fundo-conteudo)" stroke-width="1.5"
+      d="M ${ponto(rExt, a0)} A ${rExt} ${rExt} 0 ${grande} 1 ${ponto(rExt, a1)} L ${ponto(rInt, a1)} A ${rInt} ${rInt} 0 ${grande} 0 ${ponto(rInt, a0)} Z"/>`;
+  }).join('');
+  const id = 'gr' + (++seqGrafico);
+  GRAFICOS[id] = { modo: 'fatias', linhas: fatias.map((f) => `<b>${esc(f.rotulo)}</b><br>${esc(formata(f.valor))} · ${fmtPct(f.valor / total, 0)}`) };
+  const legenda = `<ul class="rosca-legenda">${fatias.map((f, i) => `<li>
+      <i style="background:${f.cor || CORES_FATIA[i % CORES_FATIA.length]}"></i>
+      <span class="rosca-rot">${esc(f.rotulo)}</span>
+      <span class="num">${esc(formata(f.valor))}</span>
+      <span class="num tinta2">${fmtPct(f.valor / total, 0)}</span></li>`).join('')}</ul>`;
+  return `<div class="rosca">
+    <div class="grafico-cx rosca-svg" data-grafico="${id}" style="position:relative">
+      <svg class="grafico" viewBox="0 0 ${S} ${S}" role="img" aria-label="${esc(rotulo)}">
+        ${arcos}
+        <text x="${c}" y="${c - 3}" text-anchor="middle" class="rosca-total">${esc(formata(total))}</text>
+        <text x="${c}" y="${c + 13}" text-anchor="middle">${esc(centro)}</text>
+      </svg>
+      <div class="tt" style="display:none"></div>
+    </div>
+    ${legenda}
+  </div>`;
+}
+
+/* Saldo projetado: entradas × saídas por mês em colunas e a linha do saldo
+   acumulado; o menor saldo marcado — em cor de alerta se for negativo.
+   meses: [{ ym, entradas, saidas, saldo }]; menor: { saldo, data }. */
+function graficoSaldoProjetado(meses, menor, { altura = 240, largura = 560 } = {}) {
+  if (!meses.length) return semDados('Nada projetado no período.');
+  const n = meses.length;
+  const W = largura, H = altura, ml = 66, mr = 10, mt = 14, mb = 28;
+  const x0 = ml, x1 = W - mr, y0 = H - mb, y1 = mt;
+  const maxV = Math.max(1, ...meses.map((m) => Math.max(m.entradas, m.saidas, m.saldo)));
+  const minV = Math.min(0, ...meses.map((m) => m.saldo));
+  const tk = ticks(minV, maxV, 4);
+  const lo = tk[0], hi = tk[tk.length - 1];
+  const py = (v) => y0 - ((v - lo) / (hi - lo || 1)) * (y0 - y1);
+  const larg = (x1 - x0) / n;
+  const lb = Math.min(18, larg * 0.3);
+  const barras = meses.map((m, i) => {
+    const cx = x0 + larg * (i + 0.5);
+    const b = (v, dx, cor) => {
+      const a = Math.abs(py(v) - py(0));
+      return a < 0.6 ? '' : `<rect x="${(cx + dx).toFixed(1)}" y="${Math.min(py(v), py(0)).toFixed(1)}" width="${lb.toFixed(1)}" height="${a.toFixed(1)}" rx="2" fill="${cor}"/>`;
+    };
+    return b(m.entradas, -lb - 1, 'var(--serie1)') + b(m.saidas, 1, 'var(--serie2)');
+  }).join('');
+  const pts = meses.map((m, i) => [x0 + larg * (i + 0.5), py(m.saldo)]);
+  const iMenor = menor ? meses.findIndex((m) => m.ym === competencia(menor.data)) : -1;
+  const negativo = menor && menor.saldo < 0;
+  const marca = iMenor >= 0
+    ? `<circle cx="${pts[iMenor][0].toFixed(1)}" cy="${py(menor.saldo).toFixed(1)}" r="4.5" fill="${negativo ? 'var(--critico)' : 'var(--alerta)'}" stroke="var(--sup)" stroke-width="1.5"/>`
+    : '';
+  const zero = lo < 0 ? `<line x1="${x0}" y1="${py(0).toFixed(1)}" x2="${x1}" y2="${py(0).toFixed(1)}" stroke="var(--linha-forte)" stroke-width="1"/>` : '';
+  const passo = Math.max(1, Math.ceil(n / Math.max(3, Math.floor(W / 70))));
+  const eixoX = meses.map((m, i) => (i % passo === 0 || i === n - 1)
+    ? `<text x="${(x0 + larg * (i + 0.5)).toFixed(1)}" y="${y0 + 16}" text-anchor="middle">${fmtCompetencia(m.ym)}</text>` : '').join('');
+  const id = 'gr' + (++seqGrafico);
+  GRAFICOS[id] = { modo: 'colunas', x0, x1, n, W, linhas: meses.map((m) => `<b>${fmtCompetencia(m.ym)}</b><br>
+    Entradas: ${fmtMoney(m.entradas, { dec: 0 })}<br>Saídas: ${fmtMoney(m.saidas, { dec: 0 })}<br>Saldo: ${fmtMoney(m.saldo, { dec: 0 })}`) };
+  return legendaHTML([['Entradas', 'var(--serie1)'], ['Saídas', 'var(--serie2)'], ['Saldo acumulado', 'var(--tinta)']]) +
+    caixaGrafico(id, W, H, 'Saldo projetado por mês',
+      `${eixoY(tk, x0, x1, py, (v) => fmtMoneyCurto(v))}${zero}${barras}
+       <path d="${caminho(pts)}" fill="none" stroke="var(--tinta)" stroke-width="2" stroke-linejoin="round" opacity=".8"/>
+       ${marca}<line class="eixo" x1="${x0}" y1="${y0}" x2="${x1}" y2="${y0}"/>${eixoX}`, true, y1, y0) +
+    (menor ? `<p class="grafico-nota ${negativo ? 'atraso' : 'tinta2'}">menor saldo: ${fmtMoney(menor.saldo, { dec: 0 })} em ${fmtDataCurta(menor.data)}</p>` : '');
+}
+
 /* ------------------------------------------------- BARRAS HORIZONTAIS */
 function graficoBarras(itens, opcoes = {}) {
   const { formata = (v) => fmtMoney(v), cor = 'var(--s1)', max: maxForcado, manterZeros = false } = opcoes;
@@ -447,6 +683,53 @@ function desenharGraficosPendentes() {
       return;
     }
 
+    /* Rosca: o tooltip é da fatia sob o dedo ou o mouse. */
+    if (g.modo === 'fatias') {
+      const moverF = (ev) => {
+        const pt = ev.touches ? ev.touches[0] : ev;
+        const alvo = ev.touches ? document.elementFromPoint(pt.clientX, pt.clientY) : ev.target;
+        const f = alvo && alvo.closest ? alvo.closest('[data-fatia]') : null;
+        if (!f) { tt.style.display = 'none'; return; }
+        const r = cx.getBoundingClientRect();
+        tt.style.display = '';
+        tt.innerHTML = g.linhas[Number(f.dataset.fatia)];
+        tt.style.left = Math.min(Math.max(4, pt.clientX - r.left + 12), r.width - tt.offsetWidth - 4) + 'px';
+        tt.style.top = Math.max(4, pt.clientY - r.top - tt.offsetHeight - 8) + 'px';
+      };
+      const sairF = () => { tt.style.display = 'none'; };
+      svgEl.addEventListener('mousemove', moverF);
+      svgEl.addEventListener('mouseleave', sairF);
+      svgEl.addEventListener('touchstart', moverF, { passive: true });
+      svgEl.addEventListener('touchmove', moverF, { passive: true });
+      svgEl.addEventListener('touchend', sairF);
+      return;
+    }
+    /* Colunas: o índice é a coluna sob o cursor, o cursor no meio dela. */
+    if (g.modo === 'colunas') {
+      const moverC = (ev) => {
+        const r = svgEl.getBoundingClientRect();
+        const cliente = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+        const xSvg = (cliente / r.width) * g.W;
+        const larg = (g.x1 - g.x0) / g.n;
+        const i = Math.max(0, Math.min(g.n - 1, Math.floor((xSvg - g.x0) / larg)));
+        const xPos = g.x0 + larg * (i + 0.5);
+        cursor.style.display = '';
+        cursor.setAttribute('x1', xPos); cursor.setAttribute('x2', xPos);
+        tt.style.display = '';
+        tt.innerHTML = g.linhas[i];
+        const px = (xPos / g.W) * r.width;
+        tt.style.left = Math.min(Math.max(6, px + 12), r.width - tt.offsetWidth - 6) + 'px';
+        tt.style.top = '8px';
+      };
+      const sairC = () => { cursor.style.display = 'none'; tt.style.display = 'none'; };
+      svgEl.addEventListener('mousemove', moverC);
+      svgEl.addEventListener('mouseleave', sairC);
+      svgEl.addEventListener('touchstart', moverC, { passive: true });
+      svgEl.addEventListener('touchmove', moverC, { passive: true });
+      svgEl.addEventListener('touchend', sairC);
+      return;
+    }
+
     const mover = (ev) => {
       const r = svgEl.getBoundingClientRect();
       const cliente = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
@@ -477,6 +760,15 @@ function desenharGraficosPendentes() {
 }
 
 export {
+  graficoAuto,
+  limparGraficosAuto,
+  ajustarGraficosAuto,
+  graficoLinhas,
+  graficoColunas,
+  graficoRosca,
+  graficoSaldoProjetado,
+  fatiasRosca,
+  ajustarGantt,
   GRAFICOS,
   seqGrafico,
   escNum,

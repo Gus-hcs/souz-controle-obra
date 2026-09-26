@@ -1,8 +1,9 @@
 /**
- * index.js — Entrada e saída: importação de planilha MCMV, exportação CSV e PDF.
+ * index.js — Entrada e saída: importação de planilha MCMV, exportação CSV e
+ * .xlsx, relatórios em PDF (com período, fotos, valores e observação).
  */
-import { addDias, competencia, fmtData, fmtDataCurta, fmtMoney, fmtNum, fmtPct, hojeISO, migrar, norm, novaEtapaCronograma, novaMedicao, novaObra, novaPendenciaCliente, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, slug } from '../nucleo/base.js';
-import { basesContratuais, etapaCalc, fotosDaSemana, kpisObra, memoriaMedicao, pendenciasDoCliente, valorAgregadoObra, lancamentoTotal, medicaoAPagar, medicaoAlerta, medicaoLiquido, pendenciasObra, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
+import { addDias, competencia, fmtData, fmtDataCurta, fmtMoney, fmtNum, fmtPct, hojeISO, migrar, norm, novaEtapaCronograma, novaMedicao, novaObra, novaPendenciaCliente, normalizarPadrao, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, slug } from '../nucleo/base.js';
+import { andamentoParcela, basesContratuais, etapaCalc, fotosDaSemana, fotosDoPeriodo, kpisObra, memoriaMedicao, pendenciasDoCliente, prestacaoContas, rtDoRelatorio, valorAgregadoObra, lancamentoTotal, medicaoAPagar, medicaoAlerta, medicaoLiquido, pendenciasObra, recebimentoDiferenca, recebimentoLiquido } from '../dominio/calculos.js';
 import { apenasErros, validarObraCompleta } from '../dominio/validacao.js';
 import { linkWhatsApp, normalizarTelefoneBR } from '../nucleo/contato.js';
 import { Store, mutar } from '../dados/store.js';
@@ -43,6 +44,7 @@ const carregarXLSX = () => carregarScript([
 const TIPO_MIME = {
   pdf: 'application/pdf',
   csv: 'text/csv;charset=utf-8',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   json: 'application/json;charset=utf-8'
 };
 
@@ -98,39 +100,60 @@ function paraCSV(cabecalho, linhas) {
 }
 const csvNum = (v) => fmtNum(v, 2);
 
-ACOES['csv-lancamentos'] = async () => {
-  const o = App.obra();
-  const csv = paraCSV(
-    ['Data', 'Competência', 'Tipo', 'Etapa', 'Categoria', 'Descrição', 'Fornecedor', 'Documento',
+/* Exportação dos registros da obra: as mesmas colunas em CSV (números no
+   formato brasileiro, para abrir no Excel em pt-BR) e em .xlsx (números
+   de verdade, para somar na planilha). cru = true devolve os números. */
+const EXPORTACOES = {
+  lancamentos: (o, cru) => ({
+    cabecalho: ['Data', 'Competência', 'Tipo', 'Etapa', 'Categoria', 'Descrição', 'Fornecedor', 'Documento',
       'Quantidade', 'Unidade', 'Preço unitário', 'Desconto', 'Frete', 'Total', 'Pagamento'],
-    o.lancamentos.map((l) => [fmtData(l.data), competencia(l.data), l.tipo, l.etapa, l.categoria,
-      l.descricao, l.fornecedor, l.documento, csvNum(l.quantidade), l.unidade, csvNum(l.precoUnitario),
-      csvNum(l.desconto), csvNum(l.frete), csvNum(lancamentoTotal(l)), l.formaPagamento]));
-  await baixar(`lancamentos-${slug(o.nome)}.csv`, csv);
-};
-
-ACOES['csv-medicoes'] = async () => {
-  const o = App.obra();
-  const csv = paraCSV(
-    ['Nº', 'Contrato', 'Data', 'Descrição', 'Progresso', 'Valor medido', 'Desconto', 'Líquido',
+    linhas: o.lancamentos.map((l) => [fmtData(l.data), competencia(l.data), l.tipo, l.etapa, l.categoria,
+      l.descricao, l.fornecedor, l.documento, n(l.quantidade, cru), l.unidade, n(l.precoUnitario, cru),
+      n(l.desconto, cru), n(l.frete, cru), n(lancamentoTotal(l), cru), l.formaPagamento]),
+  }),
+  medicoes: (o, cru) => ({
+    cabecalho: ['Nº', 'Contrato', 'Data', 'Descrição', 'Progresso', 'Valor medido', 'Desconto', 'Líquido',
       'Data pagamento', 'Valor pago', 'A pagar', 'Status', 'Documento', 'Alerta'],
-    o.medicoes.map((m) => [m.numero, m.contratoBase, fmtData(m.data), m.descricao, fmtPct(m.progresso, 0),
-      csvNum(m.valorMedido), csvNum(m.desconto), csvNum(medicaoLiquido(m)), fmtData(m.dataPagamento),
-      csvNum(m.valorPago), csvNum(medicaoAPagar(o, m)), m.status, m.documento, medicaoAlerta(o, m)]));
-  await baixar(`medicoes-${slug(o.nome)}.csv`, csv);
+    linhas: o.medicoes.map((m) => [m.numero, m.contratoBase, fmtData(m.data), m.descricao, fmtPct(m.progresso, 0),
+      n(m.valorMedido, cru), n(m.desconto, cru), n(medicaoLiquido(m), cru), fmtData(m.dataPagamento),
+      n(m.valorPago, cru), n(medicaoAPagar(o, m), cru), m.status, m.documento, medicaoAlerta(o, m)]),
+  }),
+  recebimentos: (o, cru) => ({
+    cabecalho: ['Origem', 'Nº', 'Etapa', 'Data prevista', 'Valor previsto', 'Data solicitação', '% obra',
+      'Aprovado', 'Descontos', 'Líquido esperado', 'Data recebimento', 'Valor recebido', 'Diferença', 'Situação'],
+    linhas: o.recebimentos.map((r) => [r.origem, r.numeroMedicao, r.etapaPci, fmtData(r.dataPrevista),
+      n(r.valorPrevisto, cru), fmtData(r.dataSolicitacao), fmtPct(r.percentObra, 0), n(r.valorAprovado, cru),
+      n(r.descontos, cru), n(recebimentoLiquido(r), cru), fmtData(r.dataRecebimento), n(r.valorRecebido, cru),
+      n(recebimentoDiferenca(r), cru), andamentoParcela(r).texto]),
+  }),
 };
+const n = (v, cru) => (cru ? Math.round(num(v) * 100) / 100 : csvNum(v));
 
-ACOES['csv-recebimentos'] = async () => {
+async function exportarDados(tipo, formato = 'csv') {
   const o = App.obra();
-  const csv = paraCSV(
-    ['Origem', 'Nº', 'Etapa PCI', 'Data prevista', 'Valor previsto', 'Data solicitação', '% obra',
-      'Aprovado', 'Descontos', 'Líquido esperado', 'Data recebimento', 'Valor recebido', 'Diferença', 'Status'],
-    o.recebimentos.map((r) => [r.origem, r.numeroMedicao, r.etapaPci, fmtData(r.dataPrevista),
-      csvNum(r.valorPrevisto), fmtData(r.dataSolicitacao), fmtPct(r.percentObra, 0), csvNum(r.valorAprovado),
-      csvNum(r.descontos), csvNum(recebimentoLiquido(r)), fmtData(r.dataRecebimento), csvNum(r.valorRecebido),
-      csvNum(recebimentoDiferenca(r)), r.status]));
-  await baixar(`recebimentos-${slug(o.nome)}.csv`, csv);
-};
+  const fonte = EXPORTACOES[tipo];
+  if (!o || !fonte) return;
+  const nome = `${tipo}-${slug(o.nome)}`;
+  if (formato === 'xlsx') {
+    toast('Montando a planilha…');
+    const ok = await carregarXLSX();
+    if (!ok) return toast('Não foi possível carregar o gerador de planilhas.', 'critico');
+    const { cabecalho, linhas } = fonte(o, true);
+    const planilha = XLSX.utils.aoa_to_sheet([cabecalho, ...linhas]);
+    const livro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(livro, planilha, tipo.charAt(0).toUpperCase() + tipo.slice(1));
+    const buf = XLSX.write(livro, { bookType: 'xlsx', type: 'array' });
+    await baixar(`${nome}.xlsx`, buf);
+    return;
+  }
+  const { cabecalho, linhas } = fonte(o, false);
+  await baixar(`${nome}.csv`, paraCSV(cabecalho, linhas));
+}
+
+ACOES['csv-lancamentos'] = () => exportarDados('lancamentos', 'csv');
+ACOES['csv-medicoes'] = () => exportarDados('medicoes', 'csv');
+ACOES['csv-recebimentos'] = () => exportarDados('recebimentos', 'csv');
+ACOES['exportar-dados'] = (el, d) => exportarDados(d.tipo, d.formato);
 
 /* -------------------------------------------------------- BACKUP JSON */
 ACOES['backup-json'] = async () => {
@@ -255,7 +278,7 @@ function planilhaParaObra(wb, nomeArquivo) {
     obra.areaConstruida = num(cel(8, 1));
     obra.areaMuro = num(cel(9, 1));
     obra.sistema = String(cel(10, 1) || '').trim();
-    obra.padrao = String(cel(11, 1) || 'MCMV').trim();
+    obra.padrao = normalizarPadrao(cel(11, 1));
     obra.dataInicio = dataDe(cel(12, 1));
     obra.previsaoConclusao = dataDe(cel(13, 1));
     obra.responsavel = String(cel(14, 1) || '').trim();
@@ -505,17 +528,61 @@ async function salvarPDF(doc, nome) {
   await baixar(nome, buf);
 }
 
+/* ------------------------------------------- relatórios com opções
+   op = { de, ate, fotos, valores, observacao } — o que a tela de
+   Relatórios deixa escolher. Cada relatório usa só as que fazem sentido
+   para ele (OPCOES_RELATORIO, ui/telas/relatorios.js). */
+const OP_PADRAO = { de: '', ate: '', fotos: true, valores: false, observacao: '' };
+
+const textoPeriodo = (op) =>
+  op.de || op.ate
+    ? `${op.de ? fmtDataCurta(op.de) : 'início'} a ${op.ate ? fmtDataCurta(op.ate) : 'hoje'}`
+    : '';
+
+/* observação livre para o cliente, num quadro logo abaixo dos números */
+function pdfObservacao(doc, y, texto) {
+  const t = String(texto || '').trim();
+  if (!t) return y;
+  const linhas = doc.splitTextToSize(t, 176);
+  const alt = 8 + linhas.length * 4.2;
+  if (y + alt > 280) { doc.addPage(); y = 20; }
+  doc.setDrawColor(215, 213, 206); doc.setFillColor(248, 247, 244);
+  doc.roundedRect(14, y, 182, alt, 1.5, 1.5, 'FD');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(...CINZA);
+  doc.text('Observação', 17, y + 5);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(20, 24, 26);
+  doc.text(linhas, 17, y + 9.5);
+  return y + alt + 6;
+}
+
+/* linha de assinatura do responsável técnico: o da obra, senão o da empresa */
+function pdfAssinaturaRT(doc, y, o, comCliente = false) {
+  const rt = rtDoRelatorio(o, Store.estado.empresa);
+  if (y + 24 > 280) { doc.addPage(); y = 30; }
+  y += 14;
+  doc.setDrawColor(120, 120, 118);
+  doc.line(20, y, 90, y);
+  if (comCliente) doc.line(115, y, 190, y);
+  doc.setFontSize(8); doc.setTextColor(...CINZA);
+  doc.text(rt.nome || 'Responsável técnico', 20, y + 4.5);
+  doc.text(rt.registro ? 'CREA/CAU ' + rt.registro : 'CREA/CAU', 20, y + 9);
+  if (comCliente) doc.text(nomeCliente(o.clienteId) || 'Cliente', 115, y + 4.5);
+  doc.setTextColor(20, 24, 26);
+  return y + 14;
+}
+
 /* ------------------------------------------- 1. status da obra
-   Extraído de ACOES['pdf-status'] para virar o mesmo doc que
-   ACOES['whatsapp-status'] compartilha — sem duplicar a montagem. */
-/* Duas versões, porque o leitor é outro:
+   Duas versões, porque o leitor é outro:
    - cliente (padrão, é o que vai pelo WhatsApp): avanço, data contratual,
-     etapas e as parcelas do financiamento. NUNCA caixa da obra, custo, custo
-     por m², margem, valores de subcontrato nem alertas internos — isso é
-     informação da construtora.
+     etapas e as parcelas do financiamento. NUNCA caixa da obra, custo,
+     margem, valores de subcontrato nem alertas internos — isso é
+     informação da construtora. Com "incluir valores", as parcelas saem
+     com o valor previsto e o recebido.
    - interno: tudo, para o dono e o arquivo. */
-async function montarPdfStatus(o, { interno = false } = {}) {
-  const doc = await novoPDF(o, interno ? 'Relatório interno da obra' : 'Relatório de status');
+async function montarPdfStatus(o, { interno = false, op: opcoes = {} } = {}) {
+  const op = { ...OP_PADRAO, ...opcoes };
+  const per = textoPeriodo(op);
+  const doc = await novoPDF(o, `${interno ? 'Relatório interno da obra' : 'Relatório de status'}${per ? ' · ' + per : ''}`);
   if (!doc) return null;
   const k = kpisObra(o);
   const va = valorAgregadoObra(o);
@@ -535,28 +602,38 @@ async function montarPdfStatus(o, { interno = false } = {}) {
       ['Entrega projetada', va.termino ? fmtData(va.termino) : '—', 'no ritmo atual da obra'],
       ['Financiamento liberado', liberado, `de ${fmtMoney(k.financiado, { dec: 0 })}`]
     ]);
+  y = pdfObservacao(doc, y, op.observacao);
 
   y = pdfTabela(doc, y, 'Cronograma e progresso',
     ['Etapa', 'Previsto', 'Real', 'Progresso', 'Situação'],
     o.cronograma.map((e) => {
       const c = etapaCalc(e);
       return [e.etapa, `${fmtDataCurta(e.inicioPrevisto)} a ${fmtDataCurta(e.fimPrevisto)}`,
-        `${fmtDataCurta(e.inicioReal)} a ${fmtDataCurta(e.fimReal)}`, fmtPct(c.progresso, 0), c.situacao];
+        `${fmtDataCurta(e.inicioReal)} a ${fmtDataCurta(e.fimReal)}`, fmtPct(c.progresso, 0), situacaoTexto(c.situacao)];
     }), { colunas: { 3: { halign: 'right' } } });
 
   if (!interno) {
     /* parcelas: pagas e próximas — sem tarifa, sem diferença, sem caixa */
+    const parcelas = o.recebimentos.filter((r) => r.status !== 'Cancelado');
     y = pdfTabela(doc, y, 'Parcelas',
-      ['Origem', 'Etapa', 'Previsto p/', 'Recebido em', 'Situação'],
-      o.recebimentos.filter((r) => r.status !== 'Cancelado').map((r) => [r.origem,
-        r.etapaPci || (r.numeroMedicao ? `Medição ${r.numeroMedicao}` : ''),
-        fmtDataCurta(r.dataPrevista), fmtDataCurta(r.dataRecebimento), r.status]));
+      op.valores
+        ? ['Origem', 'Etapa', 'Previsto p/', 'Valor', 'Recebido em', 'Recebido', 'Situação']
+        : ['Origem', 'Etapa', 'Previsto p/', 'Recebido em', 'Situação'],
+      parcelas.map((r) => {
+        const etapa = r.etapaPci || (r.numeroMedicao ? `Medição ${r.numeroMedicao}` : '');
+        const sit = andamentoParcela(r).texto;
+        return op.valores
+          ? [r.origem, etapa, fmtDataCurta(r.dataPrevista), fmtMoney(r.valorPrevisto), fmtDataCurta(r.dataRecebimento), num(r.valorRecebido) ? fmtMoney(r.valorRecebido) : '—', sit]
+          : [r.origem, etapa, fmtDataCurta(r.dataPrevista), fmtDataCurta(r.dataRecebimento), sit];
+      }),
+      op.valores ? { colunas: { 3: { halign: 'right' }, 5: { halign: 'right' } } } : {});
     /* o que depende do cliente (0018): aparece para ele, com o prazo */
     y = pdfTabela(doc, y, 'Aguardando sua decisão',
       ['O quê', 'Até'],
       pendenciasDoCliente(o).abertas.map((p) => [p.descricao, p.prazo ? fmtData(p.prazo) : '—']),
       { colunas: { 1: { cellWidth: 30 } } });
-    pdfFotos(doc, y, fotosDaSemana(o));
+    if (op.fotos) y = pdfFotos(doc, y, per ? fotosDoPeriodo(o, op.de, op.ate, 12) : fotosDaSemana(o));
+    pdfAssinaturaRT(doc, y, o);
     pdfRodape(doc);
     return doc;
   }
@@ -572,21 +649,30 @@ async function montarPdfStatus(o, { interno = false } = {}) {
     });
 
   y = pdfTabela(doc, y, 'Recebimentos',
-    ['Origem', 'Nº', 'Previsto p/', 'Valor previsto', 'Recebido em', 'Valor recebido', 'Status'],
-    o.recebimentos.map((r) => [r.origem, r.numeroMedicao, fmtDataCurta(r.dataPrevista),
-      fmtMoney(r.valorPrevisto), fmtDataCurta(r.dataRecebimento), fmtMoney(r.valorRecebido), r.status]),
+    ['Origem', 'Nº', 'Previsto p/', 'Valor previsto', 'Recebido em', 'Valor recebido', 'Situação'],
+    o.recebimentos
+      .filter((r) => !per || noPeriodoRel(r.dataPrevista, op) || noPeriodoRel(r.dataRecebimento, op))
+      .map((r) => [r.origem, r.numeroMedicao, fmtDataCurta(r.dataPrevista),
+        fmtMoney(r.valorPrevisto), fmtDataCurta(r.dataRecebimento), fmtMoney(r.valorRecebido), andamentoParcela(r).texto]),
     { colunas: { 3: { halign: 'right' }, 5: { halign: 'right' } } });
 
   const pend = pendenciasObra(o);
   if (pend.itens.length) {
-    pdfTabela(doc, y, 'Pendências',
+    y = pdfTabela(doc, y, 'Pendências',
       ['Nível', 'Módulo', 'Situação', 'Ação recomendada'],
       pend.itens.slice(0, 18).map((a) => [a.sev === 3 ? 'Crítico' : 'Atenção',
         a.modulo, a.titulo, a.acao]), { colunas: { 0: { cellWidth: 16 }, 1: { cellWidth: 24 } } });
   }
+  if (op.fotos) y = pdfFotos(doc, y, fotosDoPeriodo(o, op.de, op.ate, 12));
+  pdfAssinaturaRT(doc, y, o);
   pdfRodape(doc);
   return doc;
 }
+
+const noPeriodoRel = (d, op) =>
+  !!d && (!op.de || d >= op.de) && (!op.ate || d <= op.ate);
+/* situação em caixa normal: "Concluído", não "CONCLUÍDO" */
+const situacaoTexto = (s) => (s ? s.charAt(0) + s.slice(1).toLowerCase() : '');
 
 /* status enviado ao cliente (0018): a data do último envio alimenta
    "Cliente sem notícia há N dias" e a coluna Último status em Clientes */
@@ -595,116 +681,62 @@ function marcarStatusEnviado(o) {
   mutar(() => { o.statusEnviadoEm = hojeISO(); });
 }
 
-ACOES['pdf-status'] = async () => {
-  const o = App.obra();
-  const doc = await montarPdfStatus(o);
-  if (!doc) return;
-  await salvarPDF(doc, `status-${slug(o.nome)}-${hojeISO()}.pdf`);
-  marcarStatusEnviado(o);
-};
-
-ACOES['pdf-interno'] = async () => {
-  const o = App.obra();
-  const doc = await montarPdfStatus(o, { interno: true });
-  if (!doc) return;
-  await salvarPDF(doc, `interno-${slug(o.nome)}-${hojeISO()}.pdf`);
-};
-
-/* ---------------------------------- compartilhar o status por WhatsApp
-   Web Share API com o PDF anexado quando o navegador suporta (celular,
-   normalmente); sem suporte (a maioria dos desktops), baixa o PDF e abre
-   a conversa com o texto pronto — a pessoa anexa o arquivo que acabou de
-   baixar, porque wa.me não aceita anexo por link. */
-ACOES['whatsapp-status'] = async () => {
-  const o = App.obra();
-  const doc = await montarPdfStatus(o);
-  if (!doc) return;
-  const nomeArquivo = `status-${slug(o.nome)}-${hojeISO()}.pdf`;
-  const cliente = Store.estado.clientes.find((c) => c.id === o.clienteId);
-  const numero = cliente ? normalizarTelefoneBR(cliente.telefone) : null;
-  const texto = `Relatório de status da obra ${o.nome} — ${fmtData(hojeISO())}.`;
-
-  let arquivo = null;
-  try {
-    arquivo = new File([doc.output('blob')], nomeArquivo, { type: 'application/pdf' });
-  } catch (e) { /* navegador sem File — segue para o download */ }
-
-  if (arquivo && navigator.canShare && navigator.canShare({ files: [arquivo] })) {
-    try {
-      await navigator.share({ files: [arquivo], title: nomeArquivo, text: texto });
-      marcarStatusEnviado(o);
-      return;
-    } catch (e) {
-      if (e && e.name === 'AbortError') return;
-      /* falhou por outro motivo: segue para o download + wa.me */
-    }
-  }
-
-  await salvarPDF(doc, nomeArquivo);
-  const msg = `${texto} Anexe o arquivo "${nomeArquivo}" que acabou de baixar.`;
-  window.open(linkWhatsApp(numero || '', msg), '_blank', 'noopener');
-  marcarStatusEnviado(o);
-  if (!numero) {
-    toast('PDF baixado. Abra o WhatsApp e escolha o contato — não achei um telefone válido para o cliente.', 'aviso');
-  }
-};
-
-/* ------------------------------------- 2. prestação de contas */
-ACOES['pdf-prestacao'] = async () => {
-  const o = App.obra();
-  const doc = await novoPDF(o, 'Prestação de contas');
-  if (!doc) return;
-  const k = kpisObra(o);
+/* ------------------------------------- 2. prestação de contas
+   Os números do período vêm de prestacaoContas: saldo anterior, o que
+   entrou, o que saiu e o saldo final. */
+async function montarPdfPrestacao(o, opcoes = {}) {
+  const op = { ...OP_PADRAO, ...opcoes };
+  const per = textoPeriodo(op);
+  const doc = await novoPDF(o, `Prestação de contas${per ? ' · ' + per : ''}`);
+  if (!doc) return null;
+  const pc = prestacaoContas(o, op.de, op.ate);
   let y = doc.__startY;
   y = pdfKPIs(doc, y, [
-    ['Saldo inicial', fmtMoney(k.saldoInicial, { dec: 0 }), ''],
-    ['Entradas', fmtMoney(k.recebido, { dec: 0 }), 'financiador, cliente e aportes'],
-    ['Saídas', fmtMoney(k.totalPago, { dec: 0 }), 'medições e compras'],
-    ['Saldo final', fmtMoney(k.saldoCaixa, { dec: 0 }), '']
+    [per ? 'Saldo anterior' : 'Saldo inicial', fmtMoney(pc.saldoAnterior, { dec: 0 }), per ? `antes de ${fmtDataCurta(op.de)}` : ''],
+    ['Entradas', fmtMoney(pc.totEntradas, { dec: 0 }), 'financiador, cliente e aportes'],
+    ['Saídas', fmtMoney(pc.totSaidas, { dec: 0 }), 'medições e compras'],
+    ['Saldo final', fmtMoney(pc.saldoFinal, { dec: 0 }), per ? `em ${op.ate ? fmtDataCurta(op.ate) : 'hoje'}` : '']
   ]);
+  y = pdfObservacao(doc, y, op.observacao);
 
   y = pdfTabela(doc, y, 'Entradas',
     ['Data', 'Origem', 'Descrição', 'Aprovado', 'Descontos', 'Recebido'],
-    o.recebimentos.filter((r) => num(r.valorRecebido) > 0)
-      .sort((a, b) => String(a.dataRecebimento).localeCompare(String(b.dataRecebimento)))
-      .map((r) => [fmtData(r.dataRecebimento), r.origem, r.etapaPci || ('Medição ' + r.numeroMedicao),
-        fmtMoney(r.valorAprovado), fmtMoney(r.descontos), fmtMoney(r.valorRecebido)]),
+    pc.entradas.map((r) => [fmtData(r.dataRecebimento), r.origem, r.etapaPci || ('Medição ' + r.numeroMedicao),
+      fmtMoney(r.valorAprovado), fmtMoney(r.descontos), fmtMoney(r.valorRecebido)]),
     {
       colunas: { 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } },
-      rodape: ['', '', 'Total recebido', '', '', fmtMoney(k.recebido)]
+      rodape: ['', '', 'Total recebido', '', '', fmtMoney(pc.totEntradas)]
     });
 
   y = pdfTabela(doc, y, 'Pagamentos de medições',
     ['Data', 'Contrato', 'Nº', 'Descrição', 'Medido', 'Pago'],
-    o.medicoes.filter((m) => m.status !== 'Cancelado' && num(m.valorPago) > 0)
-      .sort((a, b) => String(a.dataPagamento).localeCompare(String(b.dataPagamento)))
-      .map((m) => [fmtData(m.dataPagamento), m.contratoBase, String(m.numero || ''), m.descricao,
-        fmtMoney(m.valorMedido), fmtMoney(m.valorPago)]),
+    pc.medicoes.map((m) => [fmtData(m.dataPagamento || m.data), m.contratoBase, String(m.numero || ''), m.descricao,
+      fmtMoney(m.valorMedido), fmtMoney(m.valorPago)]),
     {
       colunas: { 4: { halign: 'right' }, 5: { halign: 'right' } },
-      rodape: ['', '', '', 'Total em medições', '', fmtMoney(k.pagoMedicoes)]
+      rodape: ['', '', '', 'Total em medições', '', fmtMoney(pc.totMedicoes)]
     });
 
-  pdfTabela(doc, y, 'Compras, taxas e demais saídas',
+  y = pdfTabela(doc, y, 'Compras, taxas e demais saídas',
     ['Data', 'Tipo', 'Descrição', 'Fornecedor', 'Doc.', 'Total'],
-    o.lancamentos.slice().sort((a, b) => String(a.data).localeCompare(String(b.data)))
-      .map((l) => [fmtData(l.data), l.tipo, l.descricao, l.fornecedor, l.documento, fmtMoney(lancamentoTotal(l))]),
+    pc.lancamentos.map((l) => [fmtData(l.data), l.tipo, l.descricao, l.fornecedor, l.documento, fmtMoney(lancamentoTotal(l))]),
     {
       colunas: { 5: { halign: 'right' } },
-      rodape: ['', '', '', '', 'Total', fmtMoney(k.pagoLancamentos)]
+      rodape: ['', '', '', '', 'Total', fmtMoney(pc.totLancamentos)]
     });
 
+  pdfAssinaturaRT(doc, y, o);
   pdfRodape(doc);
-  await salvarPDF(doc, `prestacao-contas-${slug(o.nome)}-${hojeISO()}.pdf`);
-};
+  return doc;
+}
 
 /* ------------------------ 3. memória de medição (qualquer financiador)
    Layout da planilha do financiador — PLS/PCI na CAIXA, cronograma
    físico-financeiro nos outros bancos. Os números são de memoriaMedicao. */
-ACOES['pdf-medicao'] = async () => {
-  const o = App.obra();
+async function montarPdfMedicao(o, opcoes = {}) {
+  const op = { ...OP_PADRAO, ...opcoes };
   const doc = await novoPDF(o, 'Memória de medição');
-  if (!doc) return;
+  if (!doc) return null;
   const mm = memoriaMedicao(o);
   const k = kpisObra(o);
   let y = doc.__startY;
@@ -714,12 +746,13 @@ ACOES['pdf-medicao'] = async () => {
     ['Já liberado', fmtMoney(mm.liberado, { dec: 0 }), k.liberadoFinanciamento === null ? '—' : fmtPct(k.liberadoFinanciamento, 1)],
     ['A solicitar', fmtMoney(mm.aSolicitar, { dec: 0 }), 'pelo avanço apurado']
   ]);
+  y = pdfObservacao(doc, y, op.observacao);
 
   const temItem = mm.linhas.some((l) => l.item);
   y = pdfTabela(doc, y, 'Percentual executado por item',
     [...(temItem ? ['Item'] : []), 'Serviço', 'Peso', 'Executado', 'Contribuição', 'Situação'],
     mm.linhas.map((l) => [...(temItem ? [l.item] : []), l.etapa, fmtPct(l.peso, 2), fmtPct(l.executado, 0),
-      fmtPct(l.contribuicao, 2), l.situacao]),
+      fmtPct(l.contribuicao, 2), situacaoTexto(l.situacao)]),
     {
       colunas: temItem
         ? { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } }
@@ -730,16 +763,110 @@ ACOES['pdf-medicao'] = async () => {
   doc.setFontSize(9);
   doc.text('Declaro que a obra apresenta o percentual de execução acima na data indicada, apurado pelo', 14, y);
   doc.text('cronograma físico e pelas medições dos prestadores registradas no controle da obra.', 14, y + 4.5);
-  y += 22;
-  doc.setDrawColor(120, 120, 118);
-  doc.line(20, y, 90, y); doc.line(115, y, 190, y);
-  doc.setFontSize(8); doc.setTextColor(...CINZA);
-  doc.text(Store.estado.empresa.responsavel || 'Responsável técnico', 20, y + 4.5);
-  doc.text(Store.estado.empresa.creaCau ? 'CREA/CAU ' + Store.estado.empresa.creaCau : 'CREA/CAU', 20, y + 9);
-  doc.text(nomeCliente(o.clienteId) || 'Cliente', 115, y + 4.5);
-
+  pdfAssinaturaRT(doc, y + 6, o, true);
   pdfRodape(doc);
-  await salvarPDF(doc, `medicao-${slug(o.nome)}-${hojeISO()}.pdf`);
+  return doc;
+}
+
+/* O relatório escolhido na tela, montado: { doc, nome }. */
+const NOME_ARQUIVO_REL = { status: 'status', interno: 'interno', prestacao: 'prestacao-contas', medicao: 'medicao' };
+async function gerarRelatorio(o, tipo, op = {}) {
+  let doc = null;
+  if (tipo === 'status') doc = await montarPdfStatus(o, { op });
+  else if (tipo === 'interno') doc = await montarPdfStatus(o, { interno: true, op });
+  else if (tipo === 'prestacao') doc = await montarPdfPrestacao(o, op);
+  else if (tipo === 'medicao') doc = await montarPdfMedicao(o, op);
+  if (!doc) return null;
+  return { doc, nome: `${NOME_ARQUIVO_REL[tipo] || tipo}-${slug(o.nome)}-${hojeISO()}.pdf` };
+}
+
+/* ações antigas (atalhos): o relatório com as opções padrão */
+ACOES['pdf-status'] = async () => {
+  const o = App.obra();
+  const r = await gerarRelatorio(o, 'status');
+  if (!r) return;
+  await salvarPDF(r.doc, r.nome);
+  marcarStatusEnviado(o);
+};
+ACOES['pdf-interno'] = async () => {
+  const o = App.obra();
+  const r = await gerarRelatorio(o, 'interno', { fotos: false });
+  if (r) await salvarPDF(r.doc, r.nome);
+};
+ACOES['pdf-prestacao'] = async () => {
+  const o = App.obra();
+  const r = await gerarRelatorio(o, 'prestacao');
+  if (r) await salvarPDF(r.doc, r.nome);
+};
+ACOES['pdf-medicao'] = async () => {
+  const o = App.obra();
+  const r = await gerarRelatorio(o, 'medicao');
+  if (r) await salvarPDF(r.doc, r.nome);
+};
+
+/* ---------------------------------- compartilhar por WhatsApp
+   Web Share API com o PDF anexado quando o navegador suporta (celular,
+   normalmente); sem suporte (a maioria dos desktops), baixa o PDF e abre
+   a conversa com o texto pronto — a pessoa anexa o arquivo que acabou de
+   baixar, porque wa.me não aceita anexo por link. */
+async function compartilharPdfWhatsApp(o, doc, nomeArquivo, texto) {
+  const cliente = Store.estado.clientes.find((c) => c.id === o.clienteId);
+  const numero = cliente ? normalizarTelefoneBR(cliente.whatsapp || cliente.telefone) : null;
+  let arquivo = null;
+  try {
+    arquivo = new File([doc.output('blob')], nomeArquivo, { type: 'application/pdf' });
+  } catch (e) { /* navegador sem File — segue para o download */ }
+
+  if (arquivo && navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+    try {
+      await navigator.share({ files: [arquivo], title: nomeArquivo, text: texto });
+      return true;
+    } catch (e) {
+      if (e && e.name === 'AbortError') return false;
+    }
+  }
+  await salvarPDF(doc, nomeArquivo);
+  window.open(linkWhatsApp(numero || '', `${texto} Anexe o arquivo "${nomeArquivo}" que acabou de baixar.`), '_blank', 'noopener');
+  if (!numero) {
+    toast('PDF baixado. Abra o WhatsApp e escolha o contato — não achei um telefone válido para o cliente.', 'aviso');
+  }
+  return true;
+}
+
+/* E-mail: mailto não leva anexo — baixa o PDF e abre a mensagem pronta. */
+async function enviarPdfEmail(o, doc, nomeArquivo, assunto) {
+  const cliente = Store.estado.clientes.find((c) => c.id === o.clienteId);
+  await salvarPDF(doc, nomeArquivo);
+  const corpo = `Olá${cliente && cliente.nome ? `, ${cliente.nome.split(' ')[0]}` : ''}!\n\nSegue em anexo o ${assunto.toLowerCase()} da obra ${o.nome}.\n\n${Store.estado.empresa.nome || ''}`;
+  window.location.href = `mailto:${encodeURIComponent((cliente && cliente.email) || '')}?subject=${encodeURIComponent(`${assunto} — ${o.nome}`)}&body=${encodeURIComponent(corpo)}`;
+  toast(`PDF baixado: anexe "${nomeArquivo}" ao e-mail.`, 'ok', 6000);
+}
+
+/* Imprimir: abre o PDF num quadro escondido e chama a impressão; se o
+   navegador não deixar, abre o PDF numa aba nova. */
+function imprimirPdf(doc) {
+  const url = URL.createObjectURL(doc.output('blob'));
+  const quadro = document.createElement('iframe');
+  quadro.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  quadro.src = url;
+  quadro.onload = () => {
+    try {
+      quadro.contentWindow.focus();
+      quadro.contentWindow.print();
+    } catch (e) {
+      window.open(url, '_blank', 'noopener');
+    }
+    setTimeout(() => { quadro.remove(); URL.revokeObjectURL(url); }, 60000);
+  };
+  document.body.appendChild(quadro);
+}
+
+ACOES['whatsapp-status'] = async () => {
+  const o = App.obra();
+  const r = await gerarRelatorio(o, 'status');
+  if (!r) return;
+  const ok = await compartilharPdfWhatsApp(o, r.doc, r.nome, `Relatório de status da obra ${o.nome} — ${fmtData(hojeISO())}.`);
+  if (ok) marcarStatusEnviado(o);
 };
 
 /* ==================================================== DADOS DE EXEMPLO */
@@ -752,9 +879,9 @@ ACOES.exemplo = () => {
         Object.assign(cli, { nome: 'Maria de Souza', telefone: '(62) 99999-0000', situacao: 'Cliente', origem: 'Indicação' });
         e.clientes.push(cli);
         const p1 = novoPrestador();
-        Object.assign(p1, { nome: 'Marcos Empreitada', especialidade: 'Empreiteiro geral', telefone: '(62) 98888-1111', avaliacao: 4 });
+        Object.assign(p1, { nome: 'Marcos Empreitada', especialidade: 'Empreiteiro geral', telefone: '(62) 98888-1111', whatsapp: '5562988881111', avaliacao: 4 });
         const p2 = novoPrestador();
-        Object.assign(p2, { nome: 'Pintura Silva', especialidade: 'Pintura', telefone: '(62) 97777-2222', avaliacao: 5 });
+        Object.assign(p2, { nome: 'Pintura Silva', especialidade: 'Pintura', telefone: '(62) 97777-2222', whatsapp: '5562977772222', avaliacao: 5 });
         /* quem vende material é fornecedor, não prestador (0018) */
         const p3 = novoPrestador();
         Object.assign(p3, { nome: 'Depósito Central', tipo: 'fornecedor', especialidade: 'Material de construção', telefone: '(62) 3333-4444' });
@@ -763,7 +890,7 @@ ACOES.exemplo = () => {
         const o = novaObra('Casa 12 — Residencial Aurora');
         Object.assign(o, {
           clienteId: cli.id, cidade: 'Goiânia/GO', endereco: 'Rua das Acácias, Qd 8 Lt 12',
-          areaConstruida: 62.5, areaMuro: 28, sistema: 'Alvenaria convencional', padrao: 'MCMV',
+          areaConstruida: 62.5, areaMuro: 28, sistema: 'Alvenaria convencional', padrao: 'Econômico',
           dataInicio: addDias(hojeISO(), -179), previsaoConclusao: addDias(hojeISO(), 33),
           responsavel: 'Júlio César Gomes de Andrade', status: 'Em andamento'
         });
@@ -945,5 +1072,11 @@ export {
   pdfKPIs,
   pdfTabela,
   pdfRodape,
-  salvarPDF
+  salvarPDF,
+  gerarRelatorio,
+  marcarStatusEnviado,
+  compartilharPdfWhatsApp,
+  enviarPdfEmail,
+  imprimirPdf,
+  exportarDados,
 };

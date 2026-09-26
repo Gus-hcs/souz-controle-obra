@@ -25,7 +25,7 @@ import {
   isISO,
   norm,
 } from '../../nucleo/base.js';
-import { coberturaPlanoMateriais, materialCalc } from '../../dominio/calculos.js';
+import { coberturaPlanoMateriais, materialCalc, resumoMateriais } from '../../dominio/calculos.js';
 import { graficoBarras } from '../../graficos/index.js';
 import { Store } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
@@ -44,15 +44,12 @@ import {
 } from './componentes.js';
 
 /* --------------------------------------------------------------- KPIs */
-function kpisMateriais(todos, cobertura) {
-  const orcTotal = todos.reduce((s, x) => s + x.c.orcamento, 0);
-  const compradoTotal = todos.reduce((s, x) => s + x.c.valorComprado, 0);
-  const saldoTotal = todos.reduce((s, x) => s + x.c.saldoValor, 0);
-  const comSaldo = todos.filter((x) => x.c.saldo > 0.005 && x.m.status !== 'Cancelado');
-  const vencidos = todos.filter((x) => x.c.vencido);
-  const travando = vencidos.filter((x) => x.c.travaFrente);
-  const comCompra = todos.filter((x) => x.c.compras > 0);
-  const desvioTotal = comCompra.reduce((s, x) => s + x.c.desvio, 0);
+function kpisMateriais(r, cobertura, nItens) {
+  const orcTotal = r.orcamento;
+  const compradoTotal = r.comprado;
+  const saldoTotal = r.faltaComprar;
+  const desvioTotal = r.desvio;
+  const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
 
   return faixaKpis(
     [
@@ -60,22 +57,19 @@ function kpisMateriais(todos, cobertura) {
         chave: 'comprar',
         rotulo: 'Falta comprar',
         valor: fmtMoney(saldoTotal, { dec: 0 }),
-        contexto: `${comSaldo.length} item${comSaldo.length === 1 ? '' : 's'} com saldo`,
+        contexto: `${plural(r.itensComSaldo, 'item', 'itens')} com saldo`,
         tom: saldoTotal > 0.005 ? 'tom-alerta' : '',
       },
       {
         chave: 'vencidos',
         rotulo: 'Vencidos sem compra',
-        valor: vencidos.length,
-        contexto: travando.length
-          ? `${travando.length} travando etapa em andamento`
-          : vencidos.length
-            ? `${fmtMoney(
-                vencidos.reduce((s, x) => s + x.c.saldoValor, 0),
-                { dec: 0 },
-              )} — comprar já`
+        valor: r.vencidos,
+        contexto: r.travando
+          ? `${r.travando} travando etapa em andamento`
+          : r.vencidos
+            ? `${fmtMoney(r.vencidosValor, { dec: 0 })} — comprar já`
             : 'nada em atraso',
-        tom: vencidos.length ? 'atraso' : '',
+        tom: r.vencidos ? 'atraso' : '',
       },
       {
         chave: 'comprados',
@@ -83,16 +77,16 @@ function kpisMateriais(todos, cobertura) {
         valor: fmtMoney(compradoTotal, { dec: 0 }),
         contexto: orcTotal
           ? `${fmtPct(compradoTotal / orcTotal, 0)} de ${fmtMoney(orcTotal, { dec: 0 })} orçados`
-          : `${todos.length} item${todos.length === 1 ? '' : 's'} no plano`,
+          : `${plural(nItens, 'item', 'itens')} no plano`,
       },
       {
         chave: 'desvio',
         rotulo: 'Desvio de orçamento',
-        valor: comCompra.length
+        valor: r.comCompra
           ? `${desvioTotal >= 0 ? '+' : '−'}${fmtMoney(Math.abs(desvioTotal), { dec: 0 })}`
           : '—',
         contexto:
-          (!comCompra.length
+          (!r.comCompra
             ? 'sem compras ainda'
             : desvioTotal > 0.5
               ? 'acima do previsto'
@@ -114,6 +108,24 @@ ACOES['mat-kpi'] = (el, d) => {
   App.filtros.kpiMat = App.filtros.kpiMat === d.kpi ? '' : d.kpi;
   App.renderConteudo();
 };
+
+/* Comprar nos próximos 14 dias: material, data limite, valor e a etapa
+   que depende dele. Vencido em vermelho — já está travando. */
+function tabelaComprar(itens) {
+  if (!itens.length) return '<p class="tinta2 painel-vazio">Nada a comprar nos próximos 14 dias.</p>';
+  return `<div class="tab-rolagem"><table class="tab tab-compact">
+    <thead><tr><th>Material</th><th>Até</th><th class="num">Valor</th><th>Etapa que depende</th></tr></thead>
+    <tbody>${itens
+      .map(
+        (x) => `<tr>
+        <td>${esc(x.material)}${x.travaFrente ? ' <span class="atraso">· travando</span>' : ''}</td>
+        <td class="${x.vencido ? 'atraso' : 'tinta2'}">${esc(fmtDataCurta(x.dataLimite))}${x.vencido ? ' · vencido' : ''}</td>
+        <td class="num">${fmtMoney(x.valor, { dec: 0 })}</td>
+        <td class="tinta2">${esc(x.etapa || '—')}</td>
+      </tr>`,
+      )
+      .join('')}</tbody></table></div>`;
+}
 
 /* -------------------------------------------------------------- tabela */
 function celulaMaterial(m) {
@@ -326,17 +338,10 @@ VIEWS.materiais = () => {
     total: o.materiais.length,
   });
 
-  const comSaldo = todos.filter((x) => x.c.saldo > 0.005 && x.m.status !== 'Cancelado');
-  const faltaPorEtapa = Object.entries(
-    comSaldo.reduce((a, x) => {
-      const e = x.m.etapa || 'Sem etapa';
-      a[e] = (a[e] || 0) + x.c.saldoValor;
-      return a;
-    }, {}),
-  ).map(([rotulo, valor]) => ({ rotulo, valor: Math.round(valor * 100) / 100 }));
+  const r = resumoMateriais(o, hoje, 14);
 
   return `<div class="tela-lista">
-    ${kpisMateriais(todos, coberturaPlanoMateriais(o))}
+    ${kpisMateriais(r, coberturaPlanoMateriais(o), todos.length)}
     ${barra}
     ${lista({
       id: 'materiais',
@@ -349,10 +354,14 @@ VIEWS.materiais = () => {
     ${painelAnalise([
       {
         titulo: 'Falta comprar por etapa',
-        conteudo:
-          faltaPorEtapa.length > 1
-            ? graficoBarras(faltaPorEtapa, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--serie2)' })
-            : '',
+        conteudo: r.faltaPorEtapa.length
+          ? graficoBarras(r.faltaPorEtapa, { formata: (v) => fmtMoneyCurto(v), cor: 'var(--serie2)' })
+          : '<p class="tinta2 painel-vazio">Tudo comprado.</p>',
+      },
+      {
+        titulo: 'Comprar nos próximos 14 dias',
+        nota: r.comprarProximos.length ? `${r.comprarProximos.length} · vencidos primeiro` : '',
+        conteudo: tabelaComprar(r.comprarProximos),
       },
     ])}
   </div>`;

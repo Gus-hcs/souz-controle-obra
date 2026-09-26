@@ -2,7 +2,7 @@
  * supabase.js — Banco de dados: mapeamento das tabelas, sincronização e telas de acesso.
  */
 import { CFG } from '../config.js';
-import { esc, estadoInicial, isISO, migrar, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, novaPendenciaCliente, novoTratamento, num } from '../nucleo/base.js';
+import { esc, estadoInicial, isISO, migrar, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, novaPendenciaCliente, novoRelatorioGerado, novoTratamento, num } from '../nucleo/base.js';
 import { CHAVE_BASE_OFFLINE, CHAVE_LOCAL, Store, erroDeRede } from './store.js';
 import { App, confirmar, LOGO, toast } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
@@ -67,7 +67,9 @@ const TABELAS_DB = [
       /* exige a migração 0016 */
       'fin.financiador': 'financiador',
       /* exige a migração 0018 */
-      statusEnviadoEm: ['status_enviado_em', 'data']
+      statusEnviadoEm: ['status_enviado_em', 'data'],
+      /* exige a migração 0020 */
+      creaCau: 'crea_cau'
     }
   },
   {
@@ -111,7 +113,8 @@ const TABELAS_DB = [
       status: 'status', observacoes: 'observacoes',
       /* exige a migração 0016 */
       percentExigido: ['percent_exigido', 'num'], dataVistoria: ['data_vistoria', 'data'],
-      dataAprovacao: ['data_aprovacao', 'data']
+      dataAprovacao: ['data_aprovacao', 'data'],
+      comprovante: 'comprovante'
     }
   },
   {
@@ -184,6 +187,16 @@ const TABELAS_DB = [
     campos: {
       descricao: 'descricao', prazo: ['prazo', 'data'], status: 'status',
       resolvidaEm: ['resolvida_em', 'data'], criadaEm: ['data_criacao', 'data']
+    }
+  },
+  {
+    /* Histórico de relatórios gerados (0020). Opcional: sem a tabela, a
+       lista de gerados some e a geração continua. */
+    nome: 'relatorios_gerados', colecao: 'relatoriosGerados', opcional: true,
+    novo: () => novoRelatorioGerado(),
+    campos: {
+      tipo: 'tipo', opcoes: ['opcoes', 'json'], geradoPor: 'gerado_por',
+      geradoEm: 'gerado_em', arquivo: 'arquivo'
     }
   }
 ];

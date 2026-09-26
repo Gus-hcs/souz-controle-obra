@@ -44,6 +44,7 @@ import './ui/telas/auditoria.js';
 import './ui/telas/clientes.js';
 import './ui/telas/painel.js';
 import './ui/telas/ajustes.js';
+import './ui/telas/relatorios.js';
 
 /* ---------------------------------------------------------- eventos */
 document.addEventListener('click', (ev) => {

@@ -1,7 +1,7 @@
 /**
  * calculos.js — Regras de negócio: todo cálculo do sistema vive aqui, sem tocar em DOM.
  */
-import { addDias, addMeses, capitalizarNome, competencia, diasEntre, fimDoMes, fmtData, fmtMoney, fmtNum, fmtPct, hojeISO, inicioDoMes, isISO, norm, novoTratamento, num, round2, SITUACOES_MANUAIS_CONTRATO } from '../nucleo/base.js';
+import { addDias, addMeses, capitalizarNome, competencia, diasEntre, fimDoMes, fmtData, fmtDataCurta, fmtMoney, fmtNum, fmtPct, hojeISO, inicioDoMes, isISO, norm, novoTratamento, num, round2, SITUACOES_MANUAIS_CONTRATO } from '../nucleo/base.js';
 
 /* ------------------------------------------------------ CONTRATOS  */
 /* Planilha: K = SE(valor informado > 0; valor informado; qtd × preço) */
@@ -285,6 +285,36 @@ function medicoesEmAberto(obra, hoje = hojeISO()) {
   };
 }
 
+/* Os totais da tela de Medições e os blocos do fim dela: medido líquido
+   e pago (sem as canceladas), o a pagar por contrato e o medido × físico
+   por contrato (medidoFisicoContrato), com quem está medido à frente. */
+function resumoMedicoes(obra) {
+  const ativas = obra.medicoes.filter((m) => m.status !== 'Cancelado');
+  const bases = [...new Set(obra.contratos.map((c) => c.codigoBase).filter(Boolean))];
+  const prestadorDe = (base) => {
+    const c = obra.contratos.find((x) => x.codigoBase === base && x.registro === 'Contrato') ||
+      obra.contratos.find((x) => x.codigoBase === base);
+    return (c && c.prestador) || '';
+  };
+  return {
+    n: ativas.length,
+    medido: round2(ativas.reduce((s, m) => s + medicaoLiquido(m), 0)),
+    pago: round2(ativas.reduce((s, m) => s + num(m.valorPago), 0)),
+    aPagarPorContrato: bases
+      .map((base) => ({
+        base,
+        prestador: prestadorDe(base),
+        valor: round2(ativas.filter((m) => m.contratoBase === base).reduce((s, m) => s + medicaoAPagar(obra, m), 0)),
+      }))
+      .filter((x) => x.valor > 0.005)
+      .sort((a, b) => b.valor - a.valor),
+    medidoFisico: bases
+      .map((base) => ({ base, prestador: prestadorDe(base), ...medidoFisicoContrato(obra, base) }))
+      .filter((x) => x.medido !== undefined)
+      .sort((a, b) => b.diferenca - a.diferenca),
+  };
+}
+
 /* --------------------------------------------------- RECEBIMENTOS  */
 /* Planilha: K = MÁXIMO(0; aprovado − descontos);  O = recebido − previsto */
 function recebimentoLiquido(r) {
@@ -341,6 +371,54 @@ function materialCalc(obra, mat) {
     saldoValor: saldo * num(mat.precoPrevisto),
     desvio: valorComprado - (comprada * num(mat.precoPrevisto)),
     compras: ls.length
+  };
+}
+
+/* A tela de Materiais inteira sai daqui: os quatro KPIs, o "falta
+   comprar por etapa" e o "comprar nos próximos N dias" (com o que já
+   venceu primeiro — é o que trava a obra agora). Cancelado fica fora. */
+function resumoMateriais(obra, hoje = hojeISO(), dias = 14) {
+  const todos = obra.materiais.map((m) => ({ m, c: materialCalc(obra, m) }));
+  const ativos = todos.filter((x) => x.m.status !== 'Cancelado');
+  const soma = (xs, f) => round2(xs.reduce((s, x) => s + f(x), 0));
+  const comSaldo = ativos.filter((x) => x.c.saldo > 0.005);
+  const vencidos = todos.filter((x) => x.c.vencido);
+  const comCompra = todos.filter((x) => x.c.compras > 0);
+
+  const porEtapa = new Map();
+  comSaldo.forEach((x) => {
+    const e = x.m.etapa || 'Sem etapa';
+    porEtapa.set(e, (porEtapa.get(e) || 0) + x.c.saldoValor);
+  });
+
+  const limite = addDiasISO(hoje, dias);
+  const comprar = comSaldo
+    .filter((x) => isISO(x.m.dataNecessaria) && x.m.dataNecessaria <= limite && !x.c.etapaConcluida)
+    .map((x) => ({
+      id: x.m.id,
+      material: x.m.material || 'Material',
+      dataLimite: x.m.dataNecessaria,
+      valor: round2(x.c.saldoValor),
+      etapa: x.m.etapa || '',
+      vencido: x.m.dataNecessaria < hoje,
+      travaFrente: x.c.travaFrente,
+    }))
+    .sort((a, b) => a.dataLimite.localeCompare(b.dataLimite));
+
+  return {
+    orcamento: soma(todos, (x) => x.c.orcamento),
+    comprado: soma(todos, (x) => x.c.valorComprado),
+    faltaComprar: soma(comSaldo, (x) => x.c.saldoValor),
+    itensComSaldo: comSaldo.length,
+    vencidos: vencidos.length,
+    vencidosValor: soma(vencidos, (x) => x.c.saldoValor),
+    travando: vencidos.filter((x) => x.c.travaFrente).length,
+    comCompra: comCompra.length,
+    desvio: soma(comCompra, (x) => x.c.desvio),
+    faltaPorEtapa: [...porEtapa.entries()]
+      .map(([rotulo, valor]) => ({ rotulo, valor: round2(valor) }))
+      .sort((a, b) => b.valor - a.valor),
+    comprarProximos: comprar,
   };
 }
 
@@ -517,13 +595,90 @@ function resumoLancamentos(obra) {
   const ls = obra.lancamentos;
   const semEtapa = ls.filter((l) => !l.etapa);
   const naoObra = ls.filter((l) => lancamentoNatureza(l) !== 'Obra');
+  const cat = (c) => ls.filter((l) => categoriaLancamento(l) === c);
   return {
     total: soma(ls),
     n: ls.length,
     material: soma(ls.filter((l) => l.tipo === 'Material')),
     semEtapa: { n: semEtapa.length, valor: soma(semEtapa) },
     naoObra: { n: naoObra.length, valor: soma(naoObra) },
+    /* as quatro categorias de saída (categoriaLancamento) — os KPIs */
+    porCategoria: {
+      material: soma(cat('material')),
+      maoDeObra: soma(cat('maoDeObra')),
+      taxas: soma(cat('taxas')),
+      extras: soma(cat('extras')),
+    },
   };
+}
+
+/* Categoria da saída, a mesma em Lançamentos e no Fluxo de caixa:
+   material (inclui fornecimento + instalação), mão de obra e serviços
+   (serviço avulso; no Fluxo, também as medições pagas), taxas e impostos,
+   e extras (honorário, comissão, terreno, outras). Tipo criado pelo
+   usuário e fora da lista cai em extras. */
+const CATEGORIAS_SAIDA = [
+  ['material', 'Material'],
+  ['maoDeObra', 'Mão de obra e serviços'],
+  ['taxas', 'Taxas e impostos'],
+  ['extras', 'Extras'],
+];
+const CATEGORIA_POR_TIPO = {
+  Material: 'material',
+  'Fornecimento + instalação': 'material',
+  'Serviço avulso': 'maoDeObra',
+  'Taxa/imposto': 'taxas',
+  'Honorário técnico/gestão': 'extras',
+  'Comissão imobiliária': 'extras',
+  Terreno: 'extras',
+  'Outra saída': 'extras',
+};
+function categoriaLancamento(l) {
+  return CATEGORIA_POR_TIPO[l.tipo] || 'extras';
+}
+
+/* Lançamentos agrupados por mês (o mais recente primeiro), com o
+   subtotal de cada mês. Sem data vai para o fim, em "sem data". */
+function lancamentosPorMes(lancamentos) {
+  const grupos = new Map();
+  lancamentos.forEach((l) => {
+    const ym = isISO(l.data) ? competencia(l.data) : '';
+    const g = grupos.get(ym) || { ym, lancamentos: [], total: 0 };
+    g.lancamentos.push(l);
+    g.total += lancamentoTotal(l);
+    grupos.set(ym, g);
+  });
+  return [...grupos.values()]
+    .map((g) => ({ ...g, total: round2(g.total) }))
+    .sort((a, b) => (!a.ym ? 1 : !b.ym ? -1 : b.ym.localeCompare(a.ym)));
+}
+
+/* Composição por tipo e gasto por etapa (painel de Lançamentos), do
+   maior para o menor. A rosca junta o que passar de cinco fatias em
+   "Outros" (fatiasRosca, graficos). */
+function composicaoPorTipo(lancamentos) {
+  const m = new Map();
+  lancamentos.forEach((l) => m.set(l.tipo || 'Sem tipo', (m.get(l.tipo || 'Sem tipo') || 0) + lancamentoTotal(l)));
+  return [...m.entries()].map(([rotulo, valor]) => ({ rotulo, valor: round2(valor) }))
+    .filter((x) => x.valor > 0.005).sort((a, b) => b.valor - a.valor);
+}
+function gastoPorEtapa(lancamentos) {
+  const m = new Map();
+  lancamentos.forEach((l) => m.set(l.etapa || 'Sem etapa', (m.get(l.etapa || 'Sem etapa') || 0) + lancamentoTotal(l)));
+  return [...m.entries()].map(([rotulo, valor]) => ({ rotulo, valor: round2(valor) }))
+    .filter((x) => x.valor > 0.005).sort((a, b) => b.valor - a.valor);
+}
+
+/* Duplicados ainda em aberto: os grupos de lancamentosDuplicados cujo
+   alerta ("duplicado:<id do primeiro>") não foi marcado "não é duplicado"
+   (tratamento resolvido, 0015). O "Não é duplicado" da lista grava esse
+   tratamento; se o valor subir, o alerta volta (situacaoTratamento). */
+function lancamentosDuplicadosAbertos(obra, hoje = hojeISO()) {
+  const trat = new Map((obra.tratamentos || []).map((t) => [t.chave, t]));
+  return lancamentosDuplicados(obra).filter((ls) => {
+    const alerta = { sev: 2, valor: lancamentoTotal(ls[0]) * (ls.length - 1) };
+    return !situacaoTratamento(trat.get(`duplicado:${ls[0].id}`), alerta, hoje).silenciado;
+  });
 }
 
 function kpisObra(obra) {
@@ -840,6 +995,162 @@ function resumoRecebimentos(obra, hoje = hojeISO()) {
   };
 }
 
+/* ------------------------------------------ Recebimentos (redesenho)
+   Passos da parcela: do financiador (prevista → solicitada → em vistoria
+   → aprovada → creditada) ou do cliente (prevista → cobrada → recebida).
+   Na parcela do cliente, a data de cobrança é dataSolicitacao. */
+const PASSOS_FINANCIAMENTO = ['Prevista', 'Solicitada', 'Em vistoria', 'Aprovada', 'Creditada'];
+const PASSOS_CLIENTE = ['Prevista', 'Cobrada', 'Recebida'];
+
+function andamentoParcela(r, hoje = hojeISO()) {
+  const cliente = !recebimentoDoFinanciamento(r);
+  const passos = cliente ? PASSOS_CLIENTE : PASSOS_FINANCIAMENTO;
+  if (r.status === 'Cancelado') {
+    return { tipo: cliente ? 'cliente' : 'financiamento', passos, passo: -1, final: false, cancelada: true,
+      texto: 'Cancelada', data: '', vencida: false, diasAtraso: 0 };
+  }
+  let passo;
+  let data;
+  if (cliente) {
+    if (num(r.valorRecebido) > 0.005 || r.status === 'Recebido') { passo = 2; data = r.dataRecebimento; }
+    else if (isISO(r.dataSolicitacao)) { passo = 1; data = r.dataSolicitacao; }
+    else { passo = 0; data = r.dataPrevista; }
+  } else {
+    passo = PROCESSO_PARCELA.indexOf(processoParcela(r));
+    data = [r.dataPrevista, r.dataSolicitacao, r.dataVistoria, r.dataAprovacao, r.dataRecebimento][passo];
+  }
+  const final = passo === passos.length - 1;
+  const vencida = !final && isISO(r.dataPrevista) && r.dataPrevista < hoje;
+  const diasAtraso = vencida ? diasEntre(r.dataPrevista, hoje) : 0;
+  const ha = isISO(data) ? Math.max(0, diasEntre(data, hoje)) : null;
+  const dias = (n) => `${n} dia${n === 1 ? '' : 's'}`;
+  let texto;
+  if (final) texto = `${passos[passo]} ${isISO(data) ? `em ${fmtDataCurta(data)}` : ''}`.trim();
+  else if (passo === 0) {
+    texto = vencida ? `Vencida há ${dias(diasAtraso)}` : isISO(r.dataPrevista) ? `Prevista para ${fmtDataCurta(r.dataPrevista)}` : 'Prevista';
+  } else texto = ha === null ? passos[passo] : ha === 0 ? `${passos[passo]} hoje` : `${passos[passo]} há ${dias(ha)}`;
+  return { tipo: cliente ? 'cliente' : 'financiamento', passos, passo, final, cancelada: false, texto, data: data || '', vencida, diasAtraso };
+}
+
+/* A condição de liberação da parcela do financiador: a etapa ligada a ela
+   (etapaPci com o nome de uma etapa do cronograma) a 100%, ou o % de obra
+   exigido. null na parcela do cliente, na já creditada e na sem meta. */
+function condicaoParcela(obra, r) {
+  if (!recebimentoDoFinanciamento(r) || r.status === 'Cancelado') return null;
+  if (num(r.valorRecebido) > 0.005 || r.status === 'Recebido') return null;
+  const e = r.etapaPci ? obra.cronograma.find((x) => norm(x.etapa) === norm(r.etapaPci)) : null;
+  if (e) {
+    const p = Math.min(1, Math.max(0, num(e.progresso)));
+    return { tipo: 'etapa', etapa: e.etapa, exigido: 1, atual: p, cumprida: p >= 1,
+      texto: `exige ${e.etapa} 100% · hoje ${fmtPct(p, 0)}` };
+  }
+  const exigido = num(r.percentExigido);
+  if (exigido > 0) {
+    const { fisico } = fisicoFinanciador(obra);
+    return { tipo: 'obra', etapa: '', exigido, atual: fisico, cumprida: fisico >= exigido - 0.0005,
+      texto: `exige ${fmtPct(exigido, 0)} da obra · hoje ${fmtPct(fisico, 0)}` };
+  }
+  return null;
+}
+
+/* "Pode solicitar": a diferença entre executado e liberado convertida em
+   valor, menos o que já foi pedido e ainda não caiu (parcela solicitada,
+   em vistoria ou aprovada). É o que dá para pedir ao financiador hoje.
+   null sem valor financiado. */
+function podeSolicitar(obra, hoje = hojeISO()) {
+  const le = liberadoExecutado(obra);
+  if (!le) return null;
+  const emAndamento = parcelasFinanciador(obra, hoje)
+    .filter((p) => p.passo >= 1 && p.etapa !== 'creditada')
+    .reduce((s, p) => s + p.valor, 0);
+  const aberto = Math.max(0, (le.executado - le.liberado) * le.financiado);
+  return {
+    executado: le.executado,
+    liberado: le.liberado,
+    financiado: le.financiado,
+    financiador: le.financiador,
+    emAndamento: round2(emAndamento),
+    valor: round2(Math.max(0, aberto - emAndamento)),
+  };
+}
+
+/* A faixa de KPIs de Recebimentos: recebido (e quanto do previsto),
+   a receber com a próxima parcela, o atrasado com a parcela mais antiga
+   e o "pode solicitar". Tarifas e descontos vão no contexto do recebido. */
+function indicadoresRecebimentos(obra, hoje = hojeISO()) {
+  const k = kpisObra(obra);
+  const rr = resumoRecebimentos(obra, hoje);
+  const ativos = obra.recebimentos.filter((r) => r.status !== 'Cancelado');
+  const previstoTotal = round2(ativos.reduce((s, r) => s + num(r.valorPrevisto), 0));
+  const valorDe = (r) => recebimentoLiquido(r) || num(r.valorPrevisto);
+  const futuras = rr.pendentes
+    .filter((r) => isISO(r.dataPrevista) && r.dataPrevista >= hoje)
+    .sort((a, b) => a.dataPrevista.localeCompare(b.dataPrevista));
+  const atrasadas = rr.atrasadas.slice().sort((a, b) => a.dataPrevista.localeCompare(b.dataPrevista));
+  const antiga = atrasadas[0];
+  return {
+    recebido: round2(k.recebido),
+    previstoTotal,
+    pctRecebido: previstoTotal > 0 ? k.recebido / previstoTotal : null,
+    recebidoFinanciamento: round2(k.recebidoFinanciamento),
+    recebidoProprio: round2(k.recebidoProprio),
+    tarifas: rr.descontos,
+    aReceber: round2(k.previstoNaoRecebido),
+    proxima: futuras[0]
+      ? { valor: round2(valorDe(futuras[0])), data: futuras[0].dataPrevista, numero: futuras[0].numeroMedicao, etapa: futuras[0].etapaPci }
+      : null,
+    atrasado: rr.totAtrasado,
+    nAtrasadas: atrasadas.length,
+    maisAntiga: antiga
+      ? { numero: antiga.numeroMedicao, etapa: antiga.etapaPci, dias: diasEntre(antiga.dataPrevista, hoje) }
+      : null,
+    podeSolicitar: podeSolicitar(obra, hoje),
+  };
+}
+
+/* Previsto × recebido acumulado, mês a mês: o previsto pela data
+   prevista, o recebido pela data do crédito. Depois do mês de hoje o
+   recebido é null (ainda não aconteceu). */
+function curvaRecebimentos(obra, hoje = hojeISO()) {
+  const ativos = obra.recebimentos.filter((r) => r.status !== 'Cancelado');
+  const datas = [];
+  ativos.forEach((r) => {
+    if (isISO(r.dataPrevista)) datas.push(r.dataPrevista);
+    if (isISO(r.dataRecebimento)) datas.push(r.dataRecebimento);
+  });
+  if (!datas.length) return [];
+  datas.sort();
+  const mesHoje = competencia(hoje);
+  const ini = competencia(datas[0]);
+  const fim = [competencia(datas[datas.length - 1]), mesHoje].sort()[1];
+  const meses = [];
+  for (let m = ini; m <= fim && meses.length < 120; m = addMeses(m, 1)) meses.push(m);
+  let prev = 0;
+  let rec = 0;
+  return meses.map((ym) => {
+    ativos.forEach((r) => {
+      if (isISO(r.dataPrevista) && competencia(r.dataPrevista) === ym) prev += num(r.valorPrevisto);
+      if (isISO(r.dataRecebimento) && competencia(r.dataRecebimento) === ym) rec += num(r.valorRecebido);
+    });
+    return { ym, previsto: round2(prev), recebido: ym > mesHoje ? null : round2(rec) };
+  });
+}
+
+/* O histórico da parcela, passo a passo, para o inspetor: data de cada
+   passo que aconteceu e o valor de cada momento. */
+function historicoParcela(r) {
+  const cliente = !recebimentoDoFinanciamento(r);
+  const linhas = [
+    { passo: 'Prevista', data: r.dataPrevista, valor: num(r.valorPrevisto) },
+    { passo: cliente ? 'Cobrada' : 'Solicitada', data: r.dataSolicitacao, valor: null },
+    cliente ? null : { passo: 'Vistoria', data: r.dataVistoria, valor: null },
+    cliente ? null : { passo: 'Aprovada', data: r.dataAprovacao, valor: num(r.valorAprovado) || null },
+    { passo: cliente ? 'Recebida' : 'Creditada', data: r.dataRecebimento, valor: num(r.valorRecebido) || null,
+      descontos: num(r.descontos) || 0 },
+  ];
+  return linhas.filter((l) => l && (l.passo === 'Prevista' || isISO(l.data)));
+}
+
 /* Liberado × executado: quanto do financiamento já entrou contra quanto
    da obra já foi feito. Executado à frente = a construtora está bancando
    a diferença com caixa próprio. null sem valor financiado. */
@@ -998,6 +1309,76 @@ function consolidarFluxo(saldoHoje, eventos, hoje = hojeISO(), janela = 30) {
     janela,
     saldoFinal: round2(saldo),
     meses: listaMeses,
+  };
+}
+
+/* O painel ao lado do Fluxo de caixa: saídas por categoria, entradas por
+   origem e o saldo mês a mês — realizado até hoje e projetado depois
+   (fluxoProjetado) — com o menor saldo previsto. `filtro` é o da tela:
+   '' (todos os meses), 'movimento' (só meses com movimento) ou 'futuros'
+   (só a projeção, a partir do mês que vem). */
+function analiseFluxo(obra, filtro = '', hoje = hojeISO()) {
+  const ymHoje = competencia(hoje);
+  const real = fluxoCaixa(obra, hoje).filter((m) => m.ym <= ymHoje);
+  const proj = fluxoProjetado(obra, hoje);
+  const porMes = new Map();
+  const mes = (ym) => {
+    if (!porMes.has(ym)) porMes.set(ym, { ym, entradas: 0, saidas: 0, saldo: 0, projetado: ym > ymHoje });
+    return porMes.get(ym);
+  };
+  real.forEach((m) => Object.assign(mes(m.ym), { entradas: m.entradas, saidas: m.saidas, saldo: m.acumulado }));
+  proj.meses.forEach((m) => {
+    const alvo = mes(m.ym);
+    alvo.entradas += m.entradas;
+    alvo.saidas += m.saidas;
+    alvo.saldo = m.saldoFim;
+  });
+  let meses = [...porMes.values()].sort((a, b) => a.ym.localeCompare(b.ym))
+    .map((m) => ({ ...m, entradas: round2(m.entradas), saidas: round2(m.saidas), saldo: round2(m.saldo) }));
+  /* mês futuro sem evento herda o saldo do anterior (já está na lista só
+     quando tem evento; o realizado mantém o acumulado) */
+  if (filtro === 'futuros') meses = meses.filter((m) => m.ym > ymHoje);
+  if (filtro === 'movimento') meses = meses.filter((m) => m.entradas > 0.005 || m.saidas > 0.005);
+  const dentro = new Set(meses.map((m) => m.ym));
+
+  /* saídas: realizado (medição paga = mão de obra; lançamento pela
+     categoria) + projetado (medição e contrato a medir = mão de obra;
+     material = material) */
+  const saidas = { material: 0, maoDeObra: 0, taxas: 0, extras: 0 };
+  const entradas = { financiamento: 0, cliente: 0, outras: 0 };
+  const origem = (r) => (recebimentoDoFinanciamento(r) ? 'financiamento' : r.origem === 'Cliente' ? 'cliente' : 'outras');
+  obra.medicoes.forEach((m) => {
+    if (m.status === 'Cancelado' || !isISO(m.dataPagamento) || !dentro.has(competencia(m.dataPagamento))) return;
+    saidas.maoDeObra += num(m.valorPago);
+  });
+  obra.lancamentos.forEach((l) => {
+    if (!isISO(l.data) || !dentro.has(competencia(l.data)) || competencia(l.data) > ymHoje) return;
+    saidas[categoriaLancamento(l)] += lancamentoTotal(l);
+  });
+  obra.recebimentos.forEach((r) => {
+    if (r.status === 'Cancelado' || !isISO(r.dataRecebimento) || !dentro.has(competencia(r.dataRecebimento))) return;
+    entradas[origem(r)] += num(r.valorRecebido);
+  });
+  proj.eventos.forEach((e) => {
+    if (!dentro.has(competencia(e.data))) return;
+    if (e.valor > 0) entradas[origem({ origem: e.origem || '' })] += e.valor; else if (e.tipo === 'material') saidas.material += -e.valor;
+    else saidas.maoDeObra += -e.valor;
+  });
+  const rot = Object.fromEntries(CATEGORIAS_SAIDA);
+  const menorNoPeriodo = meses.length
+    ? proj.pontos.filter((p) => dentro.has(competencia(p.data)))
+      .reduce((m, p) => (!m || p.saldo < m.saldo ? p : m), null)
+    : null;
+  return {
+    meses,
+    saidasPorCategoria: CATEGORIAS_SAIDA.map(([k]) => ({ chave: k, rotulo: rot[k], valor: round2(saidas[k]) })),
+    entradasPorOrigem: [
+      { chave: 'financiamento', rotulo: nomeFinanciador(obra) === 'financiador' ? 'Financiamento' : nomeFinanciador(obra), valor: round2(entradas.financiamento) },
+      { chave: 'cliente', rotulo: 'Cliente', valor: round2(entradas.cliente) },
+      { chave: 'outras', rotulo: 'Outras', valor: round2(entradas.outras) },
+    ],
+    /* o menor saldo previsto dentro do período (vale de caixa) */
+    menor: menorNoPeriodo ? { saldo: round2(menorNoPeriodo.saldo), data: menorNoPeriodo.data } : null,
   };
 }
 
@@ -2209,6 +2590,80 @@ function alteracaoSensivel(linha) {
 /* Fotos da semana para o relatório do cliente: as do diário dos últimos
    7 dias (hoje incluído), mais recentes primeiro, só PNG/JPEG em base64
    (o que o gerador de PDF desenha). */
+/* ------------------------------------------------------ RELATÓRIOS
+   Responsável técnico do relatório: o da OBRA (Configuração) e, só na
+   falta, o da empresa (Ajustes). `falta` diz o que não existe em nenhum
+   dos dois — é o único caso em que a tela avisa. */
+function rtDoRelatorio(obra, empresa = {}) {
+  const t = (v) => String(v || '').trim();
+  const nome = t(obra.responsavel) || t(empresa.responsavel);
+  const registro = t(obra.creaCau) || t(empresa.creaCau);
+  return {
+    nome,
+    registro,
+    origemNome: t(obra.responsavel) ? 'obra' : t(empresa.responsavel) ? 'empresa' : '',
+    origemRegistro: t(obra.creaCau) ? 'obra' : t(empresa.creaCau) ? 'empresa' : '',
+    falta: [!nome ? 'responsável técnico' : '', !registro ? 'CREA/CAU' : ''].filter(Boolean),
+  };
+}
+
+/* Período do relatório: vazio = sem limite daquele lado. */
+const noPeriodo = (data, de, ate) =>
+  isISO(data) && (!isISO(de) || data >= de) && (!isISO(ate) || data <= ate);
+
+/* Fotos do diário no período, da mais recente para a mais antiga. */
+function fotosDoPeriodo(obra, de, ate, max = 12) {
+  const out = [];
+  (obra.diario || [])
+    .filter((d) => noPeriodo(d.data, de, ate))
+    .sort((a, b) => (a.data < b.data ? 1 : -1))
+    .forEach((d) => {
+      (d.fotos || []).forEach((f) => {
+        const dados = typeof f === 'string' ? f : f && f.dados;
+        if (/^data:image\/(png|jpe?g);base64,/i.test(String(dados || ''))) {
+          out.push({ dados, data: d.data, etapa: d.etapa || '' });
+        }
+      });
+    });
+  return out.slice(0, max);
+}
+
+/* Prestação de contas num período: saldo anterior (saldo inicial + tudo
+   o que entrou e saiu antes do início), as entradas, os pagamentos de
+   medição e os lançamentos do período, e o saldo final. Sem período, é a
+   obra inteira e fecha com o caixa de hoje (kpisObra). */
+function prestacaoContas(obra, de = '', ate = '') {
+  const antes = (d) => isISO(de) && isISO(d) && d < de;
+  const entradasTodas = obra.recebimentos.filter((r) => r.status !== 'Cancelado' && num(r.valorRecebido) > 0);
+  const medicoesTodas = obra.medicoes.filter((m) => m.status !== 'Cancelado' && num(m.valorPago) > 0);
+  const soma = (xs, f) => round2(xs.reduce((s, x) => s + f(x), 0));
+  const dataPag = (m) => m.dataPagamento || m.data;
+  const saldoAnterior = round2(num(obra.fin.saldoInicial) +
+    soma(entradasTodas.filter((r) => antes(r.dataRecebimento)), (r) => num(r.valorRecebido)) -
+    soma(medicoesTodas.filter((m) => antes(dataPag(m))), (m) => num(m.valorPago)) -
+    soma(obra.lancamentos.filter((l) => antes(l.data)), lancamentoTotal));
+  const semLimite = !isISO(de) && !isISO(ate);
+  const dentro = (d) => semLimite || noPeriodo(d, de, ate);
+  const ordem = (f) => (a, b) => String(f(a) || '').localeCompare(String(f(b) || ''));
+  const entradas = entradasTodas.filter((r) => dentro(r.dataRecebimento)).sort(ordem((r) => r.dataRecebimento));
+  const medicoes = medicoesTodas.filter((m) => dentro(dataPag(m))).sort(ordem(dataPag));
+  const lancamentos = obra.lancamentos.filter((l) => dentro(l.data)).sort(ordem((l) => l.data));
+  const totEntradas = soma(entradas, (r) => num(r.valorRecebido));
+  const totMedicoes = soma(medicoes, (m) => num(m.valorPago));
+  const totLancamentos = soma(lancamentos, lancamentoTotal);
+  return {
+    saldoAnterior,
+    entradas,
+    medicoes,
+    lancamentos,
+    totEntradas,
+    totMedicoes,
+    totLancamentos,
+    totSaidas: round2(totMedicoes + totLancamentos),
+    saldoFinal: round2(saldoAnterior + totEntradas - totMedicoes - totLancamentos),
+  };
+}
+
 function fotosDaSemana(obra, hoje = hojeISO(), max = 6) {
   const desde = addDias(hoje, -6);
   const out = [];
@@ -2352,6 +2807,61 @@ function agendaCarteira(obras, hoje = hojeISO(), dias = 14) {
     });
   });
   return out.sort((a, b) => a.data.localeCompare(b.data) || a.obraNome.localeCompare(b.obraNome));
+}
+
+/* Próximos N dias de UMA obra, para o painel do cronograma: etapas que
+   começam ou terminam, material que precisa estar na obra e parcela do
+   financiador (medição) esperada — em ordem de data. `quem` é o
+   responsável (etapa) ou a origem (parcela). */
+function agendaObra(obra, hoje = hojeISO(), dias = 14) {
+  const limite = addDiasISO(hoje, dias);
+  const dentro = (d) => isISO(d) && d >= hoje && d <= limite;
+  const out = [];
+  obra.cronograma.forEach((e) => {
+    const nome = e.etapa || 'Etapa';
+    if (num(e.progresso) >= 1) return;
+    if (!isISO(e.inicioReal) && dentro(e.inicioPrevisto)) {
+      out.push({ data: e.inicioPrevisto, tipo: 'etapa-inicio', texto: `${nome} começa`, quem: e.responsavel || '', view: 'cronograma' });
+    }
+    if (dentro(e.fimPrevisto)) {
+      out.push({ data: e.fimPrevisto, tipo: 'etapa-fim', texto: `${nome} termina`, quem: e.responsavel || '', view: 'cronograma' });
+    }
+  });
+  obra.materiais.forEach((m) => {
+    if (m.status === 'Cancelado' || !dentro(m.dataNecessaria)) return;
+    if (!(materialCalc(obra, m).saldo > 0)) return;
+    out.push({ data: m.dataNecessaria, tipo: 'material', texto: `Entrega: ${m.material || 'material'}`, quem: m.etapa || '', view: 'materiais' });
+  });
+  obra.recebimentos.forEach((r) => {
+    if (r.status === 'Recebido' || r.status === 'Cancelado' || !dentro(r.dataPrevista)) return;
+    const n = r.numeroMedicao ? `Medição ${r.numeroMedicao}` : 'Parcela';
+    out.push({ data: r.dataPrevista, tipo: 'medicao', texto: `${n} esperada${r.etapaPci ? ` · ${r.etapaPci}` : ''}`, quem: r.origem || '', view: 'recebimentos' });
+  });
+  const ordem = { 'etapa-inicio': 0, 'etapa-fim': 1, material: 2, medicao: 3 };
+  return out.sort((a, b) => a.data.localeCompare(b.data) || ordem[a.tipo] - ordem[b.tipo]);
+}
+
+/* Etapas por responsável: quantas em andamento, quantas atrasadas (fim
+   vencido ou início vencido) e o maior atraso — é com quem se liga
+   primeiro. O prestador do cadastro vem junto, para o WhatsApp. */
+function responsaveisCronograma(obra, prestadores = [], hoje = hojeISO()) {
+  const grupos = new Map();
+  obra.cronograma.forEach((e) => {
+    const nome = String(e.responsavel || '').trim();
+    if (!nome) return;
+    const c = etapaCalc(e, hoje);
+    if (c.situacao === 'CONCLUÍDO') return;
+    const g = grupos.get(nome) || { nome, emAndamento: 0, atrasadas: 0, maiorAtraso: 0, etapas: [] };
+    if (isISO(e.inicioReal)) g.emAndamento++;
+    const atraso = Math.max(c.atraso, c.atrasoInicio);
+    if (atraso > 0) g.atrasadas++;
+    g.maiorAtraso = Math.max(g.maiorAtraso, atraso);
+    g.etapas.push(e.etapa || '');
+    grupos.set(nome, g);
+  });
+  return [...grupos.values()]
+    .map((g) => ({ ...g, prestador: prestadores.find((p) => !p.arquivado && ligadoAoPrestador(p, '', g.nome)) || null }))
+    .sort((a, b) => b.atrasadas - a.atrasadas || b.maiorAtraso - a.maiorAtraso || a.nome.localeCompare(b.nome, 'pt'));
 }
 
 /* Curva S da carteira: média das curvas das obras, ponderada pelo custo
@@ -2746,6 +3256,26 @@ function addDiasISO(iso, n) {
 }
 
 export {
+  rtDoRelatorio,
+  fotosDoPeriodo,
+  prestacaoContas,
+  CATEGORIAS_SAIDA,
+  categoriaLancamento,
+  lancamentosPorMes,
+  composicaoPorTipo,
+  gastoPorEtapa,
+  lancamentosDuplicadosAbertos,
+  analiseFluxo,
+  PASSOS_FINANCIAMENTO,
+  PASSOS_CLIENTE,
+  andamentoParcela,
+  condicaoParcela,
+  podeSolicitar,
+  indicadoresRecebimentos,
+  curvaRecebimentos,
+  historicoParcela,
+  resumoMateriais,
+  resumoMedicoes,
   contratoValor,
   contratoTotalAutorizado,
   contratoTotalPago,
@@ -2843,6 +3373,8 @@ export {
   listaProtegida,
   riscoCarteira,
   agendaCarteira,
+  agendaObra,
+  responsaveisCronograma,
   curvaSCarteira,
   ORDEM_SAUDE,
   ligadoAoPrestador,
