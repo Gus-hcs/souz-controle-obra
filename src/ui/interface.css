@@ -2012,16 +2012,13 @@ table.lista-carteira tbody td {
   white-space: nowrap;
 }
 
-/* --------------------------------------------- conta, no rodapé */
-.lateral-conta {
-  padding: var(--e2);
-  border-top: var(--fio) solid var(--separador);
-}
+/* ------------------------------------------ conta, na ponta do topo */
 .conta-btn {
   display: flex;
+  flex: none;
   align-items: center;
   gap: var(--e2);
-  width: 100%;
+  max-width: 200px;
   height: var(--alt-ctrl);
   padding: 0 var(--e2);
   background: none;
@@ -2036,14 +2033,13 @@ table.lista-carteira tbody td {
   background: var(--fundo-hover);
 }
 .conta-btn .ic {
-  margin-left: auto;
   color: var(--tinta3);
-  transform: rotate(-90deg);
+  transform: rotate(90deg);
 }
 .conta-avatar {
-  flex: 0 0 20px;
-  width: 20px;
-  height: 20px;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
   display: grid;
   place-items: center;
   border-radius: var(--r-total);
@@ -3188,5 +3184,21 @@ table.lista td.num span {
   select,
   textarea {
     font-size: 16px;
+  }
+}
+
+/* No telefone e no tablet estreito, a conta vira só o avatar: o nome
+   disputava espaço com o título da tela. */
+@media (max-width: 1100px) {
+  #topo .conta-nome,
+  #topo .conta-btn .ic {
+    display: none;
+  }
+}
+@media (max-width: 767px) {
+  #topo .conta-btn {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
   }
 }
