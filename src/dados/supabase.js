@@ -320,8 +320,15 @@ const SUPA = {
   plano: 'ativo',
   bloqueado: false,
   abas: {},          // { "<aba>": false } = abas bloqueadas para este usuário
-  limiteObras: null, // null = sem limite; número = teto de obras da conta
+  limiteObras: null, // null = sem limite; número = teto de obras da conta (ou da construtora)
   indisponiveis: new Set(), // tabelas `opcional` que ainda não existem no banco
+  /* Construtora (0021): { id, nome, plano, papel, limiteUsuarios,
+     limiteObras, usuarios, obras, bloqueada } de quem entrou, se for da
+     equipe (gestor ou engenheiro); null para cliente final, conta sem
+     construtora ou banco sem a 0021. */
+  construtora: null,
+  construtorasNoBanco: false, // a 0021 está aplicada (minha_construtora respondeu)
+  motivoBloqueio: '',         // 'conta' | 'construtora' — o que a tela de bloqueio diz
 
   /* Recurso que depende de tabela opcional (migração ainda não aplicada).
      Sem banco (modo local), tudo está disponível: grava no navegador. */
@@ -452,10 +459,13 @@ const SUPA = {
     return this.papeis;
   },
 
-  /* 'dono' quando a tabela de membros ainda não existe — preserva o
-     comportamento de antes da migração 0004. */
+  /* O convite (obra_membros) vale primeiro; sem convite, a obra é da
+     construtora: gestor é dono de todas, engenheiro edita (0021). Sem
+     construtora nem convite, 'dono' — o comportamento de antes da 0004. */
   papelNaObra(obraId) {
-    return this.papeis[obraId] || 'dono';
+    if (this.papeis[obraId]) return this.papeis[obraId];
+    if (this.construtora) return this.construtora.papel === 'gestor' ? 'dono' : 'engenheiro';
+    return 'dono';
   },
 
   podeEditarObra(obraId) {
@@ -583,10 +593,70 @@ const SUPA = {
     if (error) throw error;
   },
 
-  /* Quantas obras a conta ainda pode criar (null = sem limite). */
+  /* Quantas obras ainda cabem (null = sem limite). Com construtora, o
+     limite é dela e `qtdAtual` são as obras da equipe (as que a pessoa vê
+     como cliente final não contam); o banco confere de novo. */
   obrasRestantes(qtdAtual) {
     if (this.limiteObras == null) return null;
     return Math.max(0, this.limiteObras - qtdAtual);
+  },
+
+  /* ------------------------------------------- construtoras (admin, 0021) */
+  async lerConstrutoras() {
+    if (!this.sb) return [];
+    const { data, error } = await this.sb.rpc('admin_empresas');
+    if (error) throw error;
+    return data || [];
+  },
+
+  /* Cria (id nulo) ou altera. Devolve o id. Limite vazio = sem limite. */
+  async adminSalvarConstrutora(id, c) {
+    const lim = (v) => (v === '' || v === null || v === undefined ? null : Number(v));
+    const { data, error } = await this.sb.rpc('admin_salvar_empresa', {
+      p_id: id || null,
+      p_nome: String(c.nome || '').trim(),
+      p_cnpj: String(c.cnpj || '').trim() || null,
+      p_plano: c.plano || 'ativo',
+      p_limite_usuarios: lim(c.limiteUsuarios),
+      p_limite_obras: lim(c.limiteObras),
+      p_bloqueada: !!c.bloqueada
+    });
+    if (error) throw error;
+    return data;
+  },
+
+  async adminExcluirConstrutora(id) {
+    const { error } = await this.sb.rpc('admin_excluir_empresa', { p_id: id });
+    if (error) throw error;
+  },
+
+  /* Liga a conta a uma construtora com um papel; empresaId nulo desliga.
+     O banco confere a vaga e tira os convites de equipe de quem sai. */
+  async adminLigarUsuario(usuarioId, empresaId, papel) {
+    const { error } = await this.sb.rpc('admin_definir_usuario_empresa', {
+      p_usuario: usuarioId,
+      p_empresa: empresaId || null,
+      p_papel: empresaId ? papel : null
+    });
+    if (error) throw error;
+  },
+
+  /* Acesso novo numa construtora: cria a conta (admin-usuario) e liga.
+     Se a ligação falhar (vaga tomada no meio), apaga a conta recém-criada
+     — não fica conta solta, sem construtora. */
+  async adminCriarAcesso({ email, senha, empresaId, empresaNome, papel }) {
+    const { id } = await this.adminCriarUsuario(email, senha, empresaNome);
+    try {
+      await this.adminLigarUsuario(id, empresaId, papel);
+    } catch (e) {
+      try {
+        await this.adminExcluirUsuario(id);
+      } catch (e2) {
+        console.error('conta criada sem construtora — apague em Contas e acessos:', e2);
+      }
+      throw e;
+    }
+    return { id };
   },
 
   /* Equipe da obra (migração 0014). membros_da_obra() traz o e-mail junto
@@ -690,16 +760,68 @@ const SUPA = {
       this.ehAdmin = !!perfil.admin;
       this.plano = perfil.plano || 'ativo';
       this.bloqueado = !!perfil.bloqueado;
+      this.motivoBloqueio = perfil.bloqueado ? 'conta' : '';
       this.abas = perfil.abas && typeof perfil.abas === 'object' ? perfil.abas : {};
       this.limiteObras = perfil.limite_obras == null ? null : Number(perfil.limite_obras);
     } else {
       estado.empresa.email = (this.usuario && this.usuario.email) || '';
     }
 
+    await this.carregarConstrutora(estado);
     await this.carregarPapeis();
 
     estado.meta.savedAt = new Date().toISOString();
     return estado;
+  },
+
+  /* A construtora de quem entrou (0021). Os dados da empresa e as listas
+     passam a ser dela — iguais para toda a equipe —, e o plano, o limite de
+     obras e o bloqueio também. Sem a 0021 no banco a função não existe:
+     fica tudo como antes, pelo perfil. */
+  async carregarConstrutora(estado) {
+    this.construtora = null;
+    let data = null;
+    let error = null;
+    try {
+      ({ data, error } = await this.sb.rpc('minha_construtora'));
+    } catch (e) {
+      error = e;
+    }
+    if (error) {
+      /* sem a 0021 (ou falha na chamada): segue pelo perfil, como antes */
+      this.construtorasNoBanco = false;
+      return;
+    }
+    this.construtorasNoBanco = true;
+    const c = (data || [])[0];
+    if (!c) return;
+    this.construtora = {
+      id: c.id,
+      nome: c.nome || '',
+      plano: c.plano || 'ativo',
+      papel: c.papel,
+      limiteUsuarios: c.limite_usuarios == null ? null : Number(c.limite_usuarios),
+      limiteObras: c.limite_obras == null ? null : Number(c.limite_obras),
+      usuarios: Number(c.usuarios || 0),
+      obras: Number(c.obras || 0),
+      bloqueada: !!c.bloqueada,
+    };
+    estado.empresa = {
+      nome: c.nome || '',
+      cnpj: c.cnpj || '',
+      logo: c.logo || '',
+      responsavel: c.responsavel || '',
+      creaCau: c.crea_cau || '',
+      telefone: c.telefone || '',
+      email: c.email || '',
+    };
+    estado.listas = Object.assign(estadoInicial().listas, c.listas && typeof c.listas === 'object' ? c.listas : {});
+    this.plano = this.construtora.plano;
+    this.limiteObras = this.construtora.limiteObras;
+    if (this.construtora.bloqueada) {
+      this.bloqueado = true;
+      this.motivoBloqueio = 'construtora';
+    }
   },
 
   /* ------------------------------------------------------- gravação */
@@ -784,10 +906,22 @@ const SUPA = {
       }
     }
 
-    /* perfil */
+    /* perfil — ou a construtora (0021): dados da empresa e listas são dela */
     const perfilAtual = JSON.stringify([atual.empresa, atual.listas]);
     const perfilAntes = JSON.stringify([anterior.empresa, anterior.listas]);
-    if (perfilAtual !== perfilAntes) {
+    if (perfilAtual !== perfilAntes && this.construtora) {
+      const { error } = await this.sb.from('empresas').update({
+        nome: String(atual.empresa.nome || '').trim() || this.construtora.nome,
+        cnpj: atual.empresa.cnpj || null,
+        logo: atual.empresa.logo || null,
+        responsavel: atual.empresa.responsavel || null,
+        crea_cau: atual.empresa.creaCau || null,
+        telefone: atual.empresa.telefone || null,
+        email: atual.empresa.email || null,
+        listas: atual.listas
+      }).eq('id', this.construtora.id);
+      if (error) throw new Error('empresas: ' + error.message);
+    } else if (perfilAtual !== perfilAntes) {
       /* UPDATE, nunca upsert: a linha do perfil já existe (gatilho criar_perfil
          no cadastro) e a API não tem mais INSERT em perfis (migração 0009). */
       const { error } = await this.sb.from('perfis').update({
@@ -1037,8 +1171,12 @@ async function entrarNoSistema() {
     const estado = await SUPA.carregar();
 
     if (SUPA.bloqueado) {
+      const quem =
+        SUPA.motivoBloqueio === 'construtora' && SUPA.construtora
+          ? `A construtora ${esc(SUPA.construtora.nome)} está`
+          : 'Sua conta está';
       return telaAcesso(`<h2>Acesso suspenso</h2>
-        <p class="acesso-sub">Sua conta está temporariamente sem acesso ao sistema.
+        <p class="acesso-sub">${quem} temporariamente sem acesso ao sistema.
         Fale com o administrador para regularizar.</p>
         <div class="acesso-links">
           <button class="btn" data-acao="auth-recarregar">Tentar de novo</button>

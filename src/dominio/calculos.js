@@ -2635,6 +2635,59 @@ function ativacaoConta(linha) {
   return { feitos: feitos.length, total: PASSOS_ATIVACAO.length, faltam };
 }
 
+/* Construtora (0021): vagas e obras contra o que foi contratado. Aceita a
+   linha do banco (admin_empresas / minha_construtora, snake_case) ou o
+   objeto do app (camelCase). Limite nulo = sem limite. */
+const inteiro = (v) => Math.max(0, Math.round(num(v)));
+const limiteDe = (v) => (v === null || v === undefined || v === '' ? null : inteiro(v));
+
+function vagasConstrutora(c) {
+  const x = c || {};
+  const usados = inteiro(x.usuarios);
+  const limite = limiteDe(x.limite_usuarios !== undefined ? x.limite_usuarios : x.limiteUsuarios);
+  return {
+    usados,
+    limite,
+    livres: limite === null ? null : Math.max(0, limite - usados),
+    cheia: limite !== null && usados >= limite,
+    texto: limite === null ? `${usados} acesso${usados === 1 ? '' : 's'} · sem limite` : `${usados} de ${limite}`,
+  };
+}
+
+function obrasConstrutora(c) {
+  const x = c || {};
+  const usadas = inteiro(x.obras);
+  const limite = limiteDe(x.limite_obras !== undefined ? x.limite_obras : x.limiteObras);
+  return {
+    usadas,
+    limite,
+    livres: limite === null ? null : Math.max(0, limite - usadas),
+    cheia: limite !== null && usadas >= limite,
+    texto: limite === null ? `${usadas} obra${usadas === 1 ? '' : 's'} · sem limite` : `${usadas} de ${limite}`,
+  };
+}
+
+/* A faixa de KPIs de Contas e acessos: construtoras, acessos em uso contra
+   os contratados, obras e as que pedem atenção (bloqueadas, sem vaga,
+   plano fora de "ativo"). Acessos contratados só soma as que têm limite. */
+function resumoConstrutoras(lista) {
+  const ls = lista || [];
+  const comLimite = ls.filter((c) => vagasConstrutora(c).limite !== null);
+  return {
+    total: ls.length,
+    ativas: ls.filter((c) => !c.bloqueada && c.plano === 'ativo').length,
+    bloqueadas: ls.filter((c) => c.bloqueada).length,
+    semVaga: ls.filter((c) => !c.bloqueada && vagasConstrutora(c).cheia).length,
+    foraDoAtivo: ls.filter((c) => !c.bloqueada && c.plano !== 'ativo').length,
+    acessosUsados: ls.reduce((t, c) => t + vagasConstrutora(c).usados, 0),
+    acessosContratados: comLimite.reduce((t, c) => t + vagasConstrutora(c).limite, 0),
+    acessosUsadosComLimite: comLimite.reduce((t, c) => t + vagasConstrutora(c).usados, 0),
+    semLimite: ls.length - comLimite.length,
+    obras: ls.reduce((t, c) => t + obrasConstrutora(c).usadas, 0),
+    clientesFinais: ls.reduce((t, c) => t + inteiro(c.clientes_finais), 0),
+  };
+}
+
 /* Dias desde a última atividade; null se nunca houve. */
 function diasSemAtividade(instante, agora = new Date()) {
   if (!instante) return null;
@@ -3501,6 +3554,9 @@ export {
   alteracaoSensivel,
   usoItensLista,
   ativacaoConta,
+  vagasConstrutora,
+  obrasConstrutora,
+  resumoConstrutoras,
   diasSemAtividade,
   listaProtegida,
   riscoCarteira,
