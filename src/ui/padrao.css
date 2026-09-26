@@ -884,7 +884,11 @@ table.lista tr.linha-duplicado td {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
-@media (max-width: 767px) {
+/* Abaixo de 1200px, lado a lado cada rosca teria menos de 360px e a
+   legenda desceria para baixo dela — a de saídas (4 linhas) e a de
+   entradas (2) dariam alturas diferentes e vão no card mais curto. Uma
+   por linha, a legenda fica ao lado da rosca e as alturas batem. */
+@media (max-width: 1199px) {
   .fluxo-roscas {
     grid-template-columns: minmax(0, 1fr);
   }

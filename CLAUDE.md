@@ -77,8 +77,14 @@ decoração. Tabela fora disso é defeito.
 Contêiner único: largura toda, 24px de margem (16px no celular), sem
 `max-width` local. Números na fonte do texto com `tabular-nums`. Telas de
 configuração (Configuração da obra, Ajustes) gravam sozinhas ao mudar — sem
-botão "Salvar". `tests/responsivo` confere KPIs iguais, área vazia à direita
-e painel com rolagem lateral.
+botão "Salvar". `tests/responsivo` confere KPIs iguais, área vazia à direita,
+painel com rolagem lateral, tabela fora do padrão (alinhamento e fundo) e
+card com vão ou mais baixo que o vizinho (Painel, Fluxo, Configuração);
+`tests/responsivo/capturas.mjs` tira as imagens antes × depois do relatório.
+
+Cards lado a lado terminam juntos: o gráfico do card mais curto enche a
+altura que sobra (`graficoAuto(fn, largura, altura)` — o modo "encher"
+desenha na largura e na altura medidas), em vez de deixar vão.
 
 ## Regras que não se quebram
 
