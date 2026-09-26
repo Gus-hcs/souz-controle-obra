@@ -371,3 +371,15 @@ ao entrar de novo com login). Os itens arquivados das listas ficam dentro de
 0015–0019 aplicadas em 25/09/2026, bloco a bloco, com o diagnóstico de cada uma
 vazio antes das restrições.
 
+0020 aplicada em 26/09/2026 em etapas, porque a versão no ar ainda tinha o
+padrão de acabamento como texto livre — `chk_obra_padrao` antes do deploy
+barraria quem digitasse "MCMV":
+
+1. Bloco A inteiro; bloco D e E **sem** `chk_obra_padrao` (as outras quatro
+   restrições validadas, diagnóstico vazio).
+2. Bloco C: 6 obras traduzidas (MCMV → Econômico ×4, Alto padrão → Alto,
+   Comercial → vazio, com "Padrão anterior: Comercial" nas observações).
+3. **Falta**, depois que o código da padronização estiver no ar: rodar de
+   novo o diagnóstico do padrão (BLOCO B, primeira parte), o BLOCO C se
+   algo tiver voltado, e só então `chk_obra_padrao` (`not valid` e validate).
+

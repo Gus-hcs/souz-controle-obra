@@ -148,8 +148,16 @@ select id, left(comprovante, 40), 'comprovante que não é foto, PDF ou Storage'
 -- =====================================================================
 --  BLOCO C — correção sugerida do padrão (a mesma tradução do app,
 --  normalizarPadrao em src/nucleo/base.js). O que não se reconhece fica
---  vazio. Rode só depois de conferir o BLOCO B.
+--  vazio — e, para não se perder, o texto antigo vai antes para as
+--  observações da obra ("Padrão anterior: Comercial"): o que não é padrão
+--  de acabamento costuma ser o uso da obra. Rode só depois de conferir o
+--  BLOCO B.
 -- =====================================================================
+update public.obras
+   set observacoes = trim(both e'\n' from concat_ws(e'\n', nullif(observacoes, ''), 'Padrão anterior: ' || padrao))
+ where coalesce(padrao, '') not in ('', 'Econômico', 'Médio', 'Alto')
+   and padrao !~* '(mcmv|popular|baix|econ|simples|alto|lux|normal|m[eé]di|padr[aã]o)';
+
 update public.obras set padrao = case
     when padrao ~* '(mcmv|popular|baix|econ|simples)' then 'Econômico'
     when padrao ~* '(alto|lux)'                         then 'Alto'
