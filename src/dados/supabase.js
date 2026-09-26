@@ -675,6 +675,10 @@ const SUPA = {
     if (perfil) {
       estado.empresa = {
         nome: perfil.empresa_nome || 'Souz Engenharia',
+        /* cnpj (0020) e logo (0008): a logo existia no banco mas não era
+           lida nem gravada — sumia ao entrar de novo */
+        cnpj: perfil.cnpj || '',
+        logo: perfil.logo || '',
         responsavel: perfil.responsavel || '',
         creaCau: perfil.crea_cau || '',
         telefone: perfil.telefone || '',
@@ -792,6 +796,8 @@ const SUPA = {
         crea_cau: atual.empresa.creaCau || null,
         telefone: atual.empresa.telefone || null,
         email: atual.empresa.email || this.usuario.email || null,
+        logo: atual.empresa.logo || null,
+        cnpj: atual.empresa.cnpj || null,
         listas: atual.listas
       }).eq('id', this.usuario.id);
       if (error) throw new Error('perfis: ' + error.message);

@@ -21,6 +21,8 @@
 --  - lancamentos.anexo_nf: CHECK chk_lanc_anexo_nf aceita PDF e Storage
 --  - recebimentos.comprovante text + CHECK chk_receb_comprovante
 --  - obras.crea_cau text + CHECK chk_obra_crea (até 40 caracteres)
+--  - perfis.cnpj text + CHECK chk_perfis_cnpj (formato; os dígitos
+--    verificadores ficam em validarEmpresa)
 --  - tabela relatorios_gerados, com RLS por obra (pode_ler_obra /
 --    pode_escrever_obra), como pendencias_cliente (0018)
 --  - bucket privado "anexos" (10 MB, foto e PDF) com RLS por obra:
@@ -44,6 +46,7 @@
 -- =====================================================================
 alter table public.obras alter column padrao drop default;
 alter table public.obras add column if not exists crea_cau text;
+alter table public.perfis add column if not exists cnpj text;
 alter table public.recebimentos add column if not exists comprovante text;
 
 create table if not exists public.relatorios_gerados (
@@ -124,6 +127,11 @@ select id, left(crea_cau, 40), 'CREA/CAU da obra com mais de 40 caracteres'
   from public.obras
  where length(coalesce(crea_cau, '')) > 40
 union all
+select id::text, cnpj, 'CNPJ da empresa fora do formato'
+  from public.perfis
+ where coalesce(cnpj, '') <> ''
+   and not (cnpj ~ '^[0-9./-]{14,18}$' and length(regexp_replace(cnpj, '\D', '', 'g')) = 14)
+union all
 select id, left(anexo_nf, 40), 'nota fiscal que não é foto, PDF ou Storage'
   from public.lancamentos
  where coalesce(anexo_nf, '') <> ''
@@ -155,6 +163,12 @@ update public.obras set padrao = case
 -- =====================================================================
 do $$
 begin
+  if not exists (select 1 from pg_constraint where conname = 'chk_perfis_cnpj') then
+    alter table public.perfis add constraint chk_perfis_cnpj
+      check (cnpj is null or cnpj = ''
+          or (cnpj ~ '^[0-9./-]{14,18}$' and length(regexp_replace(cnpj, '\D', '', 'g')) = 14)) not valid;
+  end if;
+
   if not exists (select 1 from pg_constraint where conname = 'chk_obra_crea') then
     alter table public.obras add constraint chk_obra_crea
       check (crea_cau is null or length(crea_cau) <= 40) not valid;
@@ -186,5 +200,6 @@ end $$;
 -- =====================================================================
 alter table public.obras        validate constraint chk_obra_padrao;
 alter table public.obras        validate constraint chk_obra_crea;
+alter table public.perfis       validate constraint chk_perfis_cnpj;
 alter table public.lancamentos  validate constraint chk_lanc_anexo_nf;
 alter table public.recebimentos validate constraint chk_receb_comprovante;

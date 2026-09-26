@@ -7,7 +7,7 @@ import { andamentoParcela, basesContratuais, etapaCalc, fotosDaSemana, fotosDoPe
 import { apenasErros, validarObraCompleta } from '../dominio/validacao.js';
 import { linkWhatsApp, normalizarTelefoneBR } from '../nucleo/contato.js';
 import { Store, mutar } from '../dados/store.js';
-import { App, confirmar, nomeCliente, toast } from '../ui/shell.js';
+import { App, confirmar, confirmarDigitando, nomeCliente, toast } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
 
 /* ------------------------------------------------ carregador de libs */
@@ -172,7 +172,13 @@ ACOES['restaurar-json'] = () => {
       const texto = await f.text();
       const dados = JSON.parse(texto);
       if (!dados || !Array.isArray(dados.obras)) throw new Error('arquivo sem obras');
-      confirmar('Restaurar backup', `Substituir a base atual (${Store.estado.obras.length} obra(s)) pelo backup com ${dados.obras.length} obra(s)?`, () => {
+      /* restaurar substitui tudo: diz o que sai e o que entra, e pede o nome
+         da empresa digitado — um clique distraído não troca a base */
+      const conta = (e) => `${(e.obras || []).length} obra(s), ${(e.clientes || []).length} cliente(s) e ${(e.prestadores || []).length} prestador(es)`;
+      const palavra = String(Store.estado.empresa.nome || '').trim() || 'RESTAURAR';
+      confirmarDigitando('Restaurar backup',
+        `Sai o que está aqui hoje — ${conta(Store.estado)}, com listas e dados da empresa — e entra o backup "${f.name}": ${conta(dados)}. Baixe um backup do que está aqui antes, se quiser guardar.`,
+        palavra, () => {
         mutar((e) => {
           const novo = migrar(dados);
           e.obras = novo.obras; e.clientes = novo.clientes; e.prestadores = novo.prestadores;
@@ -181,7 +187,7 @@ ACOES['restaurar-json'] = () => {
         App.rota.obraId = '';
         App.ir('carteira');
         toast('Backup restaurado.', 'ok');
-      }, 'Restaurar');
+      }, 'Substituir pela cópia');
     } catch (err) {
       toast('Arquivo inválido: ' + err.message, 'critico');
     }

@@ -593,15 +593,20 @@ function campoHTML(c, valores) {
     case 'data':
       campo = `<input type="date" id="${id}" data-campo="${c.k}" data-tipo="data" value="${esc(v || '')}" ${req}>`;
       break;
-    case 'select':
+    case 'select': {
+      /* valor que não está mais entre as opções (item arquivado, lista
+         editada): continua na lista deste registro, senão salvar o apagaria */
+      const vals = (c.opcoes || []).map((o) => String(typeof o === 'object' ? o.v : o));
+      const extra = v !== undefined && v !== null && v !== '' && !vals.includes(String(v)) ? [String(v)] : [];
       campo = `<select id="${id}" data-campo="${c.k}" data-tipo="texto" ${req}>
         ${(c.vazio !== false) ? `<option value="">${esc(c.placeholder || '—')}</option>` : ''}
-        ${(c.opcoes || []).map((o) => {
+        ${[...(c.opcoes || []), ...extra].map((o) => {
           const val = typeof o === 'object' ? o.v : o;
           const txt = typeof o === 'object' ? o.t : o;
           return `<option value="${esc(val)}" ${String(val) === String(v ?? '') ? 'selected' : ''}>${esc(txt)}</option>`;
         }).join('')}</select>`;
       break;
+    }
     case 'area':
       campo = `<textarea id="${id}" data-campo="${c.k}" data-tipo="texto" rows="${c.linhas || 3}">${esc(v || '')}</textarea>`;
       break;
@@ -684,8 +689,13 @@ function rodarCalcForm() {
 }
 
 /* -------------------------------------------------------- utilitários */
-const opcoesEtapas = () => Store.estado.listas.etapas;
-const opcoesLista = (k) => Store.estado.listas[k] || [];
+/* item arquivado (Ajustes → Listas) não aparece para escolher */
+const semArquivados = (k) => {
+  const arq = (Store.estado.listas.arquivados || {})[k] || [];
+  return (Store.estado.listas[k] || []).filter((i) => !arq.includes(i));
+};
+const opcoesEtapas = () => semArquivados('etapas');
+const opcoesLista = (k) => semArquivados(k);
 
 function nomeCliente(id) {
   const c = Store.estado.clientes.find((x) => x.id === id);

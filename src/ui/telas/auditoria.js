@@ -12,7 +12,7 @@
  * registro mostra só o histórico dele.
  */
 import { esc, fmtMoney, fmtNum, fmtQuando, norm, num } from '../../nucleo/base.js';
-import { alteracaoSensivel } from '../../dominio/calculos.js';
+import { alteracaoSensivel, origemAlteracoes } from '../../dominio/calculos.js';
 import { Store } from '../../dados/store.js';
 import { SUPA } from '../../dados/supabase.js';
 import { ACOES } from '../acoes.js';
@@ -45,12 +45,17 @@ const audValor = (v, tipo) => {
   return tipo === 'dinheiro' ? fmtMoney(num(v)) : fmtNum(num(v), 2);
 };
 
-function audQuem(usuarioId) {
+/* "Quem": importação e sistema em cinza; a pessoa pelo nome do e-mail. */
+function audQuem(usuarioId, origem = '') {
+  if (origem === 'importacao') return '<span class="tinta3">Importação</span>';
+  if (!usuarioId || origem === 'sistema') return '<span class="tinta3">Sistema</span>';
   if (SUPA.usuario && usuarioId === SUPA.usuario.id) {
     return esc((SUPA.usuario.email || 'você').split('@')[0]);
   }
-  return usuarioId ? 'outro usuário' : 'sistema';
+  const email = Auditoria.pessoas && Auditoria.pessoas.get(usuarioId);
+  return email ? esc(email.split('@')[0]) : 'outra pessoa';
 }
+const quemTexto = (usuarioId, origem) => audQuem(usuarioId, origem).replace(/<[^>]+>/g, '');
 
 function audRegistro(o, tabela, id) {
   const item = (o[tabela] || []).find((x) => x.id === id);
@@ -133,7 +138,7 @@ function kpisAuditoria(linhas, recentes, ultima, sensiveis) {
         rotulo: 'Última alteração',
         valor: ultima ? esc(fmtQuando(ultima.criado_em)) : '—',
         contexto: ultima
-          ? `${audQuem(ultima.usuario_id)} · ${audRegistro(App.obra(), ultima.tabela, ultima.registro_id)}`
+          ? `${quemTexto(ultima.usuario_id, origemAlteracoes(linhas).get(ultima))} · ${audRegistro(App.obra(), ultima.tabela, ultima.registro_id)}`
           : 'nenhuma',
       },
     ],
@@ -213,6 +218,7 @@ VIEWS.auditoria = () => {
   const base = soSensiveis ? sensiveis : linhas;
 
   const busca = norm(f.busca || '');
+  const origem = origemAlteracoes(linhas);
   let itens = base;
   if (f.audRegistro) itens = itens.filter((l) => chaveRegistro(l) === f.audRegistro);
   if (f.operacao) itens = itens.filter((l) => l.operacao === f.operacao);
@@ -220,7 +226,7 @@ VIEWS.auditoria = () => {
   if (f.campo) itens = itens.filter((l) => l.campo === f.campo);
   if (busca)
     itens = itens.filter((l) =>
-      norm(`${audRegistro(o, l.tabela, l.registro_id)} ${audQuem(l.usuario_id)}`).includes(busca),
+      norm(`${audRegistro(o, l.tabela, l.registro_id)} ${quemTexto(l.usuario_id, origem.get(l))}`).includes(busca),
     );
 
   const tabelas = [...new Set(linhas.map((l) => l.tabela))];
@@ -240,8 +246,8 @@ VIEWS.auditoria = () => {
       rotulo: 'Quem',
       largura: '14%',
       celular: 'some',
-      valor: (l) => audQuem(l.usuario_id),
-      celula: (l) => audQuem(l.usuario_id),
+      valor: (l) => quemTexto(l.usuario_id, origem.get(l)),
+      celula: (l) => audQuem(l.usuario_id, origem.get(l)),
     },
     {
       k: 'registro',
@@ -250,8 +256,8 @@ VIEWS.auditoria = () => {
       celular: 'principal',
       valor: (l) => audRegistro(o, l.tabela, l.registro_id),
       celula: (l) =>
-        `<div class="cel-obra"><button class="btn-link" data-acao="aud-registro" data-chave="${esc(chaveRegistro(l))}"
-          title="${f.audRegistro ? 'Voltar à lista' : 'Ver só o histórico deste registro'}"><b>${audRegistro(o, l.tabela, l.registro_id)}</b></button><span>${audDataHora(l.criado_em)}</span></div>`,
+        `<div class="cel-registro"><button class="btn-link" data-acao="aud-registro" data-chave="${esc(chaveRegistro(l))}"
+          title="${f.audRegistro ? 'Voltar à lista' : 'Ver só o histórico deste registro'}">${audRegistro(o, l.tabela, l.registro_id)}</button><span class="tinta2">${esc(AUD_TABELAS[l.tabela] || l.tabela)} · ${audDataHora(l.criado_em)}</span></div>`,
     },
     {
       k: 'alteracao',
@@ -269,14 +275,9 @@ VIEWS.auditoria = () => {
       rotulo: 'Antes → depois',
       largura: '24%',
       num: true,
-      celula: (l) => {
-        const [, tipo] = AUD_CAMPOS[l.campo] || [l.campo, 'numero'];
-        const antes = audValor(l.valor_antes, tipo);
-        const depois = audValor(l.valor_depois, tipo);
-        if (l.operacao === 'INSERT') return `<b>${depois}</b>`;
-        if (l.operacao === 'DELETE') return `<span class="tinta3">${antes}</span>`;
-        return `<span class="tinta3">${antes}</span> → <b>${depois}</b>`;
-      },
+      /* os dois lados sempre: "— → R$ 7.900,00" na criação, o antigo
+         riscado em cinza na alteração e na exclusão */
+      celula: (l) => transicaoHTML(l, (AUD_CAMPOS[l.campo] || [l.campo, 'numero'])[1]),
     },
   ];
 

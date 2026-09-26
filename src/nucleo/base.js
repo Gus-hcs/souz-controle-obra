@@ -516,7 +516,7 @@ const novoMembro = (papel = 'engenheiro') => ({
 
 const estadoInicial = () => ({
   meta: { schema: APP.schema, versao: APP.versao, savedAt: new Date().toISOString(), autor: '' },
-  empresa: { nome: 'Souz Engenharia', responsavel: '', creaCau: '', telefone: '', email: '', logo: '' },
+  empresa: { nome: 'Souz Engenharia', cnpj: '', responsavel: '', creaCau: '', telefone: '', email: '', logo: '' },
   listas: JSON.parse(JSON.stringify(LISTAS_PADRAO)),
   clientes: [],
   prestadores: [],
@@ -535,6 +535,15 @@ function migrar(s) {
     if (!Array.isArray(out.listas[k]) || !out.listas[k].length) {
       out.listas[k] = LISTAS_PADRAO[k].slice();
     }
+  }
+  /* itens arquivados de cada lista (0020): somem das escolhas, mas o
+     registro antigo continua mostrando o valor dele */
+  const arq = out.listas.arquivados;
+  out.listas.arquivados = {};
+  if (arq && typeof arq === 'object' && !Array.isArray(arq)) {
+    Object.entries(arq).forEach(([k, v]) => {
+      if (Array.isArray(v)) out.listas.arquivados[k] = v.filter((x) => x !== null && x !== undefined && x !== '').map(String);
+    });
   }
   out.clientes = (Array.isArray(s.clientes) ? s.clientes : []).map((c) => Object.assign(novoCliente(), c));
   out.prestadores = (Array.isArray(s.prestadores) ? s.prestadores : []).map((p) => {

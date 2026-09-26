@@ -100,7 +100,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0017_dependencias_e_diario_de_campo.sql` | `cronograma.predecessoras` (fim→início); diário de campo: clima por turno, efetivo por função, equipamentos, % da etapa, impacto no prazo; CHECKs |
 | `0018_cliente_e_fornecedor.sql` | tabela `pendencias_cliente` (o que o cliente deve à obra, com prazo) com RLS por obra; `obras.status_enviado_em`; `prestadores.tipo` (serviço × fornecedor); CHECKs |
 | `0019_anexo_nf_e_funcoes_fechadas.sql` | `lancamentos.anexo_nf` (foto da nota, CHECK de imagem ≤ 1,5 MB); `EXECUTE` revogado de `anon` em todas as `SECURITY DEFINER` e de todos nas funções de gatilho |
-| `0020_padronizacao_telas.sql` | `obras.padrao` só Econômico/Médio/Alto (MCMV é programa); `obras.crea_cau`; `recebimentos.comprovante`; `anexo_nf` aceita PDF e Storage; bucket privado `anexos` com RLS por obra; tabela `relatorios_gerados` (histórico de relatórios, RLS por obra) |
+| `0020_padronizacao_telas.sql` | `obras.padrao` só Econômico/Médio/Alto (MCMV é programa); `obras.crea_cau`; `recebimentos.comprovante`; `anexo_nf` aceita PDF e Storage; bucket privado `anexos` com RLS por obra; tabela `relatorios_gerados` (histórico de relatórios, RLS por obra); `perfis.cnpj` |
 
 ### 0008 — logos
 
@@ -360,6 +360,11 @@ vai para o Storage na pasta da obra — `<obra_id>/<lancamentos|recebimentos|rel
 e a RLS do Storage usa a primeira pasta com `pode_ler_obra`/`pode_escrever_obra`.
 Sem a 0020 aplicada, o app continua gravando a foto (ou o PDF de até 1 MB) no
 próprio registro, e a lista de relatórios gerados some (tabela opcional).
+
+Junto com ela, o app passou a ler e gravar `perfis.logo` (existia desde a 0008,
+mas a carga e a gravação do perfil ignoravam o campo — a logo da empresa sumia
+ao entrar de novo com login). Os itens arquivados das listas ficam dentro de
+`perfis.listas` (`listas.arquivados`), sem coluna nova.
 
 ### Aplicadas em produção
 

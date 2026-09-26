@@ -2,8 +2,8 @@
  * acoes.js — Ações: tudo que um clique dispara — abrir formulário, salvar, excluir.
  */
 import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, lerEfetivoFuncoes, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, textoEfetivoFuncoes, uid } from '../nucleo/base.js';
-import { alertasObra, efeitoDiarioNaEtapa, efetivoDiario, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, listaProtegida, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa, usoItensLista } from '../dominio/calculos.js';
-import { apenasErros, validarCliente, validarContrato, validarDependencias, validarDiario, validarEtapasContrato, validarEtapa, validarLancamento, validarLogo, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
+import { alertasObra, efeitoDiarioNaEtapa, efetivoDiario, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa } from '../dominio/calculos.js';
+import { validarCliente, validarContrato, validarDependencias, validarDiario, validarEtapasContrato, validarEtapa, validarLancamento, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, confirmarDigitando, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
@@ -935,7 +935,13 @@ const LOGO_ALVOS = {
   cliente: { get: () => window.__logo || '', set: (v) => { window.__logo = v; } },
   empresa: {
     get: () => (document.getElementById('emp_logo_val') || {}).value || '',
-    set: (v) => { const h = document.getElementById('emp_logo_val'); if (h) h.value = v; },
+    /* Ajustes grava sozinho: a logo avisa com um change, como os campos */
+    set: (v) => {
+      const h = document.getElementById('emp_logo_val');
+      if (!h) return;
+      h.value = v;
+      h.dispatchEvent(new Event('change', { bubbles: true }));
+    },
   },
 };
 
@@ -1249,37 +1255,6 @@ ACOES['excluir-prestador'] = (el, d) => {
 };
 
 /* =========================================================== AJUSTES */
-ACOES['salvar-empresa'] = () => {
-  const d = lerForm();
-  const probs = apenasErros(validarLogo(d.logo, 'logo'));
-  if (probs.length) return toast(probs[0].mensagem, 'critico');
-  mutar((e) => { Object.assign(e.empresa, d); });
-  toast('Dados da empresa salvos.', 'ok');
-};
-
-/* Item em uso não sai da lista (usoItensLista): volta para o fim, e o
-   aviso diz quantos registros o usam. */
-ACOES['salvar-listas'] = () => {
-  const campos = document.querySelectorAll('[data-lista]');
-  const uso = usoItensLista(Store.estado);
-  const mantidos = [];
-  mutar((e) => {
-    campos.forEach((c) => {
-      const itens = c.value.split('\n').map((s) => s.trim()).filter(Boolean);
-      if (!itens.length) return;
-      const k = c.dataset.lista;
-      const r = listaProtegida(uso[k], e.listas[k] || [], itens);
-      e.listas[k] = r.lista;
-      mantidos.push(...r.mantidos);
-    });
-  });
-  if (mantidos.length) {
-    const txt = mantidos.map((m) => `"${m.item}" (${m.registros} registro${m.registros === 1 ? '' : 's'})`).join(', ');
-    toast(`Listas atualizadas. Continuam por estarem em uso: ${txt}.`, 'aviso');
-    App.renderConteudo();
-  } else toast('Listas atualizadas.', 'ok');
-};
-
 ACOES.zerar = () => {
   const palavra = String(Store.estado.empresa.nome || '').trim() || 'APAGAR';
   confirmarDigitando('Apagar todos os dados', 'Isso remove obras, contratos, medições, lançamentos e cadastros. Não há como desfazer. Baixe um backup antes.', palavra, () => {

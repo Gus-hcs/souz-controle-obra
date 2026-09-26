@@ -516,6 +516,22 @@ function validarEmpresa(emp) {
     out.push(problema('responsavel', 'Sem responsável técnico: o relatório em PDF sai sem RT.', 'alerta'));
   if (!String(e.creaCau || '').trim())
     out.push(problema('creaCau', 'Sem CREA/CAU: o relatório em PDF sai sem o registro do RT.', 'alerta'));
+  /* CNPJ (0020): 14 dígitos com os verificadores — CHECK chk_perfis_cnpj
+     só garante o formato; os dígitos, só aqui */
+  const cnpj = String(e.cnpj || '').trim();
+  if (cnpj) {
+    const d = cnpj.replace(/\D/g, '');
+    if (d.length !== 14 || cnpj.length > 18 || /[^\d./-]/.test(cnpj)) {
+      out.push(problema('cnpj', 'O CNPJ tem 14 dígitos (00.000.000/0000-00).'));
+    } else {
+      const motivo = motivoCpfCnpjInvalido(d);
+      if (motivo) out.push(problema('cnpj', motivo));
+    }
+  }
+  out.push(...validarLogo(e.logo, 'logo'));
+  if (e.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(e.email).trim())) {
+    out.push(problema('email', 'E-mail da empresa inválido.'));
+  }
   return out;
 }
 

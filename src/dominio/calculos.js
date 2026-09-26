@@ -2538,6 +2538,38 @@ function usoItensLista(estado) {
   return uso;
 }
 
+/* Renomear um item de lista (Ajustes → Listas) leva o nome novo aos
+   registros que usam o antigo — senão o lançamento de "Fundacao" fica
+   órfão quando a lista passa a dizer "Fundação". Etapa renomeada também
+   muda nas etapas ligadas aos contratos (0016) e na parcela que cita a
+   etapa. Muda o estado recebido; devolve quantos registros mudaram. */
+function renomearItemLista(estado, lista, de, para) {
+  const antigo = String(de || '').trim();
+  const novo = String(para || '').trim();
+  if (!antigo || !novo || antigo === novo) return 0;
+  const itens = (estado.listas && estado.listas[lista]) || [];
+  const i = itens.indexOf(antigo);
+  if (i < 0 || itens.includes(novo)) return 0;
+  itens[i] = novo;
+  const arq = estado.listas.arquivados && estado.listas.arquivados[lista];
+  if (arq && arq.includes(antigo)) arq[arq.indexOf(antigo)] = novo;
+  let n = 0;
+  const trocar = (reg, campo) => {
+    if (String(reg[campo] || '').trim() === antigo) { reg[campo] = novo; n++; }
+  };
+  (estado.obras || []).forEach((o) => {
+    (CAMPOS_DE_LISTA[lista] || []).forEach(([colecao, campo]) => (o[colecao] || []).forEach((r) => trocar(r, campo)));
+    if (lista === 'etapas') {
+      o.contratos.forEach((c) => {
+        if (Array.isArray(c.etapas) && c.etapas.includes(antigo)) { c.etapas = c.etapas.map((x) => (x === antigo ? novo : x)); n++; }
+      });
+      o.recebimentos.forEach((r) => trocar(r, 'etapaPci'));
+    }
+  });
+  if (lista === 'especialidades') (estado.prestadores || []).forEach((p) => trocar(p, 'especialidade'));
+  return n;
+}
+
 /* Nova versão de uma lista sem perder item em uso: devolve a lista
    pedida mais os itens em uso que ela tirava, e quais foram mantidos. */
 function listaProtegida(uso, antes, depois) {
@@ -2587,9 +2619,67 @@ function alteracaoSensivel(linha) {
   return linha.operacao === 'DELETE' || CAMPOS_SENSIVEIS.has(linha.campo);
 }
 
-/* Fotos da semana para o relatório do cliente: as do diário dos últimos
-   7 dias (hoje incluído), mais recentes primeiro, só PNG/JPEG em base64
-   (o que o gerador de PDF desenha). */
+/* Saúde dos dados (Ajustes): o que está desarrumado no cadastro, com a
+   contagem e para onde ir consertar. Só aparece o que tem ocorrência.
+   - nomes de prestadores a revisar (caixa alta, especialidade no nome);
+   - lançamentos possivelmente duplicados (os ainda em aberto);
+   - lançamentos sem etapa (ficam fora do custo por etapa);
+   - contratos sem prestador do cadastro (o nome só digitado).
+   `obraId` aponta a obra com mais ocorrências, para o link. */
+function saudeDados(estado, hoje = hojeISO()) {
+  const esp = (estado.listas && estado.listas.especialidades) || [];
+  const obras = estado.obras || [];
+  const porObra = (fn) => {
+    let n = 0;
+    let pior = null;
+    obras.forEach((o) => {
+      const k = fn(o);
+      n += k;
+      if (k && (!pior || k > pior.k)) pior = { id: o.id, k };
+    });
+    return { n, obraId: pior ? pior.id : '' };
+  };
+  const nomes = (estado.prestadores || []).filter((p) => !p.arquivado && sugestaoNomePrestador(p, esp)).length;
+  const dup = porObra((o) => lancamentosDuplicadosAbertos(o, hoje).reduce((s, g) => s + g.length, 0));
+  const semEtapa = porObra((o) => o.lancamentos.filter((l) => !l.etapa).length);
+  const semPrest = porObra((o) =>
+    o.contratos.filter((c) => c.registro !== 'Aditivo' && c.status !== 'Cancelado' && !c.prestadorId).length);
+  return [
+    { chave: 'nomes', titulo: 'Nomes de prestadores a revisar', detalhe: 'em caixa alta ou com a especialidade junto ao nome', n: nomes, view: 'prestadores', acao: 'prest-revisar-nomes' },
+    { chave: 'duplicados', titulo: 'Lançamentos possivelmente duplicados', detalhe: 'mesmo valor, fornecedor e data', n: dup.n, view: 'lancamentos', obraId: dup.obraId, filtro: { situacao: 'duplicados' } },
+    { chave: 'sem-etapa', titulo: 'Lançamentos sem etapa', detalhe: 'ficam fora do custo por etapa e da curva S', n: semEtapa.n, view: 'lancamentos', obraId: semEtapa.obraId, filtro: { situacao: 'sem-etapa' } },
+    { chave: 'sem-prestador', titulo: 'Contratos sem prestador do cadastro', detalhe: 'o nome foi só digitado — a ficha do prestador não os vê', n: semPrest.n, view: 'contratos', obraId: semPrest.obraId, acao: 'vincular-prestadores' },
+  ].filter((x) => x.n > 0);
+}
+
+/* Quem fez cada linha da trilha, para a coluna "Quem":
+   - 'sistema': sem usuário (gatilho, rotina do banco);
+   - 'importacao': inclusão numa rajada — a mesma pessoa criando 10 ou
+     mais valores em 5 segundos é a planilha importada, não digitação;
+   - 'usuario': o resto.
+   O banco não marca a importação; a rajada é o rastro que ela deixa.
+   Devolve Map(linha → origem). */
+const RAJADA_MIN = 10;
+const RAJADA_MS = 5000;
+function origemAlteracoes(linhas) {
+  const out = new Map();
+  const grupos = new Map();
+  linhas.forEach((l) => {
+    if (!l.usuario_id) { out.set(l, 'sistema'); return; }
+    out.set(l, 'usuario');
+    if (l.operacao !== 'INSERT') return;
+    const t = new Date(l.criado_em).getTime();
+    if (!isFinite(t)) return;
+    const k = `${l.usuario_id}|${Math.floor(t / RAJADA_MS)}`;
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k).push(l);
+  });
+  grupos.forEach((ls) => {
+    if (ls.length >= RAJADA_MIN) ls.forEach((l) => out.set(l, 'importacao'));
+  });
+  return out;
+}
+
 /* ------------------------------------------------------ RELATÓRIOS
    Responsável técnico do relatório: o da OBRA (Configuração) e, só na
    falta, o da empresa (Ajustes). `falta` diz o que não existe em nenhum
@@ -2664,6 +2754,9 @@ function prestacaoContas(obra, de = '', ate = '') {
   };
 }
 
+/* Fotos da semana para o relatório do cliente: as do diário dos últimos
+   7 dias (hoje incluído), mais recentes primeiro, só PNG/JPEG em base64
+   (o que o gerador de PDF desenha). */
 function fotosDaSemana(obra, hoje = hojeISO(), max = 6) {
   const desde = addDias(hoje, -6);
   const out = [];
@@ -3256,6 +3349,9 @@ function addDiasISO(iso, n) {
 }
 
 export {
+  renomearItemLista,
+  saudeDados,
+  origemAlteracoes,
   rtDoRelatorio,
   fotosDoPeriodo,
   prestacaoContas,
