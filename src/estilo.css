@@ -143,7 +143,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 a { color: var(--marca); }
 
 .mono { font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace; }
-.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .rotulo {
   font-family: 'Space Grotesk', 'Inter', sans-serif;
@@ -368,9 +368,9 @@ table.tab th {
   font-family: 'Space Grotesk', 'Inter', sans-serif; font-size: 11.5px; font-weight: 600;
   letter-spacing: .08em; text-transform: uppercase; color: var(--mudo);
   text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--linha-forte);
-  background: var(--sup2); position: sticky; top: 0; white-space: nowrap; z-index: 2;
+  background: var(--sup); position: sticky; top: 0; white-space: nowrap; z-index: 2;
 }
-table.tab th.num, table.tab td.num { text-align: right; }
+table.tab th.num, table.tab td.num { font-variant-numeric: tabular-nums; }
 table.tab th.ord { cursor: pointer; user-select: none; }
 table.tab th.ord:hover { color: var(--tinta2); }
 table.tab th.ord::after {
@@ -388,9 +388,9 @@ table.tab tbody tr:hover td { background: color-mix(in srgb, var(--marca) 6%, va
 table.tab tr.clicavel { cursor: pointer; }
 table.tab tfoot td {
   font-weight: 600; border-top: 2px solid var(--linha-forte); border-bottom: 0;
-  background: var(--sup2);
+  background: var(--sup);
 }
-table.tab .acoes { text-align: right; white-space: nowrap; opacity: .35; }
+table.tab .acoes { white-space: nowrap; opacity: .35; }
 table.tab tr:hover .acoes { opacity: 1; }
 table.tab td.trunc { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .neg { color: var(--critico); }
@@ -433,7 +433,7 @@ table.tab td.trunc { max-width: 260px; overflow: hidden; text-overflow: ellipsis
 .ct-tab td { vertical-align: top; }
 .ct-escopo-w { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .ct-detalhe { font-size: 11px; color: var(--mudo); }
-.celula-chips { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; min-width: 0; }
+.celula-chips { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-start; min-width: 0; }
 .ct-contagem { margin: -4px 0 0; font-size: 12px; color: var(--mudo); }
 @media (max-width: 720px) {
   .ct-stats .ct-exec { margin-left: 0; }
@@ -725,8 +725,8 @@ select { cursor: pointer; }
   table.tab tbody tr:last-child td { border-bottom: 1px solid var(--linha); }
   table.tab td {
     border-bottom: 1px solid var(--linha); padding: 8px 12px;
-    display: flex; justify-content: space-between; align-items: center; gap: 12px;
-    text-align: right;
+    display: flex; justify-content: flex-start; align-items: center; gap: 12px;
+    text-align: left;
   }
   table.tab td:last-child { border-bottom: 0; }
   table.tab td[data-rotulo]::before {
@@ -735,11 +735,11 @@ select { cursor: pointer; }
     letter-spacing: .06em; text-transform: uppercase; color: var(--mudo);
   }
   table.tab td.trunc { max-width: none; white-space: normal; }
-  table.tab td.acoes { justify-content: flex-end; opacity: 1; background: var(--sup2); }
+  table.tab td.acoes { justify-content: flex-start; opacity: 1; }
   table.tab tbody tr:hover td { background: none; }
   /* a linha de detalhe (2ª linha da célula) não herda o nowrap do .num — só o
      valor principal precisa ficar numa linha só */
-  table.tab td .ct-detalhe { white-space: normal; text-align: right; }
+  table.tab td .ct-detalhe { white-space: normal; }
 }
 @media (max-width: 520px) {
   #conteudo { padding: 10px; }

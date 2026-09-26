@@ -679,7 +679,7 @@ table.lista,
 table.lista tr.grupo-linha td {
   height: auto;
   padding: 0;
-  background: var(--fundo-agrupado);
+  background: var(--fundo-conteudo);
   border-top: var(--fio) solid var(--separador);
 }
 .grupo-botao {
@@ -700,7 +700,6 @@ table.lista tr.grupo-linha td {
   font-weight: var(--p-semi);
 }
 .grupo-botao .grupo-total {
-  margin-left: auto;
   font-weight: var(--p-semi);
   font-variant-numeric: tabular-nums;
 }

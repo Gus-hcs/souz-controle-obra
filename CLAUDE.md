@@ -65,6 +65,15 @@ disso é defeito, não exceção.
 | `painelAnalise`          | o fim da tela: blocos em duas colunas (uma abaixo de 1200px)                                                                                                 |
 | `graficoAuto` (graficos) | gráfico desenhado na largura real do bloco; o `ResizeObserver` do shell redesenha                                                                            |
 
+**Tabela** (toda tabela da interface — `lista`, `.tab`, `.mini-tab`; a folha A4
+e os PDFs têm regra própria): tudo alinhado à esquerda — cabeçalho, linhas,
+total e linha de grupo, número inclusive (`tabular-nums` mantém os dígitos na
+mesma largura; `.num` não alinha à direita). Fundo de uma cor só, o do card
+(`--fundo-conteudo`), sem zebra: cabeçalho e total se separam pelo fio
+(`--separador-forte`) e pela cor do texto. Largura pelo conteúdo, mesma régua
+de espaçamento em toda coluna. Hover e linha selecionada são estado, não
+decoração. Tabela fora disso é defeito.
+
 Contêiner único: largura toda, 24px de margem (16px no celular), sem
 `max-width` local. Números na fonte do texto com `tabular-nums`. Telas de
 configuração (Configuração da obra, Ajustes) gravam sozinhas ao mudar — sem

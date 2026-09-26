@@ -263,6 +263,19 @@ function acoesRegistro(tipo, id, nome) {
 */
 const ordens = new Map(); // id da lista -> { col, dir }
 
+/* Padrão de tabela: colunas do mesmo tipo têm a mesma largura. As colunas
+   numéricas (R$, %, contagem) dividem igualmente a soma do que declararam —
+   a tabela não muda de largura total, e as de texto ficam como estão. Só
+   vale quando todas as numéricas declaram largura em %. */
+function larguraColunas(colunas) {
+  const pct = (c) => /^\d+(\.\d+)?%$/.test(String(c.largura || '').trim());
+  const nums = colunas.filter((c) => c.num);
+  if (nums.length < 2 || !nums.every(pct)) return colunas.map((c) => c.largura);
+  const media = nums.reduce((t, c) => t + parseFloat(c.largura), 0) / nums.length;
+  const igual = `${Math.round(media * 100) / 100}%`;
+  return colunas.map((c) => (c.num ? igual : c.largura));
+}
+
 /* linhaAttrs(item): atributos extras da <tr> (ex.: data-acao para
    selecionar a linha e abrir o inspetor). tabelaClasse: classe a mais na
    <table>, para ajustes de uma tela só. */
@@ -391,7 +404,9 @@ function lista({
   return `<div class="lista-cx">
     <div class="lista-rolagem">
       <table class="lista${tabelaClasse ? ' ' + tabelaClasse : ''}" data-testid="${esc(testid || id)}">
-        <colgroup>${colunas.map((c) => `<col style="width:${c.largura}">`).join('')}</colgroup>
+        <colgroup>${larguraColunas(colunas)
+          .map((w) => `<col style="width:${w}">`)
+          .join('')}</colgroup>
         <thead><tr>${cab}</tr></thead>
         <tbody>${corpo}</tbody>
         ${rodape}
@@ -461,6 +476,7 @@ export {
   botaoNovo,
   acoesRegistro,
   lista,
+  larguraColunas,
   secao,
   vazioTela,
 };

@@ -749,8 +749,11 @@ textarea:disabled {
 }
 
 /* --------------------------------------------------------- lista
-   Lista do Finder: linha de 28px, zebra quase imperceptível,
-   cabeçalho ordenável, seleção no acento, número à direita. */
+   Padrão de tabela (CLAUDE.md, "Padrão de tela"): tudo à esquerda —
+   cabeçalho, linhas, total, inclusive número (tabular-nums mantém os
+   dígitos na mesma largura) —, fundo de uma cor só, o do card, sem
+   zebra. O cabeçalho e o total se separam das linhas só pelo fio e pela
+   cor do texto. Hover e seleção são estado, não decoração. */
 .lista-cx {
   border: var(--fio) solid var(--separador);
   border-radius: var(--r-cartao);
@@ -786,17 +789,14 @@ table.lista thead th {
   font-size: var(--t-mini);
   font-weight: var(--p-medio);
   color: var(--tinta2);
-  background: var(--fundo-agrupado);
+  background: var(--fundo-conteudo);
   border-bottom: var(--fio) solid var(--separador-forte);
   white-space: nowrap;
   user-select: none;
 }
-table.lista thead th + th {
-  box-shadow: inset var(--fio) 0 0 var(--separador);
-}
 table.lista th.num,
 table.lista td.num {
-  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 table.lista th.ord {
   cursor: pointer;
@@ -832,9 +832,6 @@ table.lista tbody td {
   text-overflow: ellipsis;
   max-width: 0;
 }
-table.lista tbody tr:nth-child(even) td {
-  background: var(--fundo-zebra);
-}
 table.lista tbody tr:hover td {
   background: var(--fundo-hover);
 }
@@ -866,7 +863,7 @@ table.lista tfoot td {
   padding: 0 var(--e3);
   font-weight: var(--p-semi);
   color: var(--tinta2);
-  background: var(--fundo-agrupado);
+  background: var(--fundo-conteudo);
   border-top: var(--fio) solid var(--separador-forte);
   white-space: nowrap;
 }
@@ -1209,9 +1206,6 @@ table.lista tfoot td.num {
     padding: var(--e2) var(--e3);
     border-bottom: var(--fio) solid var(--separador);
   }
-  table.lista tbody tr:nth-child(even) td {
-    background: none;
-  }
   table.lista tbody td {
     height: auto;
     max-width: none;
@@ -1318,9 +1312,23 @@ table.lista tfoot td.num {
   overflow-y: auto;
 }
 
-/* Pares rótulo/valor do inspetor */
+/* Pares rótulo/valor do inspetor: duas colunas, as duas à esquerda — o
+   rótulo numa, o valor na outra, na mesma linha. Sem isto o navegador
+   empilhava e recuava o valor 40px (margem padrão do <dd>). */
 .pares {
+  display: grid;
+  grid-template-columns: minmax(96px, 38%) minmax(0, 1fr);
+  column-gap: var(--e3);
+  row-gap: var(--e1);
   margin: 0;
+}
+.pares dt {
+  color: var(--tinta2);
+}
+.pares dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Pendência: linha clicável que leva direto à tela onde se resolve. */
@@ -1484,7 +1492,6 @@ table.lista tfoot td.num {
 /* Ações da linha aparecem com o ponteiro em cima ou com foco de teclado;
    em tela de toque ficam sempre visíveis, porque não existe "em cima". */
 table.lista td.acoes-linha {
-  text-align: right;
   overflow: visible;
 }
 .acoes-linha .btn {
@@ -1584,20 +1591,19 @@ tr:focus-within .acoes-linha .btn {
   white-space: nowrap;
 }
 
-/* Valor + nota pequena embaixo, alinhados à direita — "43.750 + 1 aditivo". */
+/* Valor + nota pequena embaixo, um sobre o outro, à esquerda — "43.750 + 1 aditivo". */
 .cel-num-nota {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: flex-start;
   line-height: 1.3;
   gap: 1px;
 }
 .cel-num-nota span {
   font-size: var(--t-peq);
   color: var(--tinta3);
-  /* a nota da composição quebra em vez de vazar pela esquerda */
+  /* a nota da composição quebra em vez de vazar */
   white-space: normal;
-  text-align: right;
 }
 
 /* Aviso discreto abaixo dos KPIs ("2 contratos atrasados"). */
@@ -2334,7 +2340,7 @@ table.lista td.cel-contato {
   font-variant-numeric: tabular-nums;
 }
 .mini-tab .num {
-  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .pagamentos {
   list-style: none;
@@ -2696,15 +2702,8 @@ tr[aria-selected='true'] .acao-hover {
     opacity: 1;
   }
 }
-table.lista td.centro,
-table.lista th.centro {
-  text-align: center;
-}
 .sem-contrato {
   color: var(--tinta3);
-}
-table.lista td.cel-sem-contrato {
-  text-align: center;
 }
 
 /* "+ WhatsApp": cinza; o acento só aparece no hover e no foco. */

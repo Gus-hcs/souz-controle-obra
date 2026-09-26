@@ -202,9 +202,9 @@
        acima, Souz Preto nas barras, Elevado no que flutua */
     --fundo-janela: #121416;
     --fundo-conteudo: #181b1e;
-    --fundo-lateral: rgba(14, 26, 23, 0.9);
-    --fundo-lateral-solido: #0e1a17;
-    --fundo-toolbar: rgba(14, 26, 23, 0.86);
+    --fundo-lateral: rgba(24, 27, 30, 0.92); /* inspetor: o chumbo do card */
+    --fundo-lateral-solido: #181b1e;
+    --fundo-toolbar: rgba(24, 27, 30, 0.86);
     --fundo-agrupado: #202326; /* cabeçalho de tabela, total: preto um tom acima do cartão */
     --fundo-elevado: #0e2824;
     --fundo-campo: #0e1a17;
@@ -218,8 +218,8 @@
     --tinta3: #8a9894;
     --tinta-inversa: #05100e;
 
-    --separador: #1c2e2a;
-    --separador-forte: #2a423d;
+    --separador: #26292d;
+    --separador-forte: #33373c;
 
     --acento: #0b7d72; /* Ciano Souz: só preenchimento no escuro */
     --acento-premido: #096a61;
@@ -257,9 +257,9 @@
      acima, Souz Preto nas barras, Elevado no que flutua */
   --fundo-janela: #121416;
   --fundo-conteudo: #181b1e;
-  --fundo-lateral: rgba(14, 26, 23, 0.9);
-  --fundo-lateral-solido: #0e1a17;
-  --fundo-toolbar: rgba(14, 26, 23, 0.86);
+  --fundo-lateral: rgba(24, 27, 30, 0.92); /* inspetor: o chumbo do card */
+  --fundo-lateral-solido: #181b1e;
+  --fundo-toolbar: rgba(24, 27, 30, 0.86);
   --fundo-agrupado: #202326; /* cabeçalho de tabela, total: preto um tom acima do cartão */
   --fundo-elevado: #0e2824;
   --fundo-campo: #0e1a17;
@@ -273,8 +273,8 @@
   --tinta3: #8a9894;
   --tinta-inversa: #05100e;
 
-  --separador: #1c2e2a;
-  --separador-forte: #2a423d;
+  --separador: #26292d;
+  --separador-forte: #33373c;
 
   --acento: #0b7d72; /* Ciano Souz: só preenchimento no escuro */
   --acento-premido: #096a61;
