@@ -11,7 +11,7 @@
  * urlAnexo resolve qualquer um.
  */
 import { esc, fonteImagem } from '../nucleo/base.js';
-import { Store } from '../dados/store.js';
+import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 
 const BUCKET = 'anexos';
@@ -125,6 +125,148 @@ async function urlAnexo(ref) {
   return fonteImagem(s);
 }
 
+/* ------------------------------------------------ fotos do diário
+   Iguais à NF: com banco e rede, a foto vai para o Storage (pasta
+   <obra>/diario/, que o cliente da obra também lê — 0023) e o registro
+   guarda "storage:<caminho>"; sem rede, fica em data URI no registro e
+   sobe da próxima vez que a obra abrir com rede (migrarFotosDiario). Antes
+   ficavam todas em base64 dentro do banco: o login baixava todas e a cópia
+   sem rede do aparelho estourava (auditoria A-06). */
+const PASTA_DIARIO = 'diario';
+const PIXEL = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+const ehRefStorage = (s) => /^storage:[^"'<>\s]+$/.test(String(s || ''));
+/* ref → { url, ate }: link assinado (1 h, renovado aos 50 min) ou a própria
+   data URI da foto que acabou de subir */
+const cacheFoto = new Map();
+const noCache = (ref) => {
+  const c = cacheFoto.get(ref);
+  return c && c.ate > Date.now() ? c.url : '';
+};
+
+let timerHidratar = 0;
+/* Preenche as <img data-foto-ref> da página com o link assinado. */
+async function hidratarFotos(raiz = typeof document !== 'undefined' ? document : null) {
+  if (!raiz) return;
+  const imgs = [...raiz.querySelectorAll('img[data-foto-ref]')];
+  if (!imgs.length) return;
+  const faltam = [...new Set(imgs.map((i) => i.dataset.fotoRef))].filter((r) => !noCache(r));
+  if (faltam.length && SUPA.sb && SUPA.sb.storage) {
+    const { data } = await SUPA.sb.storage
+      .from(BUCKET)
+      .createSignedUrls(faltam.map((r) => r.slice(8)), 3600);
+    (data || []).forEach((d) => {
+      if (d && d.signedUrl && !d.error) {
+        cacheFoto.set(`storage:${d.path}`, { url: d.signedUrl, ate: Date.now() + 50 * 60 * 1000 });
+      }
+    });
+  }
+  imgs.forEach((img) => {
+    const url = noCache(img.dataset.fotoRef);
+    if (url) {
+      img.src = url;
+      img.removeAttribute('data-foto-ref');
+    }
+  });
+}
+function agendarHidratacao() {
+  if (typeof document === 'undefined' || timerHidratar) return;
+  timerHidratar = setTimeout(() => {
+    timerHidratar = 0;
+    hidratarFotos().catch(() => {});
+  }, 0);
+}
+
+/* Atributo src de uma foto do diário, nas duas formas: data URI direto;
+   do Storage, o link já conhecido ou um pixel vazio que hidratarFotos
+   troca pelo link assinado logo depois de a tela ser desenhada. */
+function atribFoto(ref) {
+  const s = String(ref || '');
+  if (ehRefStorage(s)) {
+    const url = noCache(s);
+    if (url) return `src="${esc(url)}"`;
+    agendarHidratacao();
+    return `src="${PIXEL}" data-foto-ref="${esc(s)}"`;
+  }
+  return `src="${fonteImagem(s)}"`;
+}
+
+/* A foto como data URI (PDF e WhatsApp precisam dos bytes); '' se não der. */
+async function fotoComoDataUri(ref) {
+  const s = String(ref || '');
+  if (!ehRefStorage(s)) return fonteImagem(s).startsWith('data:') ? s : '';
+  const c = noCache(s);
+  if (c.startsWith('data:')) return c;
+  if (!SUPA.sb || !SUPA.sb.storage) return '';
+  const { data, error } = await SUPA.sb.storage.from(BUCKET).download(s.slice(8));
+  if (error || !data) return '';
+  return lerDataUri(data);
+}
+
+/* Lista de fotos ({ dados, … }) com os bytes em data URI; a que não
+   baixar fica de fora (o PDF sai assim mesmo). */
+async function fotosProntas(lista) {
+  const out = [];
+  for (const f of lista || []) {
+    const dados = await fotoComoDataUri(f.dados);
+    if (dados) out.push({ ...f, dados });
+  }
+  return out;
+}
+
+/* Guarda a foto (já reduzida, em data URI) e devolve o que vai no registro:
+   "storage:<obra>/diario/<id>.jpg", ou a própria data URI sem rede/banco. */
+async function guardarFotoDiario(dataUri, obraId, fotoId) {
+  if (!obraId || !fotoId || !podeUsarStorage()) return dataUri;
+  const caminho = `${obraId}/${PASTA_DIARIO}/${fotoId}.jpg`;
+  const { error } = await SUPA.sb.storage
+    .from(BUCKET)
+    .upload(caminho, dataUriParaBlob(dataUri), { contentType: 'image/jpeg', upsert: true });
+  if (error) {
+    console.warn('Storage indisponível; a foto fica no registro:', error.message || error);
+    return dataUri;
+  }
+  const ref = `storage:${caminho}`;
+  cacheFoto.set(ref, { url: dataUri, ate: Infinity });
+  return ref;
+}
+
+/* Fotos do diário ainda em data URI (as de antes, ou tiradas sem rede)
+   sobem para o Storage quando a obra abre com rede — uma vez por obra na
+   sessão, só para quem pode editar a obra. Devolve quantas subiram. */
+const obrasMigradas = new Set();
+async function migrarFotosDiario(obra) {
+  if (!obra || obrasMigradas.has(obra.id) || !podeUsarStorage() || !SUPA.podeEditarObra(obra.id)) {
+    return 0;
+  }
+  obrasMigradas.add(obra.id);
+  const trocas = [];
+  for (const d of obra.diario || []) {
+    const fotos = d.fotos || [];
+    for (let i = 0; i < fotos.length; i++) {
+      const f = fotos[i];
+      const dados = typeof f === 'string' ? f : f && f.dados;
+      if (!/^data:image\//.test(String(dados || ''))) continue;
+      const id = (f && f.id) || `${d.id}-${i}`;
+      const ref = await guardarFotoDiario(dados, obra.id, id);
+      if (ehRefStorage(ref)) trocas.push({ reg: d.id, i, antes: dados, ref });
+    }
+  }
+  if (trocas.length) {
+    /* sem redesenhar: a tela mostra a mesma foto, só muda de onde vem */
+    mutar(() => {
+      for (const t of trocas) {
+        const d = (obra.diario || []).find((x) => x.id === t.reg);
+        const f = d && d.fotos && d.fotos[t.i];
+        if (!f) continue;
+        /* só troca se a foto não mudou enquanto subia */
+        if (typeof f === 'string' && f === t.antes) d.fotos[t.i] = t.ref;
+        else if (f && f.dados === t.antes) f.dados = t.ref;
+      }
+    }, { render: false });
+  }
+  return trocas.length;
+}
+
 /* Conteúdo do modal que mostra o anexo (imagem ou PDF). */
 async function htmlAnexo(ref, rotulo) {
   const url = await urlAnexo(ref);
@@ -184,10 +326,16 @@ function campoAnexo(form, estado, { rotulo, destino, dica }) {
 }
 
 export {
+  atribFoto,
   campoAnexo,
   comprimirImagem,
   enviarArquivo,
+  fotoComoDataUri,
+  fotosProntas,
+  guardarFotoDiario,
+  hidratarFotos,
   htmlAnexo,
+  migrarFotosDiario,
   prepararAnexo,
   tipoAnexo,
   urlAnexo,

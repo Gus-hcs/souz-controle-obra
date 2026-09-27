@@ -9,6 +9,7 @@ import { linkWhatsApp, normalizarTelefoneBR } from '../nucleo/contato.js';
 import { Store, mutar } from '../dados/store.js';
 import { App, confirmar, confirmarDigitando, nomeCliente, toast } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
+import { fotosProntas } from '../ui/anexos.js';
 
 /* ------------------------------------------------ carregador de libs */
 function carregarScript(urls, testar) {
@@ -635,7 +636,7 @@ async function montarPdfStatus(o, { interno = false, op: opcoes = {} } = {}) {
       ['O quê', 'Até'],
       pendenciasDoCliente(o).abertas.map((p) => [p.descricao, p.prazo ? fmtData(p.prazo) : '—']),
       { colunas: { 1: { cellWidth: 30 } } });
-    if (op.fotos) y = pdfFotos(doc, y, per ? fotosDoPeriodo(o, op.de, op.ate, 12) : fotosDaSemana(o));
+    if (op.fotos) y = pdfFotos(doc, y, await fotosProntas(per ? fotosDoPeriodo(o, op.de, op.ate, 12) : fotosDaSemana(o)));
     pdfAssinaturaRT(doc, y, o);
     pdfRodape(doc);
     return doc;
@@ -666,7 +667,7 @@ async function montarPdfStatus(o, { interno = false, op: opcoes = {} } = {}) {
       pend.itens.slice(0, 18).map((a) => [a.sev === 3 ? 'Crítico' : 'Atenção',
         a.modulo, a.titulo, a.acao]), { colunas: { 0: { cellWidth: 16 }, 1: { cellWidth: 24 } } });
   }
-  if (op.fotos) y = pdfFotos(doc, y, fotosDoPeriodo(o, op.de, op.ate, 12));
+  if (op.fotos) y = pdfFotos(doc, y, await fotosProntas(fotosDoPeriodo(o, op.de, op.ate, 12)));
   pdfAssinaturaRT(doc, y, o);
   pdfRodape(doc);
   return doc;

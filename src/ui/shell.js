@@ -6,6 +6,7 @@ import { pendenciasCarteira, pendenciasObra } from '../dominio/calculos.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { VIEWS } from './telas-obra.js';
+import { migrarFotosDiario } from './anexos.js';
 import { ajustarGantt, ajustarGraficosAuto, desenharGraficosPendentes, limparGraficosAuto } from '../graficos/index.js';
 
 const ICO = {
@@ -186,6 +187,10 @@ const App = {
     this.renderRail();
     this.renderTopo();
     this.renderConteudo();
+    /* fotos do diário ainda dentro do registro sobem para o Storage
+       quando a obra abre com rede (uma vez por obra na sessão) */
+    const o = this.obra();
+    if (o) migrarFotosDiario(o).catch(() => {});
   },
 
   renderRail() {

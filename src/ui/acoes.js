@@ -8,7 +8,7 @@ import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
 import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, confirmarDigitando, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
 import { carregarAuditoria, implExpandida } from './telas-obra.js';
-import { campoAnexo, comprimirImagem, htmlAnexo } from './anexos.js';
+import { atribFoto, campoAnexo, comprimirImagem, guardarFotoDiario, htmlAnexo } from './anexos.js';
 
 const ACOES = {};
 
@@ -995,7 +995,7 @@ function formDiario(reg, novo, aoSalvar) {
     const cx = document.getElementById('fotos-cx');
     if (!cx) return;
     cx.innerHTML = window.__fotos.map((f, i) =>
-      `<figure><img src="${fonteImagem(f.dados)}" alt="${esc(f.nome || '')}">
+      `<figure><img ${atribFoto(f.dados)} alt="${esc(f.nome || '')}">
         <button type="button" class="rm" data-acao="rm-foto" data-idx="${i}" aria-label="Remover foto">×</button></figure>`).join('')
       || '<span style="font-size:12px;color:var(--mudo)">Nenhuma foto anexada.</span>';
   };
@@ -1067,8 +1067,10 @@ function formDiario(reg, novo, aoSalvar) {
     const arquivos = [...ev.target.files];
     for (const f of arquivos) {
       try {
-        const dados = await comprimirImagem(f);
-        window.__fotos.push({ id: uid('foto'), nome: f.name, dados });
+        const id = uid('foto');
+        /* com rede, sobe para o Storage já (como a NF); sem rede, fica na foto */
+        const dados = await guardarFotoDiario(await comprimirImagem(f), App.obra() && App.obra().id, id);
+        window.__fotos.push({ id, nome: f.name, dados });
       } catch (e) { toast('Não foi possível ler ' + f.name, 'critico'); }
     }
     ev.target.value = '';
@@ -1119,7 +1121,7 @@ ACOES['rm-foto'] = (el, d) => {
   window.__fotos.splice(Number(d.idx), 1);
   const cx = document.getElementById('fotos-cx');
   cx.innerHTML = window.__fotos.map((f, i) =>
-    `<figure><img src="${fonteImagem(f.dados)}" alt="${esc(f.nome || '')}">
+    `<figure><img ${atribFoto(f.dados)} alt="${esc(f.nome || '')}">
       <button type="button" class="rm" data-acao="rm-foto" data-idx="${i}" aria-label="Remover foto">×</button></figure>`).join('')
     || '<span style="font-size:12px;color:var(--mudo)">Nenhuma foto anexada.</span>';
 };
@@ -1162,7 +1164,7 @@ ACOES['ver-foto'] = (el, d) => {
   abrirModal({
     titulo: `${fmtData(r.data)} — ${f.nome || 'foto da obra'}`,
     largura: 'largo',
-    corpo: `<img src="${fonteImagem(f.dados)}" alt="${esc(f.nome || '')}" style="width:100%;border-radius:4px">`
+    corpo: `<img ${atribFoto(f.dados)} alt="${esc(f.nome || '')}" style="width:100%;border-radius:4px">`
   });
 };
 

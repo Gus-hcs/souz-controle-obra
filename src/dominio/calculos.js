@@ -2800,6 +2800,13 @@ function rtDoRelatorio(obra, empresa = {}) {
 const noPeriodo = (data, de, ate) =>
   isISO(data) && (!isISO(de) || data >= de) && (!isISO(ate) || data <= ate);
 
+/* Foto do diário que entra em relatório: PNG/JPEG em base64 (a de antes,
+   ou tirada sem rede) ou a referência do Storage ("storage:<caminho>") —
+   quem desenha o PDF baixa os bytes antes (anexos.js, fotosProntas). */
+const ehFotoDiario = (dados) =>
+  /^data:image\/(png|jpe?g);base64,/i.test(String(dados || '')) ||
+  /^storage:[^"'<>\s]+$/.test(String(dados || ''));
+
 /* Fotos do diário no período, da mais recente para a mais antiga. */
 function fotosDoPeriodo(obra, de, ate, max = 12) {
   const out = [];
@@ -2809,7 +2816,7 @@ function fotosDoPeriodo(obra, de, ate, max = 12) {
     .forEach((d) => {
       (d.fotos || []).forEach((f) => {
         const dados = typeof f === 'string' ? f : f && f.dados;
-        if (/^data:image\/(png|jpe?g);base64,/i.test(String(dados || ''))) {
+        if (ehFotoDiario(dados)) {
           out.push({ dados, data: d.data, etapa: d.etapa || '' });
         }
       });
@@ -2854,8 +2861,8 @@ function prestacaoContas(obra, de = '', ate = '') {
 }
 
 /* Fotos da semana para o relatório do cliente: as do diário dos últimos
-   7 dias (hoje incluído), mais recentes primeiro, só PNG/JPEG em base64
-   (o que o gerador de PDF desenha). */
+   7 dias (hoje incluído), mais recentes primeiro — PNG/JPEG em base64 ou
+   do Storage (ehFotoDiario). */
 function fotosDaSemana(obra, hoje = hojeISO(), max = 6) {
   const desde = addDias(hoje, -6);
   const out = [];
@@ -2865,7 +2872,7 @@ function fotosDaSemana(obra, hoje = hojeISO(), max = 6) {
     .forEach((d) => {
       (d.fotos || []).forEach((f) => {
         const dados = typeof f === 'string' ? f : f && f.dados;
-        if (/^data:image\/(png|jpe?g);base64,/i.test(String(dados || ''))) {
+        if (ehFotoDiario(dados)) {
           out.push({ dados, data: d.data, etapa: d.etapa || '' });
         }
       });

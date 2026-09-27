@@ -52,7 +52,7 @@ import {
   salvarPDF,
 } from '../../io/index.js';
 import { ACOES } from '../acoes.js';
-import { enviarArquivo, urlAnexo } from '../anexos.js';
+import { atribFoto, enviarArquivo, urlAnexo } from '../anexos.js';
 import { App, ICO, ehClienteDaObra, nomeCliente, svg, toast } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
 import { abrirMenu } from './componentes.js';
@@ -146,7 +146,7 @@ const fotos = (lista) =>
         .slice(0, 6)
         .map(
           (f) =>
-            `<figure><img src="${fonteImagem(f.dados)}" alt=""><figcaption>${esc(fmtDataCurta(f.data))}${f.etapa ? ` · ${esc(f.etapa)}` : ''}</figcaption></figure>`,
+            `<figure><img ${atribFoto(f.dados)} alt=""><figcaption>${esc(fmtDataCurta(f.data))}${f.etapa ? ` · ${esc(f.etapa)}` : ''}</figcaption></figure>`,
         )
         .join(
           '',
