@@ -49,6 +49,29 @@ O `usuario_id` das linhas passou a significar **quem criou/alterou**, não "dono
 Toda obra existente ganhou um membro `dono` na migração, então nada muda para
 quem usa o sistema sozinho.
 
+**Desde a `0023`, obra de construtora (`obras.empresa_id` preenchido) é acessada
+pela construtora, não por `obra_membros`.**
+
+| Quem | Na obra de construtora |
+|---|---|
+| gestor da construtora | tudo, inclusive convidar o cliente e excluir a obra (`eh_dono_obra`) |
+| engenheiro da construtora | lançar, medir, editar; não convida nem exclui |
+| cliente convidado (`obra_membros`, papel `cliente`) | lê a obra, o cronograma, o diário, as parcelas (recebimentos), as pendências dele e as fotos do diário; **não** lê custo (lançamentos, contratos, medições, materiais, auditoria, tratamento de alertas, histórico de relatórios, prestadores, NF e comprovantes) |
+
+- **Bloqueio.** Toda função de acesso passa por `eu_ativo()`: conta bloqueada, ou
+  construtora bloqueada, não lê nem grava nada — nem o que a pessoa criou. O
+  cliente de uma construtora bloqueada também para.
+- **Membros.** Em obra de construtora, `obra_membros` só aceita o papel
+  `cliente`. Ninguém mais vira "dono" por ter criado a obra. Por isso
+  desligar alguém da construtora ou excluir a conta funciona, e a obra fica.
+- **Leitura interna.** `pode_ler_obra_interna()` é `pode_ler_obra()` sem o
+  cliente. No Storage, a pasta `<obra>/diario/` segue `pode_ler_obra()`; o
+  resto do bucket `anexos` segue a leitura interna.
+- **Obra avulsa** (sem construtora) continua como na `0004`, com `eu_ativo()`.
+
+Prova: `db/bancada/acesso.mjs` (duas construtoras, cada papel, bloqueio,
+desligamento e exclusão de conta).
+
 `perfis` é lido e alterado só pelo próprio dono; as colunas de conta (`admin`,
 `plano`, `bloqueado`, `abas`, `limite_obras`) só por admin. Desde a `0009` a API
 não tem mais INSERT nem DELETE em `perfis` — não dá para apagar a própria linha
@@ -104,6 +127,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0020_padronizacao_telas.sql` | `obras.padrao` só Econômico/Médio/Alto (MCMV é programa); `obras.crea_cau`; `recebimentos.comprovante`; `anexo_nf` aceita PDF e Storage; bucket privado `anexos` com RLS por obra; tabela `relatorios_gerados` (histórico de relatórios, RLS por obra); `perfis.cnpj` |
 | `0021_construtoras.sql` | tabela `empresas` (a construtora que compra o sistema) com RLS; `perfis.empresa_id` + `papel_empresa`; `empresa_id` em obras, clientes e prestadores; a equipe da construtora vê tudo dela; vaga (limite de acessos) e limite de obras conferidos no banco; convite só de cliente em obra de construtora; `usuario_id` sem cascata (excluir conta não apaga registro); funções de admin; corrige `convidar_membro` e a permissão de `perfis.logo`/`cnpj` |
 | `0022_fecha_bucket_site.sql` | tira as políticas `site_tmp_*` do bucket `site` (criado à mão, público, com envio e exclusão sem login); o bucket vazio é apagado no painel |
+| `0023_acesso_pela_construtora.sql` | obra de construtora acessada pela construtora; `eu_ativo()` (bloqueio corta tudo); `pode_ler_obra_interna()` (o cliente não lê custo nem anexos, menos as fotos do diário); `obra_membros` só com cliente em obra de construtora; sai o dono individual (desligar e excluir conta funcionam); `membros_da_obra` com a equipe da construtora e sem e-mail para o cliente; convite com mensagem neutra |
 
 ### 0008 — logos
 
