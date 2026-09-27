@@ -103,6 +103,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0019_anexo_nf_e_funcoes_fechadas.sql` | `lancamentos.anexo_nf` (foto da nota, CHECK de imagem ≤ 1,5 MB); `EXECUTE` revogado de `anon` em todas as `SECURITY DEFINER` e de todos nas funções de gatilho |
 | `0020_padronizacao_telas.sql` | `obras.padrao` só Econômico/Médio/Alto (MCMV é programa); `obras.crea_cau`; `recebimentos.comprovante`; `anexo_nf` aceita PDF e Storage; bucket privado `anexos` com RLS por obra; tabela `relatorios_gerados` (histórico de relatórios, RLS por obra); `perfis.cnpj` |
 | `0021_construtoras.sql` | tabela `empresas` (a construtora que compra o sistema) com RLS; `perfis.empresa_id` + `papel_empresa`; `empresa_id` em obras, clientes e prestadores; a equipe da construtora vê tudo dela; vaga (limite de acessos) e limite de obras conferidos no banco; convite só de cliente em obra de construtora; `usuario_id` sem cascata (excluir conta não apaga registro); funções de admin; corrige `convidar_membro` e a permissão de `perfis.logo`/`cnpj` |
+| `0022_fecha_bucket_site.sql` | tira as políticas `site_tmp_*` do bucket `site` (criado à mão, público, com envio e exclusão sem login); o bucket vazio é apagado no painel |
 
 ### 0008 — logos
 
