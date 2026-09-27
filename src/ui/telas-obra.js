@@ -128,10 +128,16 @@ function causaHTML(c, mostrarObra = false) {
    "Fazer" = um botão por causa, com o verbo da ação. */
 const TOM_ANCORA = { critico: 'atraso', atencao: 'tom-alerta', ok: 'feito' };
 
-function fraseAncoraHTML(h, { status = '', mostrarObra = false } = {}) {
+/* A linha de situação da frase-âncora (status · prazo · caixa · margem),
+   com a cor de cada trecho — também a "Tendência" do inspetor do Painel. */
+function situacaoAncoraHTML(h, status = '') {
   const sit = h.situacao
     .map((x) => `<span class="${TOM_ANCORA[x.nivel] || ''}">${esc(x.texto)}</span>`)
     .join('<span class="tinta3"> · </span>');
+  return `${status ? `<span class="tinta2">${esc(status)}</span><span class="tinta3"> · </span>` : ''}${sit || '<span class="tinta2">Sem números para contar ainda.</span>'}`;
+}
+
+function fraseAncoraHTML(h, { status = '', mostrarObra = false } = {}) {
   const causas = h.causas.length
     ? `<p class="ancora-linha"><span class="ancora-rot">Por quê</span><span>${h.causas
         .map((c) => `${esc(c.titulo)}${mostrarObra ? ` <span class="tinta3">(${esc(c.obraNome)})</span>` : ''}`)
@@ -146,7 +152,7 @@ function fraseAncoraHTML(h, { status = '', mostrarObra = false } = {}) {
         .join('')}</span></p>`
     : '';
   return `<section class="frase-ancora n-${h.nivel}" aria-label="Situação">
-    <p class="ancora-situacao">${status ? `<span class="tinta2">${esc(status)}</span><span class="tinta3"> · </span>` : ''}${sit || '<span class="tinta2">Sem números para contar ainda.</span>'}</p>
+    <p class="ancora-situacao">${situacaoAncoraHTML(h, status)}</p>
     ${causas}
     ${acoes}
   </section>`;
@@ -193,6 +199,7 @@ export {
   alertaHTML,
   causaHTML,
   fraseAncoraHTML,
+  situacaoAncoraHTML,
   rotuloAcao,
   Auditoria,
   carregarAuditoria,

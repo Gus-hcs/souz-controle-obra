@@ -411,10 +411,15 @@ const GRUPOS = [
   ['financeiro', 'Financeiro'],
 ];
 
-/* O verbo do botão diz o que se vai fazer lá. */
-function listaAcoes(itens, mostrarObra) {
+/* O verbo do botão diz o que se vai fazer lá. Também é a lista do
+   inspetor do Painel da obra (telas/painel.js), sem o nome da obra. */
+function listaAcoes(
+  itens,
+  mostrarObra,
+  vazio = 'Nada pedindo ação. Selecione uma obra para ver os detalhes.',
+) {
   if (!itens.length) {
-    return '<p class="tinta2 inspetor-vazio">Nada pedindo ação. Selecione uma obra para ver os detalhes.</p>';
+    return `<p class="tinta2 inspetor-vazio">${esc(vazio)}</p>`;
   }
   return GRUPOS.map(([tipo, rotulo]) => {
     const doGrupo = itens.filter((a) => a.tipo === tipo);
@@ -585,7 +590,7 @@ function baixo(obras) {
 VIEWS.carteira = () => {
   /* só acompanha obras como cliente: a carteira dele são essas obras */
   if (Store.estado.obras.length && !obrasDaConstrutora().length) {
-    return `<div class="vazio" data-testid="carteira-cliente">
+    return `<div class="vazio vazio-tela" data-testid="carteira-cliente">
       <h4>Suas obras</h4>
       <p>Você acompanha ${Store.estado.obras.length === 1 ? 'esta obra' : 'estas obras'} como cliente: cronograma, diário com fotos e o relatório de status.</p>
       <div class="acoes">${Store.estado.obras
@@ -594,7 +599,7 @@ VIEWS.carteira = () => {
     </div>`;
   }
   if (!Store.estado.obras.length) {
-    return `<div class="vazio" data-testid="carteira-vazia">
+    return `<div class="vazio vazio-tela" data-testid="carteira-vazia">
       <h4>Nenhuma obra cadastrada</h4>
       <p>Cadastre a primeira obra para controlar contratos, medições, recebimentos e materiais.
          Se você já acompanha em planilha — inclusive no modelo MCMV — dá para importar.</p>
@@ -646,4 +651,4 @@ VIEWS.carteira.toolbar = () => {
     ${botao('<span class="rotulo-btn">Nova obra</span>', 'nova-obra', {}, 'btn primario', 'mais')}`;
 };
 
-export { COLUNAS, linhas, tela };
+export { COLUNAS, linhas, listaAcoes, tela };

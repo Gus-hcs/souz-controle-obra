@@ -360,6 +360,26 @@ language sql stable security definer set search_path = '' as $$
      and p.papel_empresa in ('gestor', 'engenheiro');
 $$;
 
+-- O nome da construtora de quem entra, para o topo da tela — de qualquer
+-- papel, cliente final inclusive (minha_construtora só responde à equipe).
+-- Conta sem construtora: a da primeira obra em que foi convidada.
+create or replace function public.nome_da_minha_construtora()
+returns text
+language sql stable security definer set search_path = '' as $$
+  select coalesce(
+    (select e.nome
+       from public.perfis p
+       join public.empresas e on e.id = p.empresa_id
+      where p.id = auth.uid()),
+    (select e.nome
+       from public.obra_membros m
+       join public.obras o on o.id = m.obra_id
+       join public.empresas e on e.id = o.empresa_id
+      where m.usuario_id = auth.uid()
+      order by m.criado_em
+      limit 1));
+$$;
+
 -- ------------------------------------------------------ funções do admin
 create or replace function public.admin_empresas()
 returns table (
@@ -544,6 +564,7 @@ revoke execute on function public.pode_ler_obra(text)                           
 revoke execute on function public.pode_escrever_obra(text)                      from public, anon;
 revoke execute on function public.eh_dono_obra(text)                            from public, anon;
 revoke execute on function public.minha_construtora()                           from public, anon;
+revoke execute on function public.nome_da_minha_construtora()                   from public, anon;
 revoke execute on function public.admin_empresas()                              from public, anon;
 revoke execute on function public.admin_salvar_empresa(uuid, text, text, text, integer, integer, boolean) from public, anon;
 revoke execute on function public.admin_excluir_empresa(uuid)                   from public, anon;
@@ -556,6 +577,7 @@ grant  execute on function public.pode_ler_obra(text)                           
 grant  execute on function public.pode_escrever_obra(text)                      to authenticated;
 grant  execute on function public.eh_dono_obra(text)                            to authenticated;
 grant  execute on function public.minha_construtora()                           to authenticated;
+grant  execute on function public.nome_da_minha_construtora()                   to authenticated;
 grant  execute on function public.admin_empresas()                              to authenticated;
 grant  execute on function public.admin_salvar_empresa(uuid, text, text, text, integer, integer, boolean) to authenticated;
 grant  execute on function public.admin_excluir_empresa(uuid)                   to authenticated;

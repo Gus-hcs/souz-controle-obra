@@ -32,6 +32,7 @@ import {
   kpisObra,
   lancamentosDuplicados,
   lancamentosDuplicadosAbertos,
+  gastoPorMes,
   lancamentosPorMes,
   lancamentoTotal,
   liberadoExecutado,
@@ -255,6 +256,30 @@ describe('lancamentosPorMes', () => {
       Object.assign(novoLancamento(), { data: '2026-01-10', precoUnitario: 20 }),
     ];
     expect(lancamentosPorMes(ls).map((x) => x.ym)).toEqual(['2026-01', '']);
+  });
+});
+
+describe('gastoPorMes', () => {
+  it('do mais antigo ao mais recente, com os totais de lancamentosPorMes', () => {
+    const o = casa14();
+    const g = gastoPorMes(o.lancamentos);
+    expect(g.map((x) => x.ym)).toEqual([...g.map((x) => x.ym)].sort());
+    const porMes = new Map(lancamentosPorMes(o.lancamentos).map((x) => [x.ym, x]));
+    g.forEach((x) => {
+      expect(x.valor).toBe(porMes.get(x.ym).total);
+      expect(x.n).toBe(porMes.get(x.ym).lancamentos.length);
+    });
+  });
+  it('só os últimos meses pedidos; sem data fica de fora', () => {
+    const l = (data, preco) => Object.assign(novoLancamento(), { data, precoUnitario: preco });
+    const ls = [l('', 99), l('2026-01-05', 10), l('2026-02-05', 20), l('2026-03-05', 30), l('2026-03-20', 5)];
+    expect(gastoPorMes(ls)).toEqual([
+      { ym: '2026-01', valor: 10, n: 1 },
+      { ym: '2026-02', valor: 20, n: 1 },
+      { ym: '2026-03', valor: 35, n: 2 },
+    ]);
+    expect(gastoPorMes(ls, 2).map((x) => x.ym)).toEqual(['2026-02', '2026-03']);
+    expect(gastoPorMes([])).toEqual([]);
   });
 });
 

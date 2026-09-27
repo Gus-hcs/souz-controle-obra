@@ -1308,7 +1308,8 @@ table.lista tfoot td.num {
    Tela: carteira de obras
    ================================================================ */
 
-.tela-carteira {
+.tela-carteira,
+.tela-painel-obra {
   display: contents;
 }
 .tela-principal {
@@ -1404,7 +1405,8 @@ table.lista tfoot td.num {
 
 /* No estreito o inspetor some (regra acima) e a lista ocupa tudo. */
 @media (max-width: 1100px) {
-  .tela-carteira {
+  .tela-carteira,
+  .tela-painel-obra {
     display: block;
   }
 }
@@ -1650,7 +1652,7 @@ body[data-view] #conteudo {
 
 /* ------------------------------------------ peças das telas de lista */
 .tela-lista .secao {
-  margin-top: var(--e8);
+  margin-top: var(--vao-bloco);
 }
 .nota-rodape {
   margin: var(--e3) 0 0;
@@ -1964,11 +1966,13 @@ table.lista-carteira tbody td {
 /* Celular: "Pendências" vem primeiro — antes ficava abaixo de 26
    itens de agenda, e no canteiro ninguém rolava até lá. */
 @media (max-width: 767px) {
-  .tela-carteira {
+  .tela-carteira,
+  .tela-painel-obra {
     display: flex;
     flex-direction: column;
   }
-  #conteudo.paineis .tela-carteira > .inspetor {
+  #conteudo.paineis .tela-carteira > .inspetor,
+  #conteudo.paineis .tela-painel-obra > .inspetor {
     order: -1;
     border-top: 0;
     border-bottom: var(--fio) solid var(--separador);
@@ -1979,7 +1983,7 @@ table.lista-carteira tbody td {
   display: grid;
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   gap: var(--e6);
-  margin-top: var(--e8);
+  margin-top: var(--vao-bloco);
 }
 .carteira-baixo .secao + .secao {
   margin-top: 0;
@@ -2036,8 +2040,8 @@ table.lista-carteira tbody td {
   flex: none;
   align-items: center;
   gap: var(--e2);
-  max-width: 200px;
-  height: var(--alt-ctrl);
+  max-width: 280px;
+  min-height: var(--alt-ctrl);
   padding: 0 var(--e2);
   background: none;
   border: 0;
@@ -2066,11 +2070,27 @@ table.lista-carteira tbody td {
   font-size: var(--t-peq);
   font-weight: var(--p-semi);
 }
+/* a construtora em cima; a pessoa e o papel embaixo, menores. Sem
+   construtora (navegador, conta solta), só a pessoa, no tamanho normal. */
+.conta-id {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: var(--lh-apertado);
+}
+.conta-empresa,
 .conta-nome {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.conta-empresa {
+  font-weight: var(--p-semi);
+}
+.conta-empresa + .conta-nome {
+  font-size: var(--t-peq);
+  color: var(--tinta2);
 }
 .menu-rotulo {
   padding: var(--e1) var(--e2);
@@ -2892,7 +2912,7 @@ tr[aria-selected='true'] .acao-hover {
   padding: var(--e4);
 }
 .caixa + .caixa {
-  margin-top: var(--e3);
+  margin-top: var(--vao-bloco);
 }
 .caixa-cab {
   display: flex;
@@ -3201,7 +3221,7 @@ table.lista td.num span {
 /* No telefone e no tablet estreito, a conta vira só o avatar: o nome
    disputava espaço com o título da tela. */
 @media (max-width: 1100px) {
-  #topo .conta-nome,
+  #topo .conta-id,
   #topo .conta-btn .ic {
     display: none;
   }

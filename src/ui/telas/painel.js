@@ -1,11 +1,12 @@
 /**
  * telas/painel.js — Painel da obra, na linguagem nova.
  *
- * Nada calcula aqui: kpisObra, historiaObra, causasRaizObra, fluxoCaixa,
- * implantacaoObra e os demais vêm prontos de dominio/calculos.js. A tela
- * conta a história da obra na ordem da auditoria: situação → causa → ação
- * na frase do topo, os números principais depois, as causas com o dinheiro
- * em jogo, os gráficos de apoio por último.
+ * Nada calcula aqui: kpisObra, historiaObra, pendenciasObra, fluxoCaixa,
+ * implantacaoObra e os demais vêm prontos de dominio/calculos.js. Como na
+ * Visão geral: à esquerda os números (KPIs) e logo abaixo os gráficos; à
+ * direita, no inspetor "Pendências", o que pede atenção — a tendência, as
+ * pendências por grupo com o botão de cada uma, o financiamento e o que
+ * se espera do cliente.
  */
 import {
   esc,
@@ -38,7 +39,8 @@ import {
 } from '../../dominio/calculos.js';
 import { graficoAuto, graficoBarras, graficoCurvaS } from '../../graficos/index.js';
 import { App, abrirForm, botao, confirmar, fecharModal, toast } from '../shell.js';
-import { causaHTML, fraseAncoraHTML, implExpandida, VIEWS } from '../telas-obra.js';
+import { implExpandida, situacaoAncoraHTML, VIEWS } from '../telas-obra.js';
+import { listaAcoes } from './carteira.js';
 import { faixaKpis, fmtIndice, tomNivel } from './componentes.js';
 
 /* -------------------------------------------------------------- kpis */
@@ -153,30 +155,6 @@ function cartaoImplantacao(o) {
   </div>`;
 }
 
-/* -------------------------------------------------------- o que fazer
-   Causas-raiz com o dinheiro em jogo e a ação — num bloco só. A antiga
-   tabela "Indicador / Qtde / Valor" repetia o que os alertas já diziam. */
-function caixaAcao(pend, historia) {
-  const causas = historia.causasTodas;
-  if (!causas.length) {
-    return `<div class="caixa">
-      <div class="caixa-cab"><h3>Situação</h3></div>
-      <p class="feito" style="margin:0">✓ Sem pendências. A obra está em dia com o que foi lançado.</p>
-    </div>`;
-  }
-  const valor = causas.reduce((s, c) => s + c.valor, 0);
-  return `<div class="caixa">
-    <div class="caixa-cab">
-      <h3>Pendências<span class="tinta2" style="font-weight:400"> · ${causas.length} problema${causas.length > 1 ? 's' : ''}-raiz${valor > 0.5 ? ` · ${fmtMoney(valor, { dec: 0 })} em jogo` : ''}</span></h3>
-      <div class="dir">${botao(`Ver ${pend.total === 1 ? 'a pendência' : `as ${pend.total} pendências`}`, 'ir', { view: 'alertas' }, 'btn sutil pequeno')}</div>
-    </div>
-    ${causas
-      .slice(0, 4)
-      .map((c) => causaHTML(c))
-      .join('')}
-  </div>`;
-}
-
 /* ---------------------------------------------------------- andamento */
 function caixaAndamento(o, k, va) {
   return `<div class="caixa">
@@ -219,7 +197,7 @@ function caixaAndamento(o, k, va) {
    proximaParcelaFinanciador e liberadoExecutado. */
 const PASSO_TEXTO = { solicitada: 'solicitada', vistoriada: 'vistoriada', aprovada: 'aprovada, aguardando crédito' };
 
-function caixaFinanciador(o) {
+function secaoFinanciador(o) {
   const p = proximaParcelaFinanciador(o);
   const le = liberadoExecutado(o);
   if (!p && !le) return '';
@@ -262,15 +240,15 @@ function caixaFinanciador(o) {
       }</p>`
     : '';
 
-  return `<div class="caixa caixa-financiador">
-    <div class="caixa-cab">
+  return `<section class="inspetor-secao caixa-financiador">
+    <div class="inspetor-secao-cab">
       <h3>Financiamento${quem !== 'financiador' ? ` · ${esc(quem)}` : ''}</h3>
-      <div class="dir">${botao('Ver parcelas', 'ir', { view: 'recebimentos' }, 'btn sutil pequeno')}</div>
+      ${botao('Ver parcelas', 'ir', { view: 'recebimentos' }, 'btn sutil pequeno')}
     </div>
     ${parcela}
     ${decisao}
     ${banca}
-  </div>`;
+  </section>`;
 }
 
 /* Caixa no Painel: só o vale (o gráfico mês a mês mora na tela de Fluxo).
@@ -289,7 +267,7 @@ function caixaVale(k, proj) {
       <div class="par"><dt>Vale de caixa</dt><dd class="${tom}"><b>${fmtMoney(v.saldo, { dec: 0 })}</b> ${v.data <= hojeISO() ? 'hoje' : `em ${esc(fmtDataCurta(v.data))}`}</dd></div>
       <div class="par"><dt>No fim da obra</dt><dd class="${k.posicaoProjetada < 0 ? 'atraso' : ''}">${fmtMoney(k.posicaoProjetada, { dec: 0 })}</dd></div>
     </dl>
-    ${proximos.length ? `<p class="tinta2" style="font-size:var(--t-peq);margin:var(--e2) 0 0">Até o vale: ${proximos.map((e) => `${esc(e.descricao)} ${e.valor > 0 ? '+' : '−'}${esc(fmtMoneyCurto(Math.abs(e.valor)))}`).join(' · ')}</p>` : ''}
+    ${proximos.length ? `<p class="tinta2 vale-proximos">Até o vale: ${proximos.map((e) => `${esc(e.descricao)} ${e.valor > 0 ? '+' : '−'}${esc(fmtMoneyCurto(Math.abs(e.valor)))}`).join(' · ')}</p>` : ''}
   </div>`;
 }
 
@@ -297,7 +275,7 @@ function caixaVale(k, proj) {
    escolha, documento. Vencida vira pendência da obra (alertasObra). */
 const pcliDisponivel = () => Store.backend !== 'supabase' || SUPA.tabelaDisponivel('pendencias_cliente');
 
-function caixaCliente(o) {
+function secaoCliente(o) {
   if (!pcliDisponivel()) return '';
   const pc = pendenciasDoCliente(o);
   if (!o.clienteId && !pc.abertas.length) return '';
@@ -311,13 +289,13 @@ function caixaCliente(o) {
         ${botao('Editar', 'editar-pcli', { id: p.id }, 'btn sutil pequeno')}</span>` : ''}
     </li>`;
   }).join('');
-  return `<div class="caixa caixa-cliente">
-    <div class="caixa-cab">
+  return `<section class="inspetor-secao caixa-cliente">
+    <div class="inspetor-secao-cab">
       <h3>Aguardando o cliente${pc.abertas.length ? ` · ${pc.abertas.length}` : ''}</h3>
-      <div class="dir">${podeEditar ? botao('Registrar', 'nova-pcli', {}, 'btn sutil pequeno', 'mais') : ''}</div>
+      ${podeEditar ? botao('Registrar', 'nova-pcli', {}, 'btn sutil pequeno', 'mais') : ''}
     </div>
     ${linhas ? `<ul class="lista-pcli">${linhas}</ul>` : '<p class="linha-cinza">Nada pendente do lado do cliente. Registre aqui aprovações, escolhas e documentos que ele precisa entregar.</p>'}
-  </div>`;
+  </section>`;
 }
 
 function formPcli(p, nova) {
@@ -369,6 +347,33 @@ ACOES['resolver-pcli'] = (el, d) => {
   toast('Pendência do cliente resolvida.', 'ok');
 };
 
+/* Inspetor "Pendências" à direita — o mesmo da Visão geral, para esta
+   obra: a tendência (a linha de situação da frase-âncora), as pendências
+   por grupo com o botão de cada uma, o financiamento e o cliente. */
+function inspetorPainel(o, historia, pend) {
+  const emJogo = historia.causasTodas.reduce((s, c) => s + c.valor, 0);
+  const sub = `${pend.total ? `${pend.total} pendência${pend.total > 1 ? 's' : ''}` : 'nada pendente'}${
+    emJogo > 0.5 ? ` · ${fmtMoney(emJogo, { dec: 0 })} em jogo` : ''
+  }`;
+  return `<aside class="inspetor inspetor-painel" data-testid="inspetor-painel" aria-label="Pendências da obra">
+    <div class="inspetor-cab">
+      <h2>Pendências<span class="sub">${sub}</span></h2>
+      ${pend.total ? botao('Ver todas', 'ir', { view: 'alertas' }, 'btn sutil pequeno') : ''}
+    </div>
+    <div class="inspetor-corpo">
+      <section class="inspetor-secao painel-tendencia n-${esc(historia.nivel)}">
+        <h3>Tendência</h3>
+        <p>${situacaoAncoraHTML(historia, o.status)}</p>
+      </section>
+      <section class="inspetor-secao painel-pendencias">
+        ${listaAcoes(pend.itens, false, 'Sem pendências. A obra está em dia com o que foi lançado.')}
+      </section>
+      ${secaoFinanciador(o)}
+      ${secaoCliente(o)}
+    </div>
+  </aside>`;
+}
+
 VIEWS.painel = () => {
   const o = App.obra();
   const k = kpisObra(o);
@@ -379,35 +384,40 @@ VIEWS.painel = () => {
 
   const proj = fluxoProjetado(o);
 
-  return `<div class="tela-lista tela-painel">
-    ${fraseAncoraHTML(historia, { status: o.status })}
-    ${kpisPainel(o, k, va)}
-    ${cartaoImplantacao(o)}
-    ${caixaAcao(pend, historia)}
-    ${caixaFinanciador(o)}
-    ${caixaCliente(o)}
+  return `<div class="tela-painel-obra">
+    <div class="tela-principal">
+      <div class="tela-lista tela-painel">
+        ${kpisPainel(o, k, va)}
+        ${cartaoImplantacao(o)}
 
-    <!-- Curva S à esquerda; à direita, Andamento e Caixa projetado
-         empilhados, dividindo a altura: as duas colunas terminam juntas e
-         o gráfico ocupa a altura que a coluna da direita pede. -->
-    <div class="painel-linha">
-      <div class="caixa caixa-curva">
-        <div class="caixa-cab">
-          <h3>Curva S — avanço físico x financeiro</h3>
-          <div class="dir">${botao('Ver detalhes', 'ir', { view: 'curva' }, 'btn sutil pequeno')}</div>
+        <!-- Curva S à esquerda; à direita, Andamento e Caixa projetado
+             empilhados, dividindo a altura: as duas colunas terminam juntas
+             e o gráfico ocupa a altura que a coluna da direita pede. -->
+        <div class="painel-linha">
+          <div class="caixa caixa-curva">
+            <div class="caixa-cab">
+              <h3>Curva S — avanço físico x financeiro</h3>
+              <div class="dir">${botao('Ver detalhes', 'ir', { view: 'curva' }, 'btn sutil pequeno')}</div>
+            </div>
+            <div class="nao-celular painel-curva">${graficoAuto((w, h) => graficoCurvaS(o, h || 280, w), 920, 280)}</div>
+            <p class="so-celular numeros-celular">Físico <b>${fmtPct(k.progressoFisico, 0)}</b> (previsto ${fmtPct(va.previsto, 0)}) · IDP <b>${fmtIndice(va.idp)}</b> · IDC <b>${fmtIndice(va.idc)}</b></p>
+          </div>
+          <div class="painel-lado">
+            ${caixaAndamento(o, k, va)}
+            ${caixaVale(k, proj)}
+          </div>
         </div>
-        <div class="nao-celular painel-curva">${graficoAuto((w, h) => graficoCurvaS(o, h || 280, w), 920, 280)}</div>
-        <p class="so-celular numeros-celular">Físico <b>${fmtPct(k.progressoFisico, 0)}</b> (previsto ${fmtPct(va.previsto, 0)}) · IDP <b>${fmtIndice(va.idp)}</b> · IDC <b>${fmtIndice(va.idc)}</b></p>
-      </div>
-      <div class="painel-lado">
-        ${caixaAndamento(o, k, va)}
-        ${caixaVale(k, proj)}
-      </div>
-    </div>
 
-    <div class="caixa">
-      <div class="caixa-cab"><h3>Onde o dinheiro foi</h3></div>
-      ${graficoBarras(custoPorEtapa(o), { limite: 8, colunas: 2 })}
+        <div class="caixa">
+          <div class="caixa-cab"><h3>Onde o dinheiro foi</h3></div>
+          ${graficoBarras(custoPorEtapa(o), { limite: 8, colunas: 2 })}
+        </div>
+      </div>
     </div>
+    ${inspetorPainel(o, historia, pend)}
   </div>`;
 };
+
+/* Números à esquerda, pendências à direita, cada painel com a própria
+   rolagem — como a Visão geral. */
+VIEWS.painel.paineis = true;

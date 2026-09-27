@@ -445,9 +445,11 @@ function secao(titulo, conteudo) {
   </section>`;
 }
 
-/* Estado vazio: uma frase útil e uma ação. */
-function vazioTela({ titulo, texto, acao }) {
-  return `<div class="vazio">
+/* Tela vazia: uma frase útil e uma ação, no meio da área de conteúdo
+   (App.renderConteudo marca #conteudo.so-vazio quando a tela é só isto).
+   Vazio dentro de card ou de tabela usa .vazio, sem o -tela. */
+function vazioTela({ titulo, texto, acao, testid = '' }) {
+  return `<div class="vazio vazio-tela"${testid ? ` data-testid="${esc(testid)}"` : ''}>
     <h4>${esc(titulo)}</h4>
     <p>${esc(texto)}</p>
     ${acao ? `<div class="acoes">${acao}</div>` : ''}

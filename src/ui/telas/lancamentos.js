@@ -3,7 +3,8 @@
  *
  * A faixa de cima diz para onde foi o dinheiro nas quatro categorias de
  * saída (categoriaLancamento): material, mão de obra e serviços, taxas e
- * extras. A lista vem agrupada por mês, com o subtotal no cabeçalho do
+ * extras. Logo abaixo, os gráficos do recorte filtrado: gasto por etapa,
+ * composição por tipo e gasto por mês (gastoPorMes). A lista vem agrupada por mês, com o subtotal no cabeçalho do
  * grupo (lancamentosPorMes). Cada linha: descrição com o detalhe embaixo
  * (quantidade × preço, frete, NF), tipo com o ponto da categoria, o
  * vínculo com o plano de materiais e o clipe da nota. Suspeita de
@@ -32,6 +33,7 @@ import {
   CATEGORIAS_SAIDA,
   composicaoPorTipo,
   gastoPorEtapa,
+  gastoPorMes,
   lancamentoNatureza,
   lancamentosDuplicadosAbertos,
   lancamentosPorMes,
@@ -41,7 +43,7 @@ import {
   resumoLancamentos,
   tratamentoDoAlerta,
 } from '../../dominio/calculos.js';
-import { graficoBarras, graficoRosca } from '../../graficos/index.js';
+import { graficoAuto, graficoBarras, graficoColunas, graficoRosca } from '../../graficos/index.js';
 import { Store, mutar } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
 import { App, botao, ICO, opcoesEtapas, opcoesLista, svg, toast } from '../shell.js';
@@ -54,7 +56,6 @@ import {
   dinheiro,
   faixaKpis,
   lista,
-  painelAnalise,
   secao,
   vazioTela,
 } from './componentes.js';
@@ -177,6 +178,52 @@ function inspetorLancamento(o, l) {
       <div class="inspetor-secao"><h3>Alterações</h3>${historicoDoRegistro(o, 'lancamentos', l.id)}</div>
     </div>
   </aside>`;
+}
+
+/* ------------------------------------------------------------ gráficos
+   Logo abaixo dos KPIs, do recorte filtrado: à esquerda, o gasto por
+   etapa; à direita, a composição por tipo e, embaixo dela, o gasto mês a
+   mês, que enche a altura que sobrar — as duas colunas terminam juntas. */
+function graficosLancamentos(ls) {
+  const bloco = (titulo, conteudo, classe = '') =>
+    `<section class="analise-bloco${classe ? ` ${classe}` : ''}">
+      <div class="analise-cab"><h2>${esc(titulo)}</h2></div>
+      <div class="analise-corpo">${conteudo}</div>
+    </section>`;
+  const etapas = gastoPorEtapa(ls);
+  const notaEtapas = etapas.length
+    ? `<p class="grafico-nota tinta2 lanc-etapa-nota">${plural(etapas.length, 'etapa com gasto', 'etapas com gasto')}${etapas.length > 10 ? ' · as 10 maiores' : ''}</p>`
+    : '';
+  const meses = gastoPorMes(ls).map((m) => ({
+    rotulo: fmtCompetencia(m.ym),
+    valor: m.valor,
+    dica: plural(m.n, 'lançamento', 'lançamentos'),
+  }));
+  return `<div class="lanc-graficos" aria-label="Para onde foi o dinheiro">
+    ${bloco(
+      'Gasto por etapa',
+      graficoBarras(etapas, { limite: 10, formata: (v) => fmtMoneyCurto(v) }) + notaEtapas,
+      'lanc-etapa',
+    )}
+    <div class="lanc-lado">
+      ${bloco(
+        'Composição por tipo',
+        graficoRosca(composicaoPorTipo(ls), {
+          centro: 'total',
+          rotulo: 'Composição dos lançamentos por tipo',
+        }),
+      )}
+      ${bloco(
+        'Gasto por mês',
+        graficoAuto(
+          (w, h) =>
+            graficoColunas(meses, { largura: w, altura: h || 180, rotulo: 'Gasto por mês' }),
+          520,
+          180,
+        ),
+      )}
+    </div>
+  </div>`;
 }
 
 /* ---------------------------------------------------------------- tela */
@@ -334,6 +381,7 @@ VIEWS.lancamentos = () => {
     <div class="tela-principal">
       <div class="tela-lista">
         ${kpisLancamentos(r)}
+        ${graficosLancamentos(lsFiltrados)}
         ${
           r.semEtapa.n
             ? `<div class="faixa-aviso" role="status">
@@ -414,22 +462,6 @@ VIEWS.lancamentos = () => {
             `data-acao="lanc-selecionar" data-id="${esc(d.l.id)}"${d.l.id === tela.selecao ? ' aria-selected="true"' : ''}`,
           linhaClasse: (d) => `clicavel${duplicado.has(d.l.id) ? ' linha-duplicado' : ''}`,
         })}
-        ${painelAnalise([
-          {
-            titulo: 'Gasto por etapa',
-            conteudo: graficoBarras(gastoPorEtapa(lsFiltrados), {
-              limite: 10,
-              formata: (v) => fmtMoneyCurto(v),
-            }),
-          },
-          {
-            titulo: 'Composição por tipo',
-            conteudo: graficoRosca(composicaoPorTipo(lsFiltrados), {
-              centro: 'total',
-              rotulo: 'Composição dos lançamentos por tipo',
-            }),
-          },
-        ])}
         ${tabelaOrcado}
       </div>
     </div>

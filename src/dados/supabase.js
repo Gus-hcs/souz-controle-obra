@@ -327,6 +327,7 @@ const SUPA = {
      equipe (gestor ou engenheiro); null para cliente final, conta sem
      construtora ou banco sem a 0021. */
   construtora: null,
+  nomeConstrutora: '', // de qualquer papel, cliente final inclusive (topo da tela)
   construtorasNoBanco: false, // a 0021 está aplicada (minha_construtora respondeu)
   motivoBloqueio: '',         // 'conta' | 'construtora' — o que a tela de bloqueio diz
 
@@ -780,6 +781,7 @@ const SUPA = {
      fica tudo como antes, pelo perfil. */
   async carregarConstrutora(estado) {
     this.construtora = null;
+    this.nomeConstrutora = '';
     let data = null;
     let error = null;
     try {
@@ -794,7 +796,17 @@ const SUPA = {
     }
     this.construtorasNoBanco = true;
     const c = (data || [])[0];
-    if (!c) return;
+    if (!c) {
+      /* cliente final ou conta sem construtora: só o nome, para o topo */
+      try {
+        const r = await this.sb.rpc('nome_da_minha_construtora');
+        this.nomeConstrutora = (!r.error && typeof r.data === 'string' && r.data) || '';
+      } catch (e) {
+        this.nomeConstrutora = '';
+      }
+      return;
+    }
+    this.nomeConstrutora = c.nome || '';
     this.construtora = {
       id: c.id,
       nome: c.nome || '',

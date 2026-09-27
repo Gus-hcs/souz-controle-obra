@@ -11,6 +11,10 @@
 :root {
   /* margem lateral do conteúdo: 24px, 16px no celular */
   --margem-tela: var(--e6);
+  /* o vão entre um card e o próximo, na vertical e na horizontal, em
+     toda tela: KPIs, caixas, blocos de análise, seções, lista. Barra de
+     filtros e aviso de uma linha colam na lista (fazem parte dela). */
+  --vao-bloco: var(--e4);
 }
 @media (max-width: 767px) {
   :root {
@@ -29,6 +33,34 @@
 }
 .tela-principal {
   padding: var(--e5) var(--margem-tela) var(--e8);
+}
+
+/* ------------------------------------------------------ tela vazia
+   Tela sem nada cadastrado: a mensagem e a ação no meio da área de
+   conteúdo, na horizontal e na vertical, em toda tela — com ou sem
+   inspetor (paineis). App.renderConteudo marca #conteudo.so-vazio quando
+   a tela é só o .vazio-tela (vazioTela, telas/componentes.js). */
+#conteudo.so-vazio {
+  display: flex;
+  flex-direction: column;
+  padding: var(--e5) var(--margem-tela) var(--e8);
+  overflow-y: auto;
+}
+#conteudo.so-vazio > .vazio-tela {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: var(--e10) 0;
+}
+.vazio-tela h4 {
+  font-size: var(--t-grande);
+  margin-bottom: var(--e2);
+}
+#conteudo .vazio-tela p {
+  max-width: 62ch;
 }
 #topo {
   padding-left: var(--margem-tela);
@@ -89,7 +121,7 @@ table.lista,
    entre eles: o fundo do contêiner é o fio, e o gap de 1px o mostra.
    Sem sombra, sem borda colorida; o raio é o da tabela. */
 .kpis-cx {
-  margin-bottom: var(--e4);
+  margin-bottom: var(--vao-bloco);
 }
 .kpis {
   display: grid;
@@ -252,8 +284,8 @@ table.lista,
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
-  gap: var(--e4);
-  margin-top: var(--e8);
+  gap: var(--vao-bloco);
+  margin-top: var(--vao-bloco);
 }
 .painel-analise.um {
   grid-template-columns: minmax(0, 1fr);
@@ -385,8 +417,8 @@ table.lista,
 .crono-topo {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
-  gap: var(--e4);
-  margin-bottom: var(--e6);
+  gap: var(--vao-bloco);
+  margin-bottom: var(--vao-bloco);
 }
 .crono-painel {
   position: relative;
@@ -838,14 +870,14 @@ table.lista tr.linha-duplicado td {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 440px;
   align-items: stretch;
-  gap: var(--e4);
-  margin-bottom: var(--e6);
+  gap: var(--vao-bloco);
+  margin-bottom: var(--vao-bloco);
 }
 .fluxo-esq,
 .fluxo-graficos {
   display: flex;
   flex-direction: column;
-  gap: var(--e4);
+  gap: var(--vao-bloco);
   min-width: 0;
 }
 /* O último bloco de cada coluna cresce até o fim da coluna, e o gráfico
@@ -871,7 +903,7 @@ table.lista tr.linha-duplicado td {
 .fluxo-roscas {
   display: grid;
   grid-auto-rows: 1fr;
-  gap: var(--e4);
+  gap: var(--vao-bloco);
 }
 .fluxo-roscas > .analise-bloco {
   margin: 0;
@@ -891,6 +923,58 @@ table.lista tr.linha-duplicado td {
 @media (max-width: 1199px) {
   .fluxo-roscas {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ------------------------------------------------------ lançamentos
+   Os gráficos logo abaixo dos KPIs: gasto por etapa à esquerda; à
+   direita, composição por tipo e gasto por mês. As duas colunas com a
+   mesma altura: o gasto por mês enche o que sobrar na direita; na
+   esquerda, a nota fecha o card embaixo e, com 5 barras ou mais, elas se
+   distribuem na altura da linha. Abaixo de 1200px, uma coluna. */
+.lanc-graficos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: var(--vao-bloco);
+  margin-bottom: var(--vao-bloco);
+}
+.lanc-lado {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vao-bloco);
+  min-width: 0;
+}
+.lanc-lado > .analise-bloco:last-child {
+  flex: 1 1 auto;
+}
+.lanc-lado > .analise-bloco:last-child > .analise-corpo {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.lanc-lado .grafico-auto[data-encher] > .grafico-cx {
+  min-height: 160px;
+}
+.lanc-etapa > .analise-corpo {
+  display: flex;
+  flex-direction: column;
+}
+.lanc-etapa > .analise-corpo > div:has(> :nth-child(5)) {
+  flex: 1 1 auto;
+  justify-content: space-between;
+}
+.lanc-etapa-nota {
+  margin-top: auto;
+  padding-top: var(--e3);
+}
+@media (max-width: 1199px) {
+  .lanc-graficos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .lanc-etapa > .analise-corpo > div:has(> :nth-child(5)) {
+    justify-content: flex-start;
   }
 }
 
@@ -1579,10 +1663,14 @@ table.lista td s,
    Financiamento) lado a lado a partir de 1440px, na proporção do número
    de campos de cada uma — os campos das duas saem com a mesma largura —,
    e com a mesma altura. Abaixo disso, uma embaixo da outra. */
+.tela-config,
 .tela-config form[data-form] {
   display: flex;
   flex-direction: column;
-  gap: var(--e3);
+  gap: var(--vao-bloco);
+}
+#cfg-avisos:empty {
+  display: none;
 }
 .cfg-secao > summary {
   display: flex;
@@ -1625,6 +1713,9 @@ table.lista td s,
 }
 /* o espaço entre seções é o gap do formulário: a margem de ".caixa +
    .caixa" somaria com ele e desalinharia o par lado a lado */
+.tela-config > *,
+.tela-config > .caixa,
+.tela-config .kpis-cx,
 .tela-config form[data-form] > .caixa,
 .cfg-par > .caixa {
   margin: 0;
@@ -1632,7 +1723,7 @@ table.lista td s,
 .cfg-par {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--e3);
+  gap: var(--vao-bloco);
   align-items: stretch;
 }
 @media (min-width: 1440px) {
@@ -1650,7 +1741,7 @@ table.lista td s,
 .tela-painel {
   display: flex;
   flex-direction: column;
-  gap: var(--e4);
+  gap: var(--vao-bloco);
 }
 .tela-painel > *,
 .tela-painel > .kpis-cx,
@@ -1662,7 +1753,7 @@ table.lista td s,
 .painel-linha {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: var(--e4);
+  gap: var(--vao-bloco);
   align-items: stretch;
 }
 .caixa-curva {
@@ -1681,7 +1772,7 @@ table.lista td s,
 .painel-lado {
   display: flex;
   flex-direction: column;
-  gap: var(--e4);
+  gap: var(--vao-bloco);
   min-width: 0;
 }
 .painel-lado > .caixa {
@@ -1693,10 +1784,66 @@ table.lista td s,
 .painel-lado > .caixa > :last-child {
   margin-top: auto;
 }
-@media (max-width: 1199px) {
+.vale-proximos {
+  font-size: var(--t-peq);
+  margin: var(--e2) 0 0;
+}
+.painel-lado > .caixa > .vale-proximos:last-child {
+  margin-top: auto;
+  padding-top: var(--e2);
+}
+/* com o inspetor ao lado, a linha da Curva S desce para uma coluna pela
+   largura que sobra para ela, não pela da janela */
+.tela-painel {
+  container-type: inline-size;
+}
+@container (max-width: 1000px) {
   .painel-linha {
     grid-template-columns: minmax(0, 1fr);
   }
+  /* a Curva S na largura toda; Andamento e Caixa projetado lado a lado */
+  .painel-lado {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+}
+@container (max-width: 640px) {
+  .painel-lado {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Inspetor do Painel: seções separadas por fio; o título de cada uma com
+   a ação à direita (Ver parcelas, Registrar). */
+.inspetor-painel .inspetor-secao + .inspetor-secao {
+  padding-top: var(--e4);
+  border-top: var(--fio) solid var(--separador);
+}
+.inspetor-secao-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--e2);
+  margin-bottom: var(--e2);
+}
+.inspetor-secao-cab h3 {
+  margin: 0;
+  font-size: var(--t-mini);
+  font-weight: var(--p-semi);
+  color: var(--tinta2);
+}
+.painel-tendencia p {
+  margin: 0;
+  font-size: var(--t-corpo);
+  line-height: var(--lh);
+}
+.inspetor-painel .caixa-financiador .linha-fin,
+.inspetor-painel .caixa-financiador .decisao-fin {
+  font-size: var(--t-peq);
+}
+.inspetor-painel .lista-pcli li {
+  font-size: var(--t-peq);
 }
 
 /* Gráfico que enche a altura do bloco (graficoAuto com alturaPadrao): a
@@ -1773,7 +1920,7 @@ table.lista td s,
 .tela-construtoras {
   display: flex;
   flex-direction: column;
-  gap: var(--e4);
+  gap: var(--vao-bloco);
 }
 .tela-construtoras > *,
 .tela-construtoras > .kpis-cx,

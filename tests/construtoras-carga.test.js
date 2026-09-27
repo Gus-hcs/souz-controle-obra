@@ -42,11 +42,12 @@ const SONHO = {
 
 /* Banco falso: tabelas vazias, o perfil acima, minha_construtora() com a
    construtora dada (ou erro de função inexistente) e as gravações anotadas. */
-function banco({ construtora = null, sem0021 = false, perfil = PERFIL } = {}) {
+function banco({ construtora = null, sem0021 = false, perfil = PERFIL, nome = null } = {}) {
   const gravado = [];
   return {
     gravado,
     rpc: async (fn) => {
+      if (fn === 'nome_da_minha_construtora') return { data: nome, error: null };
       if (fn !== 'minha_construtora') return { data: null, error: null };
       if (sem0021) {
         return {
@@ -86,6 +87,7 @@ afterEach(() => {
   SUPA.sb = original.sb;
   SUPA.usuario = original.usuario;
   SUPA.construtora = null;
+  SUPA.nomeConstrutora = '';
   SUPA.construtorasNoBanco = false;
   SUPA.bloqueado = false;
   SUPA.motivoBloqueio = '';
@@ -136,6 +138,17 @@ describe('carga pela construtora', () => {
     expect(SUPA.construtorasNoBanco).toBe(true);
     expect(SUPA.construtora).toBe(null);
     expect(e.empresa.nome).toBe('Nome antigo do perfil');
+    expect(SUPA.nomeConstrutora).toBe('');
+  });
+
+  it('nome da construtora para o topo: da equipe e do cliente final', async () => {
+    SUPA.sb = banco({ construtora: SONHO });
+    await SUPA.carregar();
+    expect(SUPA.nomeConstrutora).toBe('Construtora Sonho Real');
+    SUPA.sb = banco({ construtora: null, nome: 'Construtora Sonho Real' });
+    await SUPA.carregar();
+    expect(SUPA.construtora).toBe(null);
+    expect(SUPA.nomeConstrutora).toBe('Construtora Sonho Real');
   });
 });
 
