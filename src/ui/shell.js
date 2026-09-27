@@ -1,7 +1,7 @@
 /**
  * shell.js — Casca da interface: navegação, componentes reutilizáveis e formulários.
  */
-import { esc, fmtNum, norm, num, PAPEIS_CONSTRUTORA } from '../nucleo/base.js';
+import { esc, fmtNum, num, PAPEIS_CONSTRUTORA } from '../nucleo/base.js';
 import { pendenciasCarteira, pendenciasObra } from '../dominio/calculos.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
@@ -729,44 +729,6 @@ function nomeCliente(id) {
   return c ? c.nome : '';
 }
 
-function tomStatus(status) {
-  const s = norm(status);
-  if (['pago', 'recebido', 'concluído', 'concluida', 'concluído', 'comprado', 'aprovado'].includes(s)) return 'ok';
-  if (['cancelado', 'suspenso'].includes(s)) return '';
-  if (['em aberto', 'previsto', 'planejar', 'planejado', 'solicitado'].includes(s)) return 'aviso';
-  if (['parcial', 'comprado parcial', 'recebido parcial', 'em andamento', 'comprar'].includes(s)) return 'marca';
-  return '';
-}
-
-function tomSituacao(sit) {
-  if (sit === 'ATRASADO') return 'critico';
-  if (sit === 'CONCLUÍDO') return 'ok';
-  if (sit === 'EM ANDAMENTO') return 'marca';
-  return '';
-}
-
-/* filtro textual genérico */
-function filtraTexto(itens, termo, campos) {
-  const t = norm(termo);
-  if (!t) return itens;
-  return itens.filter((i) => campos.some((c) => norm(i[c]).includes(t)));
-}
-
-function campoBusca(id, placeholder) {
-  const v = App.filtros[id] || '';
-  return `<span class="campo-busca">${svg(ICO.busca, 14)}
-    <input type="text" id="flt_${id}" data-filtro="${id}" value="${esc(v)}" placeholder="${esc(placeholder)}">
-  </span>`;
-}
-
-function selectFiltro(id, opcoes, rotulo) {
-  const v = App.filtros[id] || '';
-  return `<select data-filtro="${id}" aria-label="${esc(rotulo)}">
-    <option value="">${esc(rotulo)}</option>
-    ${opcoes.map((o) => `<option value="${esc(o)}" ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}
-  </select>`;
-}
-
 export {
   VIEWS_CLIENTE,
   papelAtual,
@@ -803,9 +765,4 @@ export {
   opcoesEtapas,
   opcoesLista,
   nomeCliente,
-  tomStatus,
-  tomSituacao,
-  filtraTexto,
-  campoBusca,
-  selectFiltro
 };

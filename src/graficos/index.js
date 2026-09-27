@@ -2,13 +2,11 @@
  * index.js — Gráficos em SVG puro: curva S, fluxo de caixa, Gantt e barras.
  */
 import { addMeses, competencia, diasEntre, esc, fimDoMes, fmtCompetencia, fmtDataCurta, fmtMoney, fmtMoneyCurto, fmtPct, hojeISO, inicioDoMes, isISO, num, round2 } from '../nucleo/base.js';
-import { agendaCronograma, curvaS, etapaCalc, fluxoCaixa, fluxoCarteira, temDependencias, valorAgregadoObra } from '../dominio/calculos.js';
+import { agendaCronograma, curvaS, etapaCalc, fluxoCaixa, temDependencias, valorAgregadoObra } from '../dominio/calculos.js';
 import { vazio } from '../ui/shell.js';
 
 const GRAFICOS = {};   /* id → { pontos, rotulos, formata } para o hover */
 let seqGrafico = 0;
-
-const escNum = (n) => (isFinite(n) ? n : 0);
 
 function ticks(min, max, n = 4) {
   if (max === min) { max = min + 1; }
@@ -183,11 +181,6 @@ function graficoCurvaS(obraOuSerie, altura = 300, largura = 920) {
 /* ------------------------------------------------------ FLUXO DE CAIXA */
 function graficoFluxo(obra, altura = 280) {
   return renderFluxo(fluxoCaixa(obra), altura);
-}
-
-/* Fluxo de caixa somando todas as obras da carteira. */
-function graficoFluxoCarteira(estado, altura = 280) {
-  return renderFluxo(fluxoCarteira(estado), altura);
 }
 
 function renderFluxo(dados, altura = 280) {
@@ -833,12 +826,10 @@ export {
   ajustarGantt,
   GRAFICOS,
   seqGrafico,
-  escNum,
   ticks,
   caminho,
   graficoCurvaS,
   graficoFluxo,
-  graficoFluxoCarteira,
   graficoGantt,
   graficoBarras,
   desenharGraficosPendentes

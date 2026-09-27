@@ -1038,7 +1038,6 @@ function telaConfigBanco(aviso = '') {
 
 /* ------------------------------------------------------------ ações */
 ACOES['auth-tela'] = (el, d) => telaLogin(d.modo || 'entrar');
-ACOES['auth-config'] = () => telaConfigBanco();
 
 ACOES['auth-ver-senha'] = (el) => {
   const inp = document.getElementById('ac_senha');
