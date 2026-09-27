@@ -38,8 +38,7 @@ body {
 .valor,
 td,
 th,
-input,
-.tabular {
+input {
   font-variant-numeric: tabular-nums;
 }
 
@@ -915,27 +914,6 @@ table.lista tfoot td.num {
   color: var(--neutro-feito);
 }
 
-/* Barra de avanço dentro da linha: 4px, sem raio grande, sem cor de enfeite. */
-.barra-fina {
-  display: inline-block;
-  vertical-align: middle;
-  width: 34px;
-  height: 4px;
-  background: var(--separador);
-  border-radius: var(--r-micro);
-  overflow: hidden;
-  margin-right: var(--e1);
-}
-.barra-fina > i {
-  display: block;
-  height: 100%;
-  background: var(--acento-texto);
-  border-radius: var(--r-micro);
-}
-.barra-fina.atrasada > i {
-  background: var(--atraso);
-}
-
 /* Estado vazio: uma frase útil e uma ação. Sem ilustração. */
 .vazio {
   padding: var(--e10) var(--e6);
@@ -1256,11 +1234,6 @@ table.lista tfoot td.num {
   table.lista tbody td.some-no-celular {
     display: none;
   }
-
-  /* Uma linha só de números não precisa de barra: o percentual já diz. */
-  table.lista tbody .barra-fina {
-    display: none;
-  }
 }
 
 /* Toolbar no celular: título, busca e a ação principal. O segmentado de
@@ -1345,10 +1318,6 @@ table.lista tfoot td.num {
 }
 
 /* Pendência: linha clicável que leva direto à tela onde se resolve. */
-.pend-lista {
-  display: flex;
-  flex-direction: column;
-}
 .pend {
   display: flex;
   align-items: flex-start;
@@ -1368,35 +1337,6 @@ table.lista tfoot td.num {
 }
 .pend:hover {
   background: var(--fundo-hover);
-}
-.pend-sev {
-  flex: 0 0 3px;
-  width: 3px;
-  align-self: stretch;
-  min-height: 22px;
-  border-radius: var(--r-micro);
-  background: var(--tinta3);
-}
-.pend-sev.s3 {
-  background: var(--atraso);
-}
-.pend-sev.s2 {
-  background: var(--alerta);
-}
-.pend-txt {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.pend-txt b {
-  font-size: var(--t-peq);
-  font-weight: var(--p-medio);
-}
-.pend-txt span {
-  font-size: var(--t-mini);
-  color: var(--tinta2);
-  line-height: var(--lh);
 }
 
 .btn.larga {
@@ -1476,16 +1416,6 @@ table.lista tfoot td.num {
 .filtro-conta {
   font-size: var(--t-peq);
 }
-.filtro-dir {
-  margin-left: auto;
-}
-/* Na barra de filtros, o aviso (ex.: "4 nomes em caixa alta · Revisar")
-   vai para a direita. .aviso-discreto também é o aviso abaixo dos KPIs,
-   com margem embaixo — que aqui desalinhava e anulava o margin-left. */
-.filtro-barra .filtro-dir {
-  margin: 0 0 0 auto;
-}
-
 /* A seta gira, não muda de lugar: animação só em transform.
    Compartilhado com .acao-grupo (telas/carteira.js). */
 .disclosure {
@@ -1494,13 +1424,6 @@ table.lista tfoot td.num {
   place-items: center;
   color: var(--tinta3);
   transition: transform var(--mov-rapido) var(--curva);
-}
-.cel-aviso {
-  font-size: var(--t-peq);
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Ações da linha aparecem com o ponteiro em cima ou com foco de teclado;
@@ -1644,12 +1567,6 @@ body[data-view] #conteudo {
   max-width: none;
 }
 
-@media (max-width: 720px) {
-  #topo .so-largo {
-    display: none;
-  }
-}
-
 /* ------------------------------------------ peças das telas de lista */
 .tela-lista .secao {
   margin-top: var(--vao-bloco);
@@ -1659,17 +1576,6 @@ body[data-view] #conteudo {
   max-width: 88ch;
   font-size: var(--t-peq);
   color: var(--tinta2);
-}
-.grade-graficos {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
-  gap: var(--e6);
-}
-.sub-grafico {
-  font-size: var(--t-peq);
-  font-weight: var(--p-medio);
-  color: var(--tinta2);
-  margin-bottom: var(--e2);
 }
 
 /* No celular, cinco filtros empilhados ocupavam três linhas antes do
@@ -2321,40 +2227,6 @@ table.lista td.cel-contato {
 }
 
 /* ------------------------------------------------------- inspetor */
-.inspetor-contato {
-  display: flex;
-  flex-direction: column;
-  gap: var(--e2);
-}
-.linha-contato {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--e2);
-}
-.linha-contato > span:first-child {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-  font-variant-numeric: tabular-nums;
-}
-.linha-contato .tinta3 {
-  font-size: var(--t-peq);
-}
-.linha-pix {
-  display: flex;
-  align-items: center;
-  gap: var(--e2);
-}
-.linha-pix code {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--fonte-mono);
-  font-size: var(--t-peq);
-}
 .btn.copiado {
   color: var(--acento-texto);
 }
@@ -2411,10 +2283,6 @@ table.lista td.cel-contato {
   font-size: var(--t-peq);
   color: var(--tinta2);
   white-space: pre-wrap;
-}
-.acoes-inspetor {
-  display: flex;
-  gap: var(--e2);
 }
 
 /* ----------------------------------------------------- formulário */
@@ -3095,7 +2963,6 @@ table.tab td.num,
 .contato-numero,
 .lateral-nav button .cont,
 .pilula .conta,
-.tabular,
 .mono {
   font-family: var(--fonte);
   font-variant-numeric: tabular-nums;

@@ -76,7 +76,6 @@ h4,
 table.tab th,
 .anel-t,
 .impl-fase-t,
-.rail-marca b,
 .acesso-marca b,
 #topo .titulo b,
 .lateral-nav .grupo {
@@ -88,7 +87,6 @@ table.tab th,
 .rotulo,
 table.tab th,
 .impl-fase-t,
-.rail-nav .grupo,
 table.tab td[data-rotulo]::before {
   text-transform: none;
   letter-spacing: 0;
@@ -99,15 +97,12 @@ table.tab td[data-rotulo]::before {
 
 /* Cartão separa por fio, não por sombra. */
 .cartao,
-.obra-cartao,
-.hero,
 .modal,
 .acesso-painel,
 table.tab tr {
   box-shadow: none;
 }
-.cartao,
-.obra-cartao {
+.cartao {
   border-radius: var(--r-cartao);
 }
 
@@ -182,8 +177,6 @@ table.tab tbody tr:hover td {
    placa de vídeo: cada quadro repinta a área inteira. As cores ficam,
    a sombra sai. */
 .btn,
-.rail-nav button,
-.obra-cartao,
 .cartao,
 table.tab tbody tr,
 .chip,
@@ -200,7 +193,6 @@ a {
    Acima de ~90 caracteres o olho perde a volta da linha. Não vale para
    tabela nem gráfico, que ganham com a largura toda. */
 #conteudo p,
-#conteudo .ct-contagem,
 #conteudo .alerta .txt p,
 #conteudo .vazio p,
 #conteudo .impl-lead {
@@ -270,14 +262,6 @@ details.tratados > summary {
   gap: var(--e2);
   font-size: var(--t-peq);
   font-weight: var(--p-medio);
-}
-
-/* Lançamento possivelmente duplicado: ícone antes da descrição. */
-.marca-duplicado {
-  display: inline-flex;
-  vertical-align: -1px;
-  margin-right: var(--e1);
-  color: var(--alerta);
 }
 
 /* Materiais: "Comprar" afastado de editar/excluir. */
