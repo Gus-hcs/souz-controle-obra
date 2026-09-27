@@ -1769,6 +1769,13 @@ table.lista td s,
 .painel-curva > .grafico-auto {
   flex: 1 1 auto;
 }
+/* no celular a curva some e fica a linha de números (.so-celular): o
+   display: flex acima vencia o .nao-celular de interface.css */
+@media (max-width: 767px) {
+  .painel-curva.nao-celular {
+    display: none;
+  }
+}
 .painel-lado {
   display: flex;
   flex-direction: column;
@@ -1827,9 +1834,10 @@ table.lista td s,
   gap: var(--e2);
   margin-bottom: var(--e2);
 }
-.inspetor-secao-cab h3 {
+.inspetor-secao-cab h3,
+.inspetor-painel .inspetor-secao > h3 {
   margin: 0;
-  font-size: var(--t-mini);
+  font-size: var(--t-peq);
   font-weight: var(--p-semi);
   color: var(--tinta2);
 }

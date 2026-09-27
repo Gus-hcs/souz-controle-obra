@@ -1964,7 +1964,9 @@ table.lista-carteira tbody td {
 }
 
 /* Celular: "Pendências" vem primeiro — antes ficava abaixo de 26
-   itens de agenda, e no canteiro ninguém rolava até lá. */
+   itens de agenda, e no canteiro ninguém rolava até lá. Inteira: o
+   flex-basis do inspetor é a largura dele (300px) e, na coluna, virava
+   altura — a lista ficava cortada numa faixa com rolagem própria. */
 @media (max-width: 767px) {
   .tela-carteira,
   .tela-painel-obra {
@@ -1974,6 +1976,8 @@ table.lista-carteira tbody td {
   #conteudo.paineis .tela-carteira > .inspetor,
   #conteudo.paineis .tela-painel-obra > .inspetor {
     order: -1;
+    flex: none;
+    overflow: visible;
     border-top: 0;
     border-bottom: var(--fio) solid var(--separador);
   }
