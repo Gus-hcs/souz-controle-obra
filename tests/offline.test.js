@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CHAVE_BASE_OFFLINE, Store, erroDeRede } from '../src/dados/store.js';
 import { SUPA } from '../src/dados/supabase.js';
 import { estadoInicial } from '../src/nucleo/base.js';
+import { ACOES } from '../src/ui/acoes.js';
 
 describe('erro de rede', () => {
   it('reconhece as mensagens de falta de rede dos navegadores', () => {
@@ -70,5 +71,70 @@ describe('Store sem rede', () => {
     await Store.salvar();
     expect(Store.status).toBe('erro');
     expect(Store.pendente).toBe(false);
+  });
+});
+
+/* Auditoria A-06 e M-01: a cópia do aparelho que não cabe avisa, e sair
+   com alteração que não chegou ao banco pede confirmação digitada. */
+describe('cópia do aparelho e sair sem rede', () => {
+  const original = { sair: SUPA.sair, sincronizar: SUPA.sincronizar, setItem: Storage.prototype.setItem };
+  let saiu;
+
+  beforeEach(() => {
+    document.body.innerHTML = '<div id="modal-camada"></div><div id="toasts"></div>';
+    localStorage.clear();
+    Store.backend = 'supabase';
+    Store.estado = estadoInicial();
+    Store.snapshot = estadoInicial();
+    Store.pendente = false;
+    Store.localCheio = false;
+    saiu = 0;
+    SUPA.sair = async () => {
+      saiu++;
+    };
+  });
+
+  afterEach(() => {
+    SUPA.sair = original.sair;
+    SUPA.sincronizar = original.sincronizar;
+    Storage.prototype.setItem = original.setItem;
+    Object.defineProperty(navigator, 'onLine', { value: true, configurable: true });
+    Store.backend = 'local';
+    Store.pendente = false;
+  });
+
+  it('cota cheia: avisa uma vez, em vez de engolir o erro', () => {
+    Storage.prototype.setItem = () => {
+      throw new DOMException('cheio', 'QuotaExceededError');
+    };
+    Store.gravarLocal('{"x":1}');
+    Store.gravarLocal('{"x":2}');
+    const avisos = [...document.querySelectorAll('#toasts .toast')];
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0].textContent).toMatch(/modo sem rede deste aparelho está cheio/);
+  });
+
+  it('sem rede e com alteração pendente: pede SAIR digitado e não apaga nada', async () => {
+    Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
+    Store.pendente = true;
+    localStorage.setItem(CHAVE_BASE_OFFLINE, '{}');
+    await ACOES['auth-sair-simples']();
+    const modal = document.getElementById('modal-camada');
+    expect(modal.classList.contains('aberto')).toBe(true);
+    expect(modal.textContent).toMatch(/Digite SAIR para confirmar/);
+    expect(saiu).toBe(0);
+    expect(localStorage.getItem(CHAVE_BASE_OFFLINE)).toBe('{}');
+  });
+
+  it('com rede: envia o pendente antes e sai sem perguntar', async () => {
+    let enviados = 0;
+    SUPA.sincronizar = async () => {
+      enviados++;
+    };
+    Store.pendente = true;
+    await ACOES['auth-sair-simples']();
+    expect(enviados).toBe(1);
+    expect(saiu).toBe(1);
+    expect(document.getElementById('modal-camada').classList.contains('aberto')).toBe(false);
   });
 });

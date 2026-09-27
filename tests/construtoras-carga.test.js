@@ -61,6 +61,7 @@ function banco({ construtora = null, sem0021 = false, perfil = PERFIL, nome = nu
       const vazio = { data: [], error: null };
       return {
         select: () => ({
+          order: () => ({ range: async () => ({ ...vazio, count: 0 }) }),
           limit: async () => vazio,
           eq: () =>
             Object.assign(Promise.resolve(vazio), {
