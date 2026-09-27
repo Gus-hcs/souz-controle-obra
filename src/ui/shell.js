@@ -1,7 +1,7 @@
 /**
  * shell.js — Casca da interface: navegação, componentes reutilizáveis e formulários.
  */
-import { esc, fmtNum, norm, num } from '../nucleo/base.js';
+import { esc, fmtNum, norm, num, PAPEIS_CONSTRUTORA } from '../nucleo/base.js';
 import { pendenciasCarteira, pendenciasObra } from '../dominio/calculos.js';
 import { Store } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
@@ -287,10 +287,10 @@ const App = {
         ? `<span class="status-salvo ${st.tom}" title="${esc(Store.ultimoErro || '')}"><span class="pt"></span>${st.texto}</span>`
         : '';
 
-    /* Conta: usuário, tema e sair num menu na ponta direita do topo. */
-    const usuario = Store.backend === 'supabase' && SUPA.usuario
-      ? (SUPA.usuario.email || '').split('@')[0]
-      : 'Este navegador';
+    /* Conta: a construtora em cima, a pessoa e o papel embaixo; tema e
+       sair num menu na ponta direita do topo. */
+    const id = identidadeConta();
+    const usuario = id.pessoa;
 
     document.getElementById('topo').innerHTML = `
       <button class="btn sutil icone menu-mob" data-acao="menu" aria-label="Abrir menu">${svg(ICO.menu)}</button>
@@ -298,9 +298,12 @@ const App = {
       <div class="dir">
         ${acoesTela}
         ${avisoGravacao}
-        <button class="conta-btn" data-acao="conta-menu" aria-haspopup="menu" aria-expanded="false" title="${esc(usuario)}">
+        <button class="conta-btn" data-acao="conta-menu" aria-haspopup="menu" aria-expanded="false" title="${esc([id.empresa, usuario, id.papel].filter(Boolean).join(' · '))}">
           <span class="conta-avatar" aria-hidden="true">${esc(usuario.charAt(0).toUpperCase())}</span>
-          <span class="conta-nome">${esc(usuario)}</span>
+          <span class="conta-id">
+            ${id.empresa ? `<b class="conta-empresa">${esc(id.empresa)}</b>` : ''}
+            <span class="conta-nome">${esc(usuario)}${id.papel ? ` · ${esc(id.papel)}` : ''}</span>
+          </span>
           ${svg(ICO.seta, 11)}
         </button>
       </div>`;
@@ -315,12 +318,15 @@ const App = {
     alvo.classList.toggle('paineis', !!(fn && fn.paineis));
     limparGraficosAuto();
     try {
-      alvo.innerHTML = fn ? fn() : '<div class="vazio">Tela não encontrada.</div>';
+      alvo.innerHTML = fn ? fn() : '<div class="vazio vazio-tela"><h4>Tela não encontrada.</h4></div>';
     } catch (e) {
       console.error(e);
       alvo.innerHTML = `<div class="cartao"><div class="corpo"><h3>Erro ao montar a tela</h3>
         <p class="mono" style="color:var(--critico)">${esc(e.message)}</p></div></div>`;
     }
+    /* tela que é só a mensagem de vazio: ela vai para o meio da área */
+    const unico = alvo.children.length === 1 ? alvo.firstElementChild : null;
+    alvo.classList.toggle('so-vazio', !!(unico && unico.classList.contains('vazio-tela')));
     if (this.foco) {
       const el = document.getElementById(this.foco.id);
       if (el) {
@@ -476,6 +482,27 @@ function chip(texto, tom = '') {
 function barra(v, tom = '') {
   const p = Math.max(0, Math.min(1, num(v))) * 100;
   return `<div class="barra ${tom}"><i style="width:${p.toFixed(1)}%"></i></div>`;
+}
+
+/* Quem está usando: a construtora (de qualquer papel — o cliente final vê
+   a da obra que acompanha), a pessoa e o papel na construtora. Sem a 0021
+   no banco, o nome da empresa do perfil, como antes; sem login, a do
+   navegador. */
+function identidadeConta() {
+  const logado = Store.backend === 'supabase' && SUPA.usuario;
+  if (!logado) {
+    return { empresa: (Store.estado && Store.estado.empresa.nome) || '', pessoa: 'Este navegador', papel: '' };
+  }
+  const pessoa = (SUPA.usuario.email || '').split('@')[0];
+  if (!SUPA.construtorasNoBanco) {
+    return { empresa: (Store.estado && Store.estado.empresa.nome) || '', pessoa, papel: '' };
+  }
+  const papel = SUPA.construtora
+    ? (PAPEIS_CONSTRUTORA.find((p) => p.v === SUPA.construtora.papel) || {}).t || ''
+    : SUPA.nomeConstrutora
+      ? 'Cliente'
+      : '';
+  return { empresa: SUPA.nomeConstrutora || '', pessoa, papel };
 }
 
 function vazio(titulo, texto, botao) {
@@ -759,6 +786,7 @@ export {
   chip,
   barra,
   vazio,
+  identidadeConta,
   cartao,
   botao,
   modalAoSalvar,

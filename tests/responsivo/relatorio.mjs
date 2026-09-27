@@ -117,6 +117,18 @@ const CAUSAS = {
       'Cards lado a lado com alturas próprias (align-items: start), ou gráfico de altura fixa num card esticado pelo vizinho.',
     onde: 'ui/padrao.css (painel-linha, fluxo-topo, cfg-par) + graficoAuto com altura',
   },
+  'vazio-fora-do-centro': {
+    titulo: 'Tela vazia fora do meio',
+    causa:
+      'A tela devolveu o vazio sem vazioTela (falta .vazio-tela) ou com outro elemento junto, e o #conteudo não virou .so-vazio.',
+    onde: 'ui/telas/componentes.js (vazioTela) + ui/shell.js (renderConteudo) + ui/padrao.css',
+  },
+  'vao-entre-cards': {
+    titulo: 'Vão entre cards fora do padrão',
+    causa:
+      'Margem própria de um bloco (margin-top/bottom) somando com o gap da pilha, ou pilha sem gap: o vão é sempre --vao-bloco.',
+    onde: 'ui/padrao.css (--vao-bloco) + a regra do bloco apontado',
+  },
   'largura-de-leitura': {
     titulo: 'Linha de texto longa demais no ultrawide',
     causa: 'Falta limite de largura de leitura no conteúdo.',

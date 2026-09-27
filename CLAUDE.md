@@ -65,6 +65,7 @@ disso é defeito, não exceção.
 | `barraFiltros`           | pílulas com contagem + menu "Mais filtros"; filtro do menu ligado vira etiqueta com ×. Nenhum `<select>` nativo de filtro                                    |
 | `lista`                  | a tabela ordenável; `grupos` agrupa linhas (Lançamentos por mês)                                                                                             |
 | `painelAnalise`          | o fim da tela: blocos em duas colunas (uma abaixo de 1200px)                                                                                                 |
+| `vazioTela`              | a tela sem nada cadastrado: frase e ação no meio da área de conteúdo (`#conteudo.so-vazio`), em toda tela; vazio dentro de card usa `.vazio`                   |
 | `graficoAuto` (graficos) | gráfico desenhado na largura real do bloco; o `ResizeObserver` do shell redesenha                                                                            |
 
 **Tabela** (toda tabela da interface — `lista`, `.tab`, `.mini-tab`; a folha A4
@@ -77,11 +78,17 @@ de espaçamento em toda coluna. Hover e linha selecionada são estado, não
 decoração. Tabela fora disso é defeito.
 
 Contêiner único: largura toda, 24px de margem (16px no celular), sem
-`max-width` local. Números na fonte do texto com `tabular-nums`. Telas de
+`max-width` local. **Um vão só entre cards**: `--vao-bloco` (16px), na
+vertical e na horizontal — margem própria de bloco que some com o gap da
+pilha é defeito. Barra de filtros e aviso de uma linha colam na lista.
+Painel da obra e Visão geral: números e gráficos à esquerda, o que pede
+atenção (pendências, tendência, financiamento, cliente) no inspetor à
+direita. Números na fonte do texto com `tabular-nums`. Telas de
 configuração (Configuração da obra, Ajustes) gravam sozinhas ao mudar — sem
 botão "Salvar". `tests/responsivo` confere KPIs iguais, área vazia à direita,
-painel com rolagem lateral, tabela fora do padrão (alinhamento e fundo) e
-card com vão ou mais baixo que o vizinho (Painel, Fluxo, Configuração);
+painel com rolagem lateral, tabela fora do padrão (alinhamento e fundo),
+card com vão ou mais baixo que o vizinho (Painel, Fluxo, Configuração,
+Lançamentos), tela vazia fora do meio e vão entre cards fora do padrão;
 `tests/responsivo/capturas.mjs` tira as imagens antes × depois do relatório.
 
 Cards lado a lado terminam juntos: o gráfico do card mais curto enche a
@@ -162,7 +169,9 @@ Todos são escritos para rodar de novo sem quebrar (`if not exists`,
   por aba vive em `perfis.abas` e a RLS de `0005` — a tela só reflete o que o
   banco já garante (`SUPA.abaLiberada`, filtro no menu, guarda no `App.ir`).
 - **Construtora no app**: `SUPA.carregarConstrutora()` lê `minha_construtora()`
-  no login; dados da empresa e listas passam a ser da construtora (gravados em
+  no login (e `nome_da_minha_construtora()` para o botão da conta, que mostra
+  a construtora em cima e a pessoa com o papel embaixo — o cliente final vê
+  a da obra que acompanha); dados da empresa e listas passam a ser da construtora (gravados em
   `empresas`), e `SUPA.papelNaObra` cai no papel da construtora quando não há
   convite (gestor = dono). Vaga e limite de obras são conferidos no banco; a
   tela só antecipa a mensagem.

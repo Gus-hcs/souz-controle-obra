@@ -208,6 +208,20 @@ confere(
   mc.length === 1 && mc[0].papel === 'gestor' && mc[0].usuarios === 2 && mc[0].obras === 1,
   JSON.stringify(mc),
 );
+const nomeDe = async (u) =>
+  (await como(u, `select public.nome_da_minha_construtora() as n`))[0].n;
+confere(
+  'nome da construtora no topo: gestor e cliente final veem o da Sonho Real',
+  (await nomeDe(U.sonho)) === 'Construtora Sonho Real' &&
+    (await nomeDe(U.cliFinal)) === 'Construtora Sonho Real',
+);
+await db.exec(
+  `insert into auth.users (id, email) values ('99999999-9999-9999-9999-999999999999', 'sem.nada@x.com')`,
+);
+confere(
+  'conta sem construtora e sem convite: sem nome',
+  (await nomeDe('99999999-9999-9999-9999-999999999999')) === null,
+);
 
 /* ----------------------------------------------- controle só do admin */
 await como(

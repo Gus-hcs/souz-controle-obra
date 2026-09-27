@@ -424,11 +424,14 @@ prestadores, listas e dados da empresa dela. O cliente final (papel
   empresa; dono de obra vira gestor; quem só tem convites entra na
   construtora do dono da obra, como cliente ou engenheiro. Limite de acessos
   nenhum — o admin define na tela Contas e acessos.
+- **Nome no topo**: `nome_da_minha_construtora()` devolve só o nome da
+  construtora de quem está logado, de qualquer papel — o cliente final vê
+  a da obra que acompanha (`minha_construtora()` só responde à equipe).
 
 O app funciona com e sem a 0021: sem ela, `minha_construtora()` não existe e
 tudo segue pelo perfil, como antes; com ela, a carga, os dados da empresa e
 a tela de administração passam para a construtora.
 
 Conferida numa bancada com PostgreSQL em memória (PGlite): as migrações
-0001–0021 em ordem sobre o cenário de produção, 41 verificações de acesso,
-vaga, limite, convite, bloqueio, exclusão e reexecução.
+0001–0021 em ordem sobre o cenário de produção, 43 verificações de acesso,
+vaga, limite, convite, bloqueio, exclusão, nome no topo e reexecução.

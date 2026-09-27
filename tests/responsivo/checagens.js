@@ -494,7 +494,7 @@ function checarLayout(ctx) {
      e a borda de baixo. */
   if (window.innerWidth >= 1024) {
     const linhasCards = document.querySelectorAll(
-      '#conteudo .painel-linha, #conteudo .painel-lado, #conteudo .fluxo-topo, #conteudo .fluxo-roscas, #conteudo .fluxo-esq, #conteudo .fluxo-graficos, #conteudo .cfg-par',
+      '#conteudo .painel-linha, #conteudo .painel-lado, #conteudo .fluxo-topo, #conteudo .fluxo-roscas, #conteudo .fluxo-esq, #conteudo .fluxo-graficos, #conteudo .cfg-par, #conteudo .lanc-graficos, #conteudo .lanc-lado',
     );
     for (const linha of linhasCards) {
       if (!visivel(linha)) continue;
@@ -561,6 +561,73 @@ function checarLayout(ctx) {
             detalhe: (card.querySelector('h2, h3, summary') || card).textContent.trim().slice(0, 40),
           });
         }
+      }
+    }
+  }
+
+  /* ------------------------------------ 15. tela vazia fora do centro
+     A tela sem nada cadastrado (.vazio-tela, a única coisa no conteúdo)
+     com a mensagem e a ação no meio da área de conteúdo: ±24px na
+     horizontal e, quando cabe na altura, na vertical. */
+  /* a rodada de zoom 200% usa zoom no <html>: as medidas vêm multiplicadas */
+  const zoom = parseFloat(document.documentElement.style.zoom) || 1;
+  const vazioTela = document.querySelector('#conteudo > .vazio-tela');
+  if (vazioTela && visivel(vazioTela)) {
+    const area = document.getElementById('conteudo').getBoundingClientRect();
+    const rs = [...vazioTela.children].filter(visivel).map((f) => f.getBoundingClientRect());
+    if (rs.length) {
+      const topo = Math.min(...rs.map((r) => r.top));
+      const fundo = Math.max(...rs.map((r) => r.bottom));
+      const esq = Math.min(...rs.map((r) => r.left));
+      const dir = Math.max(...rs.map((r) => r.right));
+      const dx = Math.abs((esq + dir) / 2 - (area.left + area.right) / 2);
+      const cabe = fundo - topo < area.height - 80;
+      const dy = cabe ? Math.abs((topo + fundo) / 2 - (area.top + area.bottom) / 2) : 0;
+      if (dx > 24 * zoom || dy > 24 * zoom) {
+        falhas.push({
+          checagem: 'vazio-fora-do-centro',
+          gravidade: 'falha',
+          seletor: seletor(vazioTela),
+          medido: `${Math.round(dx)}px na horizontal, ${Math.round(dy)}px na vertical`,
+          meta: 'no meio da área de conteúdo (±24px)',
+          detalhe: (vazioTela.querySelector('h4') || vazioTela).textContent.trim().slice(0, 40),
+        });
+      }
+    }
+  }
+
+  /* ------------------------------------- 16. vão diferente entre cards
+     Card embaixo de card, irmãos na mesma pilha: o vão é o do padrão
+     (--vao-bloco, ±1px). Barra de filtros, aviso de uma linha e nota
+     colam na lista e ficam de fora (não são card). */
+  const BLOCO =
+    '.caixa, .analise-bloco, .kpis-cx, .lista-cx, .painel-analise, .frase-ancora, .cfg-par, .painel-linha, .fluxo-topo, .carteira-baixo, .crono-topo, .lanc-graficos, .implantacao, form[data-form]';
+  const vaoPadrao =
+    (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--vao-bloco')) || 16) *
+    zoom;
+  const pais = new Set(
+    [...document.querySelectorAll(`#conteudo :is(${BLOCO})`)].map((b) => b.parentElement),
+  );
+  for (const pai of pais) {
+    const filhos = [...pai.children].filter(visivel);
+    for (let i = 1; i < filhos.length; i++) {
+      const a = filhos[i - 1];
+      const b = filhos[i];
+      if (!a.matches(BLOCO) || !b.matches(BLOCO)) continue;
+      const ra = a.getBoundingClientRect();
+      const rb = b.getBoundingClientRect();
+      if (rb.top < ra.bottom - 1) continue; // lado a lado
+      const vao = rb.top - ra.bottom;
+      if (Math.abs(vao - vaoPadrao) > zoom) {
+        falhas.push({
+          checagem: 'vao-entre-cards',
+          gravidade: 'falha',
+          seletor: seletor(b),
+          medido: `${Math.round(vao / zoom)}px`,
+          meta: `${vaoPadrao / zoom}px (--vao-bloco)`,
+          detalhe: `depois de ${seletor(a)}`,
+        });
+        break;
       }
     }
   }

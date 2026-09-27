@@ -653,6 +653,17 @@ function lancamentosPorMes(lancamentos) {
     .sort((a, b) => (!a.ym ? 1 : !b.ym ? -1 : b.ym.localeCompare(a.ym)));
 }
 
+/* Gasto por mês (gráfico de colunas de Lançamentos): do mais antigo para
+   o mais recente, os `meses` últimos meses com gasto — lançamento sem
+   data fica de fora (não tem mês). Os mesmos totais de lancamentosPorMes. */
+function gastoPorMes(lancamentos, meses = 12) {
+  return lancamentosPorMes(lancamentos)
+    .filter((g) => g.ym)
+    .slice(0, meses)
+    .reverse()
+    .map((g) => ({ ym: g.ym, valor: g.total, n: g.lancamentos.length }));
+}
+
 /* Composição por tipo e gasto por etapa (painel de Lançamentos), do
    maior para o menor. A rosca junta o que passar de cinco fatias em
    "Outros" (fatiasRosca, graficos). */
@@ -3446,6 +3457,7 @@ export {
   CATEGORIAS_SAIDA,
   categoriaLancamento,
   lancamentosPorMes,
+  gastoPorMes,
   composicaoPorTipo,
   gastoPorEtapa,
   lancamentosDuplicadosAbertos,
