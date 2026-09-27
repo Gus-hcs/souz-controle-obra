@@ -110,13 +110,18 @@ desenha na largura e na altura medidas), em vez de deixar vão.
 3. **Toda tabela nova precisa de isolamento por usuário via RLS.**
    Nunca crie tabela sem isolamento. Tabela ligada a uma obra: coluna `obra_id`
    e políticas por comando chamando `pode_ler_obra()` / `pode_escrever_obra()`
-   (0004; desde a 0021 elas também liberam a equipe da construtora dona da
-   obra). Tabela de cadastro: `empresa_id` preenchido pelo gatilho
-   `registro_define_empresa` e política `using (usuario_id = auth.uid() or
-empresa_id = public.minha_empresa())` com o mesmo `with check` (0021).
-   `usuario_id` significa **quem criou/alterou** a linha, não "dono" — o acesso
-   é pela obra (`obra_membros`) e pela construtora; excluir a conta não apaga a
-   linha (`on delete set null`).
+   — ou `pode_ler_obra_interna()` na leitura, se o cliente final não deve ver
+   (custo, anexo interno). Desde a 0023, obra de construtora é acessada pela
+   construtora (`obra_da_minha_empresa`); `obra_membros` nela só tem o
+   cliente; e toda função de acesso passa por `eu_ativo()` (conta ou
+   construtora bloqueada não lê nem grava nada). Tabela de cadastro:
+   `empresa_id` preenchido pelo gatilho `registro_define_empresa` e política
+   `using ((empresa_id is null and usuario_id = auth.uid() and
+eu_ativo()) or (empresa_id is not null and empresa_id = minha_empresa()))`
+   com o mesmo `with check` (0023). `usuario_id` significa **quem
+   criou/alterou** a linha, não "dono": não dá acesso em obra de construtora;
+   excluir a conta não apaga a linha (`on delete set null`). Prova de acesso:
+   `db/bancada/acesso.mjs`.
 
 4. **Toda regra de negócio precisa de teste.** Cálculo se prova em `tests/`, não
    na tela.
@@ -172,8 +177,12 @@ Todos são escritos para rodar de novo sem quebrar (`if not exists`,
   no login (e `nome_da_minha_construtora()` para o botão da conta, que mostra
   a construtora em cima e a pessoa com o papel embaixo — o cliente final vê
   a da obra que acompanha); dados da empresa e listas passam a ser da construtora (gravados em
-  `empresas`), e `SUPA.papelNaObra` cai no papel da construtora quando não há
-  convite (gestor = dono). Vaga e limite de obras são conferidos no banco; a
+  `empresas`), e `SUPA.papelNaObra` cai no papel da construtora (gestor =
+  dono, engenheiro = engenheiro) — desde a 0023 é sempre assim em obra de
+  construtora, que não tem mais vínculo individual de dono ou engenheiro. A
+  equipe da obra (Configuração da obra) vem de `membros_da_obra()`, que traz
+  a equipe da construtora (`origem = 'construtora:…'`, sem controle na tela)
+  e o cliente convidado. Vaga e limite de obras são conferidos no banco; a
   tela só antecipa a mensagem.
 
 ## Vocabulário
@@ -191,7 +200,8 @@ Um termo para cada coisa, em todas as telas, PDFs e alertas:
 
 - **Papel na tela.** O cliente vê só cronograma, diário e o relatório de status
   (`viewPermitida`, `VIEWS_CLIENTE` em `ui/shell.js`); obra em que a pessoa é
-  cliente não entra na Carteira. O banco continua sendo quem garante (RLS).
+  cliente não entra na Carteira. O banco continua sendo quem garante (RLS):
+  desde a 0023 o cliente não lê custo nem anexo interno pela API.
 - **Offline é por aparelho.** Sem rede, o que é gravado fica no localStorage e
   vai ao banco quando a rede volta (`Store`, `public/sw.js`). Com a
   carimbo de versão (abaixo), duas pessoas editando a mesma linha offline:
