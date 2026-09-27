@@ -2,4 +2,5 @@ dist/
 dist-local/
 coverage/
 node_modules/
+site/
 tests/esperado.json
