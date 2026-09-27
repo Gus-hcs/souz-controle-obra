@@ -150,9 +150,6 @@ async function exportarDados(tipo, formato = 'csv') {
   await baixar(`${nome}.csv`, paraCSV(cabecalho, linhas));
 }
 
-ACOES['csv-lancamentos'] = () => exportarDados('lancamentos', 'csv');
-ACOES['csv-medicoes'] = () => exportarDados('medicoes', 'csv');
-ACOES['csv-recebimentos'] = () => exportarDados('recebimentos', 'csv');
 ACOES['exportar-dados'] = (el, d) => exportarDados(d.tipo, d.formato);
 
 /* -------------------------------------------------------- BACKUP JSON */
@@ -786,30 +783,6 @@ async function gerarRelatorio(o, tipo, op = {}) {
   return { doc, nome: `${NOME_ARQUIVO_REL[tipo] || tipo}-${slug(o.nome)}-${hojeISO()}.pdf` };
 }
 
-/* ações antigas (atalhos): o relatório com as opções padrão */
-ACOES['pdf-status'] = async () => {
-  const o = App.obra();
-  const r = await gerarRelatorio(o, 'status');
-  if (!r) return;
-  await salvarPDF(r.doc, r.nome);
-  marcarStatusEnviado(o);
-};
-ACOES['pdf-interno'] = async () => {
-  const o = App.obra();
-  const r = await gerarRelatorio(o, 'interno', { fotos: false });
-  if (r) await salvarPDF(r.doc, r.nome);
-};
-ACOES['pdf-prestacao'] = async () => {
-  const o = App.obra();
-  const r = await gerarRelatorio(o, 'prestacao');
-  if (r) await salvarPDF(r.doc, r.nome);
-};
-ACOES['pdf-medicao'] = async () => {
-  const o = App.obra();
-  const r = await gerarRelatorio(o, 'medicao');
-  if (r) await salvarPDF(r.doc, r.nome);
-};
-
 /* ---------------------------------- compartilhar por WhatsApp
    Web Share API com o PDF anexado quando o navegador suporta (celular,
    normalmente); sem suporte (a maioria dos desktops), baixa o PDF e abre
@@ -866,14 +839,6 @@ function imprimirPdf(doc) {
   };
   document.body.appendChild(quadro);
 }
-
-ACOES['whatsapp-status'] = async () => {
-  const o = App.obra();
-  const r = await gerarRelatorio(o, 'status');
-  if (!r) return;
-  const ok = await compartilharPdfWhatsApp(o, r.doc, r.nome, `Relatório de status da obra ${o.nome} — ${fmtData(hojeISO())}.`);
-  if (ok) marcarStatusEnviado(o);
-};
 
 /* ==================================================== DADOS DE EXEMPLO */
 ACOES.exemplo = () => {

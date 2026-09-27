@@ -84,8 +84,7 @@ table.lista,
 @media (min-width: 768px) and (max-width: 1439px) {
   #conteudo .form-grade > .c2,
   #conteudo .form-grade > .c3,
-  #conteudo .form-grade > .c4,
-  #conteudo .form-grade > .c5 {
+  #conteudo .form-grade > .c4 {
     grid-column: span 6;
   }
   #conteudo .form-grade > .c8,

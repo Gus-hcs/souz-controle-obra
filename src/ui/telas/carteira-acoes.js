@@ -28,10 +28,6 @@ ACOES['carteira-limpar'] = () => {
   repintar();
 };
 
-ACOES['carteira-abrir'] = (el, d) => {
-  App.ir('painel', d.obra || tela.selecao);
-};
-
 /* -------------------------------------------------------------- ordem
    Clicar de novo na mesma coluna inverte. Texto começa A→Z; número
    começa do maior, que é o que se quer ver primeiro numa obra. */

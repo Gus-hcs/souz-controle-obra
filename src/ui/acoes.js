@@ -2,7 +2,7 @@
  * acoes.js — Ações: tudo que um clique dispara — abrir formulário, salvar, excluir.
  */
 import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, lerEfetivoFuncoes, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, textoEfetivoFuncoes, uid } from '../nucleo/base.js';
-import { alertasObra, efeitoDiarioNaEtapa, efetivoDiario, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa } from '../dominio/calculos.js';
+import { efeitoDiarioNaEtapa, efetivoDiario, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa } from '../dominio/calculos.js';
 import { validarCliente, validarContrato, validarDependencias, validarDiario, validarEtapasContrato, validarEtapa, validarLancamento, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
@@ -41,10 +41,6 @@ ACOES['impl-toggle'] = (el, d) => {
   App.renderConteudo();
 };
 
-ACOES['ir-alertas-carteira'] = () => {
-  const o = Store.estado.obras.find((x) => alertasObra(x).some((a) => a.sev === 3)) || Store.estado.obras[0];
-  App.ir('alertas', o && o.id);
-};
 ACOES.menu = () => {
   if (window.innerWidth > 860) {
     const oculto = document.body.classList.toggle('rail-recolhido');
@@ -70,8 +66,6 @@ ACOES.tema = () => {
   try { localStorage.setItem('souz_tema', novo); } catch (e) { /* navegação privada */ }
 };
 ACOES['fechar-modal'] = () => fecharModal();
-ACOES.imprimir = () => window.print();
-
 ACOES['confirmar-ok'] = () => {
   const fn = modalAoSalvar;
   fecharModal();

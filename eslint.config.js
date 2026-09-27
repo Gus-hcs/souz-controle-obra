@@ -6,7 +6,7 @@ import globals from 'globals';
  * comparação frouxa, promessa sem await, escopo vazando.
  */
 export default [
-  { ignores: ['dist/**', 'dist-local/**', 'coverage/**', 'node_modules/**'] },
+  { ignores: ['dist/**', 'dist-local/**', 'coverage/**', 'node_modules/**', 'site/**'] },
   {
     files: ['**/*.js', '**/*.mjs'],
     languageOptions: {
