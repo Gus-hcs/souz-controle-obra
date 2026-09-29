@@ -92,17 +92,24 @@ describe('Painel da obra', () => {
     );
   });
 
-  it('os gráficos vêm logo abaixo dos KPIs', () => {
+  it('o resumo da obra abre a tela, e os gráficos vêm logo abaixo dos KPIs', () => {
     abrir(casa14(), 'painel');
     const cx = document.createElement('div');
     cx.innerHTML = VIEWS.painel();
     const pilha = [...cx.querySelector('.tela-painel').children].map((e) =>
-      e.classList.contains('kpis-cx') ? 'kpis' : e.classList.contains('painel-linha') ? 'curva' : 'x',
+      e.classList.contains('resumo-obra')
+        ? 'resumo'
+        : e.classList.contains('kpis-cx')
+          ? 'kpis'
+          : e.classList.contains('painel-linha')
+            ? 'curva'
+            : 'x',
     );
-    const i = pilha.indexOf('kpis');
-    expect(i).toBe(0);
+    /* a leitura da obra em uma linha, depois os números */
+    expect(pilha.indexOf('resumo')).toBe(0);
+    expect(pilha.indexOf('kpis')).toBe(1);
     /* entre os KPIs e a Curva S, só a implantação (quando a obra não está montada) */
-    expect(pilha.indexOf('curva')).toBeLessThanOrEqual(2);
+    expect(pilha.indexOf('curva')).toBeLessThanOrEqual(3);
   });
 });
 

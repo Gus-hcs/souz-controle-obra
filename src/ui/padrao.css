@@ -1961,3 +1961,110 @@ table.lista td s,
 .secao-construtora .caixa-cab .dir {
   flex-wrap: wrap;
 }
+
+/* ------------------------------------------------ leitura da obra
+   Resumo da obra no topo do Painel (painel.js, resumoObraHTML): o nome e
+   como ela está em uma linha, com a cor da situação na borda, como a
+   frase-âncora. */
+.resumo-obra {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e1);
+  padding: var(--e3) var(--e4);
+  border: var(--fio) solid var(--separador);
+  border-left: 3px solid var(--separador);
+  border-radius: var(--r-cartao);
+  background: var(--fundo-conteudo);
+}
+.resumo-obra.n-critico {
+  border-left-color: var(--atraso);
+}
+.resumo-obra.n-atencao {
+  border-left-color: var(--alerta);
+}
+.resumo-obra.n-ok {
+  border-left-color: var(--neutro-feito);
+}
+.resumo-obra-nome {
+  margin: 0;
+  font-size: var(--t-medio);
+  font-weight: var(--p-semi);
+}
+.resumo-obra-linha {
+  margin: 0;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+}
+.resumo-obra-pend {
+  align-self: flex-start;
+  font: inherit;
+  font-weight: var(--p-medio);
+}
+/* a cor da gravidade vence a do link */
+.btn-link.resumo-obra-pend.atraso {
+  color: var(--atraso);
+}
+.btn-link.resumo-obra-pend.tom-alerta {
+  color: var(--alerta);
+}
+@media (max-width: 1199px) {
+  .btn-link.resumo-obra-pend {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
+/* Seletor de obra: busca no alto da lista */
+/* .menu-obra na frente: input[type=search] (interface.css) pesa mais */
+.menu-obra .menu-obra-busca {
+  display: block;
+  width: calc(100% - 2 * var(--e2));
+  margin: var(--e2);
+}
+/* no celular a obra atual fica no topo e abre o seletor */
+.seletor-obra-topo {
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  /* encolhe com o título; o nome corta em reticências */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 42vw;
+  padding: 0 var(--e2);
+  border: var(--fio) solid var(--separador);
+  border-radius: var(--r-btn);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: var(--p-medio);
+}
+.seletor-obra-topo span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seletor-obra-topo .ic {
+  flex: none;
+  transform: rotate(90deg);
+}
+@media (max-width: 767px) {
+  .seletor-obra-topo.so-celular {
+    display: inline-flex;
+  }
+  /* o seletor de ponta a ponta, com linhas de 44 px */
+  .menu-ctx.menu-obra {
+    left: 8px !important;
+    right: 8px;
+    top: 56px !important;
+    min-width: 0 !important;
+    max-height: 72vh;
+  }
+  .menu-ctx.menu-obra button {
+    min-height: 44px;
+  }
+  .menu-obra-busca {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}

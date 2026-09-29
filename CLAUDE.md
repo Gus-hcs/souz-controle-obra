@@ -84,7 +84,11 @@ vertical e na horizontal — margem própria de bloco que some com o gap da
 pilha é defeito. Barra de filtros e aviso de uma linha colam na lista.
 Painel da obra e Visão geral: números e gráficos à esquerda, o que pede
 atenção (pendências, tendência, financiamento, cliente) no inspetor à
-direita. Números na fonte do texto com `tabular-nums`. Telas de
+direita — no celular, o conteúdo primeiro e o inspetor depois. O Painel
+abre com o resumo da obra (`resumoObra`: prazo, % feito, Caixa hoje,
+próxima parcela, pendências). O seletor de obra põe as abertas por último
+em cima (`obrasRecentes`, no aparelho) e busca com mais de 5 obras.
+Números na fonte do texto com `tabular-nums`. Telas de
 configuração (Configuração da obra, Ajustes) gravam sozinhas ao mudar — sem
 botão "Salvar". `tests/responsivo` confere KPIs iguais, área vazia à direita,
 painel com rolagem lateral, tabela fora do padrão (alinhamento e fundo),

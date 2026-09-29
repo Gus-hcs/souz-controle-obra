@@ -2184,6 +2184,47 @@ function causasRaizObra(obra) {
 /* Frase-âncora do Painel e da Carteira: situação → causa → ação.
    Situação em no máximo três pedaços (prazo, caixa, margem); causas e ações
    são as três primeiras causas-raiz. Cada pedaço traz o nível para a cor. */
+/* Leitura rápida da obra, o topo do Painel: como está, em uma linha —
+   prazo, avanço físico contra o previsto, Caixa hoje, a próxima parcela a
+   receber e as Pendências. nivel: 'critico' (atraso de 30+ dias, caixa
+   negativo ou pendência crítica), 'atencao' (algum atraso ou pendência)
+   ou 'ok'. */
+function resumoObra(obra, hoje = hojeISO()) {
+  const k = kpisObra(obra);
+  const p = prazoObra(obra, hoje);
+  const pend = pendenciasObra(obra);
+  const prox = obra.recebimentos
+    .filter((r) => r.status !== 'Recebido' && r.status !== 'Cancelado')
+    .sort((a, b) =>
+      String(a.dataPrevista || '9999').localeCompare(String(b.dataPrevista || '9999')),
+    )[0];
+  const atrasoDias = num(p.atrasoDias);
+  const nivel =
+    atrasoDias >= 30 || k.saldoCaixa < -0.005 || pend.criticas > 0
+      ? 'critico'
+      : atrasoDias > 0 || pend.total > 0
+        ? 'atencao'
+        : 'ok';
+  return {
+    status: obra.status || '',
+    atrasoDias,
+    termino: p.termino || '',
+    fisico: k.progressoFisico,
+    fisicoPrevisto: avancoPrevistoObra(obra, hoje),
+    caixaHoje: k.saldoCaixa,
+    proximaParcela: prox
+      ? {
+          valor: num(prox.valorPrevisto),
+          data: prox.dataPrevista || '',
+          origem: prox.origem || '',
+          vencida: isISO(prox.dataPrevista) && prox.dataPrevista < hoje,
+        }
+      : null,
+    pendencias: { total: pend.total, criticas: pend.criticas },
+    nivel,
+  };
+}
+
 function historiaObra(obra, hoje = hojeISO()) {
   const k = kpisObra(obra);
   const p = prazoObra(obra, hoje);
@@ -3608,6 +3649,7 @@ export {
   tratamentoDoAlerta,
   causasRaizObra,
   historiaObra,
+  resumoObra,
   historiaCarteira,
   diarioIndicadores,
   diaImpraticavel,

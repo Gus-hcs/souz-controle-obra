@@ -1,12 +1,12 @@
 /**
  * acoes.js — Ações: tudo que um clique dispara — abrir formulário, salvar, excluir.
  */
-import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, lerEfetivoFuncoes, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, textoEfetivoFuncoes, uid } from '../nucleo/base.js';
-import { efeitoDiarioNaEtapa, efetivoDiario, contratoTotalPago, medicaoLiquido, recebimentoDiferenca, recebimentoLiquido, saldoContratoAposMedicao, TIPO_FORNECIMENTO_INSTALACAO, valorPorCategoria, contratoValor, etapaCalc, lancamentoTotal, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa } from '../dominio/calculos.js';
+import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fmtPct, fonteImagem, hojeISO, isISO, lerEfetivoFuncoes, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, textoEfetivoFuncoes, uid } from '../nucleo/base.js';
+import { efeitoDiarioNaEtapa, efetivoDiario, kpisObra, contratoTotalPago, medicaoLiquido, recebimentoDiferenca, recebimentoLiquido, saldoContratoAposMedicao, TIPO_FORNECIMENTO_INSTALACAO, valorPorCategoria, contratoValor, etapaCalc, lancamentoTotal, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa } from '../dominio/calculos.js';
 import { validarCliente, validarContrato, validarDependencias, validarDiario, validarEtapasContrato, validarEtapa, validarLancamento, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
-import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, confirmarDigitando, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
+import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, confirmarDigitando, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, obrasRecentes, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
 import { carregarAuditoria, implExpandida } from './telas-obra.js';
 import { atribFoto, campoAnexo, comprimirImagem, guardarFotoDiario, htmlAnexo } from './anexos.js';
 
@@ -218,20 +218,49 @@ function fecharMenuObra() {
   const b = document.querySelector('[data-acao="obra-menu"]');
   if (b) b.setAttribute('aria-expanded', 'false');
 }
+/* Seletor de obra: as abertas por último primeiro (obrasRecentes, no
+   aparelho), situação e avanço físico em cada linha, e busca por nome,
+   cliente ou cidade quando há mais de 5 obras. No celular abre de ponta a
+   ponta, com linhas de 44 px (interface.css). */
 ACOES['obra-menu'] = (el) => {
   if (document.querySelector('.menu-obra')) return fecharMenuObra();
   const naCarteira = App.rota.view === 'carteira';
-  const item = (id, l1, l2, marcado) => `<button role="menuitemradio" aria-checked="${marcado}"
-      data-acao="trocar-obra-id" data-obra="${esc(id)}"><span class="item-duplo"><b>${esc(l1)}</b>${l2 ? `<span>${esc(l2)}</span>` : ''}</span></button>`;
+  const item = (
+    id,
+    l1,
+    l2,
+    marcado,
+    busca = '',
+  ) => `<button role="menuitemradio" aria-checked="${marcado}"
+      data-acao="trocar-obra-id" data-obra="${esc(id)}"${busca ? ` data-busca="${esc(busca)}"` : ''}><span class="item-duplo"><b>${esc(l1)}</b>${l2 ? `<span>${esc(l2)}</span>` : ''}</span></button>`;
+  const recentes = obrasRecentes();
+  const ordem = (o) => {
+    const i = recentes.indexOf(o.id);
+    return i < 0 ? recentes.length : i;
+  };
+  const obras = [...Store.estado.obras].sort((a, b) => ordem(a) - ordem(b));
+  const comBusca = obras.length > 5;
   const menu = document.createElement('div');
   menu.className = 'menu-ctx menu-obra';
   menu.setAttribute('role', 'menu');
   menu.innerHTML = [
+    comBusca
+      ? '<input type="search" class="menu-obra-busca" placeholder="Buscar obra, cliente ou cidade" aria-label="Buscar obra">'
+      : '',
     item('', 'Todas as obras', 'visão da carteira', naCarteira),
     '<hr>',
-    ...Store.estado.obras.map((o) => {
+    ...obras.map((o) => {
       const [l1, l2] = partesNomeObra(o);
-      return item(o.id, l1, l2, !naCarteira && o.id === App.rota.obraId);
+      const fisico = kpisObra(o).progressoFisico;
+      const detalhe = [l2, o.status, `${fmtPct(fisico, 0)} feito`].filter(Boolean).join(' · ');
+      const cliente = (Store.estado.clientes.find((c) => c.id === o.clienteId) || {}).nome || '';
+      return item(
+        o.id,
+        l1,
+        detalhe,
+        !naCarteira && o.id === App.rota.obraId,
+        norm([o.nome, cliente, o.cidade].join(' ')),
+      );
     }),
   ].join('');
   document.body.appendChild(menu);
@@ -240,8 +269,23 @@ ACOES['obra-menu'] = (el) => {
   menu.style.top = r.bottom + 4 + 'px';
   menu.style.minWidth = r.width + 'px';
   el.setAttribute('aria-expanded', 'true');
-  const atual = menu.querySelector('[aria-checked="true"]') || menu.querySelector('button');
-  if (atual) atual.focus();
+  const busca = menu.querySelector('.menu-obra-busca');
+  if (busca) {
+    busca.addEventListener('input', () => {
+      const t = norm(busca.value);
+      menu.querySelectorAll('[data-busca]').forEach((b) => {
+        b.hidden = !!t && !b.dataset.busca.includes(t);
+      });
+    });
+    busca.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter') return;
+      const primeira = menu.querySelector('[data-busca]:not([hidden])');
+      if (primeira) primeira.click();
+    });
+  }
+  const atual =
+    busca || menu.querySelector('[aria-checked="true"]') || menu.querySelector('button');
+  if (atual) atual.focus({ preventScroll: true });
 };
 ACOES['trocar-obra-id'] = (el, d) => {
   const pedida = viewPendente;

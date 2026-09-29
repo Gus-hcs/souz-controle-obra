@@ -1869,10 +1869,13 @@ table.lista-carteira tbody td {
   white-space: nowrap;
 }
 
-/* Celular: "Pendências" vem primeiro — antes ficava abaixo de 26
-   itens de agenda, e no canteiro ninguém rolava até lá. Inteira: o
-   flex-basis do inspetor é a largura dele (300px) e, na coluna, virava
-   altura — a lista ficava cortada numa faixa com rolagem própria. */
+/* Celular: primeiro a obra (o resumo com a contagem de Pendências, que
+   leva à tela delas) e os números; a lista inteira de Pendências vem
+   depois. Antes a lista vinha primeiro e ocupava a tela toda — quem
+   abria não via qual obra era nem os números (pedido de quem usa, set/26).
+   Inteira: o flex-basis do inspetor é a largura dele (300px) e, na
+   coluna, virava altura — a lista ficava cortada numa faixa com rolagem
+   própria. */
 @media (max-width: 767px) {
   .tela-carteira,
   .tela-painel-obra {
@@ -1881,11 +1884,11 @@ table.lista-carteira tbody td {
   }
   #conteudo.paineis .tela-carteira > .inspetor,
   #conteudo.paineis .tela-painel-obra > .inspetor {
-    order: -1;
+    order: 1;
     flex: none;
     overflow: visible;
-    border-top: 0;
-    border-bottom: var(--fio) solid var(--separador);
+    border-top: var(--fio) solid var(--separador);
+    border-bottom: 0;
   }
 }
 

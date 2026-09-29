@@ -67,8 +67,10 @@ ACOES['carteira-filtro'] = (el, d) => {
 
 /* ------------------------------------------------------ menu de contexto */
 
+/* Só o menu da Carteira: os outros .menu-ctx (seletor de obra, conta)
+   têm quem os feche, e rolar a lista do seletor não pode fechá-lo. */
 function fecharMenu() {
-  const m = document.querySelector('.menu-ctx');
+  const m = document.querySelector('.menu-carteira');
   if (m) m.remove();
 }
 
@@ -83,7 +85,7 @@ function abrirMenu(x, y, obraId) {
     }${rotulo}</button>`;
 
   const menu = document.createElement('div');
-  menu.className = 'menu-ctx';
+  menu.className = 'menu-ctx menu-carteira';
   menu.setAttribute('role', 'menu');
   menu.innerHTML = [
     item('Abrir a obra', 'ir', 'painel', 'painel'),
@@ -115,7 +117,7 @@ document.addEventListener('contextmenu', (ev) => {
 });
 
 document.addEventListener('mousedown', (ev) => {
-  if (!ev.target.closest('.menu-ctx')) fecharMenu();
+  if (!ev.target.closest('.menu-carteira')) fecharMenu();
 });
 document.addEventListener('scroll', fecharMenu, true);
 
@@ -126,6 +128,7 @@ document.addEventListener('keydown', (ev) => {
   if (!naCarteira()) return;
 
   if (ev.key === 'Escape') {
+    /* Esc com um menu aberto só fecha o menu; a seleção fica */
     if (document.querySelector('.menu-ctx')) return fecharMenu();
     if (tela.selecao) {
       tela.selecao = '';
