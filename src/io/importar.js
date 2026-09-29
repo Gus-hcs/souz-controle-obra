@@ -23,6 +23,7 @@ import {
   num,
 } from '../nucleo/base.js';
 import { normalizarTelefoneBR } from '../nucleo/contato.js';
+import { TIPO_FORNECIMENTO_INSTALACAO } from '../dominio/calculos.js';
 import {
   apenasErros,
   validarEtapa,
@@ -80,6 +81,7 @@ const MODELOS = {
       ['precoUnitario', 'Preço unitário', 'numero', true],
       ['frete', 'Frete', 'numero'],
       ['desconto', 'Desconto', 'numero'],
+      ['valorMaoDeObra', 'Mão de obra (instalação)', 'numero'],
     ],
     exemplo: [
       '15/09/2026',
@@ -92,6 +94,7 @@ const MODELOS = {
       'saco',
       38,
       150,
+      0,
       0,
     ],
   },
@@ -238,6 +241,8 @@ function montarRegistro(modelo, d, estado) {
     const l = Object.assign(novoLancamento(), d);
     if (!num(l.quantidade)) l.quantidade = 1;
     if (!l.tipo) l.tipo = 'Material';
+    /* a parte de instalação só vale em "Fornecimento + instalação" (0025) */
+    if (l.tipo !== TIPO_FORNECIMENTO_INSTALACAO) l.valorMaoDeObra = 0;
     if (!l.unidade) l.unidade = 'un';
     return l;
   }

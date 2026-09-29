@@ -14,7 +14,8 @@ banco, consórcio ou o próprio cliente) · lançamentos · plano de materiais �
 cronograma com avanço físico ponderado, dependências e caminho crítico · curva S
 com liberado × executado · fluxo de caixa projetado com vale de caixa · diário de
 obra de campo com fotos, que funciona sem rede · pendências com tratamento e causa
-raiz · pendências do cliente · nota fiscal e comprovante (foto ou PDF, no Storage) ·
+raiz · pendências do cliente · nota fiscal, comprovante e contrato assinado (foto ou PDF, no Storage) ·
+lançamento de fornecimento + instalação com a parte de mão de obra separada ·
 relatórios em PDF com período, fotos, valores e observação, e histórico dos
 gerados · importação de planilha por modelo (obras, lançamentos, prestadores,
 cronograma) e da planilha MCMV · exportação CSV e Excel · acesso do Power BI ao

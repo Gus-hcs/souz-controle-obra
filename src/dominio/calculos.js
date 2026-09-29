@@ -619,12 +619,17 @@ function lancamentosDuplicados(obra) {
    plano (ligado a um item, por id ou por etapa + descrição). Plano que
    cobre metade das compras não serve para prever custo. null sem compra. */
 function coberturaPlanoMateriais(obra) {
-  const compras = obra.lancamentos.filter((l) => l.tipo === 'Material');
-  const total = round2(compras.reduce((s, l) => s + lancamentoTotal(l), 0));
+  /* a parte material das compras: tipo Material inteiro e, de "Fornecimento
+     + instalação", o que não é instalação (valorPorCategoria) */
+  const materialDe = (l) => valorPorCategoria(l).material;
+  const compras = obra.lancamentos.filter(
+    (l) => (l.tipo === 'Material' || l.tipo === TIPO_FORNECIMENTO_INSTALACAO) && materialDe(l) > 0,
+  );
+  const total = round2(compras.reduce((s, l) => s + materialDe(l), 0));
   if (total <= 0.005) return { total: 0, noPlano: 0, fracao: null };
   const ids = new Set();
   obra.materiais.forEach((m) => lancamentosDoMaterial(obra, m).forEach((l) => ids.add(l.id)));
-  const noPlano = round2(compras.filter((l) => ids.has(l.id)).reduce((s, l) => s + lancamentoTotal(l), 0));
+  const noPlano = round2(compras.filter((l) => ids.has(l.id)).reduce((s, l) => s + materialDe(l), 0));
   return { total, noPlano, fracao: noPlano / total };
 }
 
@@ -634,7 +639,7 @@ function resumoLancamentos(obra) {
   const ls = obra.lancamentos;
   const semEtapa = ls.filter((l) => !l.etapa);
   const naoObra = ls.filter((l) => lancamentoNatureza(l) !== 'Obra');
-  const cat = (c) => ls.filter((l) => categoriaLancamento(l) === c);
+  const porCat = (c) => round2(ls.reduce((s, l) => s + valorPorCategoria(l)[c], 0));
   return {
     total: soma(ls),
     n: ls.length,
@@ -643,10 +648,10 @@ function resumoLancamentos(obra) {
     naoObra: { n: naoObra.length, valor: soma(naoObra) },
     /* as quatro categorias de saída (categoriaLancamento) — os KPIs */
     porCategoria: {
-      material: soma(cat('material')),
-      maoDeObra: soma(cat('maoDeObra')),
-      taxas: soma(cat('taxas')),
-      extras: soma(cat('extras')),
+      material: porCat('material'),
+      maoDeObra: porCat('maoDeObra'),
+      taxas: porCat('taxas'),
+      extras: porCat('extras'),
     },
   };
 }
@@ -674,6 +679,25 @@ const CATEGORIA_POR_TIPO = {
 };
 function categoriaLancamento(l) {
   return CATEGORIA_POR_TIPO[l.tipo] || 'extras';
+}
+
+/* O lançamento repartido pelas categorias de saída. "Fornecimento +
+   instalação" (bancada de mármore instalada, calhas e rufos, esquadria
+   com instalação) pode informar quanto do total é a instalação — a mão de
+   obra (valorMaoDeObra, 0025): essa parte conta como mão de obra e o resto
+   como material. Sem a parte, tudo vai para a categoria do tipo, como
+   sempre foi. A soma das partes é sempre o total do lançamento. */
+const TIPO_FORNECIMENTO_INSTALACAO = 'Fornecimento + instalação';
+function valorPorCategoria(l) {
+  const total = lancamentoTotal(l);
+  const out = { material: 0, maoDeObra: 0, taxas: 0, extras: 0 };
+  if (l.tipo === TIPO_FORNECIMENTO_INSTALACAO && num(l.valorMaoDeObra) > 0) {
+    out.maoDeObra = round2(Math.min(total, num(l.valorMaoDeObra)));
+    out.material = round2(total - out.maoDeObra);
+  } else {
+    out[categoriaLancamento(l)] = total;
+  }
+  return out;
 }
 
 /* Lançamentos agrupados por mês (o mais recente primeiro), com o
@@ -1403,7 +1427,8 @@ function analiseFluxo(obra, filtro = '', hoje = hojeISO()) {
   });
   obra.lancamentos.forEach((l) => {
     if (!isISO(l.data) || !dentro.has(competencia(l.data)) || competencia(l.data) > ymHoje) return;
-    saidas[categoriaLancamento(l)] += lancamentoTotal(l);
+    const partes = valorPorCategoria(l);
+    Object.keys(partes).forEach((k) => { saidas[k] += partes[k]; });
   });
   obra.recebimentos.forEach((r) => {
     if (r.status === 'Cancelado' || !isISO(r.dataRecebimento) || !dentro.has(competencia(r.dataRecebimento))) return;
@@ -3229,7 +3254,11 @@ function resumoPrestador(estado, p) {
 
     if (doPrestador.length || lancs.length) {
       obras.push({ obraId: o.id, obraNome: o.nome, contratado: ctObra, pago: pmObra + plObra,
-        aPagarAgora: apObra, aMedir: amObra });
+        aPagarAgora: apObra, aMedir: amObra,
+        /* contratos com o documento guardado (0025), para abrir da ficha */
+        contratosComDocumento: doPrestador
+          .filter((c) => c.anexo || String(c.documentoUrl || '').trim())
+          .map((c) => ({ id: c.id, codigo: c.codigo || c.codigoBase || '' })) });
       contratado += ctObra;
       pagoMedicoes += pmObra;
       pagoLancamentos += plObra;
@@ -3516,6 +3545,8 @@ export {
   prestacaoContas,
   CATEGORIAS_SAIDA,
   categoriaLancamento,
+  valorPorCategoria,
+  TIPO_FORNECIMENTO_INSTALACAO,
   lancamentosPorMes,
   gastoPorMes,
   composicaoPorTipo,

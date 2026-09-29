@@ -90,6 +90,8 @@ const TABELAS_DB = [
       dataAprovacaoAditivo: ['data_aprovacao_aditivo', 'data'], novoPrazoAditivo: ['novo_prazo_aditivo', 'data'],
       condicaoPagamento: 'condicao_pagamento', retencaoPct: ['retencao_pct', 'num'], formaPreco: 'forma_preco',
       dataEncerramento: ['data_encerramento', 'data'], documentoUrl: 'documento_url',
+      /* exige a migração 0025 */
+      anexo: 'anexo',
       situacaoManual: 'situacao_manual', motivoSituacaoManual: 'motivo_situacao_manual',
       /* exige a migração 0016 */
       etapas: ['etapas', 'json']
@@ -137,7 +139,9 @@ const TABELAS_DB = [
       desconto: ['desconto', 'num'], frete: ['frete', 'num'], formaPagamento: 'forma_pagamento',
       observacoes: 'observacoes',
       /* exige a migração 0019 */
-      anexoNf: 'anexo_nf'
+      anexoNf: 'anexo_nf',
+      /* exige a migração 0025 */
+      valorMaoDeObra: ['valor_mao_de_obra', 'num']
     }
   },
   {
