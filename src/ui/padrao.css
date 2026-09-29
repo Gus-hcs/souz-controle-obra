@@ -1667,6 +1667,9 @@ table.lista td s,
   #topo .busca input {
     min-height: 44px;
   }
+  .rel-atalhos .pilula {
+    min-height: 44px;
+  }
 }
 
 /* ------------------------------------------- configuração da obra

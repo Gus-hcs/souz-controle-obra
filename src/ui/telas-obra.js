@@ -147,7 +147,7 @@ function fraseAncoraHTML(h, { status = '', mostrarObra = false } = {}) {
     ? `<p class="ancora-linha ancora-acoes"><span class="ancora-rot">Fazer</span><span>${h.causas
         .map(
           (c) =>
-            `<button class="btn pequeno" data-acao="ir" data-view="${esc((c.ref && c.ref.view) || 'alertas')}" data-obra="${esc(c.obraId)}" title="${esc(c.titulo)}">${esc(c.acao.replace(/\.$/, ''))}</button>`,
+            `<button class="btn pequeno" data-acao="ir" data-view="${esc((c.ref && c.ref.view) || 'alertas')}" data-obra="${esc(c.obraId)}" title="${esc(c.titulo)}">${esc(c.acao.replace(/\.$/, ''))}${mostrarObra && c.obraNome ? ` <span class="tinta3">· ${esc(String(c.obraNome).split(' — ')[0])}</span>` : ''}</button>`,
         )
         .join('')}</span></p>`
     : '';
