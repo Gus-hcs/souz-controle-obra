@@ -6,7 +6,7 @@ import { esc, estadoInicial, isISO, migrar, novaEtapaCronograma, novaMedicao, no
 import { CHAVE_BASE_OFFLINE, CHAVE_LOCAL, Store, erroDeRede } from './store.js';
 import { App, confirmar, confirmarDigitando, LOGO, toast } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
-import { carregarScript } from '../io/index.js';
+import { LIBS, carregarScript } from '../io/index.js';
 
 /* Preenchido na publicação. Também pode ser informado na tela de conexão. */
 const SUPABASE_PADRAO = { url: CFG.url, anon: CFG.anon };
@@ -361,11 +361,7 @@ const SUPA = {
 
   async carregarBiblioteca() {
     if (window.supabase && window.supabase.createClient) return true;
-    return carregarScript([
-      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js',
-      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
-      'https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.39.7/supabase.min.js'
-    ], () => !!(window.supabase && window.supabase.createClient));
+    return carregarScript(LIBS.supabase, () => !!(window.supabase && window.supabase.createClient));
   },
 
   async iniciar() {
@@ -1031,7 +1027,7 @@ function telaLogin(modo = 'entrar', aviso = '') {
     <h2>${t}</h2>
     <p class="acesso-sub">${sub}</p>
     ${aviso ? `<div class="acesso-aviso">${esc(aviso)}</div>` : ''}
-    <form class="acesso-form" data-form-acesso="1" onsubmit="return false">
+    <form class="acesso-form" data-form-acesso="1">
       <div class="campo">
         <label for="ac_email">E-mail</label>
         <input type="email" id="ac_email" autocomplete="username" placeholder="voce@empresa.com.br">
@@ -1063,7 +1059,7 @@ function telaConfigBanco(aviso = '') {
       <b>Project Settings → API</b>. A chave <b>anon public</b> é feita para ficar no navegador —
       quem protege os dados é a política de segurança por usuário do banco.</p>
     ${aviso ? `<div class="acesso-aviso">${esc(aviso)}</div>` : ''}
-    <form class="acesso-form" data-form-acesso="1" onsubmit="return false">
+    <form class="acesso-form" data-form-acesso="1">
       <div class="campo">
         <label for="cfg_url">URL do projeto</label>
         <input type="text" id="cfg_url" value="${esc(c.url)}" placeholder="https://xxxxxxxx.supabase.co">

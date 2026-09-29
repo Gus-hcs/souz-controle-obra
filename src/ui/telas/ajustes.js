@@ -149,7 +149,7 @@ function secaoEmpresa(e) {
     ${faixaConstrutora}
     ${avisos.length ? `<p class="aviso-linha" role="status">${avisos.map((p) => esc(p.mensagem)).join(' ')}</p>` : ''}
     <div class="ajustes-empresa">
-      <form class="form-grade" data-form="1" data-empresa="1" onsubmit="return false">
+      <form class="form-grade" data-form="1" data-empresa="1">
         ${campoHTML({ k: 'nome', label: 'Nome da empresa', tipo: 'texto', col: 6 }, emp)}
         ${campoHTML({ k: 'cnpj', label: 'CNPJ', tipo: 'texto', col: 6, placeholder: '00.000.000/0000-00' }, emp)}
         ${campoHTML({ k: 'responsavel', label: 'Responsável técnico', tipo: 'texto', col: 6 }, emp)}
@@ -242,7 +242,7 @@ function secaoListas(e) {
         ${
           leitura
             ? ''
-            : `<form class="lista-nova" onsubmit="return false">
+            : `<form class="lista-nova">
                 <input type="text" id="lista-nova-${k}" placeholder="Novo item" aria-label="Novo item em ${esc(titulo)}">
                 ${botao('Adicionar', 'lista-adicionar', { lista: k }, 'btn pequeno', 'mais')}
               </form>`

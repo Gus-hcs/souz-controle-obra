@@ -684,7 +684,7 @@ function abrirForm({ titulo, campos, valores = {}, aoSalvar, largura = '', calcu
   });
   abrirModal({
     titulo, largura,
-    corpo: `<form class="form-grade" data-form="1" onsubmit="return false">${grupos.join('')}</form>`,
+    corpo: `<form class="form-grade" data-form="1">${grupos.join('')}</form>`,
     rodape: `<span class="esq">${rodapeExtra}</span>
              <button class="btn" data-acao="fechar-modal">Cancelar</button>
              <button class="btn primario" data-acao="salvar-form">Salvar</button>`
