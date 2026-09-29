@@ -27,6 +27,7 @@ import {
   contratoSituacao,
   contratoValor,
   indicadoresContrato,
+  progressoContrato,
   medicaoAPagar,
   medicaoLiquido,
   medidoFisicoContrato,
@@ -340,9 +341,7 @@ function celulaAutorizado(l) {
 }
 
 function celulaProgresso(l) {
-  const base = l.ind.autorizado > 0 ? l.ind.autorizado : 0;
-  const pctMedido = base > 0 ? Math.min(1, l.ind.medido / base) : 0;
-  const pctPago = base > 0 ? Math.min(1, l.ind.pago / base) : 0;
+  const { medido: pctMedido, pago: pctPago } = progressoContrato(l.ind);
   /* marca do físico na barra: medir à frente dela é pagar serviço que
      ainda não está na obra (medidoFisicoContrato, alerta acima de 5 p.p.) */
   const mf = l.mf;
@@ -406,7 +405,7 @@ function colunasContratos() {
       k: 'progresso',
       rotulo: 'Progresso',
       largura: '19%',
-      valor: (l) => (l.ind.autorizado > 0 ? l.ind.medido / l.ind.autorizado : 0),
+      valor: (l) => progressoContrato(l.ind).razaoMedido,
       celula: celulaProgresso,
     },
     {

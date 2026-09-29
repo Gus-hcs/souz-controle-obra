@@ -129,6 +129,16 @@ function contratoFimVigente(registros) {
    para não mudar o histórico) e supressão SUBTRAI. É a fonte única do
    valor contratado — contratoTotalAutorizado, basesContratuais e
    kpisObra.contratado leem daqui. */
+/* Progresso do contrato para a barra de Contratos: medido e pago como
+   fração do autorizado (até 100% na barra) e a razão medido ÷ autorizado
+   sem teto, que ordena a coluna. Sem autorizado, tudo zero. */
+function progressoContrato(ind) {
+  const base = num(ind && ind.autorizado);
+  if (!(base > 0)) return { medido: 0, pago: 0, razaoMedido: 0 };
+  const razaoMedido = num(ind.medido) / base;
+  return { medido: Math.min(1, razaoMedido), pago: Math.min(1, num(ind.pago) / base), razaoMedido };
+}
+
 function indicadoresContrato(obra, codigoBase) {
   const registros = obra.contratos.filter((c) => (c.codigoBase || c.codigo) === codigoBase);
   const principal = registros.find((c) => c.registro === 'Contrato') || registros[0] || {};
@@ -3532,6 +3542,7 @@ export {
   basesContratuais,
   contratoFimVigente,
   indicadoresContrato,
+  progressoContrato,
   composicaoContrato,
   contratoSituacao,
   medicaoLiquido,
