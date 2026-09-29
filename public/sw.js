@@ -10,8 +10,8 @@
  *   vem do cache do service worker. Sem rede, quem guarda os dados é o
  *   Store (localStorage), que reenvia quando a conexão volta.
  */
-const CACHE = 'souz-v1';
-const CDN = ['cdn.jsdelivr.net', 'cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
+const CACHE = 'souz-v2'; // v2: bibliotecas com versão fixa e SRI (antes, supabase-js "@2")
+const CDN = ['cdn.jsdelivr.net', 'unpkg.com', 'cdnjs.cloudflare.com', 'cdn.sheetjs.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', () => self.skipWaiting());
 

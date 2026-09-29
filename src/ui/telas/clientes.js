@@ -9,9 +9,14 @@
  * CPF/CNPJ aparece mascarado na lista (LGPD); a busca acha pelo número
  * inteiro, e o formulário mostra o número inteiro.
  */
-import { esc, fmtMoney, norm, num } from '../../nucleo/base.js';
+import { esc, fmtMoney, norm } from '../../nucleo/base.js';
 import { ocultarDocumento } from '../../nucleo/contato.js';
-import { pendenciasDoCliente, saudeCliente, ultimoStatusCliente } from '../../dominio/calculos.js';
+import {
+  pendenciasDasObrasDoCliente,
+  saudeCliente,
+  ultimoStatusCliente,
+  valorVendaObras,
+} from '../../dominio/calculos.js';
 import { Store } from '../../dados/store.js';
 import { App, botao } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
@@ -27,7 +32,7 @@ import {
 
 function kpisClientes(itens) {
   const emRisco = itens.filter((d) => d.saude && (d.saude.nivel === 'critico' || d.saude.nivel === 'atencao')).length;
-  const valorTotal = itens.reduce((s, c) => s + c.valor, 0);
+  const valorTotal = valorVendaObras(itens.flatMap((c) => c.obras));
   return faixaKpis(
     [
       {
@@ -75,11 +80,8 @@ VIEWS.clientes = () => {
       saude: saudeCliente(obras),
       /* 0018: último status enviado e o que o cliente deve à obra */
       status: ultimoStatusCliente(obras),
-      devendo: obras.reduce((s, o) => {
-        const pc = pendenciasDoCliente(o);
-        return { abertas: s.abertas + pc.abertas.length, vencidas: s.vencidas + pc.vencidas.length };
-      }, { abertas: 0, vencidas: 0 }),
-      valor: obras.reduce((s, o) => s + num(o.fin.valorVenda), 0),
+      devendo: pendenciasDasObrasDoCliente(obras),
+      valor: valorVendaObras(obras),
     };
   });
   const buscaDig = busca.replace(/\D/g, '');

@@ -130,7 +130,7 @@ const COLUNAS = [
     rotulo: 'Custo',
     largura: '13%',
     num: true,
-    valor: (d) => (d.ko.custoPrevisto > 0 ? d.ko.totalPago / d.ko.custoPrevisto : -1),
+    valor: (d) => (d.ko.custoPrevisto > 0 ? d.ko.progressoFinanceiro : -1),
   },
   { k: 'saldo', rotulo: 'Caixa hoje', largura: '10%', num: true, valor: (d) => d.ko.saldoCaixa },
   {
@@ -313,7 +313,8 @@ const semSimbolo = (v) =>
   fmtMoneyCurto(v).replace(/^-?R\$\s?/, (m) => (m.startsWith('-') ? '-' : ''));
 
 function celulaCusto(d) {
-  const pct = d.ko.custoPrevisto > 0 ? d.ko.totalPago / d.ko.custoPrevisto : null;
+  /* pago ÷ custo previsto: progressoFinanceiro de kpisObra */
+  const pct = d.ko.custoPrevisto > 0 ? d.ko.progressoFinanceiro : null;
   return `<div class="cel-dois" title="realizado ${esc(fmtMoney(d.ko.totalPago, { dec: 0 }))} de ${esc(fmtMoney(d.ko.custoPrevisto, { dec: 0 }))} orçados">
     <span>${fmtMoneyCurto(d.ko.totalPago)}</span>
     <span>${pct === null ? '' : `${fmtPct(pct, 0)} de ${semSimbolo(d.ko.custoPrevisto)}`}</span>

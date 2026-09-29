@@ -30,6 +30,7 @@ import {
   medicaoAPagar,
   medicaoLiquido,
   medidoFisicoContrato,
+  totaisContratos,
 } from '../../dominio/calculos.js';
 import { Store, mutar } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
@@ -178,16 +179,10 @@ function filtrar(linhas) {
    padrão de telas/carteira.js. "Autorizado" não filtra nada (é o total),
    clicar nele só limpa o filtro por KPI. */
 function kpisContratos(todas) {
-  const autorizado = todas.reduce((s, l) => s + l.ind.autorizado, 0);
-  const medido = todas.reduce((s, l) => s + l.ind.medido, 0);
-  const aPagarAgora = todas.reduce((s, l) => s + l.ind.aPagarAgora, 0);
-  const aMedir = todas.reduce((s, l) => s + l.ind.aMedir, 0);
-
-  const aditivosAprovadosValor = todas.reduce(
-    (s, l) => s + l.comp.totalAcrescimos - l.comp.totalSupressoes,
-    0,
-  );
-  const aditivosPendentesValor = todas.reduce((s, l) => s + l.comp.pendentesValor, 0);
+  const t = totaisContratos(todas);
+  const { autorizado, medido, aPagarAgora, aMedir } = t;
+  const aditivosAprovadosValor = t.aditivosAprovados;
+  const aditivosPendentesValor = t.aditivosPendentes;
   const temPendente = todas.some((l) => l.comp.pendentes.length);
   const comSinal = (v) => `${v < 0 ? '−' : ''}${fmtMoney(Math.abs(v), { dec: 0 })}`;
 
@@ -405,11 +400,7 @@ function colunasContratos() {
       celular: 'some',
       valor: (l) => l.ind.autorizado,
       celula: celulaAutorizado,
-      total: (ls) =>
-        dinheiro(
-          ls.reduce((s, l) => s + l.ind.autorizado, 0),
-          { dec: 0 },
-        ),
+      total: (ls) => dinheiro(totaisContratos(ls).autorizado, { dec: 0 }),
     },
     {
       k: 'progresso',
@@ -425,11 +416,7 @@ function colunasContratos() {
       num: true,
       valor: (l) => l.ind.aPagarAgora,
       celula: (l) => dinheiro(l.ind.aPagarAgora, { dec: 0, cinzaNoZero: true }),
-      total: (ls) =>
-        dinheiro(
-          ls.reduce((s, l) => s + l.ind.aPagarAgora, 0),
-          { dec: 0 },
-        ),
+      total: (ls) => dinheiro(totaisContratos(ls).aPagarAgora, { dec: 0 }),
     },
     {
       k: 'amedir',
@@ -439,11 +426,7 @@ function colunasContratos() {
       celular: 'some',
       valor: (l) => l.ind.aMedir,
       celula: (l) => dinheiro(l.ind.aMedir, { dec: 0, cinzaNoZero: true }),
-      total: (ls) =>
-        dinheiro(
-          ls.reduce((s, l) => s + l.ind.aMedir, 0),
-          { dec: 0 },
-        ),
+      total: (ls) => dinheiro(totaisContratos(ls).aMedir, { dec: 0 }),
     },
     {
       k: 'situacao',

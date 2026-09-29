@@ -9,16 +9,56 @@ import { linkWhatsApp, normalizarTelefoneBR } from '../nucleo/contato.js';
 import { Store, mutar } from '../dados/store.js';
 import { App, confirmar, confirmarDigitando, nomeCliente, toast } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
+import { fotosProntas } from '../ui/anexos.js';
 
-/* ------------------------------------------------ carregador de libs */
-function carregarScript(urls, testar) {
+/* ------------------------------------------------ carregador de libs
+   Bibliotecas de execução vêm de CDN (regra 6 do CLAUDE.md), sempre com a
+   versão exata e o hash de integridade (SRI): arquivo trocado no CDN não
+   roda — o navegador recusa e o carregador tenta o próximo endereço. Os
+   dois endereços de cada biblioteca servem os mesmos bytes, daí um hash
+   só. Para atualizar: troque a versão e recalcule o hash
+   (curl -sL <url> | openssl dgst -sha384 -binary | openssl base64 -A). */
+const LIBS = {
+  supabase: {
+    sri: 'sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok',
+    urls: [
+      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js',
+      'https://unpkg.com/@supabase/supabase-js@2.117.2/dist/umd/supabase.js',
+    ],
+  },
+  jspdf: {
+    sri: 'sha384-qovJwSBbRDPP5cEjCp8S0UP66wrvnjaa60XMOGzTNanrThcrGfXfnZkvgY8N1KT3',
+    urls: [
+      'https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js',
+      'https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js',
+    ],
+  },
+  autotable: {
+    sri: 'sha384-5jk55M0XWoAw7LyhlXJe19ErOr3doBAPzxw9vahPFbvolqWa2yDk4fhHa2zuYeOa',
+    urls: [
+      'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/5.0.8/jspdf.plugin.autotable.min.js',
+      'https://cdn.jsdelivr.net/npm/jspdf-autotable@5.0.8/dist/jspdf.plugin.autotable.min.js',
+    ],
+  },
+  /* 0.20.3 só está no CDN da SheetJS (o npm parou na 0.18.5, com falhas
+     conhecidas ao ler planilha) */
+  xlsx: {
+    sri: 'sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT',
+    urls: ['https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'],
+  },
+};
+
+function carregarScript(lib, testar) {
   if (testar()) return Promise.resolve(true);
   return new Promise((resolve) => {
     let i = 0;
     const tentar = () => {
-      if (i >= urls.length) return resolve(false);
+      if (i >= lib.urls.length) return resolve(false);
       const s = document.createElement('script');
-      s.src = urls[i++];
+      s.src = lib.urls[i++];
+      s.integrity = lib.sri;
+      s.crossOrigin = 'anonymous';
+      s.referrerPolicy = 'no-referrer';
       s.onload = () => resolve(testar() ? true : tentar());
       s.onerror = () => tentar();
       document.head.appendChild(s);
@@ -27,18 +67,17 @@ function carregarScript(urls, testar) {
   });
 }
 
-const carregarPDF = () => carregarScript([
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
-  'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'
-], () => !!(window.jspdf && window.jspdf.jsPDF)).then((ok) => ok && carregarScript([
-  'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js',
-  'https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js'
-], () => !!(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API.autoTable)));
+const carregarPDF = () =>
+  carregarScript(LIBS.jspdf, () => !!(window.jspdf && window.jspdf.jsPDF)).then(
+    (ok) =>
+      ok &&
+      carregarScript(
+        LIBS.autotable,
+        () => !!(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API.autoTable),
+      ),
+  );
 
-const carregarXLSX = () => carregarScript([
-  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
-  'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js'
-], () => !!window.XLSX);
+const carregarXLSX = () => carregarScript(LIBS.xlsx, () => !!window.XLSX);
 
 /* --------------------------------------------------------- download */
 const TIPO_MIME = {
@@ -91,9 +130,16 @@ async function baixar(nomeArquivo, dados) {
 }
 
 /* -------------------------------------------------------------- CSV */
+/* Texto que começa com = + - @ (ou tab/CR) o Excel lê como fórmula —
+   "=HYPERLINK(...)" numa descrição roda ao abrir o arquivo. Ganha um '
+   na frente; número (inclusive negativo, "-1.234,56") passa como está. */
+const INICIO_FORMULA = /^[=+\-@\t\r]/;
+const NUMERO_CSV = /^-?[\d.]+(,\d+)?$/;
+const semFormula = (s) => (INICIO_FORMULA.test(s) && !NUMERO_CSV.test(s) ? "'" + s : s);
+
 function paraCSV(cabecalho, linhas) {
   const cel = (v) => {
-    const s = v === null || v === undefined ? '' : String(v);
+    const s = semFormula(v === null || v === undefined ? '' : String(v));
     return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
   return '﻿' + [cabecalho, ...linhas].map((l) => l.map(cel).join(';')).join('\r\n');
@@ -635,7 +681,7 @@ async function montarPdfStatus(o, { interno = false, op: opcoes = {} } = {}) {
       ['O quê', 'Até'],
       pendenciasDoCliente(o).abertas.map((p) => [p.descricao, p.prazo ? fmtData(p.prazo) : '—']),
       { colunas: { 1: { cellWidth: 30 } } });
-    if (op.fotos) y = pdfFotos(doc, y, per ? fotosDoPeriodo(o, op.de, op.ate, 12) : fotosDaSemana(o));
+    if (op.fotos) y = pdfFotos(doc, y, await fotosProntas(per ? fotosDoPeriodo(o, op.de, op.ate, 12) : fotosDaSemana(o)));
     pdfAssinaturaRT(doc, y, o);
     pdfRodape(doc);
     return doc;
@@ -666,7 +712,7 @@ async function montarPdfStatus(o, { interno = false, op: opcoes = {} } = {}) {
       pend.itens.slice(0, 18).map((a) => [a.sev === 3 ? 'Crítico' : 'Atenção',
         a.modulo, a.titulo, a.acao]), { colunas: { 0: { cellWidth: 16 }, 1: { cellWidth: 24 } } });
   }
-  if (op.fotos) y = pdfFotos(doc, y, fotosDoPeriodo(o, op.de, op.ate, 12));
+  if (op.fotos) y = pdfFotos(doc, y, await fotosProntas(fotosDoPeriodo(o, op.de, op.ate, 12)));
   pdfAssinaturaRT(doc, y, o);
   pdfRodape(doc);
   return doc;
@@ -1032,6 +1078,7 @@ ACOES.exemplo = () => {
 
 export {
   carregarScript,
+  LIBS,
   carregarPDF,
   carregarXLSX,
   baixar,

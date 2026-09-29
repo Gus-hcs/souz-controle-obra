@@ -1639,7 +1639,9 @@ table.lista td s,
 .rosca .grafico .rosca-total {
   font-size: 15px;
 }
-@media (max-width: 1199px) {
+/* tablet: 32 px. Só nesta faixa — antes valia até 1199 px e, por vir
+   depois, vencia os 44 px do celular (auditoria M-08) */
+@media (min-width: 768px) and (max-width: 1199px) {
   .filtro-barra .pilula,
   .etiqueta-filtro {
     min-height: 32px;
@@ -1654,6 +1656,16 @@ table.lista td s,
   #modal-camada textarea,
   #topo input {
     font-size: 16px;
+  }
+  /* alvo de toque de 44 px no que mais se usa no canteiro: o menu e a
+     busca (a caixa cresce por dentro; a largura continua a do texto) */
+  #topo .menu-mob {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  #conteudo .busca input,
+  #topo .busca input {
+    min-height: 44px;
   }
 }
 

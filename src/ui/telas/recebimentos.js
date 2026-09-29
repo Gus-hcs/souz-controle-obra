@@ -610,7 +610,7 @@ ACOES['rec-anexar'] = (el, d) => {
   abrirModal({
     titulo: `Comprovante — ${nomeParcela(r)}`,
     largura: 'estreito',
-    corpo: '<form class="form-grade" data-form="1" onsubmit="return false"></form>',
+    corpo: '<form class="form-grade" data-form="1"></form>',
     rodape: `<button class="btn" data-acao="fechar-modal">Cancelar</button>
       <button class="btn primario" data-acao="rec-anexar-salvar" data-id="${esc(r.id)}">Salvar</button>`,
   });

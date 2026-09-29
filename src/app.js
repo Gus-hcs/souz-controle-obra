@@ -122,6 +122,12 @@ document.addEventListener('keydown', (ev) => {
   }
 });
 
+/* Nenhum formulário do sistema é enviado pelo navegador: Enter e botão de
+   envio viram ação da tela (acima). Substitui o onsubmit="return false" que
+   cada <form> tinha — a CSP sem 'unsafe-inline' bloqueia atributo de evento,
+   e o Enter recarregaria a página. */
+document.addEventListener('submit', (ev) => ev.preventDefault());
+
 /* Barra de rolagem só enquanto se rola, como no macOS: o elemento que
    rola ganha .rolando e perde 900ms depois do último movimento. */
 const rolagens = new Map();

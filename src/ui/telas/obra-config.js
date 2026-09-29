@@ -382,7 +382,7 @@ VIEWS['obra-config'] = () => {
   return `<div class="tela-lista tela-config">
     <div id="cfg-kpis">${kpisConfig(o, k)}</div>
     <div id="cfg-avisos">${avisosConfig(o)}</div>
-    <form data-form="1" onsubmit="return false">
+    <form data-form="1">
       ${secoesHtml}
     </form>
 

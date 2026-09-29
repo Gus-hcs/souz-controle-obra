@@ -102,8 +102,23 @@ const Store = {
     return JSON.stringify(this.estado);
   },
 
+  /* A cópia do aparelho é o que sustenta o trabalho sem rede. Se o
+     navegador recusar (cota cheia, navegação privada), avisa uma vez —
+     antes o erro era engolido e o modo sem rede parava em silêncio. */
   gravarLocal(json) {
-    try { localStorage.setItem(CHAVE_LOCAL, json); } catch (e) { /* cota/privado */ }
+    try {
+      localStorage.setItem(CHAVE_LOCAL, json);
+      this.localCheio = false;
+    } catch (e) {
+      if (!this.localCheio) {
+        this.localCheio = true;
+        toast(
+          'O modo sem rede deste aparelho está cheio: o que for feito sem sinal não fica guardado aqui. Com rede, tudo continua indo para o banco.',
+          'aviso',
+          9000,
+        );
+      }
+    }
   },
 
   async salvar() {

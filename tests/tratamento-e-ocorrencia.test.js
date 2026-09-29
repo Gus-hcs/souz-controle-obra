@@ -218,9 +218,11 @@ describe('estado antigo e banco sem a migração', () => {
         const vazio = { data: [], error: null };
         return {
           select: () => ({
-            limit: async () => (nome === faltando
-              ? { data: null, error: { code: 'PGRST205', message: `Could not find the table 'public.${nome}'` } }
-              : vazio),
+            order: () => ({
+              range: async () => (nome === faltando
+                ? { data: null, error: { code: 'PGRST205', message: `Could not find the table 'public.${nome}'` } }
+                : { ...vazio, count: 0 }),
+            }),
             eq: () => Object.assign(Promise.resolve(vazio), { maybeSingle: async () => ({ data: null, error: null }) }),
           }),
         };

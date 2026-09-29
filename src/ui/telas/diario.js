@@ -26,6 +26,7 @@ import { Store } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
 import { App, botao, ICO, svg, toast } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
+import { atribFoto, fotoComoDataUri } from '../anexos.js';
 import {
   acoesRegistro,
   barraFiltros,
@@ -128,10 +129,16 @@ ACOES['whatsapp-diario'] = async (el, d) => {
     .filter(Boolean)
     .join('\n');
 
-  const arquivos = (reg.fotos || [])
-    .slice(0, 8)
-    .map((foto, i) => dataUriParaArquivo(foto.dados, foto.nome || `foto-${i + 1}.jpg`))
-    .filter(Boolean);
+  /* do Storage, baixa os bytes antes (fotoComoDataUri) */
+  const arquivos = (
+    await Promise.all(
+      (reg.fotos || [])
+        .slice(0, 8)
+        .map(async (foto, i) =>
+          dataUriParaArquivo(await fotoComoDataUri(foto.dados), foto.nome || `foto-${i + 1}.jpg`),
+        ),
+    )
+  ).filter(Boolean);
 
   if (arquivos.length && navigator.canShare && navigator.canShare({ files: arquivos })) {
     try {
@@ -197,7 +204,7 @@ function cartaoRegistro(d) {
       ? `<div class="fotos-diario">${d.fotos
           .map(
             (foto, i) =>
-              `<img src="${foto.dados}" alt="${esc(foto.nome || 'Foto da obra')}" loading="lazy" data-acao="ver-foto" data-id="${esc(d.id)}" data-idx="${i}">`,
+              `<img ${atribFoto(foto.dados)} alt="${esc(foto.nome || 'Foto da obra')}" loading="lazy" data-acao="ver-foto" data-id="${esc(d.id)}" data-idx="${i}">`,
           )
           .join('')}</div>`
       : '';

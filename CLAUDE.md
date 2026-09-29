@@ -132,6 +132,10 @@ eu_ativo()) or (empresa_id is not null and empresa_id = minha_empresa()))`
 6. **Zero dependência de execução.** O `package.json` só tem `devDependencies`.
    Bibliotecas de runtime (`supabase-js`, `xlsx`, `jspdf`) são carregadas sob
    demanda por CDN, nunca empacotadas. Não adicione dependência sem combinar antes.
+   Cada uma com versão exata e hash de integridade (SRI) em `LIBS`
+   (`src/io/index.js`); host novo de CDN entra também na CSP (`vite.config.js`)
+   e na lista do `public/sw.js`. A CSP não tem `'unsafe-inline'` em script:
+   nada de `onclick=`/`onsubmit=` no HTML — evento é por delegação no `app.js`.
 
 7. **A chave `service_role` do Supabase nunca entra no repositório** — nem
    comentada, nem em exemplo. A publicável (`sb_publishable_...` em

@@ -4,9 +4,9 @@
 import { CFG } from '../config.js';
 import { esc, estadoInicial, isISO, migrar, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, novaPendenciaCliente, novoRelatorioGerado, novoTratamento, num } from '../nucleo/base.js';
 import { CHAVE_BASE_OFFLINE, CHAVE_LOCAL, Store, erroDeRede } from './store.js';
-import { App, confirmar, LOGO, toast } from '../ui/shell.js';
+import { App, confirmar, confirmarDigitando, LOGO, toast } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
-import { carregarScript } from '../io/index.js';
+import { LIBS, carregarScript } from '../io/index.js';
 
 /* Preenchido na publicação. Também pode ser informado na tela de conexão. */
 const SUPABASE_PADRAO = { url: CFG.url, anon: CFG.anon };
@@ -15,6 +15,8 @@ const SUPABASE_PADRAO = { url: CFG.url, anon: CFG.anon };
 const EXIGE_BANCO = CFG.exigeBanco;
 
 const CHAVE_CFG = 'souz_supabase_cfg';
+/* tamanho da página na carga (lerTabela); o servidor pode devolver menos */
+const PAGINA_CARGA = 1000;
 
 /* olho aberto / riscado para revelar a senha na tela de acesso */
 const OLHO = '<svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 10S4.5 4 10 4s8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6Z"/><circle cx="10" cy="10" r="2.5"/></svg>';
@@ -359,11 +361,7 @@ const SUPA = {
 
   async carregarBiblioteca() {
     if (window.supabase && window.supabase.createClient) return true;
-    return carregarScript([
-      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js',
-      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
-      'https://cdnjs.cloudflare.com/ajax/libs/supabase-js/2.39.7/supabase.min.js'
-    ], () => !!(window.supabase && window.supabase.createClient));
+    return carregarScript(LIBS.supabase, () => !!(window.supabase && window.supabase.createClient));
   },
 
   async iniciar() {
@@ -432,6 +430,17 @@ const SUPA = {
     const destino = location.origin + location.pathname;
     const { error } = await this.sb.auth.resetPasswordForEmail(email, { redirectTo: destino });
     if (error) throw error;
+  },
+
+  /* Há alteração que ainda não chegou ao banco? Com rede, tenta enviar
+     antes; sem rede (ou se o envio falhar), a resposta é sim. */
+  async pendenteAoSair() {
+    if (Store.pendente && !(typeof navigator !== 'undefined' && navigator.onLine === false)) {
+      clearTimeout(Store.timer);
+      try { await Store.salvar(); } catch (e) { /* segue pendente */ }
+    }
+    if (Store.pendente) return true;
+    try { return !!localStorage.getItem(CHAVE_BASE_OFFLINE); } catch (e) { return false; }
   },
 
   async sair() {
@@ -708,11 +717,42 @@ const SUPA = {
   },
 
   /* ------------------------------------------------------------ carga */
+  /* Uma tabela inteira, em páginas. A API corta cada resposta no "Max rows"
+     do projeto (1.000 por padrão) sem avisar: a primeira página pede a
+     contagem exata e as seguintes vão até completá-la, do tamanho que o
+     servidor devolver. Página que falha, ou que volta vazia antes de chegar
+     à contagem, é erro — nunca um estado pela metade, que sincronizaria
+     números errados. */
+  async lerTabela(nome) {
+    const linhas = [];
+    let total = null;
+    for (;;) {
+      const ini = linhas.length;
+      const { data, error, count } = await this.sb
+        .from(nome)
+        .select('*', total === null ? { count: 'exact' } : undefined)
+        .order('id')
+        .range(ini, ini + PAGINA_CARGA - 1);
+      if (error) return { data: null, error };
+      if (total === null) total = typeof count === 'number' ? count : Infinity;
+      if (!data || !data.length) break;
+      linhas.push(...data);
+      if (linhas.length >= total) break;
+    }
+    if (total !== Infinity && linhas.length < total) {
+      return {
+        data: null,
+        error: new Error(`Carga incompleta de ${nome}: ${linhas.length} de ${total} linhas. Tente de novo.`),
+      };
+    }
+    return { data: linhas, error: null };
+  },
+
   async carregar() {
     const dados = {};
     this.indisponiveis = new Set();
     for (const tab of TABELAS_DB) {
-      const { data, error } = await this.sb.from(tab.nome).select('*').limit(10000);
+      const { data, error } = await this.lerTabela(tab.nome);
       if (error && tab.opcional && tabelaInexistente(error)) {
         console.warn(`Tabela ${tab.nome} ainda não existe no banco — recurso desligado até aplicar a migração.`);
         this.indisponiveis.add(tab.nome);
@@ -987,7 +1027,7 @@ function telaLogin(modo = 'entrar', aviso = '') {
     <h2>${t}</h2>
     <p class="acesso-sub">${sub}</p>
     ${aviso ? `<div class="acesso-aviso">${esc(aviso)}</div>` : ''}
-    <form class="acesso-form" data-form-acesso="1" onsubmit="return false">
+    <form class="acesso-form" data-form-acesso="1">
       <div class="campo">
         <label for="ac_email">E-mail</label>
         <input type="email" id="ac_email" autocomplete="username" placeholder="voce@empresa.com.br">
@@ -1019,7 +1059,7 @@ function telaConfigBanco(aviso = '') {
       <b>Project Settings → API</b>. A chave <b>anon public</b> é feita para ficar no navegador —
       quem protege os dados é a política de segurança por usuário do banco.</p>
     ${aviso ? `<div class="acesso-aviso">${esc(aviso)}</div>` : ''}
-    <form class="acesso-form" data-form-acesso="1" onsubmit="return false">
+    <form class="acesso-form" data-form-acesso="1">
       <div class="campo">
         <label for="cfg_url">URL do projeto</label>
         <input type="text" id="cfg_url" value="${esc(c.url)}" placeholder="https://xxxxxxxx.supabase.co">
@@ -1111,9 +1151,24 @@ ACOES['auth-recuperar'] = async (el) => {
   }
 };
 
-ACOES['auth-sair'] = () => {
-  confirmar('Sair do sistema', 'Deseja encerrar a sessão neste dispositivo?', () => SUPA.sair(), 'Sair');
-};
+/* Sair apaga a cópia do aparelho. Com alteração que não chegou ao banco
+   (diário feito sem sinal), só depois de digitar a confirmação — antes o
+   que estava pendente sumia sem aviso (auditoria M-01). */
+async function sairComCuidado(perguntar) {
+  if (await SUPA.pendenteAoSair()) {
+    confirmarDigitando(
+      'Sair sem enviar',
+      'Há alterações feitas neste aparelho que ainda não chegaram ao banco (sem rede). Se sair agora, elas se perdem. Espere a conexão voltar para enviar.',
+      'SAIR',
+      () => SUPA.sair(),
+      'Sair e perder',
+    );
+    return;
+  }
+  if (perguntar) confirmar('Sair do sistema', 'Deseja encerrar a sessão neste dispositivo?', () => SUPA.sair(), 'Sair');
+  else SUPA.sair();
+}
+ACOES['auth-sair'] = () => sairComCuidado(true);
 
 function traduzErroAuth(err) {
   const m = String((err && err.message) || err);
@@ -1225,7 +1280,7 @@ async function entrarNoSistema() {
 }
 
 ACOES['auth-recarregar'] = () => location.reload();
-ACOES['auth-sair-simples'] = () => SUPA.sair();
+ACOES['auth-sair-simples'] = () => sairComCuidado(false);
 
 export {
   SUPABASE_PADRAO,

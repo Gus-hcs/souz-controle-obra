@@ -128,6 +128,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0021_construtoras.sql` | tabela `empresas` (a construtora que compra o sistema) com RLS; `perfis.empresa_id` + `papel_empresa`; `empresa_id` em obras, clientes e prestadores; a equipe da construtora vê tudo dela; vaga (limite de acessos) e limite de obras conferidos no banco; convite só de cliente em obra de construtora; `usuario_id` sem cascata (excluir conta não apaga registro); funções de admin; corrige `convidar_membro` e a permissão de `perfis.logo`/`cnpj` |
 | `0022_fecha_bucket_site.sql` | tira as políticas `site_tmp_*` do bucket `site` (criado à mão, público, com envio e exclusão sem login); o bucket vazio é apagado no painel |
 | `0023_acesso_pela_construtora.sql` | obra de construtora acessada pela construtora; `eu_ativo()` (bloqueio corta tudo); `pode_ler_obra_interna()` (o cliente não lê custo nem anexos, menos as fotos do diário); `obra_membros` só com cliente em obra de construtora; sai o dono individual (desligar e excluir conta funcionam); `membros_da_obra` com a equipe da construtora e sem e-mail para o cliente; convite com mensagem neutra |
+| `0024_desempenho_rls_e_indices.sql` | `auth.uid()` e as funções de acesso nas políticas uma vez por consulta (`(select …)`); uma política por comando em `clientes`, `prestadores` e `perfis` (a mesma regra, sem duas permissivas); índices nas 15 chaves estrangeiras sem índice. Não muda quem lê o quê |
 
 ### 0008 — logos
 
