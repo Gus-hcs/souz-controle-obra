@@ -72,8 +72,8 @@ const U = {
 };
 await db.exec(`
   insert into auth.users (id, email) values
-    ('${U.admin}', 'gustavohcs1@hotmail.com'), ('${U.souz2}', 'gustavohcs12@gmail.com'),
-    ('${U.sonho}', 'cesarndrade@hotmail.com'), ('${U.cliFinal}', 'dono.casa@x.com'), ('${U.eng}', 'eng@x.com');
+    ('${U.admin}', 'admin@exemplo.com'), ('${U.souz2}', 'souz2@exemplo.com'),
+    ('${U.sonho}', 'sonho@exemplo.com'), ('${U.cliFinal}', 'dono.casa@x.com'), ('${U.eng}', 'eng@x.com');
   alter table public.perfis disable trigger trg_perfil_trava;
   update public.perfis set empresa_nome = 'Souz Engenharia', admin = true, cnpj = '11.222.333/0001-81',
          listas = '{"etapas":["Fundação","Estrutura"]}' where id = '${U.admin}';
@@ -348,7 +348,7 @@ confere(
 /* ----------------------------------------------------------- convite */
 err = await erroComo(
   U.sonho,
-  `select * from public.convidar_membro('o-sonho', 'gustavohcs12@gmail.com', 'engenheiro')`,
+  `select * from public.convidar_membro('o-sonho', 'souz2@exemplo.com', 'engenheiro')`,
 );
 confere(
   'convite de engenheiro para obra da construtora: recusado',
