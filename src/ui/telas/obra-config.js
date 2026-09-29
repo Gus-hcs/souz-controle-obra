@@ -216,21 +216,34 @@ function equipeHTML(o) {
   }
   const linhas = Equipe.linhas || [];
   if (!linhas.length) return '<p class="linha-cinza">Só você por enquanto.</p>';
+  /* 0023: em obra de construtora a equipe vem da construtora (origem
+     'construtora:gestor' / 'construtora:engenheiro'), sem controle aqui —
+     quem entra e sai é o administrador; na obra só se convida o cliente.
+     Sem a 0023 não há origem: o dono é você, como antes. */
+  const eu = SUPA.usuario && SUPA.usuario.id;
+  const daConstrutora = (m) => String(m.origem || '').startsWith('construtora');
+  const souEu = (m) => (m.origem ? m.usuario_id === eu : m.papel === 'dono');
+  const papelTexto = (m) =>
+    m.origem === 'construtora:gestor' ? 'Gestor da construtora' : 'Engenheiro da construtora';
   return `<table class="mini-tab"><thead><tr><th>Pessoa</th><th>Papel</th><th></th></tr></thead>
     <tbody>${linhas
       .map(
         (m) => `<tr>
-      <td>${esc(m.email)}${m.papel === 'dono' ? ' <span class="tinta3">(você)</span>' : ''}</td>
+      <td>${esc(m.email || 'cliente convidado')}${souEu(m) ? ' <span class="tinta3">(você)</span>' : ''}</td>
       <td>${
-        m.papel === 'dono'
-          ? 'Dono'
-          : `<select data-acao="equipe-papel" data-id="${esc(m.id)}" aria-label="Papel de ${esc(m.email)}">
+        daConstrutora(m)
+          ? papelTexto(m)
+          : m.papel === 'dono'
+            ? 'Dono'
+            : SUPA.construtora
+              ? 'Cliente'
+              : `<select data-acao="equipe-papel" data-id="${esc(m.id)}" aria-label="Papel de ${esc(m.email)}">
             <option value="engenheiro" ${m.papel === 'engenheiro' ? 'selected' : ''}>Engenheiro</option>
             <option value="cliente" ${m.papel === 'cliente' ? 'selected' : ''}>Cliente</option>
           </select>`
       }</td>
       <td>${
-        m.papel === 'dono'
+        daConstrutora(m) || m.papel === 'dono'
           ? ''
           : `<button class="btn sutil icone pequeno" data-acao="equipe-remover" data-id="${esc(m.id)}"
           title="Remover" aria-label="Remover ${esc(m.email)}">${svg(ICO.lixo, 13)}</button>`
@@ -462,3 +475,5 @@ document.addEventListener('change', (ev) => {
     if (avisos) avisos.innerHTML = avisosConfig(o);
   }, 350);
 });
+
+export { Equipe, equipeHTML };
