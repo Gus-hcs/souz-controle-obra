@@ -170,6 +170,13 @@ Todos são escritos para rodar de novo sem quebrar (`if not exists`,
   ciclo do `Store` nem no `TABELAS_DB`. Tem um leitor dedicado
   (`SUPA.lerAuditoria`) porque o `Store` sincroniza por diferença e a auditoria
   nunca é escrita pela tela — só pelo gatilho do banco.
+- **Erros do app (`erros_app`, 0026)**: fora do `Store` e do `TABELAS_DB`,
+  como a auditoria. `src/dados/erros.js` escuta `error` e
+  `unhandledrejection` (e o `catch` do clique no `app.js`), limpa o registro
+  e grava por `SUPA.registrarErro` — uma vez por erro, no máximo 20 por
+  sessão, só com conta ativa e rede; falha ao gravar desliga o monitor na
+  sessão. Só o admin lê (`SUPA.lerErrosApp`), no bloco "Erros do app" de
+  Contas e acessos, agrupado por `resumoErrosApp`.
 - **`obra_membros`** também fica fora do `TABELAS_DB`: `SUPA.carregarPapeis()`
   lê os papéis do usuário no login para `SUPA.papeis`, e `SUPA.lerMembros()`
   serve a futura tela de equipe. Não há gravação de membro pela tela ainda.

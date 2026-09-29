@@ -80,6 +80,11 @@ ${MARCA_CSP}`),
   },
 });
 
+/* versão que vai junto de cada erro do app (0026): na CI, o commit */
+if (!process.env.VITE_VERSAO && process.env.GITHUB_SHA) {
+  process.env.VITE_VERSAO = process.env.GITHUB_SHA.slice(0, 7);
+}
+
 export default defineConfig({
   base: './',
   plugins: [viteSingleFile(), cabecalhosSeguranca()],

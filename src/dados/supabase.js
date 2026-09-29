@@ -720,6 +720,33 @@ const SUPA = {
     return data || [];
   },
 
+  /* ------------------------------------------------------ erros do app */
+  /* Fora do Store, como a auditoria (0026): a tela nunca edita um erro.
+     Grava a própria conta (o gatilho carimba conta e hora); lê e apaga só o
+     admin. Sem retorno da linha: quem grava não tem leitura. */
+  podeRegistrarErro() {
+    return !!(this.sb && this.usuario && !this.bloqueado) &&
+      (typeof navigator === 'undefined' || navigator.onLine !== false);
+  },
+  async registrarErro(reg) {
+    const { error } = await this.sb.from('erros_app').insert(reg);
+    if (error) throw error;
+  },
+  async lerErrosApp(limite = 300) {
+    if (!this.sb) return [];
+    const { data, error } = await this.sb
+      .from('erros_app')
+      .select('id, criado_em, usuario_id, mensagem, origem, tela, versao, navegador')
+      .order('criado_em', { ascending: false })
+      .limit(limite);
+    if (error) throw error;
+    return data || [];
+  },
+  async apagarErrosApp() {
+    const { error } = await this.sb.from('erros_app').delete().lte('criado_em', new Date().toISOString());
+    if (error) throw error;
+  },
+
   /* ------------------------------------------------------------ carga */
   /* Uma tabela inteira, em páginas. A API corta cada resposta no "Max rows"
      do projeto (1.000 por padrão) sem avisar: a primeira página pede a

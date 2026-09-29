@@ -676,6 +676,66 @@ if (fs.existsSync(path.join(MIG, '0025_mao_de_obra_e_contrato_anexo.sql'))) {
   confere('0025 roda de novo sem quebrar', !de_novo25, de_novo25 || '');
 }
 
+/* ------------------------------------------------------ 11. erros do app (0026) */
+if (fs.existsSync(path.join(MIG, '0026_erros_app.sql'))) {
+  const grava = (uid, msg, extra = '') =>
+    tenta(uid, `insert into public.erros_app (mensagem, tela${extra ? ', usuario_id' : ''})
+      values ('${msg}', 'painel'${extra ? `, '${extra}'` : ''})`);
+  confere('conta ativa grava o próprio erro', (await grava(U.engB, 'erro do engB')).ok);
+  confere('conta sem construtora também grava', (await grava(U.solto, 'erro do solto')).ok);
+  await grava(U.engB, 'fingindo ser o admin', U.admin);
+  confere(
+    'usuario_id vem do servidor: não dá para gravar em nome de outro',
+    (await conta(U.admin, 'public.erros_app', `mensagem = 'fingindo ser o admin' and usuario_id = '${U.engB}'`)) === 1,
+  );
+  confere('quem grava não lê nem o próprio erro', (await conta(U.engB, 'public.erros_app', 'true')) === 0);
+  confere('admin lê os erros de todos', (await conta(U.admin, 'public.erros_app', 'true')) === 3);
+  confere(
+    'quem não é admin não apaga',
+    (await quantas(U.engB, `delete from public.erros_app returning id`)) === 0 &&
+      (await conta(U.admin, 'public.erros_app', 'true')) === 3,
+  );
+  confere(
+    'ninguém altera um erro',
+    !(await tenta(U.engB, `update public.erros_app set mensagem = 'x'`)).ok &&
+      !(await tenta(U.admin, `update public.erros_app set mensagem = 'x'`)).ok,
+  );
+  confere('anônimo não grava', !(await grava('anon', 'anonimo')).ok);
+  confere('anônimo não lê', !(await tenta('anon', `select id from public.erros_app`)).ok);
+  await como(U.admin, `select public.admin_definir_perfil('${U.engB}', 'ativo', true, '{}'::jsonb, null)`);
+  confere('conta BLOQUEADA não grava erro', !(await grava(U.engB, 'bloqueado')).ok);
+  await como(U.admin, `select public.admin_definir_perfil('${U.engB}', 'ativo', false, '{}'::jsonb, null)`);
+  confere('mensagem vazia é recusada (CHECK)', !(await grava(U.engB, '  ')).ok);
+  confere(
+    'tela fora do padrão é recusada (CHECK)',
+    !(await tenta(U.engB, `insert into public.erros_app (mensagem, tela) values ('x', 'Painel da obra')`)).ok,
+  );
+  confere(
+    'mensagem longa demais é recusada (CHECK)',
+    !(await tenta(U.engB, `insert into public.erros_app (mensagem) values (repeat('x', 301))`)).ok,
+  );
+  await como(
+    U.solto,
+    `insert into public.erros_app (mensagem) select 'rajada ' || g from generate_series(1, 80) g`,
+  );
+  confere(
+    'rajada: passou de 60 na hora, o resto é descartado em silêncio',
+    (await conta(U.admin, 'public.erros_app', `usuario_id = '${U.solto}'`)) === 60,
+  );
+  confere(
+    'admin apaga a lista',
+    (await quantas(U.admin, `delete from public.erros_app returning id`)) > 0 &&
+      (await conta(U.admin, 'public.erros_app', 'true')) === 0,
+  );
+  let de_novo26 = null;
+  try {
+    await db.exec(fs.readFileSync(path.join(MIG, '0026_erros_app.sql'), 'utf8'));
+  } catch (e) {
+    de_novo26 = e.message;
+  }
+  confere('0026 roda de novo sem quebrar', !de_novo26, de_novo26 || '');
+}
+
 escreve(`\n${total - falhas} de ${total} conferências ok`);
 if (falhas) {
   escreve(`${falhas} FALHA(S)`);

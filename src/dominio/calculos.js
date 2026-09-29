@@ -3577,7 +3577,39 @@ function addDiasISO(iso, n) {
   return d.toISOString().slice(0, 10);
 }
 
+/* Erros do app (0026) para o admin: o mesmo erro (mensagem + origem) numa
+   linha só, com quantas vezes, quantas contas, em que telas e versões, o
+   primeiro e o último; o mais recente em cima. `agora` em ms, para as 24 h. */
+function resumoErrosApp(lista, agora = Date.now()) {
+  const grupos = new Map();
+  const contas = new Set();
+  let ultimas24h = 0;
+  for (const e of lista || []) {
+    const quando = String(e.criado_em || '');
+    const t = Date.parse(quando);
+    if (Number.isFinite(t) && agora - t <= 86400000) ultimas24h++;
+    if (e.usuario_id) contas.add(e.usuario_id);
+    const chave = `${e.mensagem || ''}|${e.origem || ''}`;
+    let g = grupos.get(chave);
+    if (!g) {
+      g = { mensagem: e.mensagem || '', origem: e.origem || '', vezes: 0, contas: new Set(), telas: new Set(), versoes: new Set(), primeiro: quando, ultimo: quando };
+      grupos.set(chave, g);
+    }
+    g.vezes++;
+    if (e.usuario_id) g.contas.add(e.usuario_id);
+    if (e.tela) g.telas.add(e.tela);
+    if (e.versao) g.versoes.add(e.versao);
+    if (quando && (!g.primeiro || quando < g.primeiro)) g.primeiro = quando;
+    if (quando > g.ultimo) g.ultimo = quando;
+  }
+  const linhas = [...grupos.values()]
+    .map((g) => ({ ...g, contas: g.contas.size, telas: [...g.telas].sort(), versoes: [...g.versoes].sort() }))
+    .sort((a, b) => (a.ultimo < b.ultimo ? 1 : a.ultimo > b.ultimo ? -1 : b.vezes - a.vezes));
+  return { total: (lista || []).length, ultimas24h, contas: contas.size, linhas };
+}
+
 export {
+  resumoErrosApp,
   renomearItemLista,
   saudeDados,
   origemAlteracoes,

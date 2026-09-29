@@ -274,6 +274,26 @@ function validarRelatorioGerado(r) {
   return out;
 }
 
+/* ---------------------------------------------------- ERRO DO APP */
+/* Espelha chk_erros_app_* (0026). registroErroApp (dados/erros.js) já
+   corta nesses tamanhos; isto confere o que vai ao banco. */
+const LIMITES_ERRO_APP = { mensagem: 300, origem: 200, pilha: 1500, versao: 40, navegador: 200 };
+const TELA_ERRO_APP = /^[a-z0-9-]{0,40}$/;
+function validarErroApp(r) {
+  const out = [];
+  const m = String(r.mensagem || '').trim();
+  if (!m) out.push(problema('mensagem', 'O erro precisa de uma mensagem.'));
+  for (const [campo, max] of Object.entries(LIMITES_ERRO_APP)) {
+    if (String(r[campo] || '').length > max) {
+      out.push(problema(campo, `${campo}: no máximo ${max} caracteres.`));
+    }
+  }
+  if (!TELA_ERRO_APP.test(String(r.tela || ''))) {
+    out.push(problema('tela', 'A tela do erro é o nome interno dela (letras, números e hífen).'));
+  }
+  return out;
+}
+
 /* ------------------------------------------------------- LANÇAMENTO */
 function validarLancamento(l) {
   const out = [];
@@ -825,6 +845,8 @@ export {
   validarConstrutora,
   validarNovoAcesso,
   validarRelatorioGerado,
+  validarErroApp,
+  LIMITES_ERRO_APP,
   anexoValido,
   linkHttpsValido,
   validarObra,
