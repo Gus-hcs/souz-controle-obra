@@ -15,5 +15,9 @@ export const CFG = {
   /** true = o sistema exige banco; false = modo local/artefato */
   exigeBanco: String(env.VITE_EXIGE_BANCO ?? 'true') !== 'false',
   versao: env.VITE_VERSAO ?? '0.0.0-dev',
+  /** Termos de uso e política de privacidade: endereços https dos textos,
+      publicados fora do app. Vazio = a tela de entrada não mostra o link. */
+  termosUrl: env.VITE_TERMOS_URL ?? '',
+  privacidadeUrl: env.VITE_PRIVACIDADE_URL ?? '',
   ambiente: env.MODE ?? 'development',
 };

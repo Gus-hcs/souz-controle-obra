@@ -261,3 +261,6 @@ uma vez.
   `C:\Program Files\nodejs`.
 - Variáveis em arquivos `.env` (veja `.env.example`). `VITE_EXIGE_BANCO=true`
   força login; `false` roda local sem banco.
+- `VITE_TERMOS_URL` e `VITE_PRIVACIDADE_URL`: endereço https dos termos de uso
+  e da política de privacidade, publicados fora do app. Preenchidos (em
+  `.env.production`), a tela de entrada mostra os links; vazios, nada.

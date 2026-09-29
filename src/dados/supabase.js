@@ -7,6 +7,7 @@ import { CHAVE_BASE_OFFLINE, CHAVE_LOCAL, Store, erroDeRede } from './store.js';
 import { App, confirmar, confirmarDigitando, LOGO, toast } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
 import { LIBS, carregarScript } from '../io/index.js';
+import { linkHttpsValido } from '../dominio/validacao.js';
 
 /* Preenchido na publicação. Também pode ser informado na tela de conexão. */
 const SUPABASE_PADRAO = { url: CFG.url, anon: CFG.anon };
@@ -1047,6 +1048,20 @@ function fecharAcesso() {
   if (cx) cx.style.display = 'none';
 }
 
+/* Termos de uso e privacidade (CFG.termosUrl, CFG.privacidadeUrl): só o
+   link, que abre o texto publicado fora do app — nenhum texto jurídico
+   aqui. Só https; sem endereço, nada aparece. */
+function linksLegais() {
+  const links = [
+    [CFG.termosUrl, 'Termos de uso'],
+    [CFG.privacidadeUrl, 'Política de privacidade'],
+  ].filter(([url]) => url && linkHttpsValido(url));
+  if (!links.length) return '';
+  return `<p class="acesso-legal">${links
+    .map(([url, t]) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${t}</a>`)
+    .join('<span aria-hidden="true"> · </span>')}</p>`;
+}
+
 function telaLogin(modo = 'entrar', aviso = '') {
   const titulos = {
     entrar: ['Entrar no sistema', 'Use o e-mail e a senha da sua conta.'],
@@ -1079,7 +1094,8 @@ function telaLogin(modo = 'entrar', aviso = '') {
       ${modo === 'entrar'
         ? '<button class="btn sutil pequeno" data-acao="auth-tela" data-modo="recuperar">Esqueci a senha</button>'
         : '<button class="btn sutil pequeno" data-acao="auth-tela" data-modo="entrar">Voltar ao login</button>'}
-    </div>`);
+    </div>
+    ${modo === 'recuperar' ? '' : linksLegais()}`);
 }
 
 function telaConfigBanco(aviso = '') {
