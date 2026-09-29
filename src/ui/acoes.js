@@ -2,7 +2,7 @@
  * acoes.js — Ações: tudo que um clique dispara — abrir formulário, salvar, excluir.
  */
 import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, lerEfetivoFuncoes, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, textoEfetivoFuncoes, uid } from '../nucleo/base.js';
-import { efeitoDiarioNaEtapa, efetivoDiario, contratoTotalAutorizado, contratoTotalPago, contratoValor, etapaCalc, lancamentoTotal, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa } from '../dominio/calculos.js';
+import { efeitoDiarioNaEtapa, efetivoDiario, contratoTotalPago, medicaoLiquido, recebimentoDiferenca, recebimentoLiquido, saldoContratoAposMedicao, contratoValor, etapaCalc, lancamentoTotal, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa } from '../dominio/calculos.js';
 import { validarCliente, validarContrato, validarDependencias, validarDiario, validarEtapasContrato, validarEtapa, validarLancamento, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
@@ -480,11 +480,8 @@ function formMedicao(m, novo, aoSalvar) {
     ],
     valores: m,
     calcular: (d) => {
-      const liq = Math.max(0, num(d.valorMedido) - num(d.desconto));
-      const autorizado = contratoTotalAutorizado(o, d.contratoBase);
-      const pagoOutras = o.medicoes.filter((x) => x.contratoBase === d.contratoBase && x.id !== m.id && x.status !== 'Cancelado')
-        .reduce((s, x) => s + num(x.valorPago), 0);
-      const saldo = autorizado - pagoOutras - num(d.valorPago);
+      const liq = medicaoLiquido(d);
+      const { autorizado, pagoOutras, saldo } = saldoContratoAposMedicao(o, d.contratoBase, m.id, d.valorPago);
       let aviso = '';
       if (num(d.valorPago) > liq + 0.005) aviso = ' <b style="color:var(--critico)">· pagamento acima do líquido medido</b>';
       else if (saldo < -0.005) aviso = ' <b style="color:var(--critico)">· ultrapassa o contrato autorizado</b>';
@@ -558,8 +555,8 @@ function formRecebimento(r, novo, aoSalvar) {
     ],
     valores: r,
     calcular: (d) => {
-      const liq = Math.max(0, num(d.valorAprovado) - num(d.descontos));
-      const dif = num(d.valorRecebido) - num(d.valorPrevisto);
+      const liq = recebimentoLiquido(d);
+      const dif = recebimentoDiferenca(d);
       return {
         resumo: `Líquido esperado: <b>${fmtMoney(liq)}</b> · diferença previsto x recebido:
           <b style="color:${dif < 0 ? 'var(--critico)' : 'var(--ok)'}">${fmtMoney(dif)}</b>`

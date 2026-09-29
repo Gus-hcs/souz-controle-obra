@@ -28,6 +28,35 @@ function contratoTotalPago(obra, codigoBase) {
     .reduce((s, m) => s + num(m.valorPago), 0);
 }
 
+/* Conferência do formulário de medição: o autorizado no contrato, o já
+   pago nas outras medições (não canceladas) e o saldo depois desta —
+   autorizado − já pago − o valor pago nesta. Saldo negativo é aviso. */
+function saldoContratoAposMedicao(obra, codigoBase, medicaoId, valorPago) {
+  if (!codigoBase) return { autorizado: 0, pagoOutras: 0, saldo: 0 };
+  const autorizado = contratoTotalAutorizado(obra, codigoBase);
+  const pagoOutras = round2(
+    obra.medicoes
+      .filter((m) => m.contratoBase === codigoBase && m.id !== medicaoId && m.status !== 'Cancelado')
+      .reduce((s, m) => s + num(m.valorPago), 0),
+  );
+  return { autorizado, pagoOutras, saldo: round2(autorizado - pagoOutras - num(valorPago)) };
+}
+
+/* Soma das linhas de contrato da tela Contratos (cada uma com os
+   indicadores do contrato e a composição de aditivos): a faixa de KPIs e
+   os subtotais por grupo. */
+function totaisContratos(linhas) {
+  const soma = (f) => round2((linhas || []).reduce((s, l) => s + num(f(l)), 0));
+  return {
+    autorizado: soma((l) => l.ind && l.ind.autorizado),
+    medido: soma((l) => l.ind && l.ind.medido),
+    aPagarAgora: soma((l) => l.ind && l.ind.aPagarAgora),
+    aMedir: soma((l) => l.ind && l.ind.aMedir),
+    aditivosAprovados: soma((l) => (l.comp ? num(l.comp.totalAcrescimos) - num(l.comp.totalSupressoes) : 0)),
+    aditivosPendentes: soma((l) => l.comp && l.comp.pendentesValor),
+  };
+}
+
 function contratoSaldo(obra, codigoBase) {
   return contratoTotalAutorizado(obra, codigoBase) - contratoTotalPago(obra, codigoBase);
 }
@@ -1504,6 +1533,20 @@ function pendenciasDoCliente(obra, hoje = hojeISO()) {
   const vencidas = abertas.filter((p) => isISO(p.prazo) && p.prazo < hoje);
   return { abertas, vencidas, resolvidas: (obra.pendenciasCliente || []).filter((p) => p.status === 'resolvida').length };
 }
+
+/* O que o cliente deve à construtora nas obras dele (pendências abertas e
+   vencidas) e o valor de venda somado — a linha do cliente na tela
+   Clientes. */
+function pendenciasDasObrasDoCliente(obras, hoje = hojeISO()) {
+  return (obras || []).reduce(
+    (s, o) => {
+      const pc = pendenciasDoCliente(o, hoje);
+      return { abertas: s.abertas + pc.abertas.length, vencidas: s.vencidas + pc.vencidas.length };
+    },
+    { abertas: 0, vencidas: 0 },
+  );
+}
+const valorVendaObras = (obras) => round2((obras || []).reduce((s, o) => s + num(o.fin && o.fin.valorVenda), 0));
 
 /* Dias desde o último status enviado ao cliente (desde o início da obra,
    se nunca foi enviado). null sem cliente ou obra fora de andamento. */
@@ -3483,6 +3526,8 @@ export {
   contratoValor,
   contratoTotalAutorizado,
   contratoTotalPago,
+  saldoContratoAposMedicao,
+  totaisContratos,
   contratoSaldo,
   basesContratuais,
   contratoFimVigente,
@@ -3554,6 +3599,8 @@ export {
   fluxoProjetadoCarteira,
   custoPorEtapa,
   pendenciasDoCliente,
+  pendenciasDasObrasDoCliente,
+  valorVendaObras,
   diasSemStatusCliente,
   ultimoStatusCliente,
   orcadoRealizadoPorEtapa,
