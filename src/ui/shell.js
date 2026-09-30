@@ -45,6 +45,9 @@ const ICO = {
   maisH: '<circle cx="3.5" cy="8" r=".6" fill="currentColor"/><circle cx="8" cy="8" r=".6" fill="currentColor"/><circle cx="12.5" cy="8" r=".6" fill="currentColor"/>',
   contatos: '<rect x="3" y="1.8" width="10" height="12.4" rx="1.5"/><circle cx="8" cy="6.6" r="1.9"/><path d="M5 11.6c.5-1.4 1.6-2.1 3-2.1s2.5.7 3 2.1"/>',
   estrela: '<path d="M8 1.9l1.8 3.8 4.1.5-3 2.8.8 4.1L8 11.1 4.3 13.1l.8-4.1-3-2.8 4.1-.5z"/>',
+  /* leitura de nota por IA (0027) */
+  camera: '<path d="M2 5.5h2.4l1.2-1.8h4.8l1.2 1.8H14v7.5H2z"/><circle cx="8" cy="9" r="2.3"/>',
+  cadeado: '<rect x="3.5" y="7" width="9" height="6.5" rx="1"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>',
   empresa: '<path d="M2.5 14V4l5.5-2.5V14M8 14V6.5l5.5 2V14"/><path d="M1 14h14"/>'
 };
 

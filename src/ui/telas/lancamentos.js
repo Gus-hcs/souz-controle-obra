@@ -51,6 +51,7 @@ import { ACOES } from '../acoes.js';
 import { App, botao, ICO, opcoesEtapas, opcoesLista, svg, toast } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
 import { historicoDoRegistro } from './auditoria.js';
+import { botaoNotaIa } from './nota-ia.js';
 import {
   barraFiltros,
   botaoNovo,
@@ -243,7 +244,8 @@ VIEWS.lancamentos = () => {
       titulo: 'Nenhum lançamento',
       texto:
         'Registre aqui compras de material, taxas, honorários e serviços sem medição. Pagamento de prestador por medição vai em Medições.',
-      acao: botao('Registrar lançamento', 'novo-lancamento', {}, 'btn primario', 'mais'),
+      acao:
+        botao('Registrar lançamento', 'novo-lancamento', {}, 'btn primario', 'mais') + botaoNotaIa(o),
     });
   }
 
@@ -481,6 +483,7 @@ VIEWS.lancamentos.toolbar = () => {
   if (!o || !o.lancamentos.length) return '';
   return (
     buscaToolbar('Buscar lançamento', 'busca-lancamentos') +
+    botaoNotaIa(o) +
     botaoNovo('Novo lançamento', 'novo-lancamento')
   );
 };

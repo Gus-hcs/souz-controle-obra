@@ -35,10 +35,11 @@ import {
   STATUS_OCORRENCIA,
   STATUS_TRATAMENTO,
   TIPOS_ADITIVO,
+  fmtMoney,
   hojeISO,
 } from '../nucleo/base.js';
 import { motivoTelefoneInvalido } from '../nucleo/contato.js';
-import { lancamentoTotal } from './calculos.js';
+import { lancamentoTotal, notaJaLancada, somaLeituraNota } from './calculos.js';
 
 const REGISTROS_CONTRATO = ['Contrato', 'Aditivo'];
 const TIPOS_ADITIVO_VALIDOS = TIPOS_ADITIVO.map((x) => x.v);
@@ -271,6 +272,150 @@ function validarRelatorioGerado(r) {
   if (arq && !(ANEXO_STORAGE.test(arq) && arq.length <= 300)) {
     out.push(problema('arquivo', 'O arquivo do relatório precisa estar no armazenamento da obra.'));
   }
+  return out;
+}
+
+/* ------------------------------------------- LEITURA DE NOTA (IA, 0027) */
+/* O que a IA devolve ao ler a foto da nota. Nada disto vai ao banco como
+   está: a pessoa confere e os lançamentos passam por validarLancamento.
+   A função `ia` (supabase/functions/ia/leitura.js) tem a mesma regra —
+   tests/ia-leitura-nota.test.js confere que as duas dizem o mesmo. */
+const LIMITES_LEITURA_NOTA = {
+  itens: 60,
+  descricao: 200,
+  fornecedor: 120,
+  numero: 20,
+  texto: 80,
+  unidade: 20,
+  motivo: 200,
+  valor: 100000000,
+};
+const TIPOS_DOCUMENTO_NOTA = ['nfe', 'nfce', 'nfse', 'cupom', 'recibo', 'outro'];
+const CAMPOS_INCERTOS_NOTA = [
+  'fornecedor',
+  'cnpj',
+  'numero',
+  'dataEmissao',
+  'totalNota',
+  'desconto',
+  'frete',
+  'formaPagamento',
+  'itens',
+];
+function validarLeituraNota(l) {
+  const L = LIMITES_LEITURA_NOTA;
+  const out = [];
+  if (!l || typeof l !== 'object' || Array.isArray(l)) {
+    return [problema('leitura', 'A leitura da nota veio num formato inválido.')];
+  }
+  if (typeof l.legivel !== 'boolean') out.push(problema('legivel', 'A leitura não disse se a nota é legível.'));
+  const texto = (v, campo, max) => {
+    if (v == null) return;
+    if (typeof v !== 'string' || v.length > max) {
+      out.push(problema(campo, `${campo}: texto de até ${max} caracteres.`));
+    }
+  };
+  const valor = (v, campo, positivo = false) => {
+    if (v == null) return;
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > L.valor || (positivo && v === 0)) {
+      out.push(problema(campo, `${campo}: valor fora do possível.`));
+    }
+  };
+  texto(l.motivo, 'motivo', L.motivo);
+  if (!TIPOS_DOCUMENTO_NOTA.includes(l.tipoDocumento)) {
+    out.push(problema('tipoDocumento', 'Tipo de documento desconhecido.'));
+  }
+  texto(l.fornecedor, 'fornecedor', L.fornecedor);
+  if (l.cnpj != null && !/^\d{14}$/.test(String(l.cnpj))) {
+    out.push(problema('cnpj', 'O CNPJ lido precisa ter 14 dígitos.'));
+  }
+  texto(l.numero, 'numero', L.numero);
+  /* data que existe no calendário: "2026-02-30" não passa */
+  const dataReal = (s) => {
+    const d = isISO(s) ? new Date(s + 'T12:00:00Z') : null;
+    return !!d && !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+  };
+  if (l.dataEmissao != null && !dataReal(l.dataEmissao)) {
+    out.push(problema('dataEmissao', 'A data da nota precisa ser AAAA-MM-DD.'));
+  }
+  valor(l.totalNota, 'totalNota');
+  valor(l.desconto, 'desconto');
+  valor(l.frete, 'frete');
+  texto(l.formaPagamento, 'formaPagamento', L.texto);
+  if (!Array.isArray(l.incertos) || l.incertos.some((c) => !CAMPOS_INCERTOS_NOTA.includes(c))) {
+    out.push(problema('incertos', 'Lista de campos incertos inválida.'));
+  }
+  if (!Array.isArray(l.itens) || l.itens.length > L.itens) {
+    out.push(problema('itens', `A nota precisa de uma lista de até ${L.itens} itens.`));
+    return out;
+  }
+  if (l.legivel === true && !l.itens.length) {
+    out.push(problema('itens', 'Nota legível sem nenhum item.'));
+  }
+  l.itens.forEach((it, i) => {
+    const c = `itens[${i}]`;
+    if (!it || typeof it !== 'object') return out.push(problema(c, 'Item inválido.'));
+    if (typeof it.descricao !== 'string' || !it.descricao.trim() || it.descricao.length > L.descricao) {
+      out.push(problema(`${c}.descricao`, `Item ${i + 1}: descrição de 1 a ${L.descricao} caracteres.`));
+    }
+    valor(it.quantidade, `${c}.quantidade`, true);
+    valor(it.valorUnitario, `${c}.valorUnitario`);
+    valor(it.valorTotal, `${c}.valorTotal`);
+    valor(it.valorServico, `${c}.valorServico`);
+    texto(it.unidade, `${c}.unidade`, L.unidade);
+    texto(it.categoria, `${c}.categoria`, L.texto);
+    texto(it.etapa, `${c}.etapa`, L.texto);
+    texto(it.materialId, `${c}.materialId`, L.texto);
+    if (typeof it.servico !== 'boolean') out.push(problema(`${c}.servico`, `Item ${i + 1}: diga se é serviço.`));
+    if (it.valorTotal == null && (it.quantidade == null || it.valorUnitario == null)) {
+      out.push(problema(`${c}.valorTotal`, `Item ${i + 1}: sem valor.`));
+    }
+  });
+  return out;
+}
+
+/* A conferência da nota antes de criar os lançamentos: alertas, não
+   erros — a pessoa vê, corrige ou segue. A conta sai de calculos.js. */
+function alertasLeituraNota(l, obra, hoje = hojeISO(), prestadores = []) {
+  const out = [];
+  const alerta = (campo, mensagem) => out.push(problema(campo, mensagem, 'alerta'));
+  const s = somaLeituraNota(l);
+  if (l.totalNota != null && Math.abs(s.diferenca) > 0.05) {
+    alerta(
+      'totalNota',
+      `A soma dos itens (menos desconto, mais frete) dá ${fmtMoney(s.calculado)}, mas a nota diz ${fmtMoney(l.totalNota)}. Confira os valores.`,
+    );
+  }
+  if (l.cnpj) {
+    const m = motivoCpfCnpjInvalido(l.cnpj);
+    if (m) alerta('cnpj', `${m} Confira o CNPJ do fornecedor.`);
+  }
+  if (l.dataEmissao && isISO(l.dataEmissao) && l.dataEmissao > hoje) {
+    alerta('dataEmissao', 'A data da nota está no futuro. Confira.');
+  }
+  if (obra && notaJaLancada(obra, l, prestadores).length) {
+    alerta('numero', 'Esta nota parece já ter sido lançada nesta obra (mesmo número e fornecedor).');
+  }
+  (l.incertos || []).forEach((c) => alerta(c, 'A IA não teve certeza deste campo. Confira na foto.'));
+  return out;
+}
+
+/* IA de uma construtora ou conta avulsa (admin) — espelha
+   chk_ia_config_cotas (0027): cotas e leituras a mais de 0 a 100.000,
+   inteiras; prazo em data. */
+function validarIaConfig(c) {
+  const out = [];
+  for (const [k, rotulo] of [
+    ['cotaNotas', 'Notas por mês'],
+    ['cotaTextos', 'Textos por mês'],
+    ['extraNotas', 'Leituras a mais neste mês'],
+  ]) {
+    const v = num(c[k]);
+    if (!Number.isInteger(v) || v < 0 || v > 100000) {
+      out.push(problema(k, `${rotulo}: número inteiro de 0 a 100.000.`));
+    }
+  }
+  if (c.validaAte && !isISO(c.validaAte)) out.push(problema('validaAte', 'Prazo: data inválida.'));
   return out;
 }
 
@@ -847,6 +992,12 @@ export {
   validarRelatorioGerado,
   validarErroApp,
   LIMITES_ERRO_APP,
+  validarLeituraNota,
+  alertasLeituraNota,
+  validarIaConfig,
+  LIMITES_LEITURA_NOTA,
+  TIPOS_DOCUMENTO_NOTA,
+  CAMPOS_INCERTOS_NOTA,
   anexoValido,
   linkHttpsValido,
   validarObra,

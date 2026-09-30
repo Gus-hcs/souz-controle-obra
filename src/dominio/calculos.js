@@ -3577,6 +3577,221 @@ function addDiasISO(iso, n) {
   return d.toISOString().slice(0, 10);
 }
 
+/* ============================================ LEITURA DE NOTA (IA, 0027)
+   A IA lê a foto; daqui para a frente é conta do sistema: soma, nota
+   repetida, fornecedor pelo CNPJ e a conversão em lançamentos. */
+
+/* valor de um item lido: o total da linha, ou quantidade × unitário */
+const valorItemNota = (it) =>
+  it.valorTotal != null ? num(it.valorTotal) : round2(num(it.quantidade || 1) * num(it.valorUnitario));
+
+/* soma dos itens − desconto + frete, e a diferença para o total da nota */
+function somaLeituraNota(l) {
+  const itens = round2((l.itens || []).reduce((s, it) => s + valorItemNota(it), 0));
+  const calculado = round2(itens - num(l.desconto) + num(l.frete));
+  const diferenca = l.totalNota == null ? 0 : round2(calculado - num(l.totalNota));
+  return { itens, calculado, diferenca };
+}
+
+const soDigitos = (s) => String(s || '').replace(/\D/g, '');
+
+/* o fornecedor do cadastro com esse CNPJ (prestadores, 0018) */
+function fornecedorPorCnpj(prestadores, cnpj) {
+  const d = soDigitos(cnpj);
+  if (d.length !== 14) return null;
+  return (prestadores || []).find((p) => !p.arquivado && soDigitos(p.documento) === d) || null;
+}
+
+/* lançamentos da obra com o mesmo número de nota e o mesmo fornecedor */
+function notaJaLancada(obra, l, prestadores = []) {
+  const numero = soDigitos(l.numero).replace(/^0+/, '');
+  if (!numero) return [];
+  const cad = fornecedorPorCnpj(prestadores, l.cnpj);
+  const nomes = [l.fornecedor, cad && cad.nome].filter(Boolean).map(norm);
+  return (obra.lancamentos || []).filter((x) => {
+    if (soDigitos(x.documento).replace(/^0+/, '') !== numero) return false;
+    return !nomes.length || !x.fornecedor || nomes.includes(norm(x.fornecedor));
+  });
+}
+
+/* sinônimos de unidade que aparecem em nota → a lista do sistema */
+const UNIDADES_NOTA = {
+  un: 'un', und: 'un', unid: 'un', pc: 'un', pç: 'un', peca: 'un', peça: 'un',
+  m: 'm', mt: 'm', ml: 'm', m2: 'm²', 'm²': 'm²', m3: 'm³', 'm³': 'm³',
+  kg: 'kg', t: 't', ton: 't', sc: 'saco', saco: 'saco', mil: 'milheiro', milheiro: 'milheiro',
+  br: 'barra', barra: 'barra', cx: 'caixa', caixa: 'caixa', lt: 'lata', lata: 'lata',
+  pal: 'palete', palete: 'palete', vb: 'vb', sv: 'serviço', serv: 'serviço', serviço: 'serviço',
+};
+function unidadeDaNota(u, unidades) {
+  const n = norm(u).replace(/[.\s]/g, '');
+  const achada = (unidades || []).find((x) => norm(x) === n);
+  if (achada) return achada;
+  const sin = UNIDADES_NOTA[n];
+  return sin && (!unidades || !unidades.length || unidades.includes(sin)) ? sin : 'un';
+}
+function opcaoDaLista(v, lista, padrao) {
+  if (!v) return padrao;
+  const n = norm(v);
+  return (lista || []).find((x) => norm(x) === n || n.startsWith(norm(x))) || padrao;
+}
+
+/* Tipo de saída de um item: serviço puro, material com instalação (a
+   parte de serviço vira valorMaoDeObra, 0025) ou material. */
+function tipoItemNota(it, total, tipos) {
+  const tem = (t) => !tipos || !tipos.length || tipos.includes(t);
+  const servico = num(it.valorServico);
+  if (it.servico && (!(servico > 0) || servico >= total - 0.005) && tem('Serviço avulso')) {
+    return { tipo: 'Serviço avulso', valorMaoDeObra: 0 };
+  }
+  if (servico > 0 && servico < total && tem(TIPO_FORNECIMENTO_INSTALACAO)) {
+    return { tipo: TIPO_FORNECIMENTO_INSTALACAO, valorMaoDeObra: round2(servico) };
+  }
+  return { tipo: 'Material', valorMaoDeObra: 0 };
+}
+
+/* Divide um valor (desconto ou frete da nota) entre os itens na proporção
+   do valor de cada um; o centavo que sobra vai para o maior item. */
+function ratearNota(valor, bases) {
+  const v = round2(num(valor));
+  const soma = bases.reduce((s, b) => s + b, 0);
+  if (!(v > 0) || !(soma > 0)) return bases.map(() => 0);
+  const partes = bases.map((b) => round2((v * b) / soma));
+  const resto = round2(v - partes.reduce((s, p) => s + p, 0));
+  if (resto) {
+    const maior = bases.indexOf(Math.max(...bases));
+    partes[maior] = round2(partes[maior] + resto);
+  }
+  return partes;
+}
+
+/* Leitura conferida → campos de lançamento (a tela cria cada um com
+   novoLancamento()). modo 'itens': um por item, com desconto e frete da
+   nota rateados; 'total': um só, com a nota inteira. Etapa só da lista de
+   etapas, item do plano só se existir na obra; unidade, tipo e pagamento
+   só da lista. */
+function lancamentosDaLeitura(l, obra, opcoes = {}) {
+  const { modo = 'itens', listas = {}, prestadores = [], anexoNf = '', hoje = hojeISO() } = opcoes;
+  /* a etapa do lançamento vem da lista de etapas (a do formulário); sem
+     lista, os nomes do cronograma da obra */
+  const etapas = listas.etapas && listas.etapas.length
+    ? listas.etapas
+    : (obra.cronograma || []).map((e) => e.etapa);
+  const etapaDa = (e) => etapas.find((x) => norm(x) === norm(e)) || '';
+  const material = (id) => (obra.materiais || []).find((m) => m.id === id) || null;
+  const cad = fornecedorPorCnpj(prestadores, l.cnpj);
+  const comum = {
+    data: isISO(l.dataEmissao) ? l.dataEmissao : hoje,
+    fornecedor: (cad && cad.nome) || String(l.fornecedor || '').trim(),
+    documento: l.numero ? `NF ${String(l.numero).trim()}` : '',
+    formaPagamento: opcaoDaLista(l.formaPagamento, listas.formasPagamento, 'Outro'),
+    anexoNf,
+    observacoes: '',
+  };
+  const itens = (l.itens || []).filter((it) => String(it.descricao || '').trim());
+  if (!itens.length) return [];
+  const bases = itens.map(valorItemNota);
+
+  if (modo === 'total') {
+    const bruto = round2(bases.reduce((s, b) => s + b, 0));
+    const tipos = itens.map((it, i) => tipoItemNota(it, bases[i], listas.tiposSaida));
+    const servicoTotal = round2(tipos.reduce((s, t, i) =>
+      s + (t.tipo === 'Serviço avulso' ? bases[i] : t.valorMaoDeObra), 0));
+    const soServico = tipos.every((t) => t.tipo === 'Serviço avulso');
+    const maisFrequente = (lista) => {
+      const cont = {};
+      lista.filter(Boolean).forEach((x) => { cont[x] = (cont[x] || 0) + 1; });
+      return Object.keys(cont).sort((a, b) => cont[b] - cont[a])[0] || '';
+    };
+    const primeiro = itens[0].descricao.trim();
+    const descricao = itens.length === 1
+      ? primeiro
+      : `${primeiro} e mais ${itens.length - 1} ${itens.length === 2 ? 'item' : 'itens'}`;
+    const tipo = soServico ? 'Serviço avulso'
+      : servicoTotal > 0 && (!listas.tiposSaida || listas.tiposSaida.includes(TIPO_FORNECIMENTO_INSTALACAO))
+        ? TIPO_FORNECIMENTO_INSTALACAO : 'Material';
+    return [{
+      ...comum,
+      descricao: descricao.slice(0, 200),
+      quantidade: 1,
+      unidade: unidadeDaNota('vb', listas.unidades),
+      precoUnitario: bruto,
+      desconto: round2(num(l.desconto)),
+      frete: round2(num(l.frete)),
+      tipo,
+      valorMaoDeObra: tipo === TIPO_FORNECIMENTO_INSTALACAO ? servicoTotal : 0,
+      etapa: etapaDa(maisFrequente(itens.map((it) => etapaDa(it.etapa)))),
+      categoria: maisFrequente(itens.map((it) => String(it.categoria || '').trim())),
+      materialId: '',
+      observacoes: `Nota com ${itens.length} ${itens.length === 1 ? 'item' : 'itens'}: ` +
+        itens.map((it) => it.descricao.trim()).join('; ').slice(0, 400),
+    }];
+  }
+
+  const descontos = ratearNota(l.desconto, bases);
+  const fretes = ratearNota(l.frete, bases);
+  return itens.map((it, i) => {
+    const q = num(it.quantidade) > 0 ? num(it.quantidade) : 1;
+    const unit = it.valorUnitario != null && Math.abs(q * num(it.valorUnitario) - bases[i]) <= 0.01
+      ? num(it.valorUnitario)
+      : Math.round((bases[i] / q) * 1e6) / 1e6;
+    const t = tipoItemNota(it, bases[i], listas.tiposSaida);
+    const mat = material(it.materialId);
+    const final = round2(q * unit - descontos[i] + fretes[i]);
+    return {
+      ...comum,
+      descricao: it.descricao.trim().slice(0, 200),
+      quantidade: q,
+      unidade: unidadeDaNota(it.unidade, listas.unidades),
+      precoUnitario: unit,
+      desconto: descontos[i],
+      frete: fretes[i],
+      tipo: t.tipo,
+      valorMaoDeObra: t.tipo === TIPO_FORNECIMENTO_INSTALACAO ? Math.min(t.valorMaoDeObra, final) : 0,
+      etapa: etapaDa(it.etapa) || (mat ? etapaDa(mat.etapa) : ''),
+      categoria: String(it.categoria || '').trim().slice(0, 80),
+      materialId: mat ? mat.id : '',
+    };
+  });
+}
+
+/* Quantos campos a pessoa mudou na conferência (a medida de acerto da IA
+   em produção, ia_uso.campos_corrigidos — só o número, nunca o conteúdo).
+   Item tirado da nota conta como um. */
+function camposCorrigidosNota(original, final, excluidos = 0) {
+  const igual = (a, b) =>
+    typeof a === 'number' || typeof b === 'number'
+      ? Math.abs(num(a) - num(b)) < 0.005
+      : String(a ?? '').trim() === String(b ?? '').trim();
+  let n = 0;
+  for (const k of ['fornecedor', 'cnpj', 'numero', 'dataEmissao', 'formaPagamento']) {
+    if (!igual(original[k], final[k])) n++;
+  }
+  (original.itens || []).forEach((it, i) => {
+    const f = (final.itens || [])[i] || {};
+    for (const k of ['descricao', 'valorTotal', 'etapa']) {
+      if (!igual(it[k], f[k])) n++;
+    }
+  });
+  return Math.min(500, n + num(excluidos));
+}
+
+/* Cota da IA para a tela (ia_situacao, 0027): quanto sobra, aviso aos 80%. */
+function situacaoCotaIa(s) {
+  if (!s || !s.ligada) return { ligada: false, restante: 0, fracao: 0, aviso: false, esgotada: true };
+  const cota = Math.max(0, num(s.cota_notas));
+  const usado = Math.max(0, num(s.usado_notas));
+  const fracao = cota > 0 ? Math.min(1, usado / cota) : 1;
+  return {
+    ligada: true,
+    cota,
+    usado,
+    restante: Math.max(0, cota - usado),
+    fracao,
+    aviso: fracao >= 0.8,
+    esgotada: usado >= cota,
+  };
+}
+
 /* Erros do app (0026) para o admin: o mesmo erro (mensagem + origem) numa
    linha só, com quantas vezes, quantas contas, em que telas e versões, o
    primeiro e o último; o mais recente em cima. `agora` em ms, para as 24 h. */
@@ -3609,6 +3824,14 @@ function resumoErrosApp(lista, agora = Date.now()) {
 }
 
 export {
+  somaLeituraNota,
+  fornecedorPorCnpj,
+  notaJaLancada,
+  lancamentosDaLeitura,
+  unidadeDaNota,
+  ratearNota,
+  situacaoCotaIa,
+  camposCorrigidosNota,
   resumoErrosApp,
   renomearItemLista,
   saudeDados,

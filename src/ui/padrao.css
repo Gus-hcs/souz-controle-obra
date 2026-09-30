@@ -2068,3 +2068,114 @@ table.lista td s,
     font-size: 16px;
   }
 }
+
+/* Lançar pela nota (IA, 0027): conferência antes de gravar */
+.nota-ia {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e3);
+}
+.nota-ia .campo.incerto input,
+.nota-ia .campo.incerto select {
+  background: var(--alerta-fundo);
+  border-color: var(--alerta);
+}
+.nota-ia-modo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e2) var(--e4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.nota-ia-modo legend {
+  padding: 0;
+  margin-bottom: var(--e1);
+  font-weight: var(--p-medio);
+}
+.nota-ia-modo label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e1);
+}
+.nota-ia-itens input[type='text'] {
+  width: 100%;
+  min-width: 140px;
+}
+.nota-ia-itens td .tinta2 {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--t-peq);
+}
+.nota-ia-resumo {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.nota-ia-alertas {
+  margin: 0;
+  padding: var(--e2) var(--e3) var(--e2) calc(var(--e3) + 14px);
+  border-left: 3px solid var(--alerta);
+  background: var(--alerta-fundo);
+  color: var(--tinta);
+  border-radius: var(--r-campo);
+}
+.nota-ia-escolha {
+  display: flex;
+  flex-direction: column;
+  gap: var(--e3);
+}
+@media (max-width: 767px) {
+  .nota-ia-modo label,
+  .nota-ia-escolha .btn {
+    min-height: 44px;
+  }
+  .nota-ia-itens input[type='checkbox'] {
+    width: 22px;
+    height: 22px;
+  }
+  /* itens em cartão: descrição inteira em cima, total e etapa embaixo */
+  .nota-ia table.nota-ia-itens thead {
+    display: none;
+  }
+  .nota-ia table.nota-ia-itens tr {
+    display: grid;
+    grid-template-columns: 32px 1fr 1fr;
+    gap: var(--e2);
+    padding: var(--e3) 0;
+    border-bottom: var(--fio) solid var(--separador);
+  }
+  .nota-ia table.nota-ia-itens td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+  .nota-ia table.nota-ia-itens td:first-child {
+    grid-row: span 2;
+    padding-top: 10px;
+  }
+  .nota-ia table.nota-ia-itens td[data-rotulo='Item'] {
+    grid-column: 2 / 4;
+  }
+  .nota-ia table.nota-ia-itens td[data-rotulo]::before {
+    display: none;
+  }
+  .nota-ia table.nota-ia-itens td[data-rotulo='Total']::before,
+  .nota-ia table.nota-ia-itens td[data-rotulo='Etapa']::before {
+    display: block;
+    content: attr(data-rotulo);
+    margin-bottom: 2px;
+    font-size: var(--t-peq);
+    color: var(--tinta2);
+  }
+  .nota-ia table.nota-ia-itens select,
+  .nota-ia table.nota-ia-itens input[type='text'] {
+    width: 100%;
+    min-width: 0;
+  }
+  #topo [data-acao='nota-ia'],
+  #topo [data-acao='nota-ia-plano'] {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+  }
+}
