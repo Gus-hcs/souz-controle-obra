@@ -39,6 +39,7 @@ import {
   App,
   ICO,
   abrirForm,
+  abrirModal,
   botao,
   confirmar,
   fecharModal,
@@ -47,6 +48,8 @@ import {
   toast,
 } from '../shell.js';
 import { VIEWS } from '../telas-obra.js';
+import { campoAnexo, htmlAnexo } from '../anexos.js';
+import { linkHttpsValido, validarContrato } from '../../dominio/validacao.js';
 import {
   barraFiltros,
   botaoNovo,
@@ -543,9 +546,9 @@ function inspetorContrato(o, l) {
       <div class="inspetor-secao"><h3>Composição</h3>${composicao}</div>
       <div class="inspetor-secao"><h3>Últimas medições</h3>${medicoesHtml}</div>
       ${
-        l.principal.documentoUrl
-          ? `<div class="inspetor-secao"><h3>Documento</h3>
-        <a class="btn sutil" href="${esc(l.principal.documentoUrl)}" target="_blank" rel="noopener" data-acao="abrir-externo">${svg(ICO.baixar, 14)}Ver documento anexado</a>
+        l.principal.anexo || linkHttpsValido(l.principal.documentoUrl)
+          ? `<div class="inspetor-secao"><h3>Contrato assinado</h3>
+        <button class="btn sutil" data-acao="ct-ver-anexo" data-base="${esc(l.base)}">${svg(ICO.clipe, 14)}Ver contrato</button>
       </div>`
           : ''
       }
@@ -716,31 +719,66 @@ ACOES['ct-registrar-pagamento'] = (el, d) => {
   ACOES['editar-medicao'](el, { id: pendente[0].id });
 };
 
+/* Contrato assinado (0025): foto ou PDF no armazenamento da obra (pasta
+   contratos/, que o cliente final não lê — 0023), como a nota fiscal do
+   lançamento. O link de antes continua valendo, só https. */
+const contratoEmEdicao = { ref: '' };
 ACOES['ct-anexar'] = (el, d) => {
   const o = App.obra();
   const c = contratoPrincipal(o, d.base);
   if (!c) return;
+  contratoEmEdicao.ref = c.anexo || '';
   abrirForm({
-    titulo: `Anexar contrato — ${d.base}`,
+    titulo: `Contrato assinado — ${d.base}`,
     campos: [
       {
         k: 'documentoUrl',
-        label: 'Link do documento',
+        label: 'Ou o link do arquivo (opcional)',
         tipo: 'texto',
         col: 12,
         placeholder: 'https://…',
-        dica: 'Cole o link do arquivo (Storage, Drive, etc.) — o sistema ainda não faz o upload direto.',
+        dica: 'se o contrato está no Drive ou em outro lugar',
       },
     ],
     valores: c,
+    validar: (dados) =>
+      validarContrato({ ...c, documentoUrl: dados.documentoUrl, anexo: contratoEmEdicao.ref }),
     aoSalvar: (dados) => {
       mutar(() => {
+        c.anexo = contratoEmEdicao.ref;
         c.documentoUrl = String(dados.documentoUrl || '').trim();
       });
       fecharModal();
-      toast('Documento anexado.', 'ok');
+      toast(c.anexo || c.documentoUrl ? 'Contrato anexado.' : 'Anexo retirado.', 'ok');
     },
   });
+  const form = document.querySelector('#modal-camada [data-form]');
+  if (!form) return;
+  campoAnexo(form, contratoEmEdicao, {
+    rotulo: 'Contrato assinado',
+    destino: { obraId: o.id, pasta: 'contratos', id: c.id },
+    dica: 'foto ou PDF, até 10 MB — o cliente final não vê',
+  });
+  /* o arquivo primeiro; o link é a alternativa */
+  form.insertBefore(form.lastElementChild, form.firstElementChild);
+};
+
+/* Ver o contrato: o arquivo anexado ou, sem ele, o link https. Também da
+   ficha do prestador (data-obra + data-id). */
+ACOES['ct-ver-anexo'] = async (el, d) => {
+  const o = d.obra ? Store.estado.obras.find((x) => x.id === d.obra) : App.obra();
+  const c = o && (d.id ? o.contratos.find((x) => x.id === d.id) : contratoPrincipal(o, d.base));
+  if (!c) return;
+  const titulo = `Contrato ${c.codigo || d.base || ''}`.trim();
+  if (c.anexo) {
+    try {
+      abrirModal({ titulo, largura: 'largo', corpo: await htmlAnexo(c.anexo, titulo) });
+    } catch (e) {
+      toast(String((e && e.message) || e), 'critico');
+    }
+    return;
+  }
+  if (linkHttpsValido(c.documentoUrl)) window.open(String(c.documentoUrl).trim(), '_blank', 'noopener');
 };
 
 ACOES['ct-encerrar'] = (el, d) => {

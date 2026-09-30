@@ -1,12 +1,12 @@
 /**
  * acoes.js — Ações: tudo que um clique dispara — abrir formulário, salvar, excluir.
  */
-import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fonteImagem, hojeISO, isISO, lerEfetivoFuncoes, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, textoEfetivoFuncoes, uid } from '../nucleo/base.js';
-import { efeitoDiarioNaEtapa, efetivoDiario, contratoTotalPago, medicaoLiquido, recebimentoDiferenca, recebimentoLiquido, saldoContratoAposMedicao, contratoValor, etapaCalc, lancamentoTotal, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa } from '../dominio/calculos.js';
+import { addDias, diasEntre, esc, fmtData, fmtMoney, fmtNum, fmtPct, fonteImagem, hojeISO, isISO, lerEfetivoFuncoes, norm, novaEtapaCronograma, novaMedicao, novaObra, novoCliente, novoContrato, novoDiario, novoLancamento, novoMaterial, novoPrestador, novoRecebimento, num, textoEfetivoFuncoes, uid } from '../nucleo/base.js';
+import { efeitoDiarioNaEtapa, efetivoDiario, kpisObra, contratoTotalPago, medicaoLiquido, recebimentoDiferenca, recebimentoLiquido, saldoContratoAposMedicao, TIPO_FORNECIMENTO_INSTALACAO, valorPorCategoria, contratoValor, etapaCalc, lancamentoTotal, recebimentoDoFinanciamento, materialCalc, medicaoAlerta, resumoPrestador, unidadeSugeridaEtapa } from '../dominio/calculos.js';
 import { validarCliente, validarContrato, validarDependencias, validarDiario, validarEtapasContrato, validarEtapa, validarLancamento, validarMaterial, validarMedicao, validarObra, validarPrestador, validarRecebimento } from '../dominio/validacao.js';
 import { Store, mutar } from '../dados/store.js';
 import { SUPA } from '../dados/supabase.js';
-import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, confirmarDigitando, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
+import { App, VIEWS_OBRA, abrirForm, abrirModal, confirmar, confirmarDigitando, fecharModal, lerForm, modalAoSalvar, modalValidar, mostrarAvisosForm, obrasRecentes, opcoesEtapas, opcoesLista, partesNomeObra, toast } from './shell.js';
 import { carregarAuditoria, implExpandida } from './telas-obra.js';
 import { atribFoto, campoAnexo, comprimirImagem, guardarFotoDiario, htmlAnexo } from './anexos.js';
 
@@ -218,20 +218,49 @@ function fecharMenuObra() {
   const b = document.querySelector('[data-acao="obra-menu"]');
   if (b) b.setAttribute('aria-expanded', 'false');
 }
+/* Seletor de obra: as abertas por último primeiro (obrasRecentes, no
+   aparelho), situação e avanço físico em cada linha, e busca por nome,
+   cliente ou cidade quando há mais de 5 obras. No celular abre de ponta a
+   ponta, com linhas de 44 px (interface.css). */
 ACOES['obra-menu'] = (el) => {
   if (document.querySelector('.menu-obra')) return fecharMenuObra();
   const naCarteira = App.rota.view === 'carteira';
-  const item = (id, l1, l2, marcado) => `<button role="menuitemradio" aria-checked="${marcado}"
-      data-acao="trocar-obra-id" data-obra="${esc(id)}"><span class="item-duplo"><b>${esc(l1)}</b>${l2 ? `<span>${esc(l2)}</span>` : ''}</span></button>`;
+  const item = (
+    id,
+    l1,
+    l2,
+    marcado,
+    busca = '',
+  ) => `<button role="menuitemradio" aria-checked="${marcado}"
+      data-acao="trocar-obra-id" data-obra="${esc(id)}"${busca ? ` data-busca="${esc(busca)}"` : ''}><span class="item-duplo"><b>${esc(l1)}</b>${l2 ? `<span>${esc(l2)}</span>` : ''}</span></button>`;
+  const recentes = obrasRecentes();
+  const ordem = (o) => {
+    const i = recentes.indexOf(o.id);
+    return i < 0 ? recentes.length : i;
+  };
+  const obras = [...Store.estado.obras].sort((a, b) => ordem(a) - ordem(b));
+  const comBusca = obras.length > 5;
   const menu = document.createElement('div');
   menu.className = 'menu-ctx menu-obra';
   menu.setAttribute('role', 'menu');
   menu.innerHTML = [
+    comBusca
+      ? '<input type="search" class="menu-obra-busca" placeholder="Buscar obra, cliente ou cidade" aria-label="Buscar obra">'
+      : '',
     item('', 'Todas as obras', 'visão da carteira', naCarteira),
     '<hr>',
-    ...Store.estado.obras.map((o) => {
+    ...obras.map((o) => {
       const [l1, l2] = partesNomeObra(o);
-      return item(o.id, l1, l2, !naCarteira && o.id === App.rota.obraId);
+      const fisico = kpisObra(o).progressoFisico;
+      const detalhe = [l2, o.status, `${fmtPct(fisico, 0)} feito`].filter(Boolean).join(' · ');
+      const cliente = (Store.estado.clientes.find((c) => c.id === o.clienteId) || {}).nome || '';
+      return item(
+        o.id,
+        l1,
+        detalhe,
+        !naCarteira && o.id === App.rota.obraId,
+        norm([o.nome, cliente, o.cidade].join(' ')),
+      );
     }),
   ].join('');
   document.body.appendChild(menu);
@@ -240,8 +269,23 @@ ACOES['obra-menu'] = (el) => {
   menu.style.top = r.bottom + 4 + 'px';
   menu.style.minWidth = r.width + 'px';
   el.setAttribute('aria-expanded', 'true');
-  const atual = menu.querySelector('[aria-checked="true"]') || menu.querySelector('button');
-  if (atual) atual.focus();
+  const busca = menu.querySelector('.menu-obra-busca');
+  if (busca) {
+    busca.addEventListener('input', () => {
+      const t = norm(busca.value);
+      menu.querySelectorAll('[data-busca]').forEach((b) => {
+        b.hidden = !!t && !b.dataset.busca.includes(t);
+      });
+    });
+    busca.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter') return;
+      const primeira = menu.querySelector('[data-busca]:not([hidden])');
+      if (primeira) primeira.click();
+    });
+  }
+  const atual =
+    busca || menu.querySelector('[aria-checked="true"]') || menu.querySelector('button');
+  if (atual) atual.focus({ preventScroll: true });
 };
 ACOES['trocar-obra-id'] = (el, d) => {
   const pedida = viewPendente;
@@ -620,6 +664,9 @@ function formLancamento(l, novo, aoSalvar) {
       { k: 'data', label: 'Data', tipo: 'data', col: 3, obrigatorio: true },
       { k: 'tipo', label: 'Tipo de saída', tipo: 'select', opcoes: opcoesLista('tiposSaida'), col: 6, vazio: false },
       { k: 'etapa', label: 'Etapa', tipo: 'select', opcoes: opcoesEtapas(), col: 6, placeholder: 'sem etapa' },
+      /* só em "Fornecimento + instalação" (0025): a parte que é serviço */
+      { k: 'valorMaoDeObra', label: 'Parte de instalação / mão de obra', tipo: 'dinheiro', col: 6,
+        dica: 'quanto do total é o serviço — o resto conta como material' },
       { k: 'quantidade', label: 'Quantidade', tipo: 'numero', col: 3, detalhe: true },
       { k: 'unidade', label: 'Unidade', tipo: 'select', opcoes: opcoesLista('unidades'), col: 3, vazio: false, detalhe: true },
       { k: 'frete', label: 'Frete / acréscimo', tipo: 'dinheiro', col: 3, detalhe: true },
@@ -634,17 +681,28 @@ function formLancamento(l, novo, aoSalvar) {
       { k: 'total', label: 'Total do lançamento', tipo: 'calc', col: 12 }
     ],
     valores: { ...l, quantidade: novo && !num(l.quantidade) ? 1 : l.quantidade },
-    calcular: (d) => ({
-      total: `Total: <b>${fmtMoney(Math.max(0, num(d.quantidade) * num(d.precoUnitario) - num(d.desconto) + num(d.frete)))}</b>
-        ${num(d.quantidade) !== 1 || num(d.desconto) || num(d.frete)
-          ? `&nbsp;(${fmtNum(d.quantidade, 2)} × ${fmtMoney(d.precoUnitario)} − ${fmtMoney(d.desconto)} + ${fmtMoney(d.frete)})`
-          : ''}`
+    /* total e divisão do domínio (lancamentoTotal, valorPorCategoria) */
+    calcular: (d) => {
+      const comMo = { ...d, valorMaoDeObra: d.tipo === TIPO_FORNECIMENTO_INSTALACAO ? d.valorMaoDeObra : 0 };
+      const partes = valorPorCategoria(comMo);
+      const conta = num(d.quantidade) !== 1 || num(d.desconto) || num(d.frete)
+        ? `&nbsp;(${fmtNum(d.quantidade, 2)} × ${fmtMoney(d.precoUnitario)} − ${fmtMoney(d.desconto)} + ${fmtMoney(d.frete)})`
+        : '';
+      const divisao = partes.maoDeObra > 0
+        ? `<br>material ${fmtMoney(partes.material)} · mão de obra ${fmtMoney(partes.maoDeObra)}`
+        : '';
+      return { total: `Total: <b>${fmtMoney(lancamentoTotal(d))}</b>${conta}${divisao}` };
+    },
+    validar: (d) => validarLancamento({
+      ...d,
+      valorMaoDeObra: d.tipo === TIPO_FORNECIMENTO_INSTALACAO ? d.valorMaoDeObra : 0,
+      anexoNf: notaEmEdicao.ref,
     }),
-    validar: (d) => validarLancamento({ ...d, anexoNf: notaEmEdicao.ref }),
     rodapeExtra: '<button type="button" class="btn sutil pequeno" data-acao="lanc-detalhes" aria-expanded="false">Mais detalhes</button>',
     aoSalvar: (d) => {
       if (!d.descricao) return toast('Informe a descrição do lançamento.', 'aviso');
       if (!num(d.quantidade)) d.quantidade = 1;
+      if (d.tipo !== TIPO_FORNECIMENTO_INSTALACAO) d.valorMaoDeObra = 0;
       if (d.prestadorId && !d.fornecedor) d.fornecedor = nomeDoPrestador(d.prestadorId, '');
       Object.assign(l, d, { anexoNf: notaEmEdicao.ref });
       fecharModal();
@@ -653,6 +711,16 @@ function formLancamento(l, novo, aoSalvar) {
   });
   notaEmEdicao.ref = l.anexoNf || '';
   anexarNfAoForm(l);
+  /* a parte de instalação só aparece em "Fornecimento + instalação": lançar
+     material continua com os mesmos campos de sempre */
+  const selTipo = document.getElementById('f_tipo');
+  const campoMo = document.getElementById('f_valorMaoDeObra');
+  const blocoMo = campoMo && campoMo.closest('.campo');
+  const mostrarMo = () => {
+    if (blocoMo) blocoMo.hidden = !selTipo || selTipo.value !== TIPO_FORNECIMENTO_INSTALACAO;
+  };
+  if (selTipo) selTipo.addEventListener('change', mostrarMo);
+  mostrarMo();
   const form = document.querySelector('#modal-camada [data-form]');
   if (!form) return;
   /* a NF entra junto com os detalhes */

@@ -152,10 +152,10 @@ const csvNum = (v) => fmtNum(v, 2);
 const EXPORTACOES = {
   lancamentos: (o, cru) => ({
     cabecalho: ['Data', 'Competência', 'Tipo', 'Etapa', 'Categoria', 'Descrição', 'Fornecedor', 'Documento',
-      'Quantidade', 'Unidade', 'Preço unitário', 'Desconto', 'Frete', 'Total', 'Pagamento'],
+      'Quantidade', 'Unidade', 'Preço unitário', 'Desconto', 'Frete', 'Total', 'Mão de obra (instalação)', 'Pagamento'],
     linhas: o.lancamentos.map((l) => [fmtData(l.data), competencia(l.data), l.tipo, l.etapa, l.categoria,
       l.descricao, l.fornecedor, l.documento, n(l.quantidade, cru), l.unidade, n(l.precoUnitario, cru),
-      n(l.desconto, cru), n(l.frete, cru), n(lancamentoTotal(l), cru), l.formaPagamento]),
+      n(l.desconto, cru), n(l.frete, cru), n(lancamentoTotal(l), cru), n(l.valorMaoDeObra, cru), l.formaPagamento]),
   }),
   medicoes: (o, cru) => ({
     cabecalho: ['Nº', 'Contrato', 'Data', 'Descrição', 'Progresso', 'Valor medido', 'Desconto', 'Líquido',

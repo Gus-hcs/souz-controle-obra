@@ -90,6 +90,8 @@ const TABELAS_DB = [
       dataAprovacaoAditivo: ['data_aprovacao_aditivo', 'data'], novoPrazoAditivo: ['novo_prazo_aditivo', 'data'],
       condicaoPagamento: 'condicao_pagamento', retencaoPct: ['retencao_pct', 'num'], formaPreco: 'forma_preco',
       dataEncerramento: ['data_encerramento', 'data'], documentoUrl: 'documento_url',
+      /* exige a migração 0025 */
+      anexo: 'anexo',
       situacaoManual: 'situacao_manual', motivoSituacaoManual: 'motivo_situacao_manual',
       /* exige a migração 0016 */
       etapas: ['etapas', 'json']
@@ -137,7 +139,9 @@ const TABELAS_DB = [
       desconto: ['desconto', 'num'], frete: ['frete', 'num'], formaPagamento: 'forma_pagamento',
       observacoes: 'observacoes',
       /* exige a migração 0019 */
-      anexoNf: 'anexo_nf'
+      anexoNf: 'anexo_nf',
+      /* exige a migração 0025 */
+      valorMaoDeObra: ['valor_mao_de_obra', 'num']
     }
   },
   {
@@ -714,6 +718,33 @@ const SUPA = {
       .limit(limite);
     if (error) throw error;
     return data || [];
+  },
+
+  /* ------------------------------------------------------ erros do app */
+  /* Fora do Store, como a auditoria (0026): a tela nunca edita um erro.
+     Grava a própria conta (o gatilho carimba conta e hora); lê e apaga só o
+     admin. Sem retorno da linha: quem grava não tem leitura. */
+  podeRegistrarErro() {
+    return !!(this.sb && this.usuario && !this.bloqueado) &&
+      (typeof navigator === 'undefined' || navigator.onLine !== false);
+  },
+  async registrarErro(reg) {
+    const { error } = await this.sb.from('erros_app').insert(reg);
+    if (error) throw error;
+  },
+  async lerErrosApp(limite = 300) {
+    if (!this.sb) return [];
+    const { data, error } = await this.sb
+      .from('erros_app')
+      .select('id, criado_em, usuario_id, mensagem, origem, tela, versao, navegador')
+      .order('criado_em', { ascending: false })
+      .limit(limite);
+    if (error) throw error;
+    return data || [];
+  },
+  async apagarErrosApp() {
+    const { error } = await this.sb.from('erros_app').delete().lte('criado_em', new Date().toISOString());
+    if (error) throw error;
   },
 
   /* ------------------------------------------------------------ carga */

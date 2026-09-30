@@ -11,6 +11,8 @@ import './ui/interface.css';
 import './ui/legado.css';
 import './ui/padrao.css';
 import { Store, erroDeRede } from './dados/store.js';
+import { ligarMonitorErros } from './dados/erros.js';
+import { CFG } from './config.js';
 import {
   EXIGE_BANCO,
   SUPA,
@@ -46,6 +48,15 @@ import './ui/telas/painel.js';
 import './ui/telas/ajustes.js';
 import './ui/telas/relatorios.js';
 
+/* Erros do app (0026): o que quebra chega ao admin, sem dado da obra; só
+   com banco, conta ativa e rede. Erro de ação pega pelo clique também. */
+const monitorErros = ligarMonitorErros({
+  enviar: (reg) => SUPA.registrarErro(reg),
+  podeEnviar: () => SUPA.podeRegistrarErro(),
+  tela: () => App.rota.view,
+  versao: CFG.versao,
+});
+
 /* ---------------------------------------------------------- eventos */
 document.addEventListener('click', (ev) => {
   const el = ev.target.closest('[data-acao]');
@@ -58,6 +69,7 @@ document.addEventListener('click', (ev) => {
     fn(el, { ...el.dataset });
   } catch (e) {
     console.error(e);
+    monitorErros.ouvir({ type: 'error', error: e });
     toast('Erro: ' + e.message, 'critico');
   }
 });

@@ -186,6 +186,8 @@ describe('contratado, pago e a pagar são calculados', () => {
         pago: 26900,
         aPagarAgora: 4000,
         aMedir: 25000,
+        /* 0025: contratos com o documento guardado, para abrir da ficha */
+        contratosComDocumento: [],
       },
     ]);
     expect(j.pagamentos.map((p) => p.valor)).toEqual([900, 6000, 20000]); // mais recente primeiro

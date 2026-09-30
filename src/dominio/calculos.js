@@ -619,12 +619,17 @@ function lancamentosDuplicados(obra) {
    plano (ligado a um item, por id ou por etapa + descrição). Plano que
    cobre metade das compras não serve para prever custo. null sem compra. */
 function coberturaPlanoMateriais(obra) {
-  const compras = obra.lancamentos.filter((l) => l.tipo === 'Material');
-  const total = round2(compras.reduce((s, l) => s + lancamentoTotal(l), 0));
+  /* a parte material das compras: tipo Material inteiro e, de "Fornecimento
+     + instalação", o que não é instalação (valorPorCategoria) */
+  const materialDe = (l) => valorPorCategoria(l).material;
+  const compras = obra.lancamentos.filter(
+    (l) => (l.tipo === 'Material' || l.tipo === TIPO_FORNECIMENTO_INSTALACAO) && materialDe(l) > 0,
+  );
+  const total = round2(compras.reduce((s, l) => s + materialDe(l), 0));
   if (total <= 0.005) return { total: 0, noPlano: 0, fracao: null };
   const ids = new Set();
   obra.materiais.forEach((m) => lancamentosDoMaterial(obra, m).forEach((l) => ids.add(l.id)));
-  const noPlano = round2(compras.filter((l) => ids.has(l.id)).reduce((s, l) => s + lancamentoTotal(l), 0));
+  const noPlano = round2(compras.filter((l) => ids.has(l.id)).reduce((s, l) => s + materialDe(l), 0));
   return { total, noPlano, fracao: noPlano / total };
 }
 
@@ -634,7 +639,7 @@ function resumoLancamentos(obra) {
   const ls = obra.lancamentos;
   const semEtapa = ls.filter((l) => !l.etapa);
   const naoObra = ls.filter((l) => lancamentoNatureza(l) !== 'Obra');
-  const cat = (c) => ls.filter((l) => categoriaLancamento(l) === c);
+  const porCat = (c) => round2(ls.reduce((s, l) => s + valorPorCategoria(l)[c], 0));
   return {
     total: soma(ls),
     n: ls.length,
@@ -643,10 +648,10 @@ function resumoLancamentos(obra) {
     naoObra: { n: naoObra.length, valor: soma(naoObra) },
     /* as quatro categorias de saída (categoriaLancamento) — os KPIs */
     porCategoria: {
-      material: soma(cat('material')),
-      maoDeObra: soma(cat('maoDeObra')),
-      taxas: soma(cat('taxas')),
-      extras: soma(cat('extras')),
+      material: porCat('material'),
+      maoDeObra: porCat('maoDeObra'),
+      taxas: porCat('taxas'),
+      extras: porCat('extras'),
     },
   };
 }
@@ -674,6 +679,25 @@ const CATEGORIA_POR_TIPO = {
 };
 function categoriaLancamento(l) {
   return CATEGORIA_POR_TIPO[l.tipo] || 'extras';
+}
+
+/* O lançamento repartido pelas categorias de saída. "Fornecimento +
+   instalação" (bancada de mármore instalada, calhas e rufos, esquadria
+   com instalação) pode informar quanto do total é a instalação — a mão de
+   obra (valorMaoDeObra, 0025): essa parte conta como mão de obra e o resto
+   como material. Sem a parte, tudo vai para a categoria do tipo, como
+   sempre foi. A soma das partes é sempre o total do lançamento. */
+const TIPO_FORNECIMENTO_INSTALACAO = 'Fornecimento + instalação';
+function valorPorCategoria(l) {
+  const total = lancamentoTotal(l);
+  const out = { material: 0, maoDeObra: 0, taxas: 0, extras: 0 };
+  if (l.tipo === TIPO_FORNECIMENTO_INSTALACAO && num(l.valorMaoDeObra) > 0) {
+    out.maoDeObra = round2(Math.min(total, num(l.valorMaoDeObra)));
+    out.material = round2(total - out.maoDeObra);
+  } else {
+    out[categoriaLancamento(l)] = total;
+  }
+  return out;
 }
 
 /* Lançamentos agrupados por mês (o mais recente primeiro), com o
@@ -1403,7 +1427,8 @@ function analiseFluxo(obra, filtro = '', hoje = hojeISO()) {
   });
   obra.lancamentos.forEach((l) => {
     if (!isISO(l.data) || !dentro.has(competencia(l.data)) || competencia(l.data) > ymHoje) return;
-    saidas[categoriaLancamento(l)] += lancamentoTotal(l);
+    const partes = valorPorCategoria(l);
+    Object.keys(partes).forEach((k) => { saidas[k] += partes[k]; });
   });
   obra.recebimentos.forEach((r) => {
     if (r.status === 'Cancelado' || !isISO(r.dataRecebimento) || !dentro.has(competencia(r.dataRecebimento))) return;
@@ -2159,6 +2184,47 @@ function causasRaizObra(obra) {
 /* Frase-âncora do Painel e da Carteira: situação → causa → ação.
    Situação em no máximo três pedaços (prazo, caixa, margem); causas e ações
    são as três primeiras causas-raiz. Cada pedaço traz o nível para a cor. */
+/* Leitura rápida da obra, o topo do Painel: como está, em uma linha —
+   prazo, avanço físico contra o previsto, Caixa hoje, a próxima parcela a
+   receber e as Pendências. nivel: 'critico' (atraso de 30+ dias, caixa
+   negativo ou pendência crítica), 'atencao' (algum atraso ou pendência)
+   ou 'ok'. */
+function resumoObra(obra, hoje = hojeISO()) {
+  const k = kpisObra(obra);
+  const p = prazoObra(obra, hoje);
+  const pend = pendenciasObra(obra);
+  const prox = obra.recebimentos
+    .filter((r) => r.status !== 'Recebido' && r.status !== 'Cancelado')
+    .sort((a, b) =>
+      String(a.dataPrevista || '9999').localeCompare(String(b.dataPrevista || '9999')),
+    )[0];
+  const atrasoDias = num(p.atrasoDias);
+  const nivel =
+    atrasoDias >= 30 || k.saldoCaixa < -0.005 || pend.criticas > 0
+      ? 'critico'
+      : atrasoDias > 0 || pend.total > 0
+        ? 'atencao'
+        : 'ok';
+  return {
+    status: obra.status || '',
+    atrasoDias,
+    termino: p.termino || '',
+    fisico: k.progressoFisico,
+    fisicoPrevisto: avancoPrevistoObra(obra, hoje),
+    caixaHoje: k.saldoCaixa,
+    proximaParcela: prox
+      ? {
+          valor: num(prox.valorPrevisto),
+          data: prox.dataPrevista || '',
+          origem: prox.origem || '',
+          vencida: isISO(prox.dataPrevista) && prox.dataPrevista < hoje,
+        }
+      : null,
+    pendencias: { total: pend.total, criticas: pend.criticas },
+    nivel,
+  };
+}
+
 function historiaObra(obra, hoje = hojeISO()) {
   const k = kpisObra(obra);
   const p = prazoObra(obra, hoje);
@@ -3229,7 +3295,11 @@ function resumoPrestador(estado, p) {
 
     if (doPrestador.length || lancs.length) {
       obras.push({ obraId: o.id, obraNome: o.nome, contratado: ctObra, pago: pmObra + plObra,
-        aPagarAgora: apObra, aMedir: amObra });
+        aPagarAgora: apObra, aMedir: amObra,
+        /* contratos com o documento guardado (0025), para abrir da ficha */
+        contratosComDocumento: doPrestador
+          .filter((c) => c.anexo || String(c.documentoUrl || '').trim())
+          .map((c) => ({ id: c.id, codigo: c.codigo || c.codigoBase || '' })) });
       contratado += ctObra;
       pagoMedicoes += pmObra;
       pagoLancamentos += plObra;
@@ -3507,7 +3577,39 @@ function addDiasISO(iso, n) {
   return d.toISOString().slice(0, 10);
 }
 
+/* Erros do app (0026) para o admin: o mesmo erro (mensagem + origem) numa
+   linha só, com quantas vezes, quantas contas, em que telas e versões, o
+   primeiro e o último; o mais recente em cima. `agora` em ms, para as 24 h. */
+function resumoErrosApp(lista, agora = Date.now()) {
+  const grupos = new Map();
+  const contas = new Set();
+  let ultimas24h = 0;
+  for (const e of lista || []) {
+    const quando = String(e.criado_em || '');
+    const t = Date.parse(quando);
+    if (Number.isFinite(t) && agora - t <= 86400000) ultimas24h++;
+    if (e.usuario_id) contas.add(e.usuario_id);
+    const chave = `${e.mensagem || ''}|${e.origem || ''}`;
+    let g = grupos.get(chave);
+    if (!g) {
+      g = { mensagem: e.mensagem || '', origem: e.origem || '', vezes: 0, contas: new Set(), telas: new Set(), versoes: new Set(), primeiro: quando, ultimo: quando };
+      grupos.set(chave, g);
+    }
+    g.vezes++;
+    if (e.usuario_id) g.contas.add(e.usuario_id);
+    if (e.tela) g.telas.add(e.tela);
+    if (e.versao) g.versoes.add(e.versao);
+    if (quando && (!g.primeiro || quando < g.primeiro)) g.primeiro = quando;
+    if (quando > g.ultimo) g.ultimo = quando;
+  }
+  const linhas = [...grupos.values()]
+    .map((g) => ({ ...g, contas: g.contas.size, telas: [...g.telas].sort(), versoes: [...g.versoes].sort() }))
+    .sort((a, b) => (a.ultimo < b.ultimo ? 1 : a.ultimo > b.ultimo ? -1 : b.vezes - a.vezes));
+  return { total: (lista || []).length, ultimas24h, contas: contas.size, linhas };
+}
+
 export {
+  resumoErrosApp,
   renomearItemLista,
   saudeDados,
   origemAlteracoes,
@@ -3516,6 +3618,8 @@ export {
   prestacaoContas,
   CATEGORIAS_SAIDA,
   categoriaLancamento,
+  valorPorCategoria,
+  TIPO_FORNECIMENTO_INSTALACAO,
   lancamentosPorMes,
   gastoPorMes,
   composicaoPorTipo,
@@ -3577,6 +3681,7 @@ export {
   tratamentoDoAlerta,
   causasRaizObra,
   historiaObra,
+  resumoObra,
   historiaCarteira,
   diarioIndicadores,
   diaImpraticavel,

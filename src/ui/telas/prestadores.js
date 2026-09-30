@@ -471,7 +471,9 @@ function inspetor(p) {
     ? `<table class="mini-tab"><thead><tr><th>Obra</th><th class="num">Contratado</th><th class="num">Pago</th></tr></thead>
         <tbody>${r.obras
           .map(
-            (o) => `<tr><td>${esc(o.obraNome)}</td>
+            (o) => `<tr><td>${esc(o.obraNome)}${(o.contratosComDocumento || [])
+              .map((c) => ` <button class="btn-link" data-acao="ct-ver-anexo" data-obra="${esc(o.obraId)}" data-id="${esc(c.id)}" title="Ver o contrato ${esc(c.codigo)}">${svg(ICO.clipe, 12)}${esc(c.codigo || 'contrato')}</button>`)
+              .join('')}</td>
           <td class="num">${o.contratado > 0.005 ? reais(o.contratado) : '<span class="tinta3">sem contrato</span>'}</td>
           <td class="num">${reais(o.pago, { cinzaNoZero: true })}</td></tr>`,
           )

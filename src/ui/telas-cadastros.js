@@ -8,6 +8,7 @@ import {
   diasSemAtividade,
   obrasConstrutora,
   resumoConstrutoras,
+  resumoErrosApp,
   vagasConstrutora,
 } from '../dominio/calculos.js';
 import {
@@ -690,6 +691,7 @@ function telaConstrutoras() {
     ${tabela}
     ${aberta ? secaoUsuarios(aberta, usuariosDe(aberta.id)) : ''}
     ${soltas.length ? secaoSoltas(soltas) : ''}
+    ${secaoErros()}
   </div>`;
 }
 
@@ -791,6 +793,92 @@ function secaoSoltas(soltas) {
       <tbody>${soltas.map(linhaS).join('')}</tbody></table></div>
   </section>`;
 }
+
+/* Erros do app (0026): o que quebrou no aparelho de alguém, agrupado
+   (resumoErrosApp). Leitor dedicado, fora do Store, como a auditoria.
+   lista: null enquanto carrega; falta: a 0026 ainda não foi aplicada. */
+const ErrosApp = { lista: null, falta: false, erro: '', carregando: false };
+function carregarErros(forcar = false) {
+  if (ErrosApp.carregando || (!forcar && (ErrosApp.lista || ErrosApp.falta || ErrosApp.erro))) return;
+  ErrosApp.carregando = true;
+  ErrosApp.erro = '';
+  SUPA.lerErrosApp()
+    .then((l) => {
+      ErrosApp.lista = l;
+      ErrosApp.falta = false;
+    })
+    .catch((e) => {
+      if (semFuncao(e)) ErrosApp.falta = true;
+      else ErrosApp.erro = String((e && e.message) || e);
+    })
+    .finally(() => {
+      ErrosApp.carregando = false;
+      if (App.rota.view === 'admin') App.renderConteudo();
+    });
+}
+
+function secaoErros() {
+  carregarErros();
+  const cab = (detalhe, acoes = '') => `<div class="caixa-cab"><h3>Erros do app${
+    detalhe ? ` <span class="tinta2" style="font-weight:400">· ${detalhe}</span>` : ''
+  }</h3><div class="dir">${acoes}</div></div>`;
+  let corpo;
+  if (ErrosApp.falta) {
+    corpo = '<p class="aviso-discreto">Aplique a migração 0026 (db/migracoes/0026_erros_app.sql) para ver o que quebra no aparelho de quem usa.</p>';
+  } else if (ErrosApp.erro) {
+    corpo = `<p class="aviso-discreto tom-alerta">Não foi possível ler os erros: ${esc(ErrosApp.erro)}</p>`;
+  } else if (!ErrosApp.lista) {
+    corpo = '<p class="linha-cinza">Carregando…</p>';
+  }
+  if (corpo) return `<section class="caixa" data-testid="erros-app">${cab('')}${corpo}</section>`;
+
+  const r = resumoErrosApp(ErrosApp.lista);
+  const acoes = [
+    botao('Atualizar', 'admin-erros-recarregar', {}, 'btn sutil pequeno'),
+    r.total ? botao('Limpar a lista', 'admin-erros-limpar', {}, 'btn sutil pequeno') : '',
+  ].join('');
+  const arquivo = (o) => String(o || '').split('/').pop();
+  const linhaE = (g) => `<tr>
+      <td><div class="cel-dupla"><b title="${esc(g.mensagem)}">${esc(g.mensagem)}</b>${
+        g.origem ? `<span title="${esc(g.origem)}">${esc(arquivo(g.origem))}</span>` : ''
+      }</div></td>
+      <td data-rotulo="Tela">${esc(g.telas.join(', ') || '—')}${g.versoes.length ? `<br><span class="tinta2">${esc(g.versoes.join(', '))}</span>` : ''}</td>
+      <td class="num" data-rotulo="Vezes">${g.vezes}</td>
+      <td class="num" data-rotulo="Contas">${g.contas}</td>
+      <td data-rotulo="Último">${quandoRelativo(g.ultimo)}</td>
+    </tr>`;
+  const detalhe = r.total
+    ? `${r.ultimas24h} nas últimas 24 h · ${r.total} no total · ${r.contas} ${r.contas === 1 ? 'conta' : 'contas'}`
+    : '';
+  return `<section class="caixa" data-testid="erros-app">
+    ${cab(detalhe, acoes)}
+    ${
+      r.linhas.length
+        ? `<div class="tab-rolagem"><table class="tab tab-contas" data-testid="lista-erros-app">
+      <thead><tr><th>Erro</th><th>Tela e versão</th><th>Vezes</th><th>Contas</th><th>Último</th></tr></thead>
+      <tbody>${r.linhas.slice(0, 50).map(linhaE).join('')}</tbody></table></div>`
+        : '<p class="linha-cinza">Nenhum erro registrado. Quando uma tela quebrar no aparelho de alguém, aparece aqui — sem dado da obra.</p>'
+    }
+  </section>`;
+}
+
+ACOES['admin-erros-recarregar'] = () => carregarErros(true);
+ACOES['admin-erros-limpar'] = () =>
+  confirmar(
+    'Limpar a lista de erros',
+    'Apagar todos os erros registrados até agora? Os que acontecerem depois continuam chegando.',
+    async () => {
+      try {
+        await SUPA.apagarErrosApp();
+        ErrosApp.lista = [];
+        App.renderConteudo();
+        toast('Lista de erros limpa.', 'ok');
+      } catch (e) {
+        toast('Não foi possível limpar: ' + ((e && e.message) || e), 'critico');
+      }
+    },
+    'Limpar',
+  );
 
 const construtora = (id) => (Admin.construtoras || []).find((c) => c.id === id);
 const usoDe = (c) => ({ usuarios: vagasConstrutora(c).usados, obras: obrasConstrutora(c).usadas });

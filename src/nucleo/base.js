@@ -399,6 +399,9 @@ const novoContrato = () => ({
   /* condições do contrato principal */
   condicaoPagamento: 'por_medicao', retencaoPct: 0, formaPreco: '',
   dataEncerramento: '', documentoUrl: '',
+  /* contrato assinado (0025): foto ou PDF, "storage:<obra>/contratos/…"
+     ou data URI sem rede — como a NF do lançamento */
+  anexo: '',
   /* situação: calculada em dominio/calculos.js (contratoSituacao). Só estes
      dois estados podem ser marcados à mão, com motivo. */
   situacaoManual: '', motivoSituacaoManual: ''
@@ -428,7 +431,10 @@ const novoLancamento = () => ({
   precoUnitario: 0, desconto: 0, frete: 0, formaPagamento: 'PIX',
   materialId: '', observacoes: '',
   /* foto da nota fiscal/recibo (0019), imagem reduzida em data URI */
-  anexoNf: ''
+  anexoNf: '',
+  /* "Fornecimento + instalação" (0025): quanto do total é instalação /
+     mão de obra — o resto conta como material (valorPorCategoria) */
+  valorMaoDeObra: 0
 });
 
 const novoMaterial = () => ({
@@ -595,6 +601,8 @@ function migrar(s) {
     obra.contratos.forEach((c) => {
       if (c.prestadorId == null) c.prestadorId = '';
       if (!Array.isArray(c.etapas)) c.etapas = [];
+      if (c.anexo == null) c.anexo = '';
+      if (c.documentoUrl == null) c.documentoUrl = '';
     });
     obra.cronograma.forEach((e) => {
       if (e.itemFinanciador == null) e.itemFinanciador = '';
@@ -604,6 +612,7 @@ function migrar(s) {
     obra.lancamentos.forEach((l) => {
       if (l.prestadorId == null) l.prestadorId = '';
       if (l.anexoNf == null) l.anexoNf = '';
+      l.valorMaoDeObra = num(l.valorMaoDeObra);
     });
     /* numeração sempre como texto: a planilha traz número, o banco guarda texto */
     obra.medicoes.forEach((m) => { m.numero = m.numero == null ? '' : String(m.numero); });

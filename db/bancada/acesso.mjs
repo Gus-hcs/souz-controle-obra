@@ -646,6 +646,96 @@ confere(
     (await conta(U.cliA, 'public.lancamentos', 'true')) === 0,
 );
 
+/* ----------------------------------------- 10. contrato anexado e mão de obra (0025) */
+if (fs.existsSync(path.join(MIG, '0025_mao_de_obra_e_contrato_anexo.sql'))) {
+  await db.exec(`insert into storage.objects (bucket_id, name) values ('anexos', 'oB1/contratos/ct-b1.pdf')`);
+  confere('equipe lê o contrato anexado da obra', (await conta(U.engB, 'storage.objects', "name = 'oB1/contratos/ct-b1.pdf'")) === 1);
+  confere('equipe grava contrato na pasta da obra', (await tenta(U.engB, `insert into storage.objects (bucket_id, name) values ('anexos', 'oB1/contratos/novo.pdf')`)).ok);
+  await como(U.admin, `select public.admin_definir_usuario_empresa('${U.cliA}', null, null)`).catch(() => {});
+  await db.exec(`insert into public.obra_membros (obra_id, usuario_id, papel) values ('oB1', '${U.cliA}', 'cliente') on conflict do nothing`);
+  confere('cliente final não lê o contrato anexado', (await conta(U.cliA, 'storage.objects', "name like 'oB1/contratos/%'")) === 0);
+  confere('cliente final continua vendo a obra', (await conta(U.cliA, 'public.obras', "id = 'oB1'")) === 1);
+  const lanc = (mo) =>
+    tenta(U.engB, `insert into public.lancamentos (id, obra_id, usuario_id, descricao, tipo, quantidade, preco_unitario, valor_mao_de_obra)
+      values ('l-mo-${String(mo).replace('.', '_')}', 'oB1', '${U.engB}', 'Bancada de mármore instalada', 'Fornecimento + instalação', 1, 3000, ${mo})`);
+  confere('lançamento com parte de instalação dentro do total grava', (await lanc(800)).ok);
+  confere('parte de instalação maior que o total é recusada (CHECK)', !(await lanc(3500)).ok);
+  confere('parte de instalação negativa é recusada (CHECK)', !(await lanc(-1)).ok);
+  const ct = (campo, valor) =>
+    tenta(U.engB, `update public.contratos set ${campo} = '${valor}' where id = 'ct-b1'`);
+  confere('contrato aceita anexo na pasta contratos/', (await ct('anexo', 'storage:oB1/contratos/ct-b1.pdf')).ok);
+  confere('contrato recusa anexo em outra pasta (CHECK)', !(await ct('anexo', 'storage:oB1/lancamentos/x.pdf')).ok);
+  confere('contrato aceita link https', (await ct('documento_url', 'https://drive.exemplo.com/contrato.pdf')).ok);
+  confere('contrato recusa link javascript: (CHECK)', !(await ct('documento_url', 'java' + 'script:alert(1)')).ok);
+  let de_novo25 = null;
+  try {
+    await db.exec(fs.readFileSync(path.join(MIG, '0025_mao_de_obra_e_contrato_anexo.sql'), 'utf8'));
+  } catch (e) {
+    de_novo25 = e.message;
+  }
+  confere('0025 roda de novo sem quebrar', !de_novo25, de_novo25 || '');
+}
+
+/* ------------------------------------------------------ 11. erros do app (0026) */
+if (fs.existsSync(path.join(MIG, '0026_erros_app.sql'))) {
+  const grava = (uid, msg, extra = '') =>
+    tenta(uid, `insert into public.erros_app (mensagem, tela${extra ? ', usuario_id' : ''})
+      values ('${msg}', 'painel'${extra ? `, '${extra}'` : ''})`);
+  confere('conta ativa grava o próprio erro', (await grava(U.engB, 'erro do engB')).ok);
+  confere('conta sem construtora também grava', (await grava(U.solto, 'erro do solto')).ok);
+  await grava(U.engB, 'fingindo ser o admin', U.admin);
+  confere(
+    'usuario_id vem do servidor: não dá para gravar em nome de outro',
+    (await conta(U.admin, 'public.erros_app', `mensagem = 'fingindo ser o admin' and usuario_id = '${U.engB}'`)) === 1,
+  );
+  confere('quem grava não lê nem o próprio erro', (await conta(U.engB, 'public.erros_app', 'true')) === 0);
+  confere('admin lê os erros de todos', (await conta(U.admin, 'public.erros_app', 'true')) === 3);
+  confere(
+    'quem não é admin não apaga',
+    (await quantas(U.engB, `delete from public.erros_app returning id`)) === 0 &&
+      (await conta(U.admin, 'public.erros_app', 'true')) === 3,
+  );
+  confere(
+    'ninguém altera um erro',
+    !(await tenta(U.engB, `update public.erros_app set mensagem = 'x'`)).ok &&
+      !(await tenta(U.admin, `update public.erros_app set mensagem = 'x'`)).ok,
+  );
+  confere('anônimo não grava', !(await grava('anon', 'anonimo')).ok);
+  confere('anônimo não lê', !(await tenta('anon', `select id from public.erros_app`)).ok);
+  await como(U.admin, `select public.admin_definir_perfil('${U.engB}', 'ativo', true, '{}'::jsonb, null)`);
+  confere('conta BLOQUEADA não grava erro', !(await grava(U.engB, 'bloqueado')).ok);
+  await como(U.admin, `select public.admin_definir_perfil('${U.engB}', 'ativo', false, '{}'::jsonb, null)`);
+  confere('mensagem vazia é recusada (CHECK)', !(await grava(U.engB, '  ')).ok);
+  confere(
+    'tela fora do padrão é recusada (CHECK)',
+    !(await tenta(U.engB, `insert into public.erros_app (mensagem, tela) values ('x', 'Painel da obra')`)).ok,
+  );
+  confere(
+    'mensagem longa demais é recusada (CHECK)',
+    !(await tenta(U.engB, `insert into public.erros_app (mensagem) values (repeat('x', 301))`)).ok,
+  );
+  await como(
+    U.solto,
+    `insert into public.erros_app (mensagem) select 'rajada ' || g from generate_series(1, 80) g`,
+  );
+  confere(
+    'rajada: passou de 60 na hora, o resto é descartado em silêncio',
+    (await conta(U.admin, 'public.erros_app', `usuario_id = '${U.solto}'`)) === 60,
+  );
+  confere(
+    'admin apaga a lista',
+    (await quantas(U.admin, `delete from public.erros_app returning id`)) > 0 &&
+      (await conta(U.admin, 'public.erros_app', 'true')) === 0,
+  );
+  let de_novo26 = null;
+  try {
+    await db.exec(fs.readFileSync(path.join(MIG, '0026_erros_app.sql'), 'utf8'));
+  } catch (e) {
+    de_novo26 = e.message;
+  }
+  confere('0026 roda de novo sem quebrar', !de_novo26, de_novo26 || '');
+}
+
 escreve(`\n${total - falhas} de ${total} conferências ok`);
 if (falhas) {
   escreve(`${falhas} FALHA(S)`);

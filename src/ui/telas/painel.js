@@ -35,6 +35,7 @@ import {
   proximaParcelaFinanciador,
   nivelIndice,
   pendenciasObra,
+  resumoObra,
   valorAgregadoObra,
 } from '../../dominio/calculos.js';
 import { graficoAuto, graficoBarras, graficoCurvaS } from '../../graficos/index.js';
@@ -44,6 +45,42 @@ import { listaAcoes } from './carteira.js';
 import { faixaKpis, fmtIndice, tomNivel } from './componentes.js';
 
 /* -------------------------------------------------------------- kpis */
+/* Resumo da obra (topo do Painel): o nome e como ela está em uma linha,
+   com o vocabulário de sempre — Caixa hoje, Pendências. No celular é a
+   primeira coisa da tela; a contagem de pendências, numa linha própria
+   (alvo de toque inteiro), leva à tela delas. */
+function resumoObraHTML(o) {
+  const r = resumoObra(o);
+  const partes = [];
+  if (r.atrasoDias > 0) {
+    partes.push(
+      `<span class="${r.atrasoDias >= 30 ? 'atraso' : 'tom-alerta'}">Atrasada ${r.atrasoDias} dias</span>`,
+    );
+  } else if (r.termino) {
+    partes.push(`<span class="feito">No prazo</span>`);
+  }
+  partes.push(
+    `<span>${fmtPct(r.fisico, 0)} feito${r.fisicoPrevisto > 0 ? ` <span class="tinta3">(previsto ${fmtPct(r.fisicoPrevisto, 0)})</span>` : ''}</span>`,
+  );
+  partes.push(
+    `<span class="${r.caixaHoje < -0.005 ? 'atraso' : ''}">Caixa hoje ${fmtMoney(r.caixaHoje, { dec: 0 })}</span>`,
+  );
+  if (r.proximaParcela) {
+    const pp = r.proximaParcela;
+    partes.push(
+      `<span class="${pp.vencida ? 'atraso' : ''}">Próxima parcela ${fmtMoney(pp.valor, { dec: 0 })}${pp.data ? ` ${pp.vencida ? 'venceu' : 'em'} ${fmtDataCurta(pp.data)}` : ''}</span>`,
+    );
+  }
+  const pend = r.pendencias.total
+    ? `<button class="btn-link resumo-obra-pend ${r.pendencias.criticas ? 'atraso' : 'tom-alerta'}" data-acao="ir" data-view="alertas" data-obra="${esc(o.id)}">${r.pendencias.total} pendência${r.pendencias.total > 1 ? 's' : ''}${r.pendencias.criticas ? ` (${r.pendencias.criticas} crítica${r.pendencias.criticas > 1 ? 's' : ''})` : ''}</button>`
+    : '<span class="resumo-obra-pend feito">Sem pendências</span>';
+  return `<section class="resumo-obra n-${r.nivel}" aria-label="Resumo da obra">
+    <h2 class="resumo-obra-nome">${esc(o.nome)}${r.status ? ` <span class="tinta3">· ${esc(r.status)}</span>` : ''}</h2>
+    <p class="resumo-obra-linha">${partes.join('<span class="tinta3"> · </span>')}</p>
+    ${pend}
+  </section>`;
+}
+
 function kpisPainel(o, k, va) {
   const tomMargem =
     k.margem === null ? '' : k.margem < num(o.fin.margemDesejada) ? 'tom-alerta' : '';
@@ -387,6 +424,7 @@ VIEWS.painel = () => {
   return `<div class="tela-painel-obra">
     <div class="tela-principal">
       <div class="tela-lista tela-painel">
+        ${resumoObraHTML(o)}
         ${kpisPainel(o, k, va)}
         ${cartaoImplantacao(o)}
 

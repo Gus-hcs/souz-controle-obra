@@ -14,7 +14,8 @@ banco, consórcio ou o próprio cliente) · lançamentos · plano de materiais �
 cronograma com avanço físico ponderado, dependências e caminho crítico · curva S
 com liberado × executado · fluxo de caixa projetado com vale de caixa · diário de
 obra de campo com fotos, que funciona sem rede · pendências com tratamento e causa
-raiz · pendências do cliente · nota fiscal e comprovante (foto ou PDF, no Storage) ·
+raiz · pendências do cliente · nota fiscal, comprovante e contrato assinado (foto ou PDF, no Storage) ·
+lançamento de fornecimento + instalação com a parte de mão de obra separada ·
 relatórios em PDF com período, fotos, valores e observação, e histórico dos
 gerados · importação de planilha por modelo (obras, lançamentos, prestadores,
 cronograma) e da planilha MCMV · exportação CSV e Excel · acesso do Power BI ao
@@ -83,7 +84,11 @@ vertical e na horizontal — margem própria de bloco que some com o gap da
 pilha é defeito. Barra de filtros e aviso de uma linha colam na lista.
 Painel da obra e Visão geral: números e gráficos à esquerda, o que pede
 atenção (pendências, tendência, financiamento, cliente) no inspetor à
-direita. Números na fonte do texto com `tabular-nums`. Telas de
+direita — no celular, o conteúdo primeiro e o inspetor depois. O Painel
+abre com o resumo da obra (`resumoObra`: prazo, % feito, Caixa hoje,
+próxima parcela, pendências). O seletor de obra põe as abertas por último
+em cima (`obrasRecentes`, no aparelho) e busca com mais de 5 obras.
+Números na fonte do texto com `tabular-nums`. Telas de
 configuração (Configuração da obra, Ajustes) gravam sozinhas ao mudar — sem
 botão "Salvar". `tests/responsivo` confere KPIs iguais, área vazia à direita,
 painel com rolagem lateral, tabela fora do padrão (alinhamento e fundo),
@@ -165,6 +170,13 @@ Todos são escritos para rodar de novo sem quebrar (`if not exists`,
   ciclo do `Store` nem no `TABELAS_DB`. Tem um leitor dedicado
   (`SUPA.lerAuditoria`) porque o `Store` sincroniza por diferença e a auditoria
   nunca é escrita pela tela — só pelo gatilho do banco.
+- **Erros do app (`erros_app`, 0026)**: fora do `Store` e do `TABELAS_DB`,
+  como a auditoria. `src/dados/erros.js` escuta `error` e
+  `unhandledrejection` (e o `catch` do clique no `app.js`), limpa o registro
+  e grava por `SUPA.registrarErro` — uma vez por erro, no máximo 20 por
+  sessão, só com conta ativa e rede; falha ao gravar desliga o monitor na
+  sessão. Só o admin lê (`SUPA.lerErrosApp`), no bloco "Erros do app" de
+  Contas e acessos, agrupado por `resumoErrosApp`.
 - **`obra_membros`** também fica fora do `TABELAS_DB`: `SUPA.carregarPapeis()`
   lê os papéis do usuário no login para `SUPA.papeis`, e `SUPA.lerMembros()`
   serve a futura tela de equipe. Não há gravação de membro pela tela ainda.

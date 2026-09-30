@@ -30,6 +30,8 @@ import {
 import {
   alertasObra,
   categoriaLancamento,
+  TIPO_FORNECIMENTO_INSTALACAO,
+  valorPorCategoria,
   CATEGORIAS_SAIDA,
   composicaoPorTipo,
   gastoPorEtapa,
@@ -106,6 +108,10 @@ function celulaDescricao(d, dup) {
     /* frete e desconto mudam o total: sem eles a conta da linha não fecha */
     num(l.frete) ? `+${fmtMoney(l.frete, { dec: 0 })} frete` : null,
     num(l.desconto) ? `−${fmtMoney(l.desconto, { dec: 0 })} desconto` : null,
+    /* 0025: quanto do total foi instalação / mão de obra */
+    l.tipo === TIPO_FORNECIMENTO_INSTALACAO && valorPorCategoria(l).maoDeObra > 0
+      ? `${fmtMoney(valorPorCategoria(l).maoDeObra, { dec: 0 })} de instalação`
+      : null,
     l.documento || null,
   ]
     .filter(Boolean)

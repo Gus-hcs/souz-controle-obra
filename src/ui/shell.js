@@ -137,6 +137,25 @@ function viewPermitida(view, obraId) {
   return !ehClienteDaObra(obraId) || VIEWS_CLIENTE.has(view);
 }
 /* obras que entram nos números da construtora (Carteira) */
+/* As obras abertas por último neste aparelho (o seletor de obra mostra
+   essas primeiro). Até 8; sem localStorage, lista vazia. */
+const CHAVE_RECENTES = 'souz_obras_recentes';
+function obrasRecentes() {
+  try {
+    const l = JSON.parse(localStorage.getItem(CHAVE_RECENTES) || '[]');
+    return Array.isArray(l) ? l.filter((x) => typeof x === 'string') : [];
+  } catch (e) {
+    return [];
+  }
+}
+function registrarObraRecente(id) {
+  const l = [id, ...obrasRecentes().filter((x) => x !== id)].slice(0, 8);
+  try {
+    localStorage.setItem(CHAVE_RECENTES, JSON.stringify(l));
+  } catch (e) {
+    /* sem storage: o seletor fica na ordem de cadastro */
+  }
+}
 const obrasDaConstrutora = () => Store.estado.obras.filter((o) => !ehClienteDaObra(o.id));
 
 const VIEWS_OBRA = new Set(
@@ -191,6 +210,7 @@ const App = {
        quando a obra abre com rede (uma vez por obra na sessão) */
     const o = this.obra();
     if (o) migrarFotosDiario(o).catch(() => {});
+    if (o && VIEWS_OBRA.has(this.rota.view)) registrarObraRecente(o.id);
   },
 
   renderRail() {
@@ -300,6 +320,15 @@ const App = {
     document.getElementById('topo').innerHTML = `
       <button class="btn sutil icone menu-mob" data-acao="menu" aria-label="Abrir menu">${svg(ICO.menu)}</button>
       <div class="titulo"><b>${t}</b><span>${legenda}</span></div>
+      ${
+        /* só nas telas de obra (na Carteira a própria lista escolhe a obra) e
+           sem ferramentas no topo: ali, no celular, não cabe — a troca fica
+           no menu lateral */
+        obra && VIEWS_OBRA.has(this.rota.view) && !acoesTela
+          ? `<button class="seletor-obra-topo so-celular" data-acao="obra-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Trocar de obra">
+          <span>${esc(partesNomeObra(obra)[0])}</span>${svg(ICO.seta, 11)}</button>`
+          : ''
+      }
       <div class="dir">
         ${acoesTela}
         ${avisoGravacao}
@@ -740,6 +769,7 @@ export {
   ehClienteDaObra,
   viewPermitida,
   obrasDaConstrutora,
+  obrasRecentes,
   partesNomeObra,
   ICO,
   svg,

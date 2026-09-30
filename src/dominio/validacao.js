@@ -38,6 +38,7 @@ import {
   hojeISO,
 } from '../nucleo/base.js';
 import { motivoTelefoneInvalido } from '../nucleo/contato.js';
+import { lancamentoTotal } from './calculos.js';
 
 const REGISTROS_CONTRATO = ['Contrato', 'Aditivo'];
 const TIPOS_ADITIVO_VALIDOS = TIPOS_ADITIVO.map((x) => x.v);
@@ -181,6 +182,15 @@ function validarContrato(c) {
   }
 
   ordemDatas(c, 'fimPrevisto', 'dataEncerramento', 'Encerramento do contrato', out);
+
+  /* contrato assinado (0025) — espelha chk_contratos_anexo */
+  validarAnexo(c.anexo, 'anexo', 'O contrato anexado', out, ANEXO_CONTRATO);
+  /* link do documento: só https — um "javascript:" aqui virava link que
+     executa código (0025, chk_contratos_documento_url) */
+  const link = String(c.documentoUrl || '').trim();
+  if (link && !LINK_HTTPS.test(link)) {
+    out.push(problema('documentoUrl', 'O link do documento precisa começar com https://.'));
+  }
   return out;
 }
 
@@ -264,6 +274,26 @@ function validarRelatorioGerado(r) {
   return out;
 }
 
+/* ---------------------------------------------------- ERRO DO APP */
+/* Espelha chk_erros_app_* (0026). registroErroApp (dados/erros.js) já
+   corta nesses tamanhos; isto confere o que vai ao banco. */
+const LIMITES_ERRO_APP = { mensagem: 300, origem: 200, pilha: 1500, versao: 40, navegador: 200 };
+const TELA_ERRO_APP = /^[a-z0-9-]{0,40}$/;
+function validarErroApp(r) {
+  const out = [];
+  const m = String(r.mensagem || '').trim();
+  if (!m) out.push(problema('mensagem', 'O erro precisa de uma mensagem.'));
+  for (const [campo, max] of Object.entries(LIMITES_ERRO_APP)) {
+    if (String(r[campo] || '').length > max) {
+      out.push(problema(campo, `${campo}: no máximo ${max} caracteres.`));
+    }
+  }
+  if (!TELA_ERRO_APP.test(String(r.tela || ''))) {
+    out.push(problema('tela', 'A tela do erro é o nome interno dela (letras, números e hífen).'));
+  }
+  return out;
+}
+
 /* ------------------------------------------------------- LANÇAMENTO */
 function validarLancamento(l) {
   const out = [];
@@ -278,6 +308,14 @@ function validarLancamento(l) {
   ], (k) => l[k], out);
   /* nota fiscal (0019/0020) — espelha o CHECK chk_lanc_anexo_nf */
   validarAnexo(l.anexoNf, 'anexoNf', 'A nota fiscal', out);
+  /* parte de instalação / mão de obra (0025): de zero ao total — espelha
+     chk_lanc_mao_de_obra */
+  const mo = num(l.valorMaoDeObra);
+  if (mo < 0) {
+    out.push(problema('valorMaoDeObra', 'A parte de mão de obra não pode ser negativa.'));
+  } else if (mo > lancamentoTotal(l) + 0.005) {
+    out.push(problema('valorMaoDeObra', 'A parte de mão de obra passa do total do lançamento.'));
+  }
   return out;
 }
 
@@ -285,14 +323,19 @@ function validarLancamento(l) {
    1,5 MB) ou referência ao Storage ("storage:<obra>/<pasta>/<arquivo>").
    Espelha os CHECKs chk_lanc_anexo_nf e chk_receb_comprovante. */
 const ANEXO_STORAGE = /^storage:[A-Za-z0-9_-]+\/(lancamentos|recebimentos|relatorios)\/[A-Za-z0-9._-]+$/;
-function anexoValido(ref) {
+/* o contrato assinado fica na pasta <obra>/contratos/ (0025) */
+const ANEXO_CONTRATO = /^storage:[A-Za-z0-9_-]+\/contratos\/[A-Za-z0-9._-]+$/;
+const LINK_HTTPS = /^https:\/\/[^\s"'<>]+$/;
+/* o link do documento só abre se for https (a tela confere antes de abrir) */
+const linkHttpsValido = (u) => LINK_HTTPS.test(String(u || '').trim());
+function anexoValido(ref, reStorage = ANEXO_STORAGE) {
   const s = String(ref || '');
   if (!s) return true;
-  if (ANEXO_STORAGE.test(s)) return s.length <= 300;
+  if (reStorage.test(s)) return s.length <= 300;
   return /^data:(image\/|application\/pdf)/.test(s) && s.length <= 1500000;
 }
-function validarAnexo(ref, campo, rotulo, out) {
-  if (!anexoValido(ref)) {
+function validarAnexo(ref, campo, rotulo, out, reStorage = ANEXO_STORAGE) {
+  if (!anexoValido(ref, reStorage)) {
     out.push(problema(campo, `${rotulo} precisa ser uma foto ou um PDF de até 1,5 MB.`));
   }
 }
@@ -802,7 +845,10 @@ export {
   validarConstrutora,
   validarNovoAcesso,
   validarRelatorioGerado,
+  validarErroApp,
+  LIMITES_ERRO_APP,
   anexoValido,
+  linkHttpsValido,
   validarObra,
   validarContrato,
   validarMedicao,
