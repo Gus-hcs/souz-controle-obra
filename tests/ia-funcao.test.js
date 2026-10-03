@@ -12,6 +12,7 @@ import {
   custoUsd,
   lerPedido,
   montarPedidoNota,
+  normalizarLeitura,
   processarNota,
   tipoDoArquivo,
 } from '../supabase/functions/ia/leitura.js';
@@ -164,6 +165,33 @@ describe('o que vai para a IA', () => {
     conferir(ESQUEMA_NOTA, 'nota');
     /* nenhum campo para dado de pessoa física */
     expect(JSON.stringify(ESQUEMA_NOTA)).not.toMatch(/cpf|destinat|telefone|endereco/i);
+  });
+  it('no máximo 16 campos com união (limite da saída estruturada: acima disso a API recusa com 400)', () => {
+    const uniao = (s) =>
+      (s.anyOf || Array.isArray(s.type) ? 1 : 0) +
+      Object.values(s.properties || {}).reduce((n, v) => n + uniao(v), 0) +
+      (s.items ? uniao(s.items) : 0);
+    expect(uniao(ESQUEMA_NOTA)).toBeLessThanOrEqual(16);
+  });
+  it('texto vazio da IA vira null antes da validação, na nota e nos itens', () => {
+    const l = normalizarLeitura({
+      ...LEITURA,
+      motivo: '',
+      numero: ' ',
+      formaPagamento: '',
+      cnpj: '',
+      dataEmissao: '',
+      itens: [{ ...LEITURA.itens[0], etapa: '', materialId: '', unidade: '' }],
+    });
+    expect([l.motivo, l.numero, l.formaPagamento, l.cnpj, l.dataEmissao]).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
+    expect(l.itens[0]).toMatchObject({ etapa: null, materialId: null, unidade: null });
+    expect(l.incertos).toEqual([]);
   });
   it('custo pela tabela oficial (Sonnet 5: US$ 2 e US$ 10 por milhão)', () => {
     expect(custoUsd('claude-sonnet-5', { input_tokens: 5900, output_tokens: 700 })).toBeCloseTo(

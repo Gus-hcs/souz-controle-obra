@@ -73,7 +73,9 @@ async function gerar(c) {
           : '.nf';
   const el = await p.$(alvo);
   const caixa = await el.boundingBox();
-  const clip = c.cortar ? { ...caixa, height: caixa.height * 0.62 } : caixa;
+  /* nota cortada: a foto pega todos os itens, mas não o quadro de totais */
+  const totais = c.cortar ? await (await p.$('.tot')).boundingBox() : null;
+  const clip = totais ? { ...caixa, height: totais.y - caixa.y - 4 } : caixa;
   await p.screenshot({ path: arq, type: 'jpeg', quality: 78, clip });
   await p.close();
   return arq;
@@ -113,7 +115,10 @@ function comparar(g, l) {
     marca('item.valorTotal', igualNum(li.valorTotal, gi.valorTotal));
     marca('item.quantidade', igualNum(li.quantidade, gi.quantidade));
     marca('item.descricao', txt(li.descricao).includes(txt(gi.descricao).slice(0, 10)));
-    marca('item.servico', li.servico === gi.servico);
+    /* item misto (fornecimento + instalação): o tipo sai do valor da
+       instalação (tipoItemNota), que é conferido abaixo — a marca
+       "servico" não muda o lançamento */
+    if (gi.valorServico == null) marca('item.servico', li.servico === gi.servico);
     if (gi.valorServico != null)
       marca('item.valorServico', igualNum(li.valorServico, gi.valorServico));
   });

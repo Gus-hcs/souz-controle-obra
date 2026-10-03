@@ -18,6 +18,7 @@
    avaliação em tests/ia compara com o Haiku 4.5 antes de trocar */
 export const MODELOS = { nota: 'claude-sonnet-5' };
 export const ESFORCO = { nota: 'low' };
+const SEM_ESFORCO = new Set(['claude-haiku-4-5']);
 
 /* US$ por milhão de tokens (tabela oficial, 30/09/2026) */
 export const PRECOS = {
@@ -51,6 +52,9 @@ export const CAMPOS_INCERTOS = [
   'itens',
 ];
 
+/* A saída estruturada aceita no máximo 16 campos com união (anyOf) no
+   esquema inteiro. Por isso só os NÚMEROS podem vir null; texto ausente
+   vem como "" e normalizarLeitura o troca por null (TEXTOS_NOTA). */
 const nulo = (t) => ({ anyOf: [t, { type: 'null' }] });
 const TEXTO = { type: 'string' };
 const NUMERO = { type: 'number' };
@@ -62,16 +66,16 @@ export const ESQUEMA_NOTA = {
   additionalProperties: false,
   properties: {
     legivel: { type: 'boolean' },
-    motivo: nulo(TEXTO),
+    motivo: TEXTO,
     tipoDocumento: { type: 'string', enum: TIPOS_DOCUMENTO },
-    fornecedor: nulo(TEXTO),
-    cnpj: nulo(TEXTO),
-    numero: nulo(TEXTO),
-    dataEmissao: nulo(TEXTO),
+    fornecedor: TEXTO,
+    cnpj: TEXTO,
+    numero: TEXTO,
+    dataEmissao: TEXTO,
     totalNota: nulo(NUMERO),
     desconto: nulo(NUMERO),
     frete: nulo(NUMERO),
-    formaPagamento: nulo(TEXTO),
+    formaPagamento: TEXTO,
     itens: {
       type: 'array',
       items: {
@@ -80,14 +84,14 @@ export const ESQUEMA_NOTA = {
         properties: {
           descricao: TEXTO,
           quantidade: nulo(NUMERO),
-          unidade: nulo(TEXTO),
+          unidade: TEXTO,
           valorUnitario: nulo(NUMERO),
           valorTotal: nulo(NUMERO),
           servico: { type: 'boolean' },
           valorServico: nulo(NUMERO),
-          categoria: nulo(TEXTO),
-          etapa: nulo(TEXTO),
-          materialId: nulo(TEXTO),
+          categoria: TEXTO,
+          etapa: TEXTO,
+          materialId: TEXTO,
         },
         required: [
           'descricao',
@@ -125,14 +129,14 @@ export const ESQUEMA_NOTA = {
 export const INSTRUCOES_NOTA = `Você lê documentos de compra de uma obra no Brasil — NF-e (DANFE), NFC-e (cupom), NFS-e e recibos — e devolve os dados no formato pedido.
 
 Regras:
-- Copie só o que está escrito no documento. Não invente nem complete: o que não aparece ou não dá para ler fica null.
+- Copie só o que está escrito no documento. Não invente nem complete: o que não aparece ou não dá para ler fica vazio: texto "" e número null.
 - Valores em reais como número: 1.234,56 vira 1234.56. Datas em AAAA-MM-DD (a data de emissão).
 - fornecedor e cnpj são do EMITENTE (quem vendeu). CNPJ só com os 14 dígitos. Nunca devolva nome, CPF, endereço ou telefone do destinatário, em nenhum campo.
 - itens: cada linha de produto ou serviço, na ordem do documento. valorTotal é o total da linha. servico = true quando a linha é serviço (mão de obra, instalação, montagem). Se a linha junta fornecimento e instalação e o documento separa o valor da instalação, informe esse valor em valorServico; senão, valorServico = null.
-- desconto e frete são os totais da nota, não por item. totalNota é o valor total da nota.
+- desconto e frete são os totais da nota, não por item. totalNota é o valor total IMPRESSO no documento. Se ele não aparece (foto cortada, ilegível), totalNota = null e "totalNota" vai para incertos — nunca some os itens para preencher, nem desconto ou frete.
 - categoria: uma ou duas palavras do tipo de material ou serviço (Cimento, Aço, Bloco, Tinta, Elétrica, Hidráulica, Areia, Madeira, Instalação).
-- etapa e materialId: escolha SOMENTE entre as opções da obra listadas na mensagem. Se nenhuma servir, null. Nunca crie uma opção nova.
-- formaPagamento: como está no documento (PIX, dinheiro, cartão, boleto), ou null.
+- etapa e materialId: escolha SOMENTE entre as opções da obra listadas na mensagem. Se nenhuma servir, "". Nunca crie uma opção nova.
+- formaPagamento: como está no documento (PIX, dinheiro, cartão, boleto), ou "".
 - legivel = false quando a imagem não é um documento de compra ou não dá para ler os itens; diga o motivo em uma frase. Com legivel = false, itens pode vir vazio.
 - incertos: os campos que você leu mas pode ter lido errado (borrado, cortado, dobrado, manuscrito). Use "itens" se algum item está duvidoso.`;
 
@@ -314,7 +318,8 @@ export function montarPedidoNota(bytes, tipo, contexto, modelo = MODELOS.nota) {
     max_tokens: 8000,
     system: [{ type: 'text', text: INSTRUCOES_NOTA, cache_control: { type: 'ephemeral' } }],
     output_config: {
-      effort: ESFORCO.nota,
+      /* o Haiku 4.5 recusa o parâmetro de esforço (400) */
+      ...(SEM_ESFORCO.has(modelo) ? {} : { effort: ESFORCO.nota }),
       format: { type: 'json_schema', schema: ESQUEMA_NOTA },
     },
     messages: [
@@ -337,12 +342,31 @@ export function custoUsd(modelo, usage = {}) {
   );
 }
 
-/* CNPJ com pontuação ou dígito a mais vira só dígitos; se não fecha 14,
-   fica null e entra nos incertos (a pessoa digita). */
+/* Texto vazio ("") vira null, nos campos da nota e de cada item. CNPJ
+   com pontuação ou dígito a mais vira só dígitos; se não fecha 14, fica
+   null e entra nos incertos (a pessoa digita). */
+export const TEXTOS_NOTA = [
+  'motivo',
+  'fornecedor',
+  'cnpj',
+  'numero',
+  'dataEmissao',
+  'formaPagamento',
+];
+export const TEXTOS_ITEM = ['unidade', 'categoria', 'etapa', 'materialId'];
+const vazioNulo = (o, campos) => {
+  const r = { ...o };
+  campos.forEach((k) => {
+    if (typeof r[k] === 'string' && !r[k].trim()) r[k] = null;
+  });
+  return r;
+};
 export function normalizarLeitura(l) {
   const out = {
-    ...l,
-    itens: Array.isArray(l.itens) ? l.itens : [],
+    ...vazioNulo(l, TEXTOS_NOTA),
+    itens: Array.isArray(l.itens)
+      ? l.itens.map((it) => (it && typeof it === 'object' ? vazioNulo(it, TEXTOS_ITEM) : it))
+      : [],
     incertos: Array.isArray(l.incertos) ? [...l.incertos] : [],
   };
   if (out.cnpj != null) {
