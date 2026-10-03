@@ -19,3 +19,8 @@ project_id = "vushcazzyabvamylbtat"
 # O gateway recusa a chamada sem um JWT válido; a função ainda confere
 # perfis.admin por dentro.
 verify_jwt = true
+
+[functions.ia]
+# Leitura de nota por IA (0027). O gateway exige JWT; a cota e o acesso à
+# obra são conferidos por ia_reservar, com o token de quem pediu.
+verify_jwt = true

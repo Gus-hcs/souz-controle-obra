@@ -21,7 +21,8 @@ gerados · importação de planilha por modelo (obras, lançamentos, prestadores
 cronograma) e da planilha MCMV · exportação CSV e Excel · acesso do Power BI ao
 PostgreSQL · construtoras (a conta de empresa que se vende): equipe com limite
 de acessos e de obras, cliente final que acompanha a obra sem ocupar vaga,
-tudo criado e controlado pelo administrador do sistema.
+tudo criado e controlado pelo administrador do sistema · leitura de nota fiscal
+por IA (foto → lançamentos conferidos), com cota por construtora.
 
 O sistema atende qualquer construtora: nada na tela assume a CAIXA. O nome do
 financiador vem de `obras.financiador`; vazio, a tela diz "financiador".
@@ -177,6 +178,18 @@ Todos são escritos para rodar de novo sem quebrar (`if not exists`,
   sessão, só com conta ativa e rede; falha ao gravar desliga o monitor na
   sessão. Só o admin lê (`SUPA.lerErrosApp`), no bloco "Erros do app" de
   Contas e acessos, agrupado por `resumoErrosApp`.
+- **IA (`ia_config`, `ia_uso`, 0027; função `supabase/functions/ia`)**: fora
+  do `Store`. A chave da Anthropic é secret da Edge Function
+  (`ANTHROPIC_API_KEY`) e nunca vai ao navegador nem ao repositório
+  (`supabase/.env` é ignorado pelo git). A função reserva a cota com o
+  token de quem pede (`ia_reservar`), baixa a nota do Storage com o mesmo
+  token, lê com saída estruturada e valida; só a conclusão usa a
+  service_role. O núcleo (`supabase/functions/ia/leitura.js`) é JS puro
+  testado no vitest; `validarLeituraNota` existe nele e em `validacao.js`
+  (a função é publicada sozinha) e `tests/ia-leitura-nota.test.js` confere
+  que dizem o mesmo. A IA não grava nada: `ui/telas/nota-ia.js` mostra a
+  conferência e a pessoa cria os lançamentos (`lancamentosDaLeitura`).
+  Acerto real: `tests/ia/avaliar.mjs` (fora da CI, custa centavos).
 - **`obra_membros`** também fica fora do `TABELAS_DB`: `SUPA.carregarPapeis()`
   lê os papéis do usuário no login para `SUPA.papeis`, e `SUPA.lerMembros()`
   serve a futura tela de equipe. Não há gravação de membro pela tela ainda.

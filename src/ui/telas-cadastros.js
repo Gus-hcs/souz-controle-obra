@@ -14,13 +14,14 @@ import {
 import {
   apenasErros,
   validarConstrutora,
+  validarIaConfig,
   validarNovoAcesso,
   validarPerfilAdmin,
   validarSenhaForte,
   validarUsuarioNovo,
 } from '../dominio/validacao.js';
 import { SUPA } from '../dados/supabase.js';
-import { App, abrirModal, botao, cartao, chip, confirmar, fecharModal, MENU, toast, vazio } from './shell.js';
+import { App, abrirForm, abrirModal, botao, cartao, chip, confirmar, fecharModal, MENU, toast, vazio } from './shell.js';
 import { buscaToolbar, faixaKpis, lista } from './telas/componentes.js';
 import { VIEWS } from './telas-obra.js';
 import { ACOES } from './acoes.js';
@@ -755,9 +756,11 @@ function secaoUsuarios(c, usuarios) {
           { id: c.id },
           c.bloqueada ? 'btn pequeno' : 'btn sutil pequeno',
         )}
+        ${botao('IA', 'admin-ia', { empresa: c.id }, 'btn sutil pequeno', 'camera')}
         ${botao('Novo acesso', 'admin-novo-acesso', { id: c.id }, 'btn primario pequeno', 'mais')}
       </div>
     </div>
+    <p class="linha-cinza" data-testid="ia-construtora">${esc(textoIa(iaDe({ empresa: c.id })))}</p>
     ${
       v.cheia
         ? `<p class="aviso-discreto tom-alerta">Sem vaga: ${esc(v.texto)} acessos em uso. Engenheiro ou gestor novo só depois de aumentar o limite ou bloquear alguém. Cliente final não ocupa vaga.</p>`
@@ -782,6 +785,7 @@ function secaoSoltas(soltas) {
         <td>${quandoRelativo(u.ultima_atividade)}</td>
         <td class="acoes" style="opacity:1;white-space:nowrap">
           ${botao('Ligar a uma construtora', 'admin-ligar', { id: u.usuario_id }, 'btn pequeno')}
+          ${botao('IA', 'admin-ia', { usuario: u.usuario_id }, 'btn sutil pequeno', 'camera')}
           ${botao('Editar', 'admin-editar', { id: u.usuario_id }, 'btn sutil pequeno', 'lapis')}
         </td>
       </tr>`;
@@ -793,6 +797,94 @@ function secaoSoltas(soltas) {
       <tbody>${soltas.map(linhaS).join('')}</tbody></table></div>
   </section>`;
 }
+
+/* IA (0027): ligada, cota e uso do mês por construtora ou conta avulsa.
+   Leitor dedicado (admin_ia), fora do Store. lista null = carregando;
+   falta = a 0027 ainda não foi aplicada. A cota é conferida no banco
+   (ia_reservar); a tela só mostra e grava pelo admin_definir_ia. */
+const IaAdmin = { lista: null, falta: false, carregando: false };
+function carregarIa(forcar = false) {
+  if (IaAdmin.carregando || (!forcar && (IaAdmin.lista || IaAdmin.falta))) return;
+  IaAdmin.carregando = true;
+  SUPA.lerIaAdmin()
+    .then((l) => {
+      IaAdmin.lista = l;
+      IaAdmin.falta = false;
+    })
+    .catch((e) => {
+      if (semFuncao(e)) IaAdmin.falta = true;
+      else IaAdmin.lista = [];
+    })
+    .finally(() => {
+      IaAdmin.carregando = false;
+      if (App.rota.view === 'admin') App.renderConteudo();
+    });
+}
+const iaDe = ({ empresa, usuario }) =>
+  (IaAdmin.lista || []).find((r) => (empresa && r.empresa_id === empresa) || (usuario && r.usuario_id === usuario)) ||
+  null;
+function textoIa(r) {
+  carregarIa();
+  if (IaAdmin.falta) return 'IA: aplique a migração 0027 para ligar.';
+  if (!IaAdmin.lista) return 'IA: carregando…';
+  if (!r) return 'IA desligada.';
+  const mes = new Date().toISOString().slice(0, 7);
+  const cota = Number(r.cota_notas) + (r.extra_mes === mes ? Number(r.extra_notas) : 0);
+  return [
+    r.ligada ? 'IA ligada' : 'IA desligada',
+    `${r.usado_notas} de ${cota} notas este mês`,
+    `${r.usado_textos} de ${r.cota_textos} textos`,
+    `US$ ${Number(r.custo_usd_mes || 0).toFixed(2)}`,
+    r.valida_ate ? `até ${r.valida_ate.split('-').reverse().join('/')}` : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+ACOES['admin-ia'] = (el, d) => {
+  if (IaAdmin.falta) return toast('Aplique a migração 0027 antes de ligar a IA.', 'aviso');
+  const alvo = d.empresa ? { empresa: d.empresa } : { usuario: d.usuario };
+  const r = iaDe(alvo);
+  const cs = d.empresa ? construtora(d.empresa) : null;
+  const obras = cs && cs.limite_obras ? Number(cs.limite_obras) : 3;
+  const mes = new Date().toISOString().slice(0, 7);
+  abrirForm({
+    titulo: `IA — ${cs ? cs.nome : 'conta avulsa'}`,
+    campos: [
+      { k: 'ligada', label: 'Leitura de nota por IA', tipo: 'select', opcoes: ['Ligada', 'Desligada'], col: 6, vazio: false },
+      { k: 'validaAte', label: 'Até (fim do teste)', tipo: 'data', col: 6, dica: 'vazio = sem prazo' },
+      { k: 'cotaNotas', label: 'Notas por mês', tipo: 'numero', dec: 0, col: 4, dica: `sugestão: 60 por obra (${60 * obras})` },
+      { k: 'cotaTextos', label: 'Textos por mês', tipo: 'numero', dec: 0, col: 4 },
+      { k: 'extraNotas', label: 'Notas a mais neste mês', tipo: 'numero', dec: 0, col: 4 },
+    ],
+    valores: {
+      ligada: r && r.ligada ? 'Ligada' : 'Desligada',
+      validaAte: (r && r.valida_ate) || '',
+      cotaNotas: r ? r.cota_notas : 60 * obras,
+      cotaTextos: r ? r.cota_textos : 60 * obras,
+      extraNotas: r && r.extra_mes === mes ? r.extra_notas : 0,
+    },
+    validar: (v) => validarIaConfig(v),
+    aoSalvar: async (v) => {
+      try {
+        await SUPA.adminDefinirIa({
+          empresaId: d.empresa || null,
+          usuarioId: d.usuario || null,
+          ligada: v.ligada === 'Ligada',
+          cotaNotas: v.cotaNotas,
+          cotaTextos: v.cotaTextos,
+          extraNotas: v.extraNotas,
+          validaAte: v.validaAte,
+        });
+        fecharModal();
+        toast('IA atualizada.', 'ok');
+        carregarIa(true);
+      } catch (e) {
+        toast('Não foi possível gravar: ' + ((e && e.message) || e), 'critico');
+      }
+    },
+  });
+};
 
 /* Erros do app (0026): o que quebrou no aparelho de alguém, agrupado
    (resumoErrosApp). Leitor dedicado, fora do Store, como a auditoria.

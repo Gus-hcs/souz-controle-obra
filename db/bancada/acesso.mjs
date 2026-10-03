@@ -736,6 +736,172 @@ if (fs.existsSync(path.join(MIG, '0026_erros_app.sql'))) {
   confere('0026 roda de novo sem quebrar', !de_novo26, de_novo26 || '');
 }
 
+/* ------------------------------------------------ 12. IA: cota e uso (0027) */
+if (fs.existsSync(path.join(MIG, '0027_ia.sql'))) {
+  const reservar = (uid, obra, tarefa = 'nota') =>
+    tenta(uid, `select public.ia_reservar('${obra}', '${tarefa}') as id`);
+  const definir = (uid, emp, conta, ligada, notas, textos, extra = 0, ate = null) =>
+    tenta(
+      uid,
+      `select public.admin_definir_ia(${emp ? `'${emp}'` : 'null'}, ${conta ? `'${conta}'` : 'null'},
+        ${ligada}, ${notas}, ${textos}, ${extra}, ${ate ? `'${ate}'` : 'null'})`,
+    );
+  const concluir = async (id, status) => {
+    await db.exec(`set role service_role;
+      select public.ia_concluir('${id}', '${status}', 'claude-sonnet-5', 5900, 700, 0.019, 8000, null);
+      reset role;`);
+  };
+  const msg = (r) => (r.ok ? 'ok' : r.erro);
+
+  confere(
+    'sem configuração, a IA está desligada',
+    /ia: desligada/.test(msg(await reservar(U.engB, 'oB1'))),
+  );
+  confere('só o admin liga a IA', !(await definir(U.engB, empB, null, true, 2, 5)).ok);
+  confere(
+    'admin liga a IA da construtora B com 2 notas',
+    (await definir(U.admin, empB, null, true, 2, 5)).ok,
+  );
+
+  const r1 = await reservar(U.engB, 'oB1');
+  confere('engenheiro da B reserva uma leitura', r1.ok && !!r1.rows[0].id, msg(r1));
+  confere(
+    'quem está logado não conclui a própria chamada (só a função, com service_role)',
+    !(
+      await tenta(
+        U.engB,
+        `select public.ia_concluir('${r1.rows[0].id}', 'ok', 'x', 0, 0, 0, 0, null)`,
+      )
+    ).ok,
+  );
+  await concluir(r1.rows[0].id, 'ok');
+  const r2 = await reservar(U.engB, 'oB1');
+  confere('segunda leitura dentro da cota', r2.ok, msg(r2));
+  confere(
+    'terceira passa da cota de 2',
+    /ia: cota esgotada/.test(msg(await reservar(U.engB, 'oB1'))),
+  );
+  await concluir(r2.rows[0].id, 'erro');
+  confere('leitura que falhou não conta na cota', (await reservar(U.engB, 'oB1')).ok);
+  confere('textos têm cota própria', (await reservar(U.engB, 'oB1', 'diario')).ok);
+  confere(
+    'tarefa desconhecida é recusada',
+    /tarefa desconhecida/.test(msg(await reservar(U.engB, 'oB1', 'x'))),
+  );
+
+  confere(
+    'outra construtora não usa a IA da B',
+    /sem acesso/.test(msg(await reservar(U.engA, 'oB1'))),
+  );
+  confere('cliente final não usa a IA', /sem acesso/.test(msg(await reservar(U.cliA, 'oB1'))));
+  confere('anônimo não usa a IA', !(await reservar('anon', 'oB1')).ok);
+
+  confere(
+    'ninguém grava direto no registro de uso',
+    !(
+      await tenta(
+        U.engB,
+        `insert into public.ia_uso (empresa_id, tarefa) values ('${empB}', 'nota')`,
+      )
+    ).ok && !(await tenta(U.engB, `update public.ia_uso set status = 'erro'`)).ok,
+  );
+  confere(
+    'ninguém grava direto na configuração',
+    !(await tenta(U.engB, `update public.ia_config set cota_notas = 9999`)).ok,
+  );
+  confere(
+    'a equipe lê a configuração da própria construtora',
+    (await conta(U.engB, 'public.ia_config', 'true')) === 1,
+  );
+  confere(
+    'engenheiro não lê o registro de uso (só o gestor)',
+    (await conta(U.engB, 'public.ia_uso', 'true')) === 0,
+  );
+  confere(
+    'outra construtora não lê a configuração da B',
+    (await conta(U.engA, 'public.ia_config', 'true')) === 0,
+  );
+  confere('admin lê o uso de todos', (await conta(U.admin, 'public.ia_uso', 'true')) >= 4);
+
+  const sit = await tenta(U.engB, `select * from public.ia_situacao('oB1')`);
+  confere(
+    'situação: ligada, 2 notas de cota, 1 usada (reserva em aberto não conta como usada)',
+    sit.ok &&
+      sit.rows[0].ligada === true &&
+      sit.rows[0].cota_notas === 2 &&
+      sit.rows[0].usado_notas === 1 &&
+      sit.rows[0].usado_textos === 0,
+    sit.ok ? JSON.stringify(sit.rows[0]) : sit.erro,
+  );
+  confere(
+    'situação de obra alheia vem vazia',
+    (await quantas(U.engA, `select * from public.ia_situacao('oB1')`)) === 0,
+  );
+  const adm = await tenta(U.admin, `select * from public.admin_ia()`);
+  confere(
+    'admin vê a IA de cada titular com o uso do mês',
+    adm.ok && adm.rows.length === 1 && adm.rows[0].usado_notas === 1,
+  );
+  confere(
+    'quem não é admin não vê o painel da IA',
+    (await quantas(U.engB, `select * from public.admin_ia()`)) === 0,
+  );
+
+  await definir(U.admin, empB, null, true, 2, 5, 3);
+  confere('leituras a mais no mês liberam a cota', (await reservar(U.engB, 'oB1')).ok);
+  await definir(U.admin, empB, null, true, 2, 5, 0, '2020-01-01');
+  confere(
+    'prazo vencido (fim do teste) desliga a IA',
+    /prazo encerrado/.test(msg(await reservar(U.engB, 'oB1'))),
+  );
+  await definir(U.admin, empB, null, false, 100, 100);
+  confere('IA desligada pelo admin', /ia: desligada/.test(msg(await reservar(U.engB, 'oB1'))));
+
+  const ok1 = (
+    await tenta(
+      U.admin,
+      `select id from public.ia_uso where usuario_id = '${U.engB}' and status = 'ok' limit 1`,
+    )
+  ).rows[0].id;
+  await tenta(U.engB, `select public.ia_marcar_correcoes('${ok1}', 3)`);
+  await tenta(U.engA, `select public.ia_marcar_correcoes('${ok1}', 40)`);
+  confere(
+    'quem pediu anota os campos corrigidos; outro não',
+    (await conta(U.admin, 'public.ia_uso', `id = '${ok1}' and campos_corrigidos = 3`)) === 1,
+  );
+
+  /* conta avulsa: obra antiga sem construtora, do dono "solto" */
+  await db.exec(`alter table public.obras disable trigger user;
+    insert into public.obras (id, nome, usuario_id, empresa_id) values ('oS1', 'Obra avulsa', '${U.solto}', null);
+    alter table public.obras enable trigger user;
+    insert into public.obra_membros (obra_id, usuario_id, papel) values ('oS1', '${U.solto}', 'dono') on conflict do nothing;`);
+  await definir(U.admin, null, U.solto, true, 1, 0);
+  const rs = await reservar(U.solto, 'oS1');
+  confere('conta avulsa usa a IA com a própria cota', rs.ok, msg(rs));
+  confere('conta avulsa vê o próprio uso', (await conta(U.solto, 'public.ia_uso', 'true')) === 1);
+  confere(
+    'a cota da conta avulsa é só dela',
+    /cota esgotada/.test(msg(await reservar(U.solto, 'oS1'))),
+  );
+
+  /* limite por pessoa: 30 por hora, mesmo com cota sobrando */
+  await definir(U.admin, empB, null, true, 1000, 1000);
+  let ultima;
+  for (let i = 0; i < 40; i++) {
+    ultima = await reservar(U.engB, 'oB1');
+    if (!ultima.ok) break;
+  }
+  confere('limite de 30 chamadas por pessoa por hora', /limite por hora/.test(msg(ultima)));
+
+  let de_novo27 = null;
+  try {
+    await db.exec(fs.readFileSync(path.join(MIG, '0027_ia.sql'), 'utf8'));
+  } catch (e) {
+    de_novo27 = e.message;
+  }
+  confere('0027 roda de novo sem quebrar', !de_novo27, de_novo27 || '');
+}
+
 escreve(`\n${total - falhas} de ${total} conferências ok`);
 if (falhas) {
   escreve(`${falhas} FALHA(S)`);

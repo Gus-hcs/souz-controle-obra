@@ -720,6 +720,58 @@ const SUPA = {
     return data || [];
   },
 
+  /* ------------------------------------------------------ IA (0027) */
+  /* Fora do Store, como a auditoria: nada disto é estado da obra. A
+     leitura da nota passa pela função `ia` (a chave da Anthropic fica no
+     servidor); cota e uso são conferidos no banco (ia_reservar). */
+  async situacaoIa(obraId) {
+    if (!this.sb || !this.usuario || !obraId) return null;
+    const { data, error } = await this.sb.rpc('ia_situacao', { p_obra: obraId });
+    if (error) return null; // 0027 não aplicada: sem IA
+    return (data && data[0]) || null;
+  },
+  async lerNotaComIa(obraId, arquivo, contexto) {
+    if (!this.sb) throw new Error('A leitura por IA precisa de conexão com o banco.');
+    const { data, error } = await this.sb.functions.invoke('ia', {
+      body: { tarefa: 'nota', obraId, arquivo, contexto },
+    });
+    if (error) {
+      let msg = 'Não foi possível ler a nota agora.';
+      try {
+        const c = await error.context.json();
+        if (c && c.erro) msg = c.erro;
+      } catch (e) {
+        if (/not found|Failed to (send|fetch)/i.test(error.message || '')) {
+          msg = 'A leitura por IA ainda não foi publicada (função ia).';
+        }
+      }
+      throw new Error(msg);
+    }
+    return data;
+  },
+  async marcarCorrecoesIa(id, n) {
+    if (!this.sb || !id) return;
+    await this.sb.rpc('ia_marcar_correcoes', { p_id: id, p_n: n });
+  },
+  async lerIaAdmin() {
+    if (!this.sb) return [];
+    const { data, error } = await this.sb.rpc('admin_ia');
+    if (error) throw error;
+    return data || [];
+  },
+  async adminDefinirIa({ empresaId = null, usuarioId = null, ligada, cotaNotas, cotaTextos, extraNotas, validaAte }) {
+    const { error } = await this.sb.rpc('admin_definir_ia', {
+      p_empresa: empresaId,
+      p_usuario: usuarioId,
+      p_ligada: !!ligada,
+      p_cota_notas: Number(cotaNotas) || 0,
+      p_cota_textos: Number(cotaTextos) || 0,
+      p_extra_notas: Number(extraNotas) || 0,
+      p_valida_ate: validaAte || null,
+    });
+    if (error) throw error;
+  },
+
   /* ------------------------------------------------------ erros do app */
   /* Fora do Store, como a auditoria (0026): a tela nunca edita um erro.
      Grava a própria conta (o gatilho carimba conta e hora); lê e apaga só o
