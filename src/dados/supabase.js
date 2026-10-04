@@ -749,6 +749,45 @@ const SUPA = {
     }
     return data;
   },
+  /* "Perguntar" (0028): uma volta da conversa na função `ia`; o laço e as
+     ferramentas ficam em dominio/assistente.js (conversarComIa) */
+  async situacaoPerguntas() {
+    if (!this.sb || !this.usuario) return null;
+    const { data, error } = await this.sb.rpc('ia_situacao_perguntas');
+    if (error) return null; // 0028 não aplicada: sem assistente
+    return (data && data[0]) || null;
+  },
+  async perguntarIa(corpo) {
+    if (!this.sb) throw new Error('O assistente precisa de conexão com o banco.');
+    const { data, error } = await this.sb.functions.invoke('ia', { body: corpo });
+    if (error) {
+      let msg = 'O assistente não respondeu agora.';
+      try {
+        const c = await error.context.json();
+        if (c && c.erro) msg = c.erro;
+      } catch (e) {
+        if (/not found|Failed to (send|fetch)/i.test(error.message || '')) {
+          msg = 'O assistente ainda não foi publicado (função ia).';
+        }
+      }
+      throw new Error(msg);
+    }
+    return data;
+  },
+  async lerIaPerguntasAdmin() {
+    if (!this.sb) return [];
+    const { data, error } = await this.sb.rpc('admin_ia_perguntas');
+    if (error) throw error;
+    return data || [];
+  },
+  async adminDefinirIaPerguntas({ empresaId = null, usuarioId = null, cota }) {
+    const { error } = await this.sb.rpc('admin_definir_ia_perguntas', {
+      p_empresa: empresaId,
+      p_usuario: usuarioId,
+      p_cota: Number(cota) || 0,
+    });
+    if (error) throw error;
+  },
   async marcarCorrecoesIa(id, n) {
     if (!this.sb || !id) return;
     await this.sb.rpc('ia_marcar_correcoes', { p_id: id, p_n: n });

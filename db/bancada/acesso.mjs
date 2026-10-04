@@ -902,6 +902,104 @@ if (fs.existsSync(path.join(MIG, '0027_ia.sql'))) {
   confere('0027 roda de novo sem quebrar', !de_novo27, de_novo27 || '');
 }
 
+/* ------------------------------------------- 13. IA: perguntas sobre a obra (0028) */
+if (fs.existsSync(path.join(MIG, '0028_ia_perguntas.sql'))) {
+  const P = {
+    eng: 'd1000000-0000-0000-0000-000000000000',
+    cli: 'd2000000-0000-0000-0000-000000000000',
+  };
+  /* a seção 12 rodou a 0027 de novo (prova de reexecução), o que volta a
+     regra de tarefa da 0027; em produção a ordem é 0027 e depois 0028 */
+  await db.exec(fs.readFileSync(path.join(MIG, '0028_ia_perguntas.sql'), 'utf8'));
+  await db.exec(`insert into auth.users (id, email) values
+    ('${P.eng}', 'eng.perguntas@exemplo.com'), ('${P.cli}', 'cliente.perguntas@exemplo.com')`);
+  await como(U.admin, `select public.admin_definir_usuario_empresa('${P.eng}', '${empB}', 'engenheiro')`);
+  await como(U.admin, `select public.admin_definir_usuario_empresa('${P.cli}', '${empB}', 'cliente')`);
+  const msg = (r) => (r.ok ? 'ok' : r.erro);
+  const reservar = (uid) => tenta(uid, `select public.ia_reservar_pergunta() as id`);
+  const continuar = (uid, id) => tenta(uid, `select public.ia_continuar('${id}') as v`);
+  const somar = async (id, status) => {
+    await db.exec(`set role service_role;
+      select public.ia_somar('${id}', '${status}', 'claude-sonnet-5', 3000, 400, 0.01, 2000, null);
+      reset role;`);
+  };
+  const cotaPerg = (uid, n) =>
+    tenta(uid, `select public.admin_definir_ia_perguntas('${empB}', null, ${n})`);
+
+  await como(
+    U.admin,
+    `select public.admin_definir_ia('${empB}', null, true, 1000, 1000, 0, null)`,
+  );
+  confere('sem cota de perguntas, a pergunta é recusada', /cota esgotada/.test(msg(await reservar(P.eng))));
+  confere('só o admin define a cota de perguntas', !(await cotaPerg(P.eng, 50)).ok);
+  confere('admin define 2 perguntas por mês', (await cotaPerg(U.admin, 2)).ok);
+  await como(U.admin, `select public.admin_definir_ia('${empB}', null, true, 1000, 1000, 0, null)`);
+  confere(
+    'religar a IA não apaga a cota de perguntas',
+    (await conta(U.admin, 'public.ia_config', `empresa_id = '${empB}' and cota_perguntas = 2`)) === 1,
+  );
+
+  const textosAntes = (await tenta(P.eng, `select * from public.ia_situacao('oB1')`)).rows[0];
+  const r1 = await reservar(P.eng);
+  confere('engenheiro da construtora faz uma pergunta (sem obra)', r1.ok && !!r1.rows[0].id, msg(r1));
+  const id1 = r1.rows[0].id;
+  confere('continua a própria pergunta', (await continuar(P.eng, id1)).ok);
+  confere('ninguém continua a pergunta de outra pessoa', /pergunta encerrada/.test(msg(await continuar(U.engB, id1))));
+  confere(
+    'quem está logado não soma tokens (só a função, com service_role)',
+    !(await tenta(P.eng, `select public.ia_somar('${id1}', 'ok', 'x', 0, 0, 0, 0, null)`)).ok,
+  );
+  for (let i = 0; i < 6; i++) await somar(id1, 'reservada');
+  confere('no máximo 6 voltas por pergunta', /voltas esgotadas/.test(msg(await continuar(P.eng, id1))));
+  confere(
+    'as voltas somam tokens e custo',
+    (await conta(U.admin, 'public.ia_uso', `id = '${id1}' and voltas = 6 and tokens_entrada = 18000 and custo_usd = 0.06`)) === 1,
+  );
+  const r2 = await reservar(P.eng);
+  confere('segunda pergunta dentro da cota', r2.ok, msg(r2));
+  confere('terceira passa da cota de 2', /cota esgotada/.test(msg(await reservar(P.eng))));
+  await somar(id1, 'ok');
+  await somar(r2.rows[0].id, 'erro');
+  confere('pergunta que falhou não conta na cota', (await reservar(P.eng)).ok);
+  confere('pergunta fechada não continua', /pergunta encerrada/.test(msg(await continuar(P.eng, id1))));
+
+  const sit = (await tenta(P.eng, `select * from public.ia_situacao_perguntas()`)).rows[0];
+  confere(
+    'situação das perguntas: ligada, cota 2, 1 usada',
+    sit && sit.ligada === true && sit.cota_perguntas === 2 && sit.usado_perguntas === 1,
+    JSON.stringify(sit),
+  );
+  const textosDepois = (await tenta(P.eng, `select * from public.ia_situacao('oB1')`)).rows[0];
+  confere(
+    'perguntas não comem a cota de textos',
+    textosAntes && textosDepois && textosAntes.usado_textos === textosDepois.usado_textos,
+  );
+  confere('cliente final da construtora não pergunta', /só a equipe/.test(msg(await reservar(P.cli))));
+  confere('cliente final não vê situação de perguntas', (await quantas(P.cli, `select * from public.ia_situacao_perguntas()`)) === 0);
+  confere('anônimo não pergunta', !(await reservar('anon')).ok);
+  const adm = await tenta(U.admin, `select * from public.admin_ia_perguntas() where empresa_id = '${empB}'`);
+  confere('admin vê as perguntas usadas no mês', adm.ok && adm.rows[0].usado_perguntas === 1);
+  confere('quem não é admin não vê o painel de perguntas', (await quantas(P.eng, `select * from public.admin_ia_perguntas()`)) === 0);
+  confere(
+    'ninguém grava a cota direto na tabela',
+    !(await tenta(P.eng, `update public.ia_config set cota_perguntas = 9999`)).ok,
+  );
+  confere(
+    'a tarefa aceita pergunta e a regra continua recusando tarefa estranha',
+    !(await tenta(U.admin, `insert into public.ia_uso (empresa_id, tarefa) values ('${empB}', 'xpto')`)).ok,
+  );
+  await como(U.admin, `select public.admin_definir_ia('${empB}', null, false, 1000, 1000, 0, null)`);
+  confere('IA desligada: pergunta recusada', /ia: desligada/.test(msg(await reservar(P.eng))));
+
+  let de_novo28 = null;
+  try {
+    await db.exec(fs.readFileSync(path.join(MIG, '0028_ia_perguntas.sql'), 'utf8'));
+  } catch (e) {
+    de_novo28 = e.message;
+  }
+  confere('0028 roda de novo sem quebrar', !de_novo28, de_novo28 || '');
+}
+
 escreve(`\n${total - falhas} de ${total} conferências ok`);
 if (falhas) {
   escreve(`${falhas} FALHA(S)`);

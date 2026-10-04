@@ -2179,3 +2179,143 @@ table.lista td s,
     justify-content: center;
   }
 }
+
+/* "Perguntar" (IA, 0028): painel à direita; tela cheia no celular */
+.assistente {
+  position: fixed;
+  top: var(--toolbar-h);
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  width: 420px;
+  max-width: 100vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--fundo-elevado);
+  border-left: var(--fio) solid var(--separador);
+  box-shadow: var(--sombra-menu);
+}
+.assistente-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--e3) var(--e4);
+  border-bottom: var(--fio) solid var(--separador);
+}
+.assistente-cab h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  margin: 0;
+  font-size: var(--t-medio);
+  font-weight: var(--p-semi);
+}
+.assistente-cota {
+  margin: 0;
+  padding: var(--e2) var(--e4);
+}
+.assistente-conversa {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--e3);
+  padding: var(--e4);
+}
+.assistente-vazio p {
+  margin: 0 0 var(--e3);
+  color: var(--tinta2);
+}
+.assistente-sugestoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e2);
+}
+.assistente-msg {
+  max-width: 92%;
+  padding: var(--e2) var(--e3);
+  border-radius: var(--r-cartao);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+.assistente-msg.pessoa {
+  align-self: flex-end;
+  background: var(--acento);
+  color: var(--sobre-acento);
+}
+.assistente-msg.ia {
+  align-self: flex-start;
+  background: var(--fundo-conteudo);
+  border: var(--fio) solid var(--separador);
+}
+.assistente-msg.pensando {
+  color: var(--tinta2);
+}
+.assistente-msg.erro,
+.assistente-msg.inseguro {
+  border-left: 3px solid var(--alerta);
+  background: var(--alerta-fundo);
+}
+.assistente-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--e1);
+  margin-top: var(--e2);
+}
+.assistente-entrada {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--e2);
+  padding: var(--e3) var(--e4);
+  border-top: var(--fio) solid var(--separador);
+}
+.assistente-entrada textarea {
+  flex: 1;
+  height: auto;
+  min-height: 44px;
+  resize: none;
+  padding: var(--e2);
+}
+.assistente-fab {
+  display: none;
+}
+@media (max-width: 767px) {
+  .assistente {
+    top: 0;
+    width: 100vw;
+    border-left: 0;
+  }
+  #topo .assistente-topo {
+    display: none;
+  }
+  .assistente-fab {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 35;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--acento);
+    color: var(--sobre-acento);
+    box-shadow: var(--sombra-menu);
+  }
+  /* o botão redondo não cobre o fim da página */
+  body.com-assistente #conteudo {
+    padding-bottom: 84px;
+  }
+  body.assistente-aberto .assistente-fab {
+    display: none;
+  }
+  .assistente-sugestoes .pilula,
+  .assistente-links .btn,
+  .assistente-cab .btn,
+  .assistente-entrada .btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

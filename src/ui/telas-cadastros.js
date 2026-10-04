@@ -802,13 +802,18 @@ function secaoSoltas(soltas) {
    Leitor dedicado (admin_ia), fora do Store. lista null = carregando;
    falta = a 0027 ainda não foi aplicada. A cota é conferida no banco
    (ia_reservar); a tela só mostra e grava pelo admin_definir_ia. */
-const IaAdmin = { lista: null, falta: false, carregando: false };
+/* semPerguntas: a 0028 ("Perguntar") ainda não foi aplicada */
+const IaAdmin = { lista: null, falta: false, semPerguntas: false, carregando: false };
 function carregarIa(forcar = false) {
   if (IaAdmin.carregando || (!forcar && (IaAdmin.lista || IaAdmin.falta))) return;
   IaAdmin.carregando = true;
-  SUPA.lerIaAdmin()
-    .then((l) => {
-      IaAdmin.lista = l;
+  Promise.all([SUPA.lerIaAdmin(), SUPA.lerIaPerguntasAdmin().catch(() => null)])
+    .then(([l, p]) => {
+      IaAdmin.semPerguntas = !p;
+      IaAdmin.lista = l.map((r) => {
+        const q = (p || []).find((x) => (r.empresa_id && x.empresa_id === r.empresa_id) || (r.usuario_id && x.usuario_id === r.usuario_id));
+        return q ? { ...r, cota_perguntas: q.cota_perguntas, usado_perguntas: q.usado_perguntas } : r;
+      });
       IaAdmin.falta = false;
     })
     .catch((e) => {
@@ -834,6 +839,7 @@ function textoIa(r) {
     r.ligada ? 'IA ligada' : 'IA desligada',
     `${r.usado_notas} de ${cota} notas este mês`,
     `${r.usado_textos} de ${r.cota_textos} textos`,
+    r.cota_perguntas != null ? `${r.usado_perguntas} de ${r.cota_perguntas} perguntas` : '',
     `US$ ${Number(r.custo_usd_mes || 0).toFixed(2)}`,
     r.valida_ate ? `até ${r.valida_ate.split('-').reverse().join('/')}` : '',
   ]
@@ -856,6 +862,9 @@ ACOES['admin-ia'] = (el, d) => {
       { k: 'cotaNotas', label: 'Notas por mês', tipo: 'numero', dec: 0, col: 4, dica: `sugestão: 60 por obra (${60 * obras})` },
       { k: 'cotaTextos', label: 'Textos por mês', tipo: 'numero', dec: 0, col: 4 },
       { k: 'extraNotas', label: 'Notas a mais neste mês', tipo: 'numero', dec: 0, col: 4 },
+      ...(IaAdmin.semPerguntas
+        ? []
+        : [{ k: 'cotaPerguntas', label: 'Perguntas por mês', tipo: 'numero', dec: 0, col: 4, dica: `sugestão: 50 por obra (${50 * obras})` }]),
     ],
     valores: {
       ligada: r && r.ligada ? 'Ligada' : 'Desligada',
@@ -863,6 +872,7 @@ ACOES['admin-ia'] = (el, d) => {
       cotaNotas: r ? r.cota_notas : 60 * obras,
       cotaTextos: r ? r.cota_textos : 60 * obras,
       extraNotas: r && r.extra_mes === mes ? r.extra_notas : 0,
+      cotaPerguntas: r && r.cota_perguntas != null ? r.cota_perguntas : 50 * obras,
     },
     validar: (v) => validarIaConfig(v),
     aoSalvar: async (v) => {
@@ -876,6 +886,13 @@ ACOES['admin-ia'] = (el, d) => {
           extraNotas: v.extraNotas,
           validaAte: v.validaAte,
         });
+        if (!IaAdmin.semPerguntas) {
+          await SUPA.adminDefinirIaPerguntas({
+            empresaId: d.empresa || null,
+            usuarioId: d.usuario || null,
+            cota: v.cotaPerguntas,
+          });
+        }
         fecharModal();
         toast('IA atualizada.', 'ok');
         carregarIa(true);

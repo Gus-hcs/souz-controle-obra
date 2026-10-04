@@ -47,6 +47,9 @@ const ICO = {
   estrela: '<path d="M8 1.9l1.8 3.8 4.1.5-3 2.8.8 4.1L8 11.1 4.3 13.1l.8-4.1-3-2.8 4.1-.5z"/>',
   /* leitura de nota por IA (0027) */
   camera: '<path d="M2 5.5h2.4l1.2-1.8h4.8l1.2 1.8H14v7.5H2z"/><circle cx="8" cy="9" r="2.3"/>',
+  /* "Perguntar" (0028) */
+  brilho: '<path d="M8 1.5 9.4 6.6 14.5 8 9.4 9.4 8 14.5 6.6 9.4 1.5 8 6.6 6.6z"/><path d="M13 1.8v2.4M11.8 3h2.4"/>',
+  enviar: '<path d="M2 8 14 2.5 10.5 14 8 9.2z"/><path d="M8 9.2 14 2.5"/>',
   cadeado: '<rect x="3.5" y="7" width="9" height="6.5" rx="1"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/>',
   empresa: '<path d="M2.5 14V4l5.5-2.5V14M8 14V6.5l5.5 2V14"/><path d="M1 14h14"/>'
 };
@@ -335,6 +338,7 @@ const App = {
       <div class="dir">
         ${acoesTela}
         ${avisoGravacao}
+        ${typeof this.botaoTopo === 'function' ? this.botaoTopo() : ''}
         <button class="conta-btn" data-acao="conta-menu" aria-haspopup="menu" aria-expanded="false" title="${esc([id.empresa, usuario, id.papel].filter(Boolean).join(' · '))}">
           <span class="conta-avatar" aria-hidden="true">${esc(usuario.charAt(0).toUpperCase())}</span>
           <span class="conta-id">

@@ -400,6 +400,63 @@ function alertasLeituraNota(l, obra, hoje = hojeISO(), prestadores = []) {
   return out;
 }
 
+/* ------------------------------------------- RESPOSTA DO "PERGUNTAR" (0028) */
+/* Todo número da resposta da IA precisa ter saído de uma ferramenta (ou da
+   própria pergunta). Devolve os trechos que não têm origem — lista vazia
+   é resposta conferida. Datas comparam dia e mês; valores, em módulo
+   ("negativo em R$ 47.800" e "R$ -47.800" são o mesmo); "R$ 12,3 mil"
+   vale se algum valor das fontes arredonda para ele. 0 e 1 passam.
+   Mesma regra em supabase/functions/ia/perguntas.js (a função decide se
+   pede outra redação); tests/ia-perguntas.test.js confere as duas. */
+const RE_DATA = /\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b|\b(\d{4})-(\d{2})-(\d{2})\b/g;
+const RE_NUM = /-?\d{1,3}(?:\.\d{3})+(?:,\d+)?|-?\d+,\d+|-?\d+(?:\.\d+)?/g;
+function numerosDoTexto(texto) {
+  const datas = [];
+  const sem = String(texto || '').replace(RE_DATA, (m, d, mes, ano, a2, m2, d2) => {
+    datas.push(d2 ? `${Number(m2)}-${Number(d2)}` : `${Number(mes)}-${Number(d)}`);
+    if (ano || a2) datas.push(`ano:${Number(a2 || (ano.length === 2 ? '20' + ano : ano))}`);
+    return ' ';
+  });
+  const valores = [];
+  let m;
+  RE_NUM.lastIndex = 0;
+  while ((m = RE_NUM.exec(sem))) {
+    const bruto = m[0];
+    const n = /,/.test(bruto)
+      ? Number(bruto.replace(/\./g, '').replace(',', '.'))
+      : /^-?\d{1,3}(\.\d{3})+$/.test(bruto)
+        ? Number(bruto.replace(/\./g, ''))
+        : Number(bruto);
+    const depois = sem.slice(m.index + bruto.length, m.index + bruto.length + 5);
+    if (Number.isFinite(n)) valores.push({ bruto, n: Math.abs(n), mil: /^\s*mil\b/i.test(depois) });
+  }
+  return { datas, valores };
+}
+function numerosSemOrigem(resposta, fontes = []) {
+  const doc = numerosDoTexto(resposta);
+  /* identificadores internos têm dígitos que não são dado: fora */
+  const base = fontes
+    .map((f) => (typeof f === 'string' ? f : JSON.stringify(f)))
+    .join(' \n ')
+    .replace(/"(obraId|id|tool_use_id)"\s*:\s*"[^"]*"/g, '');
+  const ref = numerosDoTexto(base);
+  const datas = new Set(ref.datas);
+  const vals = ref.valores.map((v) => v.n);
+  const tem = (x) => vals.some((v) => Math.abs(v - x) < 0.006);
+  const temMil = (x) =>
+    vals.some((v) => Math.abs(Math.round(v / 100) / 10 - x) < 0.006 || Math.abs(Math.round(v / 1000) - x) < 0.006);
+  const faltam = [];
+  doc.datas.forEach((d) => {
+    if (!datas.has(d)) faltam.push(d.startsWith('ano:') ? d.slice(4) : d.split('-').reverse().join('/'));
+  });
+  doc.valores.forEach((v) => {
+    if (v.n === 0 || v.n === 1) return;
+    if (v.mil ? temMil(v.n) || tem(v.n) : tem(v.n)) return;
+    faltam.push(v.bruto + (v.mil ? ' mil' : ''));
+  });
+  return faltam;
+}
+
 /* IA de uma construtora ou conta avulsa (admin) — espelha
    chk_ia_config_cotas (0027): cotas e leituras a mais de 0 a 100.000,
    inteiras; prazo em data. */
@@ -409,6 +466,8 @@ function validarIaConfig(c) {
     ['cotaNotas', 'Notas por mês'],
     ['cotaTextos', 'Textos por mês'],
     ['extraNotas', 'Leituras a mais neste mês'],
+    /* chk_ia_config_perguntas (0028); só confere quando o campo existe */
+    ...(c.cotaPerguntas !== undefined ? [['cotaPerguntas', 'Perguntas por mês']] : []),
   ]) {
     const v = num(c[k]);
     if (!Number.isInteger(v) || v < 0 || v > 100000) {
@@ -995,6 +1054,7 @@ export {
   validarLeituraNota,
   alertasLeituraNota,
   validarIaConfig,
+  numerosSemOrigem,
   LIMITES_LEITURA_NOTA,
   TIPOS_DOCUMENTO_NOTA,
   CAMPOS_INCERTOS_NOTA,
