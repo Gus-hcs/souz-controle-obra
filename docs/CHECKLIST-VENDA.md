@@ -18,10 +18,15 @@ Atualizado em 12/10/2026, fim da etapa 2.
 
 ## Depois do merge na `main`
 
-- [ ] **Aprovar o pull request único** quando a CI estiver verde (etapa 5).
-- [ ] **Definir as perguntas por mês** em Contas e acessos → IA. Hoje está em
-      0; com 0 o botão "Perguntar" aparece com cadeado para o gestor e não
-      aparece para o engenheiro. A tela sugere 50 por obra.
+- [ ] **Abrir e aprovar o pull request** da branch `pronto-para-vender`
+      (já está no GitHub) quando a CI estiver verde. As etapas 1 e 2 podem
+      entrar já: destravam a publicação.
+- [ ] **Definir as perguntas por mês.** Hoje está em 0; com 0 o botão
+      "Perguntar" aparece com cadeado para o gestor e não aparece para o
+      engenheiro. Dois caminhos: Contas e acessos → IA (a tela sugere 50 por
+      obra), ou o prompt do Claude web
+      (`.claude/auditoria/claude-web-pronto-para-vender.md`), que grava a cota
+      e confere a produção.
 - [ ] **Republicar a função `ia` só se ela mudar.** Até a etapa 2 ela não
       mudou: a versão 2 que está no ar serve.
 
