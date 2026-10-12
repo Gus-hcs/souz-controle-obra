@@ -22,7 +22,9 @@ cronograma) e da planilha MCMV · exportação CSV e Excel · acesso do Power BI
 PostgreSQL · construtoras (a conta de empresa que se vende): equipe com limite
 de acessos e de obras, cliente final que acompanha a obra sem ocupar vaga,
 tudo criado e controlado pelo administrador do sistema · leitura de nota fiscal
-por IA (foto → lançamentos conferidos), com cota por construtora.
+por IA (foto → lançamentos conferidos), com cota por construtora · "Perguntar":
+a equipe pergunta sobre as obras em português e a resposta sai dos números do
+sistema.
 
 O sistema atende qualquer construtora: nada na tela assume a CAIXA. O nome do
 financiador vem de `obras.financiador`; vazio, a tela diz "financiador".
@@ -192,6 +194,18 @@ Todos são escritos para rodar de novo sem quebrar (`if not exists`,
   que dizem o mesmo. A IA não grava nada: `ui/telas/nota-ia.js` mostra a
   conferência e a pessoa cria os lançamentos (`lancamentosDaLeitura`).
   Acerto real: `tests/ia/avaliar.mjs` (fora da CI, custa centavos).
+- **"Perguntar" (0028; `dominio/assistente.js`, `ui/telas/assistente.js`,
+  `supabase/functions/ia/perguntas.js`)**: as ferramentas que a IA chama
+  RODAM NO NAVEGADOR, sobre o estado já carregado (o da tela, já filtrado
+  pela RLS), e só chamam funções de `calculos.js` — a IA não faz conta. A
+  função `ia` só faz a ponte: instruções e lista de ferramentas fixas no
+  servidor, histórico validado e a conferência `numerosSemOrigem` (todo
+  número da resposta precisa estar num resultado de ferramenta ou na
+  pergunta; senão, uma nova redação, senão resposta sem número). A conversa
+  não é gravada; `ia_uso` guarda tokens, custo e voltas. Os nomes das
+  ferramentas e a conferência existem no app e na função, e
+  `tests/ia-perguntas.test.js` confere que batem. Acerto real:
+  `tests/ia/avaliar-perguntas.mjs` (26 perguntas, fora da CI).
 - **`obra_membros`** também fica fora do `TABELAS_DB`: `SUPA.carregarPapeis()`
   lê os papéis do usuário no login para `SUPA.papeis`, e `SUPA.lerMembros()`
   serve a futura tela de equipe. Não há gravação de membro pela tela ainda.

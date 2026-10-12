@@ -34,6 +34,7 @@ import './ui/telas/medicoes.js';
 import './ui/telas/recebimentos.js';
 import './ui/telas/lancamentos.js';
 import './ui/telas/nota-ia.js';
+import './ui/telas/assistente.js';
 import './ui/telas/prestadores.js';
 import './ui/telas/vinculo.js';
 import './ui/telas/cronograma.js';

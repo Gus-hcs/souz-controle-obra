@@ -1,5 +1,10 @@
 // =====================================================================
-//  ia — leitura de nota fiscal por IA (0027).
+//  ia — leitura de nota fiscal (0027) e "Perguntar" (0028) por IA.
+//
+//  POST { tarefa: 'pergunta', pergunta, contexto } ou { tarefa: 'pergunta',
+//         id, mensagens } → { id, estado: 'ferramentas'|'resposta', … }
+//    (perguntas.js: as ferramentas rodam no app; aqui só a ponte, com as
+//    instruções e a lista de ferramentas fixas e a conferência de números)
 //
 //  POST { tarefa: 'nota', obraId, arquivo: 'storage:<obra>/lancamentos/…',
 //         contexto: { etapas, materiais: [{id, nome}], formasPagamento } }
@@ -26,6 +31,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import Anthropic from 'npm:@anthropic-ai/sdk@0.129.0';
 import { ErroIa, processarNota } from './leitura.js';
+import { processarPergunta } from './perguntas.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -49,7 +55,7 @@ Deno.serve(async (req) => {
   const chaveIa = Deno.env.get('ANTHROPIC_API_KEY');
   if (!url || !anon || !serviceKey)
     return json({ erro: 'Função sem configuração de ambiente.' }, 500);
-  if (!chaveIa) return json({ erro: 'A leitura por IA ainda não foi configurada.' }, 503);
+  if (!chaveIa) return json({ erro: 'A IA ainda não foi configurada.' }, 503);
 
   const autorizacao = req.headers.get('Authorization') || '';
   if (!/^Bearer\s+\S+/i.test(autorizacao)) return json({ erro: 'Sem credencial.' }, 401);
@@ -70,6 +76,46 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // "Perguntar" (0028): as ferramentas rodam no app; aqui só a ponte
+    if ((corpo as { tarefa?: string })?.tarefa === 'pergunta') {
+      const r = await processarPergunta(corpo, {
+        agora: () => Date.now(),
+        anthropic,
+        async reservar() {
+          const { data, error } = await usuario.rpc('ia_reservar_pergunta');
+          if (error) throw new Error(error.message);
+          return data as string;
+        },
+        async continuar(id: string) {
+          const { error } = await usuario.rpc('ia_continuar', { p_id: id });
+          if (error) throw new Error(error.message);
+        },
+        async somar(
+          id: string,
+          status: string,
+          modelo: string,
+          entrada: number,
+          saida: number,
+          custo: number,
+          ms: number,
+          erro: string | null,
+        ) {
+          const { error } = await servico.rpc('ia_somar', {
+            p_id: id,
+            p_status: status,
+            p_modelo: modelo,
+            p_tokens_entrada: entrada,
+            p_tokens_saida: saida,
+            p_custo_usd: custo,
+            p_ms: ms,
+            p_erro: erro,
+          });
+          if (error) console.error('ia_somar falhou', error.code);
+        },
+      });
+      return json(r);
+    }
+
     const r = await processarNota(corpo, {
       agora: () => Date.now(),
       anthropic,
@@ -117,6 +163,6 @@ Deno.serve(async (req) => {
       return json({ erro: e.message }, e.status);
     }
     console.error('ia: erro inesperado');
-    return json({ erro: 'Erro na leitura da nota.' }, 500);
+    return json({ erro: 'Erro na IA. Tente de novo.' }, 500);
   }
 });

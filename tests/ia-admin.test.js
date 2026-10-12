@@ -23,6 +23,7 @@ const CONSTRUTORAS = [
 ];
 const mes = new Date().toISOString().slice(0, 7);
 let gravado = null;
+let gravadoPerguntas = null;
 let original;
 const esperar = () => new Promise((r) => setTimeout(r, 0));
 
@@ -50,6 +51,13 @@ beforeAll(() => {
   SUPA.adminDefinirIa = async (v) => {
     gravado = v;
   };
+  /* "Perguntar" (0028) */
+  SUPA.lerIaPerguntasAdmin = async () => [
+    { empresa_id: 'sonho', usuario_id: null, cota_perguntas: 500, usado_perguntas: 12 },
+  ];
+  SUPA.adminDefinirIaPerguntas = async (v) => {
+    gravadoPerguntas = v;
+  };
   document.body.innerHTML =
     '<div id="conteudo"></div><div id="modal-camada"></div><div id="toasts"></div>';
 });
@@ -72,6 +80,7 @@ describe('IA em Contas e acessos', () => {
     expect(linha).toContain('IA ligada');
     expect(linha).toContain('42 de 650 notas este mês');
     expect(linha).toContain('7 de 600 textos');
+    expect(linha).toContain('12 de 500 perguntas');
     expect(linha).toContain('US$ 0.83');
     expect(linha).toContain('até 14/10/2026');
     expect(cx.querySelector('[data-acao="admin-ia"][data-empresa="sonho"]')).toBeTruthy();
@@ -98,5 +107,7 @@ describe('IA em Contas e acessos', () => {
       ligada: false,
       cotaNotas: 300,
     });
+    expect(f.querySelector('#f_cotaPerguntas')).toBeTruthy();
+    expect(gravadoPerguntas).toMatchObject({ empresaId: 'sonho', cota: 500 });
   });
 });
