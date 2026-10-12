@@ -132,6 +132,7 @@ Todos são escritos para poder rodar de novo sem quebrar (`if not exists`,
 | `0025_mao_de_obra_e_contrato_anexo.sql` | `lancamentos.valor_mao_de_obra` (a parte de instalação de "Fornecimento + instalação", que conta como mão de obra) com CHECK de 0 ao total; `contratos.anexo` (contrato assinado, foto ou PDF, pasta `<obra>/contratos/`) com CHECK; `documento_url` só https (CHECK `not valid`, com diagnóstico). Aplicar **antes** do merge do app |
 | `0026_erros_app.sql` | Tabela `erros_app`: o que quebra no aparelho de alguém (mensagem, arquivo:linha, pilha, tela, versão, navegador), sem dado da obra — o app corta e-mail, número longo e consulta de URL antes (`src/dados/erros.js`). RLS: a conta ativa grava só o próprio (o gatilho carimba conta e hora e descarta o que passar de 60 por hora); só o admin lê e apaga; ninguém altera. CHECKs de tamanho espelham `validarErroApp`. Independe dos PRs: sem ela, o app desiste calado e a tela do admin avisa |
 | `0027_ia.sql` | IA: `ia_config` (por construtora ou conta avulsa: ligada, cota de notas e de textos por mês, notas a mais no mês, prazo do teste — só o admin grava) e `ia_uso` (uma linha por chamada: quem, obra, tarefa, modelo, tokens, custo, tempo, campos corrigidos — sem o conteúdo da nota; ninguém grava direto). `ia_reservar` (com o token de quem pede: acesso de escrita à obra, IA ligada, prazo, cota do mês e 30 por pessoa por hora, sob trava — sem corrida), `ia_concluir` (só service_role; chamada que falhou não conta), `ia_marcar_correcoes`, `ia_situacao`, `admin_ia`, `admin_definir_ia`. Aplicar antes de publicar a função `ia` e de juntar o PR da IA |
+| `0028_ia_perguntas.sql` | "Perguntar": `ia_config.cota_perguntas`, `ia_uso.voltas` e a tarefa `pergunta`. `ia_reservar_pergunta()` (sem obra: o titular é a construtora de quem pergunta — gestor ou engenheiro — ou a conta avulsa; cliente final não pergunta), `ia_continuar(id)` (só quem perguntou, pergunta aberta, menos de 10 min e de 6 voltas), `ia_somar` (só service_role, soma tokens e custo por volta), `ia_situacao_perguntas`, `admin_ia_perguntas`, `admin_definir_ia_perguntas`. Recria `ia_reservar`, `ia_situacao` e `admin_ia` iguais às da 0027, só tirando as perguntas da conta de textos (create or replace, sem drop). Rodou a 0027 de novo? Rode a 0028 depois |
 
 ### 0008 — logos
 
@@ -410,9 +411,23 @@ barraria quem digitasse "MCMV":
    restrições validadas, diagnóstico vazio).
 2. Bloco C: 6 obras traduzidas (MCMV → Econômico ×4, Alto padrão → Alto,
    Comercial → vazio, com "Padrão anterior: Comercial" nas observações).
-3. **Falta**, depois que o código da padronização estiver no ar: rodar de
-   novo o diagnóstico do padrão (BLOCO B, primeira parte), o BLOCO C se
-   algo tiver voltado, e só então `chk_obra_padrao` (`not valid` e validate).
+3. `chk_obra_padrao` aplicada e validada no mesmo dia, depois que o código
+   da padronização foi ao ar.
+
+Depois da 0020 (conferido em 12/10/2026 no histórico e no catálogo do banco):
+
+| Migração | Quando | Como |
+|---|---|---|
+| 0021 | 27/09/2026 | em três blocos (estrutura, conversão, regras) |
+| 0022, 0023 | 29/09/2026 | inteiras |
+| 0024, 0025, 0026 | 30/09/2026 | inteiras; a regra do link do contrato (0025) validada em seguida |
+| 0027 | 03/10/2026 | por SQL direto, em blocos — **não aparece no histórico do Supabase** |
+| 0028 | 07/10/2026 | em três partes (colunas, funções recriadas, funções novas) |
+
+Nenhum `CHECK` está pendente de validação. O histórico de migrações do
+Supabase começa na 0015 e não lista a 0027: para saber o que está no banco,
+confira o catálogo (tabelas, funções, regras), não o histórico. A fonte da
+verdade é esta pasta. A próxima migração livre é a **0029**.
 
 
 ### 0020f — permissão de logo e CNPJ (correção)

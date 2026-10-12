@@ -22,12 +22,14 @@ cronograma) e da planilha MCMV · exportação CSV e Excel · acesso do Power BI
 PostgreSQL · construtoras (a conta de empresa que se vende): equipe com limite
 de acessos e de obras, cliente final que acompanha a obra sem ocupar vaga,
 tudo criado e controlado pelo administrador do sistema · leitura de nota fiscal
-por IA (foto → lançamentos conferidos), com cota por construtora.
+por IA (foto → lançamentos conferidos), com cota por construtora · "Perguntar":
+a equipe pergunta sobre as obras em português e a resposta sai dos números do
+sistema.
 
 O sistema atende qualquer construtora: nada na tela assume a CAIXA. O nome do
 financiador vem de `obras.financiador`; vazio, a tela diz "financiador".
 
-17 telas. JavaScript modular puro, sem framework, montado pelo Vite em um único
+19 telas (18 no menu e a de administração). JavaScript modular puro, sem framework, montado pelo Vite em um único
 `index.html`.
 
 ## Arquitetura em uma frase
@@ -130,7 +132,9 @@ eu_ativo()) or (empresa_id is not null and empresa_id = minha_empresa()))`
    `db/bancada/acesso.mjs`.
 
 4. **Toda regra de negócio precisa de teste.** Cálculo se prova em `tests/`, não
-   na tela.
+   na tela. Teste não lê o relógio real: a data da suíte fica congelada em
+   `HOJE` (`tests/relogio/congelar.js`); quem precisa de outro dia chama
+   `vi.setSystemTime`.
 
 5. **Não altere `tests/esperado.json`.** É a planilha de referência que prova que
    os cálculos estão certos. Se um número mudar, o problema está no código.
@@ -189,7 +193,23 @@ Todos são escritos para rodar de novo sem quebrar (`if not exists`,
   (a função é publicada sozinha) e `tests/ia-leitura-nota.test.js` confere
   que dizem o mesmo. A IA não grava nada: `ui/telas/nota-ia.js` mostra a
   conferência e a pessoa cria os lançamentos (`lancamentosDaLeitura`).
+  IA indisponível nunca vira erro técnico na tela: `falhaIa` (domínio)
+  traduz a resposta da função em motivo e frase (`SUPA.erroDaIa`); a nota
+  que já subiu vai anexada no "Lançar à mão"; cota em zero é recurso fora
+  do plano (`situacaoCotaIa().semCota`: cadeado para o gestor).
   Acerto real: `tests/ia/avaliar.mjs` (fora da CI, custa centavos).
+- **"Perguntar" (0028; `dominio/assistente.js`, `ui/telas/assistente.js`,
+  `supabase/functions/ia/perguntas.js`)**: as ferramentas que a IA chama
+  RODAM NO NAVEGADOR, sobre o estado já carregado (o da tela, já filtrado
+  pela RLS), e só chamam funções de `calculos.js` — a IA não faz conta. A
+  função `ia` só faz a ponte: instruções e lista de ferramentas fixas no
+  servidor, histórico validado e a conferência `numerosSemOrigem` (todo
+  número da resposta precisa estar num resultado de ferramenta ou na
+  pergunta; senão, uma nova redação, senão resposta sem número). A conversa
+  não é gravada; `ia_uso` guarda tokens, custo e voltas. Os nomes das
+  ferramentas e a conferência existem no app e na função, e
+  `tests/ia-perguntas.test.js` confere que batem. Acerto real:
+  `tests/ia/avaliar-perguntas.mjs` (26 perguntas, fora da CI).
 - **`obra_membros`** também fica fora do `TABELAS_DB`: `SUPA.carregarPapeis()`
   lê os papéis do usuário no login para `SUPA.papeis`, e `SUPA.lerMembros()`
   serve a futura tela de equipe. Não há gravação de membro pela tela ainda.
@@ -246,6 +266,7 @@ Um termo para cada coisa, em todas as telas, PDFs e alertas:
 | `npm run dev`       | sobe em modo desenvolvimento                             |
 | `npm run build`     | gera `dist/index.html` — o sistema inteiro em um arquivo |
 | `npm test`          | conferência do motor de cálculo e da validação           |
+| `npm run test:relogio` | a mesma suíte com o relógio adiantado 30, 90 e 365 dias |
 | `npm run test:e2e`  | abre o sistema em navegador e percorre todas as telas    |
 | `npm run lint`      | análise estática                                         |
 | `npm run formatar`  | Prettier                                                 |
@@ -274,3 +295,6 @@ uma vez.
   `C:\Program Files\nodejs`.
 - Variáveis em arquivos `.env` (veja `.env.example`). `VITE_EXIGE_BANCO=true`
   força login; `false` roda local sem banco.
+- `VITE_TERMOS_URL` e `VITE_PRIVACIDADE_URL`: endereço https dos termos de uso
+  e da política de privacidade, publicados fora do app. Preenchidos (em
+  `.env.production`), a tela de entrada mostra os links; vazios, nada.

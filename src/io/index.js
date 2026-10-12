@@ -309,6 +309,14 @@ function planilhaParaObra(wb, nomeArquivo) {
     return n > 1.5 ? n / 100 : n;
   };
 
+  /* número de medição/parcela: célula numérica formatada vem "2,00" ou
+     "2.00" — vira "2", senão a pendência diz "Medição 2.00" e não casa
+     com a parcela. Texto ("2A") fica como está. */
+  const numero = (v) => {
+    const s = String(v ?? '').trim();
+    return /^\d+(?:[.,]0+)?$/.test(s) ? String(parseInt(s, 10)) : s;
+  };
+
   const obra = novaObra(nomeArquivo || 'Obra importada');
 
   /* CONFIGURAÇÃO */
@@ -378,7 +386,7 @@ function planilhaParaObra(wb, nomeArquivo) {
     if (!String(l[1] ?? '').trim()) return;
     const m = novaMedicao();
     Object.assign(m, {
-      contratoBase: String(l[1]).trim(), numero: String(l[2] || '').trim(),
+      contratoBase: String(l[1]).trim(), numero: numero(l[2]),
       data: dataDe(l[3]), descricao: String(l[4] || '').trim(), progresso: pct(l[5]),
       valorMedido: num(l[6]), desconto: num(l[7]), dataPagamento: dataDe(l[9]),
       valorPago: num(l[10]), status: String(l[11] || 'Em aberto').trim(),
@@ -391,7 +399,7 @@ function planilhaParaObra(wb, nomeArquivo) {
     if (!String(l[1] ?? '').trim()) return;
     const r = novoRecebimento();
     Object.assign(r, {
-      origem: String(l[1]).trim(), numeroMedicao: String(l[2] || '').trim(),
+      origem: String(l[1]).trim(), numeroMedicao: numero(l[2]),
       etapaPci: String(l[3] || '').trim(), dataPrevista: dataDe(l[4]), valorPrevisto: num(l[5]),
       dataSolicitacao: dataDe(l[6]), percentObra: pct(l[7]), valorAprovado: num(l[8]),
       descontos: num(l[9]), dataRecebimento: dataDe(l[11]), valorRecebido: num(l[12]),

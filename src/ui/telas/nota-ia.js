@@ -14,6 +14,7 @@
 import { esc, fmtMoney, fmtNum, hojeISO, novoLancamento, num } from '../../nucleo/base.js';
 import {
   camposCorrigidosNota,
+  falhaIa,
   fornecedorPorCnpj,
   lancamentosDaLeitura,
   situacaoCotaIa,
@@ -22,7 +23,7 @@ import {
 import { alertasLeituraNota, apenasErros, validarLancamento } from '../../dominio/validacao.js';
 import { Store, mutar } from '../../dados/store.js';
 import { SUPA } from '../../dados/supabase.js';
-import { ACOES } from '../acoes.js';
+import { ACOES, formLancamento } from '../acoes.js';
 import { prepararAnexo } from '../anexos.js';
 import { App, abrirModal, botao, fecharModal, opcoesEtapas, opcoesLista, toast } from '../shell.js';
 
@@ -33,7 +34,13 @@ const Ia = {
   carregando: new Set(),
   conf: null,
   pedidoAtual: 0,
+  /* a função `ia` está fora do ar (sem chave, não publicada): até este
+     instante (ms) o botão avisa em vez de pedir a foto */
+  foraDoArAte: 0,
+  /* nota que subiu mas não foi lida: "Lançar à mão" já abre com ela anexada */
+  pendente: null,
 };
+const PAUSA_FORA_DO_AR = 5 * 60 * 1000;
 
 function carregarSituacao(obraId) {
   if (Ia.carregando.has(obraId)) return;
@@ -63,7 +70,8 @@ function botaoNotaIa(obra, classe = 'btn') {
     carregarSituacao(obra.id);
     return '';
   }
-  if (situacaoCotaIa(s).ligada) {
+  const c = situacaoCotaIa(s);
+  if (c.ligada && !c.semCota) {
     return botao(
       '<span class="rotulo-btn">Lançar pela nota</span>',
       'nota-ia',
@@ -110,6 +118,7 @@ ACOES['nota-ia'] = () => {
       6000,
     );
   }
+  if (Date.now() < Ia.foraDoArAte) return avisarFalha(falhaIa({ status: 503 }, 'nota').mensagem);
   abrirModal({
     titulo: 'Lançar pela nota',
     largura: 'estreito',
@@ -140,16 +149,26 @@ async function lerNota(arquivo) {
     rodape: '<button class="btn" data-acao="nota-ia-cancelar">Cancelar</button>',
   });
   const lanc = novoLancamento();
+  Ia.pendente = null;
+  let ref;
   try {
-    const ref = await prepararAnexo(arquivo, { obraId: o.id, pasta: 'lancamentos', id: lanc.id });
+    /* as mensagens de prepararAnexo já são para a pessoa (tipo, tamanho) */
+    ref = await prepararAnexo(arquivo, { obraId: o.id, pasta: 'lancamentos', id: lanc.id });
     if (!String(ref).startsWith('storage:')) {
       throw new Error('Sem o armazenamento de arquivos a nota não pode ser lida. Lance à mão.');
     }
+  } catch (e) {
+    if (pedido !== Ia.pedidoAtual) return;
+    return avisarFalha((e && e.message) || falhaIa({ status: 500 }, 'nota').mensagem);
+  }
+  Ia.pendente = { obraId: o.id, lancId: lanc.id, ref };
+  try {
     const r = await SUPA.lerNotaComIa(o.id, ref, contextoObra(o));
     if (pedido !== Ia.pedidoAtual) return; // cancelou enquanto lia
     const s = Ia.situacao[o.id];
     if (s) s.usado_notas = num(s.usado_notas) + 1;
     if (!r.leitura.legivel) {
+      Ia.pendente = null;
       return abrirModal({
         titulo: 'Não consegui ler esta nota',
         largura: 'estreito',
@@ -169,15 +188,52 @@ async function lerNota(arquivo) {
       leitura: r.leitura,
     };
     abrirConferencia();
+    Ia.pendente = null;
   } catch (e) {
     if (pedido !== Ia.pedidoAtual) return;
-    fecharModal();
-    toast((e && e.message) || 'Não foi possível ler a nota.', 'critico', 7000);
+    if (e && e.foraDoAr) Ia.foraDoArAte = Date.now() + PAUSA_FORA_DO_AR;
+    /* SUPA.lerNotaComIa já traz a frase para a pessoa (falhaIa); qualquer
+       outra falha vira a frase padrão — nunca o texto técnico do erro */
+    avisarFalha(e && e.motivo ? e.message : falhaIa({ status: 500 }, 'nota').mensagem);
   }
 }
 
+/* A leitura falhou: diz o que houve e deixa lançar à mão — com a foto que
+   já subiu anexada, se subiu. Nunca um erro técnico, nunca a tela travada. */
+function avisarFalha(mensagem) {
+  const o = App.obra();
+  const comFoto = !!(Ia.pendente && o && Ia.pendente.obraId === o.id);
+  abrirModal({
+    titulo: 'Não deu para ler a nota agora',
+    largura: 'estreito',
+    corpo: `<p style="margin:0" data-testid="nota-ia-falha">${esc(mensagem)}</p>${
+      comFoto
+        ? '<p class="aviso-discreto" style="margin:var(--e3) 0 0">A foto ficou guardada: lançando à mão agora, ela já vai anexada.</p>'
+        : ''
+    }`,
+    rodape: `<button class="btn" data-acao="fechar-modal">Fechar</button>
+      <button class="btn primario" data-acao="nota-ia-a-mao">Lançar à mão</button>`,
+  });
+}
+
+ACOES['nota-ia-a-mao'] = () => {
+  const o = App.obra();
+  if (!o) return;
+  const l = novoLancamento();
+  const p = Ia.pendente;
+  if (p && p.obraId === o.id) Object.assign(l, { id: p.lancId, anexoNf: p.ref });
+  Ia.pendente = null;
+  formLancamento(l, true, () => {
+    mutar(() => {
+      o.lancamentos.push(l);
+    });
+    toast('Lançamento registrado.', 'ok');
+  });
+};
+
 ACOES['nota-ia-cancelar'] = () => {
   Ia.pedidoAtual++;
+  Ia.pendente = null;
   fecharModal();
 };
 

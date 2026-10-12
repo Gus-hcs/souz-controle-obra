@@ -2,6 +2,13 @@
 
 Auditoria e postura de segurança do Souz Controle de Obra.
 
+> **Revisto em 12/10/2026.** Os itens 9 e 10 e os números abaixo foram
+> atualizados. A seção "Isolamento no banco" descreve o modelo anterior às
+> construtoras: desde a `0021`/`0023` o acesso à obra de construtora é pela
+> construtora (`obra_da_minha_empresa`) e toda função passa por `eu_ativo()`
+> — a regra em vigor está no `CLAUDE.md` (regra 3) e a prova em
+> `db/bancada/acesso.mjs`.
+
 O sistema é um front-end estático (GitHub Pages) falando direto com o Supabase
 pela chave **publicável**. **Toda a segurança real vive no banco** — políticas
 RLS, funções `security definer` e a configuração de autenticação do Supabase.
@@ -149,19 +156,17 @@ forçando as colunas de controle a valores seguros no insert de quem não é adm
    tem o vínculo; só cai para o nome em contratos antigos sem `prestador_id`
    (`c.prestador_id is null`). O risco só sobra para registros legados sem
    vínculo — ligar todos pela tela fecha de vez.
-9. **SRI nos scripts de CDN.** `supabase-js`, `xlsx` e `jspdf` vêm de CDN. O
-   CSP já restringe a origem a `cdnjs`/`jsdelivr`; falta fixar o hash (ou
-   empacotar o `supabase-js` no build). Não avaliado nesta rodada — calcular o
-   hash certo exige buscar o arquivo de cada CDN; um hash errado quebra
-   backup/PDF/planilha em produção, então é mais seguro deixar como está do
-   que arriscar um hash não verificado.
-10. **Dependabot + `npm audit` na CI.** `npm audit` aponta 6 avisos (2 críticos)
-    em `vitest`/`vite`/`esbuild` — todos em `devDependencies`, usados só no
-    dev server e nos testes, nunca embarcados no `dist/index.html` publicado
-    (regra do `CLAUDE.md`: zero dependência de execução). Não afeta quem usa o
-    sistema publicado; afeta só quem roda `npm run dev` numa rede não
-    confiável. Corrigir pede `vitest@5` (mudança de versão maior) — não fiz
-    sem combinar, por ser upgrade que pode quebrar a suíte de testes.
+9. **SRI nos scripts de CDN — feito.** `supabase-js`, `xlsx` e `jspdf` têm
+   versão exata e hash de integridade em `LIBS` (`src/io/index.js`), e a CSP
+   não tem `'unsafe-inline'` em script.
+10. **Dependabot + `npm audit` na CI.** O `vitest` já é o 5 e o `vite` o 6.4.
+    Em 12/10/2026 o `npm audit` aponta 5 avisos altos, nenhum crítico:
+    `vite-plugin-singlefile`, `micromatch`, `braces`, `brace-expansion` e
+    `source-map-js` — todos em `devDependencies`, usados só no build e nos
+    testes, nunca embarcados no `dist/index.html` publicado (regra do
+    `CLAUDE.md`: zero dependência de execução). Não afeta quem usa o sistema;
+    afeta só quem roda o build com entrada não confiável. Falta ligar o
+    Dependabot e o `npm audit` na CI.
 11. **`frame-ancestors` e HSTS de verdade.** Só com header HTTP — num servidor
     próprio (`souztech.com` via proxy/CDN), não no Pages. O `<meta>` cobre o
     resto do CSP; o anti-frame por script cobre o clickjacking.
@@ -185,6 +190,11 @@ via `textContent`, `campoHTML` nas `<option>`); as 10 tabelas da aplicação com
 RLS confirmada (`0001`+`0004`); 301 testes, lint e build limpos; as 18 telas
 navegadas em claro e escuro sem exceção no console.
 
+**Estado em 12/10/2026:** 20 tabelas, todas com RLS ligada em produção; 45
+funções, nenhuma executável por anônimo e todas com `search_path` fixo; mais
+de 780 testes, lint e build limpos; 18 telas no teste de navegador. Sem
+segredo nos arquivos nem no histórico do repositório.
+
 ---
 
 ## Migrações de segurança
@@ -200,6 +210,13 @@ navegadas em claro e escuro sem exceção no console.
 | `0007` | teto de obras por conta (gatilho no banco) |
 | `0009` | **fecha o INSERT/DELETE do `perfis`**; `search_path` no resto das funções |
 | `0014` | convite de membro por e-mail (`security definer`, sem abrir `auth.users`) |
+| `0019` | bucket `anexos` privado (nota fiscal); funções fechadas para anônimo |
+| `0021` | construtoras: equipe, limites e cliente final |
+| `0022` | tira as políticas abertas do bucket `site` |
+| `0023` | acesso pela construtora; `eu_ativo()` em toda função; cliente final não lê custo |
+| `0024` | uma política por comando; RLS avaliada uma vez por consulta |
+| `0026` | `erros_app`: só o admin lê |
+| `0027`, `0028` | IA: cota reservada com o token de quem pede; conclusão só pela `service_role` |
 
 ---
 

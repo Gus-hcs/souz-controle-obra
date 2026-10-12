@@ -7,6 +7,8 @@ import { CHAVE_BASE_OFFLINE, CHAVE_LOCAL, Store, erroDeRede } from './store.js';
 import { App, confirmar, confirmarDigitando, LOGO, toast } from '../ui/shell.js';
 import { ACOES } from '../ui/acoes.js';
 import { LIBS, carregarScript } from '../io/index.js';
+import { linkHttpsValido } from '../dominio/validacao.js';
+import { falhaIa } from '../dominio/calculos.js';
 
 /* Preenchido na publicação. Também pode ser informado na tela de conexão. */
 const SUPABASE_PADRAO = { url: CFG.url, anon: CFG.anon };
@@ -730,24 +732,57 @@ const SUPA = {
     if (error) return null; // 0027 não aplicada: sem IA
     return (data && data[0]) || null;
   },
+  /* Erro da função `ia` → Error com a frase para a pessoa (falhaIa, no
+     domínio), o motivo e foraDoAr. Com resposta HTTP, error.context é a
+     Response (status e { erro }); sem resposta (rede, função fora), não. */
+  async erroDaIa(error, tarefa) {
+    const resp = error && error.context;
+    const status = resp && typeof resp.status === 'number' ? resp.status : 0;
+    let dita = '';
+    try {
+      const c = resp && typeof resp.json === 'function' ? await resp.json() : null;
+      if (c && typeof c.erro === 'string') dita = c.erro;
+    } catch (e) {
+      /* resposta sem JSON (página de erro do gateway): vale o status */
+    }
+    const f = falhaIa({ status, erro: dita }, tarefa);
+    return Object.assign(new Error(f.mensagem), { motivo: f.motivo, foraDoAr: f.foraDoAr });
+  },
   async lerNotaComIa(obraId, arquivo, contexto) {
     if (!this.sb) throw new Error('A leitura por IA precisa de conexão com o banco.');
     const { data, error } = await this.sb.functions.invoke('ia', {
       body: { tarefa: 'nota', obraId, arquivo, contexto },
     });
-    if (error) {
-      let msg = 'Não foi possível ler a nota agora.';
-      try {
-        const c = await error.context.json();
-        if (c && c.erro) msg = c.erro;
-      } catch (e) {
-        if (/not found|Failed to (send|fetch)/i.test(error.message || '')) {
-          msg = 'A leitura por IA ainda não foi publicada (função ia).';
-        }
-      }
-      throw new Error(msg);
-    }
+    if (error) throw await this.erroDaIa(error, 'nota');
     return data;
+  },
+  /* "Perguntar" (0028): uma volta da conversa na função `ia`; o laço e as
+     ferramentas ficam em dominio/assistente.js (conversarComIa) */
+  async situacaoPerguntas() {
+    if (!this.sb || !this.usuario) return null;
+    const { data, error } = await this.sb.rpc('ia_situacao_perguntas');
+    if (error) return null; // 0028 não aplicada: sem assistente
+    return (data && data[0]) || null;
+  },
+  async perguntarIa(corpo) {
+    if (!this.sb) throw new Error('O assistente precisa de conexão com o banco.');
+    const { data, error } = await this.sb.functions.invoke('ia', { body: corpo });
+    if (error) throw await this.erroDaIa(error, 'pergunta');
+    return data;
+  },
+  async lerIaPerguntasAdmin() {
+    if (!this.sb) return [];
+    const { data, error } = await this.sb.rpc('admin_ia_perguntas');
+    if (error) throw error;
+    return data || [];
+  },
+  async adminDefinirIaPerguntas({ empresaId = null, usuarioId = null, cota }) {
+    const { error } = await this.sb.rpc('admin_definir_ia_perguntas', {
+      p_empresa: empresaId,
+      p_usuario: usuarioId,
+      p_cota: Number(cota) || 0,
+    });
+    if (error) throw error;
   },
   async marcarCorrecoesIa(id, n) {
     if (!this.sb || !id) return;
@@ -1099,6 +1134,20 @@ function fecharAcesso() {
   if (cx) cx.style.display = 'none';
 }
 
+/* Termos de uso e privacidade (CFG.termosUrl, CFG.privacidadeUrl): só o
+   link, que abre o texto publicado fora do app — nenhum texto jurídico
+   aqui. Só https; sem endereço, nada aparece. */
+function linksLegais() {
+  const links = [
+    [CFG.termosUrl, 'Termos de uso'],
+    [CFG.privacidadeUrl, 'Política de privacidade'],
+  ].filter(([url]) => url && linkHttpsValido(url));
+  if (!links.length) return '';
+  return `<p class="acesso-legal">${links
+    .map(([url, t]) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${t}</a>`)
+    .join('<span aria-hidden="true"> · </span>')}</p>`;
+}
+
 function telaLogin(modo = 'entrar', aviso = '') {
   const titulos = {
     entrar: ['Entrar no sistema', 'Use o e-mail e a senha da sua conta.'],
@@ -1131,7 +1180,8 @@ function telaLogin(modo = 'entrar', aviso = '') {
       ${modo === 'entrar'
         ? '<button class="btn sutil pequeno" data-acao="auth-tela" data-modo="recuperar">Esqueci a senha</button>'
         : '<button class="btn sutil pequeno" data-acao="auth-tela" data-modo="entrar">Voltar ao login</button>'}
-    </div>`);
+    </div>
+    ${modo === 'recuperar' ? '' : linksLegais()}`);
 }
 
 function telaConfigBanco(aviso = '') {
