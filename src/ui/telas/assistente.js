@@ -13,7 +13,7 @@
  * convite com cadeado.
  */
 import { esc, hojeISO } from '../../nucleo/base.js';
-import { situacaoCotaIa } from '../../dominio/calculos.js';
+import { falhaIa, situacaoCotaIa } from '../../dominio/calculos.js';
 import { conversarComIa } from '../../dominio/assistente.js';
 import { Store } from '../../dados/store.js';
 import { SUPA } from '../../dados/supabase.js';
@@ -95,14 +95,16 @@ const cota = () =>
       },
   );
 
-/* "ligado", "convite" (gestor sem IA) ou "" (não mostra) */
+/* "ligado", "convite" (gestor sem IA, ou com a cota de perguntas em zero:
+   o recurso não está no plano) ou "" (não mostra) */
 function modo() {
   if (Store.backend !== 'supabase' || !SUPA.usuario || !naEquipe()) return '';
   if (Assist.situacao === undefined) {
     carregarSituacao();
     return '';
   }
-  if (Assist.situacao.ligada) return 'ligado';
+  const c = cota();
+  if (c.ligada && !c.semCota) return 'ligado';
   return ehGestor() ? 'convite' : '';
 }
 
@@ -294,9 +296,12 @@ async function perguntar(texto) {
     Assist.conversa.push({ de: 'ia', texto: r.resposta, telas: r.telas, seguro: r.seguro });
   } catch (e) {
     Assist.conversa.pop();
+    /* SUPA.perguntarIa já traz a frase para a pessoa (falhaIa); qualquer
+       outra falha (uma ferramenta, a resposta fora do formato) vira a
+       frase padrão — nunca o texto técnico do erro */
     Assist.conversa.push({
       de: 'ia',
-      texto: (e && e.message) || 'O assistente não respondeu agora.',
+      texto: e && e.motivo ? e.message : falhaIa({ status: 500 }, 'pergunta').mensagem,
       erro: true,
     });
   } finally {

@@ -411,9 +411,23 @@ barraria quem digitasse "MCMV":
    restrições validadas, diagnóstico vazio).
 2. Bloco C: 6 obras traduzidas (MCMV → Econômico ×4, Alto padrão → Alto,
    Comercial → vazio, com "Padrão anterior: Comercial" nas observações).
-3. **Falta**, depois que o código da padronização estiver no ar: rodar de
-   novo o diagnóstico do padrão (BLOCO B, primeira parte), o BLOCO C se
-   algo tiver voltado, e só então `chk_obra_padrao` (`not valid` e validate).
+3. `chk_obra_padrao` aplicada e validada no mesmo dia, depois que o código
+   da padronização foi ao ar.
+
+Depois da 0020 (conferido em 12/10/2026 no histórico e no catálogo do banco):
+
+| Migração | Quando | Como |
+|---|---|---|
+| 0021 | 27/09/2026 | em três blocos (estrutura, conversão, regras) |
+| 0022, 0023 | 29/09/2026 | inteiras |
+| 0024, 0025, 0026 | 30/09/2026 | inteiras; a regra do link do contrato (0025) validada em seguida |
+| 0027 | 03/10/2026 | por SQL direto, em blocos — **não aparece no histórico do Supabase** |
+| 0028 | 07/10/2026 | em três partes (colunas, funções recriadas, funções novas) |
+
+Nenhum `CHECK` está pendente de validação. O histórico de migrações do
+Supabase começa na 0015 e não lista a 0027: para saber o que está no banco,
+confira o catálogo (tabelas, funções, regras), não o histórico. A fonte da
+verdade é esta pasta. A próxima migração livre é a **0029**.
 
 
 ### 0020f — permissão de logo e CNPJ (correção)

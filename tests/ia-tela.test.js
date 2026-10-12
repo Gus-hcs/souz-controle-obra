@@ -108,9 +108,13 @@ beforeEach(() => {
   SUPA.papeis = {};
   Ia.situacao = {};
   Ia.conf = null;
+  Ia.foraDoArAte = 0;
+  Ia.pendente = null;
 });
 
 const esperar = () => new Promise((r) => setTimeout(r, 0));
+/* o erro como SUPA.lerNotaComIa entrega: a frase para a pessoa e o motivo */
+const falha = (mensagem, extra) => Object.assign(new Error(mensagem), extra);
 async function escolherFoto() {
   ACOES['nota-ia']();
   const inp = document.querySelector('#modal-camada [data-nota-arquivo]');
@@ -247,13 +251,16 @@ describe('da foto aos lançamentos', () => {
     expect(obra.lancamentos.length).toBe(antes);
   });
 
-  it('erro da função (cota, rede) vira aviso e fecha a espera', async () => {
+  it('erro da função (cota) troca a espera pela explicação, com "Lançar à mão"', async () => {
     SUPA.lerNotaComIa = async () => {
-      throw new Error('As leituras de nota deste mês acabaram. Lance à mão ou fale com o gestor.');
+      throw falha('As leituras de nota deste mês acabaram. Lance à mão ou fale com o gestor.', {
+        motivo: 'limite',
+      });
     };
     await escolherFoto();
-    expect(document.querySelector('#modal-camada').innerHTML).toBe('');
-    expect(document.querySelector('#toasts').textContent).toMatch(/acabaram/);
+    expect(document.querySelector('[data-testid="nota-ia-lendo"]')).toBeNull();
+    expect(document.querySelector('[data-testid="nota-ia-falha"]').textContent).toMatch(/acabaram/);
+    expect(document.querySelector('#modal-camada [data-acao="nota-ia-a-mao"]')).toBeTruthy();
   });
 
   it('cota esgotada ou sem rede: nem abre a escolha da foto', () => {
@@ -281,5 +288,91 @@ describe('da foto aos lançamentos', () => {
     soltar();
     for (let i = 0; i < 5; i++) await esperar();
     expect(document.querySelector('[data-testid="nota-ia-conferencia"]')).toBeNull();
+  });
+});
+
+describe('IA indisponível: frase clara, tela inteira, caminho à mão', () => {
+  const FORA = 'A leitura de nota por IA está indisponível no momento. Lance à mão.';
+  beforeEach(() => {
+    Ia.situacao[obra.id] = { ligada: true, cota_notas: 60, usado_notas: 10 };
+  });
+
+  it('chave ausente (503): explica e oferece lançar à mão; nada é criado sozinho', async () => {
+    SUPA.lerNotaComIa = async () => {
+      throw falha(FORA, { motivo: 'fora-do-ar', foraDoAr: true });
+    };
+    const antes = obra.lancamentos.length;
+    await escolherFoto();
+    const modal = document.querySelector('#modal-camada');
+    expect(modal.textContent).toMatch(/indisponível no momento/);
+    expect(modal.textContent).toMatch(/foto ficou guardada/);
+    expect(modal.textContent).not.toMatch(/503|função|Error|undefined/);
+    expect(obra.lancamentos.length).toBe(antes);
+  });
+
+  it('"Lançar à mão" abre o lançamento com a foto que já subiu anexada', async () => {
+    SUPA.lerNotaComIa = async () => {
+      throw falha(FORA, { motivo: 'fora-do-ar', foraDoAr: true });
+    };
+    await escolherFoto();
+    const { lancId, ref } = Ia.pendente;
+    ACOES['nota-ia-a-mao']();
+    expect(Ia.pendente).toBeNull();
+    expect(document.querySelector('#modal-camada').textContent).toMatch(/Novo lançamento/);
+    document.querySelector('#modal-camada [data-campo="descricao"]').value = 'Cimento';
+    document.querySelector('#modal-camada [data-campo="precoUnitario"]').value = '100';
+    ACOES['salvar-form']();
+    const novo = obra.lancamentos.find((l) => l.id === lancId);
+    expect(novo).toBeTruthy();
+    expect(novo.anexoNf).toBe(ref);
+  });
+
+  it('fora do ar: nos minutos seguintes o botão avisa sem pedir outra foto', async () => {
+    let chamadas = 0;
+    SUPA.lerNotaComIa = async () => {
+      chamadas++;
+      throw falha(FORA, { motivo: 'fora-do-ar', foraDoAr: true });
+    };
+    await escolherFoto();
+    ACOES['nota-ia']();
+    expect(document.querySelector('#modal-camada [data-nota-arquivo]')).toBeNull();
+    expect(document.querySelector('[data-testid="nota-ia-falha"]').textContent).toMatch(
+      /indisponível/,
+    );
+    expect(chamadas).toBe(1);
+    Ia.foraDoArAte = Date.now() - 1;
+    ACOES['nota-ia']();
+    expect(document.querySelector('#modal-camada [data-nota-arquivo]')).toBeTruthy();
+  });
+
+  it('falha passageira não trava o botão: a próxima tentativa pede a foto', async () => {
+    SUPA.lerNotaComIa = async () => {
+      throw falha('A leitura da nota não respondeu agora. Tente de novo em instantes.', {
+        motivo: 'temporario',
+      });
+    };
+    await escolherFoto();
+    expect(document.querySelector('[data-testid="nota-ia-falha"]').textContent).toMatch(
+      /Tente de novo/,
+    );
+    ACOES['nota-ia']();
+    expect(document.querySelector('#modal-camada [data-nota-arquivo]')).toBeTruthy();
+  });
+
+  it('erro inesperado do programa nunca chega cru à pessoa', async () => {
+    SUPA.lerNotaComIa = async () => {
+      throw new TypeError("Cannot read properties of undefined (reading 'leitura')");
+    };
+    await escolherFoto();
+    const texto = document.querySelector('[data-testid="nota-ia-falha"]').textContent;
+    expect(texto).not.toMatch(/Cannot|undefined|TypeError/);
+    expect(texto).toMatch(/Tente de novo/);
+  });
+
+  it('cota de notas em zero: o gestor vê o cadeado; o engenheiro, nada', () => {
+    Ia.situacao[obra.id] = { ligada: true, cota_notas: 0, usado_notas: 0 };
+    expect(botaoNotaIa(obra)).toBe('');
+    SUPA.construtora.papel = 'gestor';
+    expect(botaoNotaIa(obra)).toContain('data-acao="nota-ia-plano"');
   });
 });

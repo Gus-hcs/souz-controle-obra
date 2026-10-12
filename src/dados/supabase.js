@@ -8,6 +8,7 @@ import { App, confirmar, confirmarDigitando, LOGO, toast } from '../ui/shell.js'
 import { ACOES } from '../ui/acoes.js';
 import { LIBS, carregarScript } from '../io/index.js';
 import { linkHttpsValido } from '../dominio/validacao.js';
+import { falhaIa } from '../dominio/calculos.js';
 
 /* Preenchido na publicação. Também pode ser informado na tela de conexão. */
 const SUPABASE_PADRAO = { url: CFG.url, anon: CFG.anon };
@@ -731,23 +732,28 @@ const SUPA = {
     if (error) return null; // 0027 não aplicada: sem IA
     return (data && data[0]) || null;
   },
+  /* Erro da função `ia` → Error com a frase para a pessoa (falhaIa, no
+     domínio), o motivo e foraDoAr. Com resposta HTTP, error.context é a
+     Response (status e { erro }); sem resposta (rede, função fora), não. */
+  async erroDaIa(error, tarefa) {
+    const resp = error && error.context;
+    const status = resp && typeof resp.status === 'number' ? resp.status : 0;
+    let dita = '';
+    try {
+      const c = resp && typeof resp.json === 'function' ? await resp.json() : null;
+      if (c && typeof c.erro === 'string') dita = c.erro;
+    } catch (e) {
+      /* resposta sem JSON (página de erro do gateway): vale o status */
+    }
+    const f = falhaIa({ status, erro: dita }, tarefa);
+    return Object.assign(new Error(f.mensagem), { motivo: f.motivo, foraDoAr: f.foraDoAr });
+  },
   async lerNotaComIa(obraId, arquivo, contexto) {
     if (!this.sb) throw new Error('A leitura por IA precisa de conexão com o banco.');
     const { data, error } = await this.sb.functions.invoke('ia', {
       body: { tarefa: 'nota', obraId, arquivo, contexto },
     });
-    if (error) {
-      let msg = 'Não foi possível ler a nota agora.';
-      try {
-        const c = await error.context.json();
-        if (c && c.erro) msg = c.erro;
-      } catch (e) {
-        if (/not found|Failed to (send|fetch)/i.test(error.message || '')) {
-          msg = 'A leitura por IA ainda não foi publicada (função ia).';
-        }
-      }
-      throw new Error(msg);
-    }
+    if (error) throw await this.erroDaIa(error, 'nota');
     return data;
   },
   /* "Perguntar" (0028): uma volta da conversa na função `ia`; o laço e as
@@ -761,18 +767,7 @@ const SUPA = {
   async perguntarIa(corpo) {
     if (!this.sb) throw new Error('O assistente precisa de conexão com o banco.');
     const { data, error } = await this.sb.functions.invoke('ia', { body: corpo });
-    if (error) {
-      let msg = 'O assistente não respondeu agora.';
-      try {
-        const c = await error.context.json();
-        if (c && c.erro) msg = c.erro;
-      } catch (e) {
-        if (/not found|Failed to (send|fetch)/i.test(error.message || '')) {
-          msg = 'O assistente ainda não foi publicado (função ia).';
-        }
-      }
-      throw new Error(msg);
-    }
+    if (error) throw await this.erroDaIa(error, 'pergunta');
     return data;
   },
   async lerIaPerguntasAdmin() {

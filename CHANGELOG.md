@@ -2,6 +2,52 @@
 
 ## Não publicado
 
+**Construtoras**
+- A conta que se vende é a construtora (`0021`): equipe com limite de acessos
+  e de obras, papéis de gestor e engenheiro, e o cliente final, que acompanha a
+  obra sem ocupar vaga. O administrador do sistema cria e controla tudo em
+  "Contas e acessos".
+- Obra de construtora é acessada pela construtora, não por vínculo individual
+  (`0023`); conta ou construtora bloqueada não lê nem grava nada; o cliente
+  final não lê custo nem anexo interno pela API.
+- Políticas uma por comando e avaliadas uma vez por consulta, com índices nas
+  chaves estrangeiras (`0024`).
+
+**IA**
+- "Lançar pela nota" (`0027`): a foto ou o PDF da nota fiscal vira lançamentos
+  conferidos. A IA não grava nada: a pessoa confere e cria. Cota por
+  construtora, controlada pelo administrador.
+- "Perguntar" (`0028`): a equipe pergunta sobre as obras em português e a
+  resposta sai dos números do sistema. As consultas rodam no navegador, sobre
+  o que a pessoa já pode ver, e todo número da resposta é conferido.
+- IA indisponível (sem a chave, fora do ar, cota em zero) vira frase clara, sem
+  erro técnico: a nota que já subiu vai anexada no "Lançar à mão", e cota em
+  zero mostra o cadeado para o gestor em vez de um botão que falha.
+
+**Monitor de erros**
+- Erros do app chegam ao administrador (`0026`), agrupados em "Contas e
+  acessos", sem dado da obra.
+
+**Obra e lançamentos**
+- Lançamento de fornecimento + instalação com a parte de mão de obra separada;
+  contrato assinado anexado, em foto ou PDF (`0025`).
+- Fotos do diário no Storage, como a nota fiscal: o login não baixa mais todas
+  as fotos.
+- Seletor de obra com busca e recentes; resumo da obra no Painel; no celular, o
+  conteúdo primeiro.
+- Importação da planilha MCMV provada de ponta a ponta.
+- Links de termos de uso e de privacidade na tela de acesso.
+
+**Segurança (set–out/2026)**
+- Bibliotecas de CDN com versão exata e hash de integridade; CSP sem
+  `'unsafe-inline'`; CSV sem fórmula.
+- Bucket `site` sem as políticas abertas (`0022`).
+
+**Testes**
+- A data fica congelada na suíte: nenhum teste depende do dia em que roda
+  (dois quebraram em out/2026 e travaram a publicação). `npm run test:relogio`
+  roda a suíte com o relógio adiantado em 30, 90 e 365 dias.
+
 **Responsivo**
 - Corrige rótulo de coluna vazando na mensagem "nenhum registro" de qualquer
   tabela vazia no celular (a linha de estado vazio, com `colspan`, ganhava por

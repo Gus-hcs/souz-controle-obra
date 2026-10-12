@@ -54,6 +54,8 @@ beforeEach(() => {
   });
 });
 const esperar = () => new Promise((r) => setTimeout(r, 0));
+/* o erro como SUPA.perguntarIa entrega: a frase para a pessoa e o motivo */
+const falha = (mensagem, extra) => Object.assign(new Error(mensagem), extra);
 
 describe('quem vê o botão "Perguntar"', () => {
   it('equipe com a IA ligada vê o botão; no celular aparece o botão redondo', () => {
@@ -152,7 +154,7 @@ describe('o painel e a conversa', () => {
 
   it('erro da função vira mensagem na conversa; o painel volta a aceitar pergunta', async () => {
     SUPA.perguntarIa = async () => {
-      throw new Error('As perguntas deste mês acabaram. Fale com o gestor.');
+      throw falha('As perguntas deste mês acabaram. Fale com o gestor.', { motivo: 'limite' });
     };
     ACOES['assistente-abrir']();
     document.getElementById('assistente-texto').value = 'Como está a obra?';
@@ -161,6 +163,47 @@ describe('o painel e a conversa', () => {
     const erro = document.querySelector('.assistente-msg.erro');
     expect(erro.textContent).toMatch(/acabaram/);
     expect(document.getElementById('assistente-texto').disabled).toBe(false);
+  });
+
+  it('chave ausente (503): frase clara na conversa e o painel segue de pé', async () => {
+    let chamadas = 0;
+    SUPA.perguntarIa = async () => {
+      chamadas++;
+      throw falha('O assistente está indisponível no momento. Os números continuam nas telas.', {
+        motivo: 'fora-do-ar',
+        foraDoAr: true,
+      });
+    };
+    ACOES['assistente-abrir']();
+    ACOES['assistente-sugestao'](null, { texto: 'Como está esta obra?' });
+    for (let i = 0; i < 4; i++) await esperar();
+    const erro = document.querySelector('.assistente-msg.erro');
+    expect(erro.textContent).toMatch(/indisponível no momento/);
+    expect(erro.textContent).not.toMatch(/503|função|Error|undefined/);
+    expect(document.querySelector('.assistente-msg.pensando')).toBeNull();
+    expect(document.getElementById('assistente-texto').disabled).toBe(false);
+    expect(Assist.situacao.usado_perguntas).toBe(3);
+    expect(chamadas).toBe(1);
+  });
+
+  it('erro inesperado do programa nunca chega cru à pessoa', async () => {
+    SUPA.perguntarIa = async () => {
+      throw new TypeError("Cannot read properties of undefined (reading 'estado')");
+    };
+    ACOES['assistente-abrir']();
+    ACOES['assistente-sugestao'](null, { texto: 'Como está esta obra?' });
+    for (let i = 0; i < 4; i++) await esperar();
+    const texto = document.querySelector('.assistente-msg.erro').textContent;
+    expect(texto).not.toMatch(/Cannot|undefined|TypeError/);
+    expect(texto).toMatch(/Tente de novo/);
+  });
+
+  it('cota de perguntas em zero: o gestor vê o cadeado; o engenheiro, nada', () => {
+    Assist.situacao = { ligada: true, cota_perguntas: 0, usado_perguntas: 0 };
+    expect(App.botaoTopo()).toBe('');
+    SUPA.construtora.papel = 'gestor';
+    expect(App.botaoTopo()).toContain('data-acao="assistente-convite"');
+    expect(App.botaoTopo()).not.toContain('assistente-abrir');
   });
 
   it('cota esgotada: nem chama a função', async () => {

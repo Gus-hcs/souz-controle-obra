@@ -29,7 +29,7 @@ sistema.
 O sistema atende qualquer construtora: nada na tela assume a CAIXA. O nome do
 financiador vem de `obras.financiador`; vazio, a tela diz "financiador".
 
-17 telas. JavaScript modular puro, sem framework, montado pelo Vite em um único
+19 telas (18 no menu e a de administração). JavaScript modular puro, sem framework, montado pelo Vite em um único
 `index.html`.
 
 ## Arquitetura em uma frase
@@ -193,6 +193,10 @@ Todos são escritos para rodar de novo sem quebrar (`if not exists`,
   (a função é publicada sozinha) e `tests/ia-leitura-nota.test.js` confere
   que dizem o mesmo. A IA não grava nada: `ui/telas/nota-ia.js` mostra a
   conferência e a pessoa cria os lançamentos (`lancamentosDaLeitura`).
+  IA indisponível nunca vira erro técnico na tela: `falhaIa` (domínio)
+  traduz a resposta da função em motivo e frase (`SUPA.erroDaIa`); a nota
+  que já subiu vai anexada no "Lançar à mão"; cota em zero é recurso fora
+  do plano (`situacaoCotaIa().semCota`: cadeado para o gestor).
   Acerto real: `tests/ia/avaliar.mjs` (fora da CI, custa centavos).
 - **"Perguntar" (0028; `dominio/assistente.js`, `ui/telas/assistente.js`,
   `supabase/functions/ia/perguntas.js`)**: as ferramentas que a IA chama

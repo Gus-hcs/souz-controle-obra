@@ -3775,9 +3775,13 @@ function camposCorrigidosNota(original, final, excluidos = 0) {
   return Math.min(500, n + num(excluidos));
 }
 
-/* Cota da IA para a tela (ia_situacao, 0027): quanto sobra, aviso aos 80%. */
+/* Cota da IA para a tela (ia_situacao, 0027): quanto sobra, aviso aos 80%.
+   semCota: IA ligada com cota zero — o recurso não está no plano da conta
+   (a tela trata como desligado: cadeado para o gestor, nada para os outros). */
 function situacaoCotaIa(s) {
-  if (!s || !s.ligada) return { ligada: false, restante: 0, fracao: 0, aviso: false, esgotada: true };
+  if (!s || !s.ligada) {
+    return { ligada: false, restante: 0, fracao: 0, aviso: false, esgotada: true, semCota: false };
+  }
   const cota = Math.max(0, num(s.cota_notas));
   const usado = Math.max(0, num(s.usado_notas));
   const fracao = cota > 0 ? Math.min(1, usado / cota) : 1;
@@ -3787,9 +3791,43 @@ function situacaoCotaIa(s) {
     usado,
     restante: Math.max(0, cota - usado),
     fracao,
-    aviso: fracao >= 0.8,
+    aviso: cota > 0 && fracao >= 0.8,
     esgotada: usado >= cota,
+    semCota: cota === 0,
   };
+}
+
+/* Falha da função `ia` para a tela: o motivo e a frase para a pessoa, sem
+   termo técnico. `status` é o HTTP da resposta (0 = nem chegou), `erro` a
+   frase que a função mandou (já em português nos 4xx) e `tarefa` 'nota' ou
+   'pergunta'. foraDoAr: não adianta tentar de novo agora (função não
+   publicada ou sem a chave) — a tela para de pedir a foto por alguns minutos. */
+const FRASES_FALHA_IA = {
+  nota: {
+    foraDoAr: 'A leitura de nota por IA está indisponível no momento. Lance à mão.',
+    temporario: 'A leitura da nota não respondeu agora. Tente de novo em instantes ou lance à mão.',
+    rede: 'Sem conexão para ler a nota agora. Tente quando a rede voltar ou lance à mão.',
+  },
+  pergunta: {
+    foraDoAr: 'O assistente está indisponível no momento. Os números continuam nas telas.',
+    temporario: 'O assistente não respondeu agora. Tente de novo em instantes.',
+    rede: 'Sem conexão para perguntar agora. Tente quando a rede voltar.',
+  },
+};
+function falhaIa({ status = 0, erro = '' } = {}, tarefa = 'nota') {
+  const frases = FRASES_FALHA_IA[tarefa] || FRASES_FALHA_IA.nota;
+  const st = num(status);
+  const dita = String(erro || '').trim();
+  if (!st) return { motivo: 'rede', mensagem: frases.rede, foraDoAr: false };
+  if (st === 401) {
+    return { motivo: 'sessao', mensagem: 'Sua sessão expirou. Saia e entre de novo.', foraDoAr: false };
+  }
+  if (st === 404 || st === 503) return { motivo: 'fora-do-ar', mensagem: frases.foraDoAr, foraDoAr: true };
+  if (st >= 400 && st < 500 && dita) {
+    const motivo = st === 429 ? 'limite' : st === 403 ? 'sem-acesso' : 'pedido';
+    return { motivo, mensagem: dita, foraDoAr: false };
+  }
+  return { motivo: 'temporario', mensagem: frases.temporario, foraDoAr: false };
 }
 
 /* Erros do app (0026) para o admin: o mesmo erro (mensagem + origem) numa
@@ -3831,6 +3869,7 @@ export {
   unidadeDaNota,
   ratearNota,
   situacaoCotaIa,
+  falhaIa,
   camposCorrigidosNota,
   resumoErrosApp,
   renomearItemLista,
