@@ -5,7 +5,9 @@ de "pronto para vender". Cada item diz onde fazer e por quê. O estado
 verificado e o roteiro de aceitação com o primeiro cliente entram aqui na
 etapa 4.
 
-Atualizado em 12/10/2026, fim da etapa 2.
+Atualizado em 12/10/2026, fim da etapa 2. Conferência da produção no mesmo
+dia: a chave da IA ainda falta (a função respondeu 503), o bucket `site`
+ainda existe e a proteção contra senha vazada segue desligada.
 
 ## Agora (destrava a IA que já está no site)
 
@@ -21,12 +23,9 @@ Atualizado em 12/10/2026, fim da etapa 2.
 - [ ] **Abrir e aprovar o pull request** da branch `pronto-para-vender`
       (já está no GitHub) quando a CI estiver verde. As etapas 1 e 2 podem
       entrar já: destravam a publicação.
-- [ ] **Definir as perguntas por mês.** Hoje está em 0; com 0 o botão
-      "Perguntar" aparece com cadeado para o gestor e não aparece para o
-      engenheiro. Dois caminhos: Contas e acessos → IA (a tela sugere 50 por
-      obra), ou o prompt do Claude web
-      (`.claude/auditoria/claude-web-pronto-para-vender.md`), que grava a cota
-      e confere a produção.
+- [x] **Definir as perguntas por mês.** Feito em 12/10/2026 pelo Claude web:
+      250 por mês na Souz Engenharia (50 por obra), conferido no banco. Para
+      mudar: Contas e acessos → IA.
 - [ ] **Republicar a função `ia` só se ela mudar.** Até a etapa 2 ela não
       mudou: a versão 2 que está no ar serve.
 
