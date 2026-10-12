@@ -100,6 +100,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/**/*.test.js'],
+    /* congela a data: nenhum teste depende do dia em que roda */
+    setupFiles: ['tests/relogio/congelar.js'],
     coverage: { reporter: ['text', 'html'], include: ['src/**/*.js'] },
   },
 });
