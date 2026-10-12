@@ -13,8 +13,9 @@ import {
   novaEtapaCronograma,
   novoDiario,
 } from '../src/nucleo/base.js';
+import { HOJE } from './relogio/hoje.js';
 
-export const HOJE = '2026-09-25';
+export { HOJE };
 
 export const h = (n) => {
   const d = new Date(`${HOJE}T12:00:00Z`);

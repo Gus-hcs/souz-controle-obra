@@ -130,7 +130,9 @@ eu_ativo()) or (empresa_id is not null and empresa_id = minha_empresa()))`
    `db/bancada/acesso.mjs`.
 
 4. **Toda regra de negócio precisa de teste.** Cálculo se prova em `tests/`, não
-   na tela.
+   na tela. Teste não lê o relógio real: a data da suíte fica congelada em
+   `HOJE` (`tests/relogio/congelar.js`); quem precisa de outro dia chama
+   `vi.setSystemTime`.
 
 5. **Não altere `tests/esperado.json`.** É a planilha de referência que prova que
    os cálculos estão certos. Se um número mudar, o problema está no código.
@@ -246,6 +248,7 @@ Um termo para cada coisa, em todas as telas, PDFs e alertas:
 | `npm run dev`       | sobe em modo desenvolvimento                             |
 | `npm run build`     | gera `dist/index.html` — o sistema inteiro em um arquivo |
 | `npm test`          | conferência do motor de cálculo e da validação           |
+| `npm run test:relogio` | a mesma suíte com o relógio adiantado 30, 90 e 365 dias |
 | `npm run test:e2e`  | abre o sistema em navegador e percorre todas as telas    |
 | `npm run lint`      | análise estática                                         |
 | `npm run formatar`  | Prettier                                                 |
