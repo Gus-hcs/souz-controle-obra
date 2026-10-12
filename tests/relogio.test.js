@@ -24,19 +24,38 @@ describe('relógio dos testes', () => {
     expect(r).toBe('passou');
   });
 
+  /* useRealTimers só dentro de um afterAll: no fim do arquivo, depois de
+     todos os testes dele. */
+  const dentroDeAfterAll = (texto, pos) => {
+    const ini = texto.lastIndexOf('afterAll(', pos);
+    if (ini < 0) return false;
+    let aberto = 0;
+    for (let i = ini + 'afterAll'.length; i < pos; i++) {
+      if (texto[i] === '(') aberto++;
+      else if (texto[i] === ')') aberto--;
+      if (aberto === 0) return false;
+    }
+    return aberto > 0;
+  };
+
+  it('a conferência reconhece o afterAll de uma linha e o de bloco', () => {
+    const umaLinha = 'afterAll(() => vi.useRealTimers());';
+    const bloco = 'afterAll(() => {\n  vi.useRealTimers();\n  limpar();\n});';
+    const solto = 'afterAll(() => limpar());\nit("x", () => { vi.useRealTimers(); });';
+    expect(dentroDeAfterAll(umaLinha, umaLinha.indexOf('useRealTimers'))).toBe(true);
+    expect(dentroDeAfterAll(bloco, bloco.indexOf('useRealTimers'))).toBe(true);
+    expect(dentroDeAfterAll(solto, solto.indexOf('useRealTimers'))).toBe(false);
+  });
+
   it('nenhum teste devolve o relógio real no meio do arquivo', () => {
     const fora = [];
     for (const arq of readdirSync('tests').filter((a) => a.endsWith('.test.js'))) {
       if (arq === 'relogio.test.js') continue;
-      readFileSync(`tests/${arq}`, 'utf8')
-        .split('\n')
-        .forEach((linha, i) => {
-          if (
-            /useRealTimers/.test(linha) &&
-            !/^\s*afterAll\(\(\) => vi\.useRealTimers\(\)\);?\s*$/.test(linha)
-          )
-            fora.push(`${arq}:${i + 1}`);
-        });
+      const texto = readFileSync(`tests/${arq}`, 'utf8');
+      for (const m of texto.matchAll(/useRealTimers/g)) {
+        if (!dentroDeAfterAll(texto, m.index))
+          fora.push(`${arq}:${texto.slice(0, m.index).split('\n').length}`);
+      }
     }
     expect(fora).toEqual([]);
   });
