@@ -18,7 +18,8 @@ raiz · pendências do cliente · nota fiscal, comprovante e contrato assinado (
 lançamento de fornecimento + instalação com a parte de mão de obra separada ·
 relatórios em PDF com período, fotos, valores e observação, e histórico dos
 gerados · importação de planilha por modelo (obras, lançamentos, prestadores,
-cronograma) e da planilha MCMV · exportação CSV e Excel · acesso do Power BI ao
+cronograma) e da planilha MCMV · exportação de qualquer aba preenchida em PDF,
+Excel e CSV (botão "Exportar" do topo; conteúdo em `io/modelos-exportacao.js`) · acesso do Power BI ao
 PostgreSQL · construtoras (a conta de empresa que se vende): equipe com limite
 de acessos e de obras, cliente final que acompanha a obra sem ocupar vaga,
 tudo criado e controlado pelo administrador do sistema · leitura de nota fiscal
@@ -130,7 +131,9 @@ eu_ativo()) or (empresa_id is not null and empresa_id = minha_empresa()))`
    `db/bancada/acesso.mjs`.
 
 4. **Toda regra de negócio precisa de teste.** Cálculo se prova em `tests/`, não
-   na tela.
+   na tela. Teste não lê o relógio real: a data da suíte fica congelada em
+   `HOJE` (`tests/relogio/congelar.js`); quem precisa de outro dia chama
+   `vi.setSystemTime`.
 
 5. **Não altere `tests/esperado.json`.** É a planilha de referência que prova que
    os cálculos estão certos. Se um número mudar, o problema está no código.
@@ -246,6 +249,7 @@ Um termo para cada coisa, em todas as telas, PDFs e alertas:
 | `npm run dev`       | sobe em modo desenvolvimento                             |
 | `npm run build`     | gera `dist/index.html` — o sistema inteiro em um arquivo |
 | `npm test`          | conferência do motor de cálculo e da validação           |
+| `npm run test:relogio` | a mesma suíte com o relógio adiantado 30, 90 e 365 dias |
 | `npm run test:e2e`  | abre o sistema em navegador e percorre todas as telas    |
 | `npm run lint`      | análise estática                                         |
 | `npm run formatar`  | Prettier                                                 |

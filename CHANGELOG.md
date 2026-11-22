@@ -2,6 +2,19 @@
 
 ## Não publicado
 
+**Exportar qualquer aba**
+- Botão "Exportar" no topo de toda aba que a equipe preenche (Clientes,
+  Prestadores, Configuração, Contratos, Cronograma, Materiais, Medições,
+  Recebimentos, Lançamentos, Diário e Pendências), em PDF, Excel (.xlsx) ou
+  CSV. Só aparece quando a aba tem algo preenchido.
+- PDF com o cabeçalho dos relatórios (logo, obra, cliente, empresa), os
+  indicadores da aba, as tabelas com total e a situação em cor; Excel com aba
+  "Resumo" e uma aba por tabela, número/moeda/%/data de verdade e filtro.
+- O conteúdo sai de `io/modelos-exportacao.js`, só com funções do domínio;
+  `tests/exportacao-telas.test.js` confere que os totais batem com a tela.
+- `situacaoMaterial` saiu da tela de Materiais para `dominio/calculos.js`
+  (era regra de negócio na interface).
+
 **Responsivo**
 - Corrige rótulo de coluna vazando na mensagem "nenhum registro" de qualquer
   tabela vazia no celular (a linha de estado vazio, com `colspan`, ganhava por

@@ -413,6 +413,21 @@ function materialCalc(obra, mat) {
   };
 }
 
+/* Situação do item do plano, em texto e tom: a mesma na tela de Materiais
+   e no relatório exportado. Tom é a classe de cor da interface. */
+function situacaoMaterial(m, c) {
+  if (m.status === 'Cancelado') return { texto: 'Cancelado', tom: 'tinta3' };
+  /* o diário registrou que a falta dele parou o serviço */
+  if (c.ocorrencias.length) return { texto: 'Parou a frente (diário)', tom: 'atraso', diario: c.ocorrencias[0] };
+  if (c.travaFrente) return { texto: 'Travando a etapa', tom: 'atraso' };
+  if (c.vencido) return { texto: 'Vencido', tom: 'atraso' };
+  if (c.excesso > 0.005) return { texto: `Comprado +${fmtNum(c.excesso, 0)} ${m.unidade || ''}`.trim(), tom: 'tom-alerta' };
+  if (c.saldo <= 0.005) return { texto: 'Comprado', tom: 'feito' };
+  /* sobra do plano numa etapa que já acabou: não é pendência */
+  if (c.etapaConcluida) return { texto: 'Etapa concluída', tom: 'tinta3' };
+  return { texto: m.status || 'Planejar', tom: m.status === 'Comprado parcial' ? '' : 'tinta3' };
+}
+
 /* A tela de Materiais inteira sai daqui: os quatro KPIs, o "falta
    comprar por etapa" e o "comprar nos próximos N dias" (com o que já
    venceu primeiro — é o que trava a obra agora). Cancelado fica fora. */
@@ -3824,6 +3839,7 @@ function resumoErrosApp(lista, agora = Date.now()) {
 }
 
 export {
+  situacaoMaterial,
   somaLeituraNota,
   fornecedorPorCnpj,
   notaJaLancada,

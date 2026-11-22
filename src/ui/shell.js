@@ -334,6 +334,7 @@ const App = {
       }
       <div class="dir">
         ${acoesTela}
+        ${typeof this.botaoExportar === 'function' ? this.botaoExportar() : ''}
         ${avisoGravacao}
         <button class="conta-btn" data-acao="conta-menu" aria-haspopup="menu" aria-expanded="false" title="${esc([id.empresa, usuario, id.papel].filter(Boolean).join(' · '))}">
           <span class="conta-avatar" aria-hidden="true">${esc(usuario.charAt(0).toUpperCase())}</span>
