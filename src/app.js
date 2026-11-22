@@ -48,6 +48,7 @@ import './ui/telas/clientes.js';
 import './ui/telas/painel.js';
 import './ui/telas/ajustes.js';
 import './ui/telas/relatorios.js';
+import './io/exportar-tela.js';
 
 /* Erros do app (0026): o que quebra chega ao admin, sem dado da obra; só
    com banco, conta ativa e rede. Erro de ação pega pelo clique também. */

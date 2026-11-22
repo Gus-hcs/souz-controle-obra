@@ -25,7 +25,12 @@ import {
   isISO,
   norm,
 } from '../../nucleo/base.js';
-import { coberturaPlanoMateriais, materialCalc, resumoMateriais } from '../../dominio/calculos.js';
+import {
+  coberturaPlanoMateriais,
+  materialCalc,
+  resumoMateriais,
+  situacaoMaterial,
+} from '../../dominio/calculos.js';
 import { graficoBarras } from '../../graficos/index.js';
 import { Store } from '../../dados/store.js';
 import { ACOES } from '../acoes.js';
@@ -174,19 +179,6 @@ function celulaPrazo(m, c, hoje) {
     <span class="${cls || 'tinta2'}">${esc(fmtDataCurta(m.dataNecessaria))}</span>
     <span class="${cls || 'tinta3'}" style="font-size:var(--t-peq)">${esc(sub)}</span>
   </div>`;
-}
-
-function situacaoMaterial(m, c) {
-  if (m.status === 'Cancelado') return { texto: 'Cancelado', tom: 'tinta3' };
-  /* o diário registrou que a falta dele parou o serviço */
-  if (c.ocorrencias.length) return { texto: 'Parou a frente (diário)', tom: 'atraso', diario: c.ocorrencias[0] };
-  if (c.travaFrente) return { texto: 'Travando a etapa', tom: 'atraso' };
-  if (c.vencido) return { texto: 'Vencido', tom: 'atraso' };
-  if (c.excesso > 0.005) return { texto: `Comprado +${fmtNum(c.excesso, 0)} ${m.unidade || ''}`.trim(), tom: 'tom-alerta' };
-  if (c.saldo <= 0.005) return { texto: 'Comprado', tom: 'feito' };
-  /* sobra do plano numa etapa que já acabou: não é pendência */
-  if (c.etapaConcluida) return { texto: 'Etapa concluída', tom: 'tinta3' };
-  return { texto: m.status || 'Planejar', tom: m.status === 'Comprado parcial' ? '' : 'tinta3' };
 }
 
 function celulaSituacao(m, c) {

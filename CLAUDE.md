@@ -18,7 +18,8 @@ raiz · pendências do cliente · nota fiscal, comprovante e contrato assinado (
 lançamento de fornecimento + instalação com a parte de mão de obra separada ·
 relatórios em PDF com período, fotos, valores e observação, e histórico dos
 gerados · importação de planilha por modelo (obras, lançamentos, prestadores,
-cronograma) e da planilha MCMV · exportação CSV e Excel · acesso do Power BI ao
+cronograma) e da planilha MCMV · exportação de qualquer aba preenchida em PDF,
+Excel e CSV (botão "Exportar" do topo; conteúdo em `io/modelos-exportacao.js`) · acesso do Power BI ao
 PostgreSQL · construtoras (a conta de empresa que se vende): equipe com limite
 de acessos e de obras, cliente final que acompanha a obra sem ocupar vaga,
 tudo criado e controlado pelo administrador do sistema · leitura de nota fiscal
